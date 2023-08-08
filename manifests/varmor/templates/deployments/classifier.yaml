@@ -1,0 +1,61 @@
+{{- if .Values.defenseInDepth.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "varmor.classifier.fullname" . }}
+  namespace: {{ include "varmor.namespace" . }}
+  labels:
+    {{- include "varmor.classifier.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.classifier.autoscaling.enabled }}
+  replicas: {{ .Values.classifier.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "varmor.classifier.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.classifier.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "varmor.classifier.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- if .Values.image.password }}
+      imagePullSecrets:
+      {{- with .Values.imagePullSecrets }}
+      {{- toYaml . | nindent 6 }}
+      {{- end }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.classifier.podSecurityContext | nindent 8 }}
+      containers:
+      - name: {{ .Values.classifier.name }}
+        image: "{{ .Values.image.registry }}/{{ .Values.image.namespace }}/{{ .Values.classifier.image.name }}:{{ .Values.classifier.image.tag | default .Chart.AppVersion }}"
+        imagePullPolicy: {{ .Values.classifier.image.pullPolicy }}
+        securityContext:
+          {{- toYaml .Values.classifier.securityContext | nindent 10 }}
+        ports:
+        - containerPort: 5000
+          name: class
+          protocol: TCP
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 5000
+        resources:
+          {{- toYaml .Values.classifier.resources | nindent 10 }}
+      {{- with .Values.classifier.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.classifier.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.classifier.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end}}

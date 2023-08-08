@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo-1
+  namespace: demo
+  labels:
+    sandbox.varmor.org/enable: "true"
+    environment: production
+    app: demo-1
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: demo-1
+  template:
+    metadata:
+      labels:
+        app: demo-1
+      annotations:
+        container.apparmor.security.beta.kubernetes.io/c0: unconfined
+    spec:
+      containers:
+      - name: c0
+        image: debian:10
+        command: ["/bin/sh", "-c", "sleep infinity"]
+      - name: c1
+        image: debian:10
+        command: ["/bin/sh", "-c", "sleep infinity"]

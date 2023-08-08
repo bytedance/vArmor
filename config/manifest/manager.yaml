@@ -1,0 +1,47 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: varmor-manager
+  namespace: varmor
+  labels:
+    app: varmor
+    app.kubernetes.io/name: varmor-manager
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: varmor
+      app.kubernetes.io/name: varmor-manager
+  template:
+    metadata:
+      labels:
+        app: varmor
+        app.kubernetes.io/name: varmor-manager
+    spec:
+      serviceAccountName: varmor-manager
+      nodeSelector: 
+        kubernetes.io/os: linux
+      securityContext:
+        runAsNonRoot: true
+      imagePullSecrets:
+      - name: varmor-image-pull-secret
+      containers:
+      - name: manager
+        image: elkeid-test-cn-beijing.cr.volces.com/varmor/varmor:v0.5.0
+        imagePullPolicy: Always
+        command: ["/varmor/vArmor"]
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - MKNOD
+            - NET_RAW
+        ports:
+        - containerPort: 3443
+          name: webhook
+          protocol: TCP
+        - containerPort: 8080
+          name: status
+          protocol: TCP

@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: varmor
+  name: varmor-status-svc
+  namespace: varmor
+spec:
+  ports:
+  - port: 8080
+    name: status
+    targetPort: 8080
+  selector:
+    app: varmor
+    app.kubernetes.io/name: varmor-manager
+    identity: leader

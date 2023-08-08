@@ -1,4 +1,3 @@
 [submodule "vArmor-ebpf"]
 	path = vArmor-ebpf
 	url = https://github.com/bytedance/vArmor-ebpf.git
-	branch = release-0.2.1

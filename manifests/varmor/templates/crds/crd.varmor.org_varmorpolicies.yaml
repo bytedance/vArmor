@@ -1,0 +1,645 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.11.3
+  creationTimestamp: null
+  name: varmorpolicies.crd.varmor.org
+spec:
+  group: crd.varmor.org
+  names:
+    kind: VarmorPolicy
+    listKind: VarmorPolicyList
+    plural: varmorpolicies
+    singular: varmorpolicy
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.policy.enforcer
+      name: ENFORCER
+      type: string
+    - jsonPath: .spec.policy.mode
+      name: MODE
+      type: string
+    - jsonPath: .spec.target.kind
+      name: TARGET-KIND
+      type: string
+    - jsonPath: .spec.target.name
+      name: TARGET-NAME
+      type: string
+    - jsonPath: .spec.target.selector
+      name: TARGET-SELECTOR
+      type: string
+    - jsonPath: .status.profileName
+      name: PROFILE-NAME
+      type: string
+    - jsonPath: .status.ready
+      name: READY
+      type: boolean
+    - jsonPath: .status.phase
+      name: STATUS
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: AGE
+      type: date
+    name: v1beta1
+    schema:
+      openAPIV3Schema:
+        description: VarmorPolicy is the Schema for the varmorpolicies API
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: VarmorPolicySpec defines the desired state of VarmorPolicy
+            properties:
+              policy:
+                properties:
+                  customPolicy:
+                    description: '[Experimental] CustomPolicy is almost the same as
+                      KubeArmor''s SecuritySpec to increase compatibility. Only worked
+                      with the AppArmor enforcer.'
+                    properties:
+                      action:
+                        type: string
+                      apparmor:
+                        description: AppArmor Profile Raw Rules
+                        type: string
+                      capabilities:
+                        description: CapabilitiesType Structure
+                        properties:
+                          action:
+                            type: string
+                          matchCapabilities:
+                            items:
+                              description: CapabilitiesCapabilityType Structure
+                              properties:
+                                action:
+                                  type: string
+                                capability:
+                                  type: string
+                                fromSource:
+                                  items:
+                                    description: MatchSourceType Structure
+                                    properties:
+                                      dir:
+                                        type: string
+                                      path:
+                                        type: string
+                                      recursive:
+                                        type: boolean
+                                    type: object
+                                  type: array
+                                message:
+                                  type: string
+                                severity:
+                                  type: integer
+                                tags:
+                                  items:
+                                    type: string
+                                  type: array
+                              required:
+                              - capability
+                              type: object
+                            type: array
+                          message:
+                            type: string
+                          severity:
+                            type: integer
+                          tags:
+                            items:
+                              type: string
+                            type: array
+                        type: object
+                      file:
+                        description: FileType Structure
+                        properties:
+                          action:
+                            type: string
+                          matchDirectories:
+                            items:
+                              description: FileDirectoryType Structure
+                              properties:
+                                action:
+                                  type: string
+                                dir:
+                                  type: string
+                                fromSource:
+                                  items:
+                                    description: MatchSourceType Structure
+                                    properties:
+                                      dir:
+                                        type: string
+                                      path:
+                                        type: string
+                                      recursive:
+                                        type: boolean
+                                    type: object
+                                  type: array
+                                message:
+                                  type: string
+                                ownerOnly:
+                                  type: boolean
+                                readOnly:
+                                  type: boolean
+                                recursive:
+                                  type: boolean
+                                severity:
+                                  type: integer
+                                tags:
+                                  items:
+                                    type: string
+                                  type: array
+                              required:
+                              - dir
+                              type: object
+                            type: array
+                          matchPaths:
+                            items:
+                              description: FilePathType Structure
+                              properties:
+                                action:
+                                  type: string
+                                fromSource:
+                                  items:
+                                    description: MatchSourceType Structure
+                                    properties:
+                                      dir:
+                                        type: string
+                                      path:
+                                        type: string
+                                      recursive:
+                                        type: boolean
+                                    type: object
+                                  type: array
+                                message:
+                                  type: string
+                                ownerOnly:
+                                  type: boolean
+                                path:
+                                  type: string
+                                readOnly:
+                                  type: boolean
+                                severity:
+                                  type: integer
+                                tags:
+                                  items:
+                                    type: string
+                                  type: array
+                              required:
+                              - path
+                              type: object
+                            type: array
+                          matchPatterns:
+                            items:
+                              description: FilePatternType Structure
+                              properties:
+                                action:
+                                  type: string
+                                message:
+                                  type: string
+                                ownerOnly:
+                                  type: boolean
+                                pattern:
+                                  type: string
+                                readOnly:
+                                  type: boolean
+                                severity:
+                                  type: integer
+                                tags:
+                                  items:
+                                    type: string
+                                  type: array
+                              required:
+                              - pattern
+                              type: object
+                            type: array
+                          message:
+                            type: string
+                          severity:
+                            type: integer
+                          tags:
+                            items:
+                              type: string
+                            type: array
+                        type: object
+                      network:
+                        description: NetworkType Structure
+                        properties:
+                          action:
+                            type: string
+                          matchProtocols:
+                            items:
+                              description: NetworkProtocolType Structure
+                              properties:
+                                action:
+                                  type: string
+                                fromSource:
+                                  items:
+                                    description: MatchSourceType Structure
+                                    properties:
+                                      dir:
+                                        type: string
+                                      path:
+                                        type: string
+                                      recursive:
+                                        type: boolean
+                                    type: object
+                                  type: array
+                                message:
+                                  type: string
+                                protocol:
+                                  type: string
+                                severity:
+                                  type: integer
+                                tags:
+                                  items:
+                                    type: string
+                                  type: array
+                              required:
+                              - protocol
+                              type: object
+                            type: array
+                          message:
+                            type: string
+                          severity:
+                            type: integer
+                          tags:
+                            items:
+                              type: string
+                            type: array
+                        type: object
+                      process:
+                        description: ProcessType Structure
+                        properties:
+                          action:
+                            type: string
+                          matchDirectories:
+                            items:
+                              description: ProcessDirectoryType Structure
+                              properties:
+                                action:
+                                  type: string
+                                dir:
+                                  type: string
+                                fromSource:
+                                  items:
+                                    description: MatchSourceType Structure
+                                    properties:
+                                      dir:
+                                        type: string
+                                      path:
+                                        type: string
+                                      recursive:
+                                        type: boolean
+                                    type: object
+                                  type: array
+                                message:
+                                  type: string
+                                ownerOnly:
+                                  type: boolean
+                                recursive:
+                                  type: boolean
+                                severity:
+                                  type: integer
+                                tags:
+                                  items:
+                                    type: string
+                                  type: array
+                              required:
+                              - dir
+                              type: object
+                            type: array
+                          matchPaths:
+                            items:
+                              description: ProcessPathType Structure
+                              properties:
+                                action:
+                                  type: string
+                                fromSource:
+                                  items:
+                                    description: MatchSourceType Structure
+                                    properties:
+                                      dir:
+                                        type: string
+                                      path:
+                                        type: string
+                                      recursive:
+                                        type: boolean
+                                    type: object
+                                  type: array
+                                message:
+                                  type: string
+                                ownerOnly:
+                                  type: boolean
+                                path:
+                                  type: string
+                                severity:
+                                  type: integer
+                                tags:
+                                  items:
+                                    type: string
+                                  type: array
+                              required:
+                              - path
+                              type: object
+                            type: array
+                          matchPatterns:
+                            items:
+                              description: ProcessPatternType Structure
+                              properties:
+                                action:
+                                  type: string
+                                message:
+                                  type: string
+                                ownerOnly:
+                                  type: boolean
+                                pattern:
+                                  type: string
+                                severity:
+                                  type: integer
+                                tags:
+                                  items:
+                                    type: string
+                                  type: array
+                              required:
+                              - pattern
+                              type: object
+                            type: array
+                          message:
+                            type: string
+                          severity:
+                            type: integer
+                          tags:
+                            items:
+                              type: string
+                            type: array
+                        type: object
+                    required:
+                    - action
+                    type: object
+                  defenseInDepth:
+                    description: '[Experimental] DefenseInDepth is used for the defense-in-depth
+                      sandbox features. Only worked with the AppArmor enforcer.'
+                    properties:
+                      autoEnable:
+                        description: AutoEnable decides whether or not to enable enforce
+                          mode after modeling is complete
+                        type: boolean
+                      modelingDuration:
+                        description: ModelingDuration is the duration in minutes to
+                          modeling
+                        type: integer
+                    required:
+                    - modelingDuration
+                    type: object
+                  enforcer:
+                    description: 'Enforcer is used to specify which LSM to use for
+                      mandatory access control. Available values: AppArmor, BPF'
+                    type: string
+                  enhanceProtect:
+                    description: EnhanceProtect is used for building a policy for
+                      Hardening & AttackProtection & VulMitigation rules from templates.
+                    properties:
+                      appArmorRawRules:
+                        description: AppArmorRawRules is used to set native AppArmor
+                          rules, each rule must end with a comma
+                        items:
+                          type: string
+                        type: array
+                      attackProtectionRules:
+                        items:
+                          properties:
+                            rules:
+                              items:
+                                type: string
+                              type: array
+                            targets:
+                              description: Targets is used to specify the targets
+                                to which the policy applies. It can be any executable
+                                file but it must be a full path. It only works when
+                                using AppArmor as enforcer.
+                              items:
+                                type: string
+                              type: array
+                          required:
+                          - rules
+                          type: object
+                        type: array
+                      bpfRawRules:
+                        description: BpfRawRules is used to set native BPF rules
+                        properties:
+                          files:
+                            items:
+                              properties:
+                                pattern:
+                                  type: string
+                                permissions:
+                                  items:
+                                    type: string
+                                  type: array
+                              required:
+                              - pattern
+                              - permissions
+                              type: object
+                            type: array
+                          network:
+                            properties:
+                              egresses:
+                                description: Egresses is the list of egress rules
+                                  to be applied to restrict particular IPs and ports.
+                                items:
+                                  properties:
+                                    ip:
+                                      description: IP defines policy on a particular
+                                        IP. If this field is set then neither of the
+                                        IPBlock field can be.
+                                      type: string
+                                    ipBlock:
+                                      description: IPBlock defines policy on a particular
+                                        IPBlock with CIDR. If this field is set then
+                                        neither of the IP field can be.
+                                      type: string
+                                    port:
+                                      description: Port defines policy on a particular
+                                        port. If this field is zero or missing, this
+                                        rule matches all ports.
+                                      type: integer
+                                  type: object
+                                type: array
+                            required:
+                            - egresses
+                            type: object
+                          processes:
+                            items:
+                              properties:
+                                pattern:
+                                  type: string
+                                permissions:
+                                  items:
+                                    type: string
+                                  type: array
+                              required:
+                              - pattern
+                              - permissions
+                              type: object
+                            type: array
+                        type: object
+                      hardeningRules:
+                        items:
+                          type: string
+                        type: array
+                      vulMitigationRules:
+                        items:
+                          type: string
+                        type: array
+                    type: object
+                  mode:
+                    description: 'Available values: AlwaysAllow, RuntimeDefault, EnhanceProtect,
+                      CustomPolicy, DefenseInDepth'
+                    type: string
+                  privileged:
+                    description: Privileged is used to identify whether the policy
+                      is for the privileged container. Only used for the AppArmor
+                      enforcer.
+                    type: boolean
+                required:
+                - enforcer
+                - mode
+                type: object
+              target:
+                description: A label query over ArmorProfile that are managed by VarmorPolicy.
+                  Must match in order to be controlled. It must match the VarmorPolicy's
+                  labels.
+                properties:
+                  containers:
+                    description: Containers are used to specify the names of the protected
+                      containers. If it is empty, sandbox protection will be enabled
+                      for all containers within the workload (excluding initContainers
+                      and ephemeralContainers).
+                    items:
+                      type: string
+                    type: array
+                  kind:
+                    description: 'Kind is used to specify the type of workloads for
+                      the protection targets. Available values: Deployment, StatefulSet,
+                      DaemonSet, Pod.'
+                    type: string
+                  name:
+                    description: Name is used to specify a specific workload name.
+                    type: string
+                  selector:
+                    description: 'LabelSelector is used to match workloads that meet
+                      the specified conditions (Note: the type of workloads is determined
+                      by the KIND field)'
+                    properties:
+                      matchExpressions:
+                        description: matchExpressions is a list of label selector
+                          requirements. The requirements are ANDed.
+                        items:
+                          description: A label selector requirement is a selector
+                            that contains values, a key, and an operator that relates
+                            the key and values.
+                          properties:
+                            key:
+                              description: key is the label key that the selector
+                                applies to.
+                              type: string
+                            operator:
+                              description: operator represents a key's relationship
+                                to a set of values. Valid operators are In, NotIn,
+                                Exists and DoesNotExist.
+                              type: string
+                            values:
+                              description: values is an array of string values. If
+                                the operator is In or NotIn, the values array must
+                                be non-empty. If the operator is Exists or DoesNotExist,
+                                the values array must be empty. This array is replaced
+                                during a strategic merge patch.
+                              items:
+                                type: string
+                              type: array
+                          required:
+                          - key
+                          - operator
+                          type: object
+                        type: array
+                      matchLabels:
+                        additionalProperties:
+                          type: string
+                        description: matchLabels is a map of {key,value} pairs. A
+                          single {key,value} in the matchLabels map is equivalent
+                          to an element of matchExpressions, whose key field is "key",
+                          the operator is "In", and the values array contains only
+                          "value". The requirements are ANDed.
+                        type: object
+                    type: object
+                    x-kubernetes-map-type: atomic
+                required:
+                - kind
+                type: object
+            required:
+            - policy
+            - target
+            type: object
+          status:
+            description: VarmorPolicyStatus defines the observed state of VarmorPolicy
+            properties:
+              conditions:
+                description: Conditions
+                items:
+                  properties:
+                    lastTransitionTime:
+                      description: Last time the condition transitioned from one status
+                        to another.
+                      format: date-time
+                      type: string
+                    message:
+                      description: A human readable message indicating details about
+                        the transition.
+                      type: string
+                    reason:
+                      description: The reason for the condition's last transition.
+                      type: string
+                    status:
+                      description: Status of the condition, one of True, False, Unknown.
+                      type: string
+                    type:
+                      description: Type of ArmorProfile condition.
+                      type: string
+                  required:
+                  - status
+                  - type
+                  type: object
+                type: array
+              phase:
+                description: 'Phase is used to indicate the processing phase of the
+                  policy. Possible values: Pending, Modeling, Completed, Protecting,
+                  Error. (Note: You can find out which varmor-agent has an error by
+                  reading the ArmorProfile/status corresponding to the current VarmorPolicy)'
+                type: string
+              profileName:
+                type: string
+              ready:
+                description: Ready is used to indicate whether the profile of policy
+                  is loaded.
+                type: boolean
+            required:
+            - profileName
+            - ready
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

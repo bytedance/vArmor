@@ -1,0 +1,263 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.11.3
+  creationTimestamp: null
+  name: armorprofilemodels.crd.varmor.org
+spec:
+  group: crd.varmor.org
+  names:
+    kind: ArmorProfileModel
+    listKind: ArmorProfileModelList
+    plural: armorprofilemodels
+    singular: armorprofilemodel
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .status.desiredNumber
+      name: DESIRED
+      type: integer
+    - jsonPath: .status.completedNumber
+      name: COMPLETED
+      type: integer
+    - jsonPath: .status.ready
+      name: READY
+      type: boolean
+    - jsonPath: .metadata.creationTimestamp
+      name: AGE
+      type: date
+    name: v1beta1
+    schema:
+      openAPIV3Schema:
+        description: ArmorProfileModel is the Schema for the armorprofilemodels API
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: ArmorProfileModelSpec defines the desired state of ArmorProfileModel
+            properties:
+              dynamicResult:
+                properties:
+                  capabilities:
+                    items:
+                      type: string
+                    type: array
+                  executions:
+                    items:
+                      type: string
+                    type: array
+                  files:
+                    items:
+                      properties:
+                        oldPath:
+                          type: string
+                        owner:
+                          type: boolean
+                        path:
+                          type: string
+                        permissions:
+                          items:
+                            type: string
+                          type: array
+                      required:
+                      - oldPath
+                      - owner
+                      - path
+                      - permissions
+                      type: object
+                    type: array
+                  networks:
+                    items:
+                      properties:
+                        family:
+                          type: string
+                        protocol:
+                          type: string
+                        sockType:
+                          type: string
+                      required:
+                      - family
+                      - protocol
+                      - sockType
+                      type: object
+                    type: array
+                  profiles:
+                    items:
+                      type: string
+                    type: array
+                  ptraces:
+                    items:
+                      properties:
+                        peer:
+                          type: string
+                        permissions:
+                          items:
+                            type: string
+                          type: array
+                      required:
+                      - peer
+                      - permissions
+                      type: object
+                    type: array
+                  signals:
+                    items:
+                      properties:
+                        peer:
+                          type: string
+                        permissions:
+                          items:
+                            type: string
+                          type: array
+                        signals:
+                          items:
+                            type: string
+                          type: array
+                      required:
+                      - peer
+                      - permissions
+                      - signals
+                      type: object
+                    type: array
+                  unhandled:
+                    items:
+                      type: string
+                    type: array
+                type: object
+              profile:
+                properties:
+                  bpfContent:
+                    properties:
+                      capabilities:
+                        format: int64
+                        type: integer
+                      files:
+                        items:
+                          properties:
+                            flags:
+                              format: int32
+                              type: integer
+                            permissions:
+                              format: int32
+                              type: integer
+                            prefix:
+                              type: string
+                            suffix:
+                              type: string
+                          required:
+                          - flags
+                          - permissions
+                          type: object
+                        type: array
+                      networks:
+                        items:
+                          properties:
+                            address:
+                              type: string
+                            cidr:
+                              type: string
+                            flags:
+                              format: int32
+                              type: integer
+                            port:
+                              format: int32
+                              type: integer
+                          required:
+                          - flags
+                          type: object
+                        type: array
+                      processes:
+                        items:
+                          properties:
+                            flags:
+                              format: int32
+                              type: integer
+                            permissions:
+                              format: int32
+                              type: integer
+                            prefix:
+                              type: string
+                            suffix:
+                              type: string
+                          required:
+                          - flags
+                          - permissions
+                          type: object
+                        type: array
+                    type: object
+                  content:
+                    type: string
+                  enforcer:
+                    type: string
+                  mode:
+                    type: string
+                  name:
+                    type: string
+                required:
+                - mode
+                - name
+                type: object
+              staticResult:
+                type: object
+            type: object
+          status:
+            description: ArmorProfileModelStatus defines the observed state of ArmorProfileModel
+            properties:
+              completedNumber:
+                type: integer
+              conditions:
+                items:
+                  properties:
+                    lastTransitionTime:
+                      description: Last time the condition transitioned from one status
+                        to another.
+                      format: date-time
+                      type: string
+                    message:
+                      description: A human readable message indicating details about
+                        the transition.
+                      type: string
+                    nodeName:
+                      type: string
+                    reason:
+                      description: The reason for the condition's last transition.
+                      type: string
+                    status:
+                      description: Status of the condition, one of True, False, Unknown.
+                      type: string
+                    type:
+                      description: Type of ArmorProfile condition.
+                      type: string
+                  required:
+                  - nodeName
+                  - status
+                  - type
+                  type: object
+                type: array
+              desiredNumber:
+                type: integer
+              ready:
+                description: It indicate whether the AppArmor Profile for target is
+                  built successfully
+                type: boolean
+            required:
+            - ready
+            type: object
+        required:
+        - spec
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

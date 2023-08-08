@@ -1,0 +1,25 @@
+apiVersion: crd.varmor.org/v1beta1
+kind: VarmorPolicy
+metadata:
+  name: demo-2
+  namespace: demo
+spec:
+  target:
+    kind: Deployment
+    selector:
+      matchExpressions:
+      - key: environment
+        operator: NotIn
+        values: [dev, qa]
+      matchLabels:
+        app: demo
+  policy:
+    enforcer: BPF
+    mode: EnhanceProtect
+    enhanceProtect:
+      hardeningRules:
+      - disable_cap_net_raw
+      attackProtectionRules:
+      - rules:
+        - disable-write-etc
+        - mitigate-sa-leak

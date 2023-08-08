@@ -1,0 +1,10 @@
+{{- if .Values.forceNamespace.enabled }}
+{{ if not (lookup "v1" "Namespace" "" .Values.forceNamespace.namespace) }}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Values.forceNamespace.namespace }}
+  labels:
+    {{- include "varmor.labels" . | nindent 4 }}
+{{ end }}
+{{ end }}

@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: benchmark
+  namespace: test
+  labels:
+    app: benchmark
+    type: benchmark
+    sandbox.varmor.org/enable: "true"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: benchmark
+  template:
+    metadata:
+      labels:
+        app: benchmark
+      annotations:
+        container.apparmor.security.beta.kubernetes.io/test: unconfined
+    spec:
+      volumes:
+      - name: host
+        hostPath:
+          path: /
+      containers:
+      - name: test
+        image: debian:10
+        command: ["/bin/sh", "-c", "sleep infinity"]
+        volumeMounts:
+        - name: host
+          mountPath: /host

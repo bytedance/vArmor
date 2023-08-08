@@ -1,0 +1,18 @@
+apiVersion: crd.varmor.org/v1beta1
+kind: VarmorPolicy
+metadata:
+  name: demo-1
+  namespace: demo
+spec:
+  target:
+    kind: Deployment
+    selector:
+      matchExpressions:
+      - key: environment
+        operator: NotIn
+        values: [dev, qa]
+      matchLabels:
+        app: demo-1
+  policy:
+    enforcer: AppArmor
+    mode: AlwaysAllow

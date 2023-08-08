@@ -1,0 +1,122 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ include "varmor.agent.fullname" . }}
+  namespace: {{ include "varmor.namespace" . }}
+  labels:
+    {{- include "varmor.agent.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "varmor.agent.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "varmor.agent.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- if .Values.image.password }}
+      imagePullSecrets:
+      {{- with .Values.imagePullSecrets }}
+      {{- toYaml . | nindent 6 }}
+      {{- end }}
+      {{- end }}
+      serviceAccountName: {{ include "varmor.agent.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.agent.podSecurityContext | nindent 8 }}
+      containers:
+      - name: {{ .Values.agent.name }}
+        image: "{{ .Values.image.registry }}/{{ .Values.image.namespace }}/{{ .Values.agent.image.name }}:{{ .Values.agent.image.tag | default .Chart.AppVersion }}"
+        imagePullPolicy: {{ .Values.agent.image.pullPolicy }}
+        command: ["/varmor/vArmor", "--agent"]
+        {{- if or .Values.agent.args .Values.defenseInDepth.enabled .Values.bpfLsmEnforcer.enabled .Values.unloadAllAaProfile.enabled }}
+        args:
+          {{- if .Values.agent.args }}
+            {{- with .Values.agent.args }}
+              {{- toYaml . | nindent 8 }}
+            {{- end }}
+          {{- end }}
+          {{- if .Values.defenseInDepth.enabled }}
+            {{- with .Values.agent.defenseInDepth.args }}
+              {{- toYaml . | nindent 8 }}
+            {{- end }}
+          {{- end }}
+          {{- if .Values.bpfLsmEnforcer.enabled }}
+            {{- with .Values.agent.bpfLsmEnforcer.args }}
+              {{- toYaml . | nindent 8 }}
+            {{- end }}
+          {{- end }}
+          {{- if .Values.unloadAllAaProfile.enabled }}
+            {{- with .Values.agent.unloadAllAaProfile.args }}
+              {{- toYaml . | nindent 8 }}
+            {{- end }}
+          {{- end }}
+        {{- end }}
+        securityContext:
+          {{- toYaml .Values.agent.securityContext | nindent 10 }}
+        volumeMounts:
+        - mountPath: /sys/kernel/security
+          name: securityfs
+        {{- if .Values.appArmorLsmEnforcer.enabled }}
+          {{- with .Values.agent.appArmorLsmEnforcer.volumeMounts }}
+            {{- toYaml . | nindent 8 }}
+          {{- end }}
+        {{- end }}
+        {{- if .Values.bpfLsmEnforcer.enabled }}
+          {{- with .Values.agent.bpfLsmEnforcer.volumeMounts }}
+            {{- toYaml . | nindent 8 }}
+          {{- end }}
+        {{- end }}
+        {{- if .Values.defenseInDepth.enabled }}
+          {{- with .Values.agent.defenseInDepth.volumeMounts }}
+            {{- toYaml . | nindent 8 }}
+          {{- end }}
+        {{- end }}
+        {{- if or .Values.bpfLsmEnforcer.enabled .Values.defenseInDepth.enabled }}
+          {{- with .Values.agent.lsmRelated.volumeMounts }}
+            {{- toYaml . | nindent 8 }}
+          {{- end }}
+        {{- end }}
+        resources:
+        {{- if .Values.bpfLsmEnforcer.enabled }}
+        {{- toYaml .Values.agent.bpfLsmEnforcer.resources | nindent 10 }}
+        {{- end }}
+        {{- if not .Values.bpfLsmEnforcer.enabled }}
+        {{- toYaml .Values.agent.appArmorLsmEnforcer.resources | nindent 10 }}
+        {{- end }}          
+      volumes:
+      - hostPath:
+          path: /sys/kernel/security
+          type: Directory
+        name: securityfs
+      {{- if .Values.appArmorLsmEnforcer.enabled }}
+        {{- with .Values.agent.appArmorLsmEnforcer.volumes }}
+          {{- toYaml . | nindent 6 }}
+        {{- end }}
+      {{- end }}
+      {{- if .Values.bpfLsmEnforcer.enabled }}
+        {{- with .Values.agent.bpfLsmEnforcer.volumes }}
+          {{- toYaml . | nindent 6 }}
+        {{- end }}
+      {{- end }}
+      {{- if .Values.defenseInDepth.enabled }}
+        {{- with .Values.agent.defenseInDepth.volumes }}
+          {{- toYaml . | nindent 6 }}
+        {{- end }}
+      {{- end }}
+      {{- if or .Values.bpfLsmEnforcer.enabled .Values.defenseInDepth.enabled }}
+        {{- with .Values.agent.lsmRelated.volumes }}
+          {{- toYaml . | nindent 6 }}
+        {{- end }}
+      {{- end }}
+      {{- with .Values.agent.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.agent.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.agent.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

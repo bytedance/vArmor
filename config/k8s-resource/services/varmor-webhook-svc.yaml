@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: varmor
+  name: varmor-webhook-svc
+  namespace: varmor
+spec:
+  ports:
+  - port: 443
+    name: webhook
+    targetPort: 3443
+  selector:
+    app: varmor
+    app.kubernetes.io/name: varmor-manager

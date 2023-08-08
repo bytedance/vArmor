@@ -1,0 +1,14 @@
+# Binaries for programs and plugins
+bin
+github.com
+varmor-agent.kubeconfig
+varmor-manager.kubeconfig
+*.tar.gz
+*.tar
+*.tgz
+*.log
+*.txt
+__pycache__
+venv
+coverage.out
+.DS_Store

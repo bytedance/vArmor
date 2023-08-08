@@ -1,0 +1,6 @@
+spec:
+  nodeNumber: 1
+  profile:
+    name: varmor.test.profile
+    content: YWJpIDxhYmkvMy4wPiwKCnByb2ZpbGUgdmFybW9yLnRlc3QucHJvZmlsZSB7CiAgZmlsZSwKICBkZW55IGZpbGUgL2V0Yy9wYXNzd2QgciwKCiAgZGVueSBuZXR3b3JrIGljbXAsCiAgI2NhcGFiaWxpdHksCiAgI2RlbnkgY2FwYWJpbGl0eSBuZXRfYmluZF9zZXJ2aWNlLAogICNjYXBhYmlsaXR5IG5ldF9yYXcsCiAgI3NpZ25hbCBzZW5kLAp9Cg==
+    mode: enforce

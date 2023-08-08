@@ -1,0 +1,78 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "varmor.manager.fullname" . }}
+  namespace: {{ include "varmor.namespace" . }}
+  labels:
+    {{- include "varmor.manager.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.manager.autoscaling.enabled }}
+  replicas: {{ .Values.manager.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "varmor.manager.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.manager.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "varmor.manager.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- if .Values.image.password }}
+      imagePullSecrets:
+      {{- with .Values.imagePullSecrets }}
+      {{- toYaml . | nindent 6 }}
+      {{- end }}
+      {{- end }}
+      serviceAccountName: {{ include "varmor.manager.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.manager.podSecurityContext | nindent 8 }}
+      containers:
+      - name: {{ .Values.manager.name }}
+        image: "{{ .Values.image.registry }}/{{ .Values.image.namespace }}/{{ .Values.manager.image.name }}:{{ .Values.manager.image.tag | default .Chart.AppVersion }}"
+        imagePullPolicy: {{ .Values.manager.image.pullPolicy }}
+        command: ["/varmor/vArmor"]
+        {{- if or .Values.manager.args .Values.defenseInDepth.enabled .Values.restartExistWorkloads.enabled  }}
+        args:
+        {{- if .Values.manager.args }}
+        {{- with .Values.manager.args }}
+          {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- end }}
+        {{- if .Values.defenseInDepth.enabled }}
+        {{- with .Values.manager.defenseInDepth.args }}
+          {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- end }}
+        {{- if or .Values.defenseInDepth.enabled .Values.restartExistWorkloads.enabled }}
+        {{- with .Values.manager.restartExistWorkloads.args }}
+          {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- end }}
+        {{- end }}
+        securityContext:
+          {{- toYaml .Values.manager.securityContext | nindent 10 }}
+        ports:
+        - name: webhook
+          containerPort: 3443
+          protocol: TCP
+        - name: status
+          containerPort: 8080
+          protocol: TCP
+        resources:
+          {{- toYaml .Values.manager.resources | nindent 10 }}
+      {{- with .Values.manager.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.manager.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.manager.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

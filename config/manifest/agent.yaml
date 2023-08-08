@@ -1,0 +1,103 @@
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: varmor-agent
+  namespace: varmor
+  labels:
+    app: varmor
+    app.kubernetes.io/name: varmor-agent
+spec:
+  selector:
+    matchLabels:
+      app: varmor
+      app.kubernetes.io/name: varmor-agent
+  template:
+    metadata:
+      labels:
+        app: varmor
+        app.kubernetes.io/name: varmor-agent
+    spec:
+      serviceAccountName: varmor-agent
+      imagePullSecrets:
+      - name: varmor-image-pull-secret
+      containers:
+      - name: agent
+        image: elkeid-test-cn-beijing.cr.volces.com/varmor/varmor:v0.5.0
+        imagePullPolicy: Always
+        command: ["/varmor/vArmor", "--agent"]
+        args:
+        - --enableBpfEnforcer
+        securityContext:
+          privileged: true
+          runAsUser: 0
+        volumeMounts:
+        - mountPath: /sys/kernel/security
+          name: securityfs
+        - mountPath: /sys/module/apparmor
+          name: apparmor
+        - mountPath: /etc/apparmor.d
+          name: apparmor-dir
+        - mountPath: /run/containerd/containerd.sock
+          name: containerd-sock
+        - mountPath: /proc
+          name: procfs
+          readOnly: true
+        - mountPath: /var/run/varmor/audit
+          name: audit-dir
+        - mountPath: /sys/kernel/btf/vmlinux
+          name: btf
+      volumes:
+      - hostPath:
+          path: /sys/kernel/security
+          type: Directory
+        name: securityfs
+      - hostPath:
+          path: /sys/module/apparmor
+          type: Directory
+        name: apparmor
+      - hostPath:
+          path: /var/run/varmor/apparmor.d
+          type: DirectoryOrCreate
+        name: apparmor-dir
+      - hostPath:
+          path: /run/containerd/containerd.sock
+          type: Socket
+        name: containerd-sock
+      - hostPath:
+          path: /proc
+          type: Directory
+        name: procfs
+      - hostPath:
+          path: /var/run/varmor/audit
+          type: DirectoryOrCreate
+        name: audit-dir
+      - hostPath:
+          path: /sys/kernel/btf/vmlinux
+          type: File
+        name: btf
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.io/os
+                operator: In
+                values:
+                - linux
+              - key: node.kubernetes.io/instance-type
+                operator: NotIn
+                values:
+                - virtual-node
+            - matchExpressions:
+              - key: beta.kubernetes.io/os
+                operator: In
+                values:
+                - linux
+              - key: beta.node.kubernetes.io/instance-type
+                operator: NotIn
+                values:
+                - virtual-node
+      tolerations:
+        - effect: NoSchedule
+          operator: Exists

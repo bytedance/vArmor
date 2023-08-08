@@ -1,0 +1,100 @@
+apiVersion: crd.varmor.org/v1beta1
+kind: VarmorPolicy
+metadata:
+  name: benchmark
+  namespace: test
+  labels:
+    type: benchmark
+spec:
+  target:
+    kind: Deployment
+    selector:
+      matchLabels:
+        app: benchmark
+  policy:
+    enforcer: BPF
+    mode: EnhanceProtect
+    enhanceProtect:
+      hardeningRules:
+      - disable_cap_net_raw
+      - disable_cap_mknod
+      - disable_cap_sys_boot
+      - disable_cap_sys_module
+      bpfRawRules:
+        files:
+        - pattern: "/ttt/**/a"
+          permissions:
+          - write
+          - append
+          - read
+        - pattern: "/ttt/**/b"
+          permissions:
+          - write
+          - append
+          - read
+        - pattern: "/ttt/**/c"
+          permissions:
+          - write
+          - append
+          - read
+        - pattern: "/ttt/**/d"
+          permissions:
+          - write
+          - append
+          - read
+        - pattern: "/ttt/**/e"
+          permissions:
+          - write
+          - append
+          - read
+        - pattern: "/ttt/**/f"
+          permissions:
+          - write
+          - append
+          - read
+        - pattern: "/ttt/**/g"
+          permissions:
+          - write
+          - append
+          - read
+        - pattern: "/ttt/**/h"
+          permissions:
+          - write
+          - append
+          - read
+        processes:
+        - pattern: "/ttt/ls"
+          permissions:
+          - exec
+        - pattern: "/ttt/bash"
+          permissions:
+          - exec
+        - pattern: "/ttt/**dash"
+          permissions:
+          - exec
+        - pattern: "/ttt/**/sh"
+          permissions:
+          - exec
+        - pattern: "/ttt/ping/**"
+          permissions:
+          - exec
+        - pattern: "/ttt/host**"
+          permissions:
+          - exec
+        - pattern: "/**/hostname"
+          permissions:
+          - exec
+        - pattern: "**/curl"
+          permissions:
+          - exec
+        network:
+          egresses:
+          - ipBlock: 172.16.0.0/11  # 172.0.0.0 ~ 172.31.255.255
+          - ip: 169.254.169.254
+            port: 80
+          - port: 6443
+          - ip: 100.0.96.0
+          - ipBlock: 192.168.1.0/24
+          - ipBlock: 192.168.2.0/24
+          - ipBlock: 192.168.3.0/24
+          - ipBlock: 192.168.4.0/24

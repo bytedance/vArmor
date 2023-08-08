@@ -1,0 +1,23 @@
+apiVersion: crd.varmor.org/v1beta1
+kind: VarmorPolicy
+metadata:
+  name: test
+  namespace: test
+spec:
+  target:
+    kind: Deployment
+    selector:
+      matchLabels:
+        varmor-protect: enable
+  policy:
+    enforcer: BPF
+    mode: EnhanceProtect
+    enhanceProtect:
+      hardeningRules:
+      - disallow_abuse_user_ns
+      attackProtectionRules:
+      - rules: 
+        - disable-write-etc
+        - mitigate-host-ip-leak
+        - mitigate-overlayfs-leak
+        - mitigate-sa-leak

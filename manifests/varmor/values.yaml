@@ -1,0 +1,290 @@
+# Default values for varmor.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+forceNamespace:
+  enabled: false
+  namespace: varmor
+
+nameOverride: ""
+fullnameOverride: ""
+
+appArmorLsmEnforcer:
+  enabled: true
+
+bpfLsmEnforcer:
+  enabled: false
+
+restartExistWorkloads:
+  enabled: false
+
+unloadAllAaProfile:
+  enabled: false
+
+# [Experimental feature]
+defenseInDepth:
+  enabled: false
+
+image:
+  registry: ""
+  namespace: varmor
+  username: ""
+  password: ""
+
+imagePullSecrets:
+- name: varmor-image-pull-secret
+
+manager:
+  name: manager
+
+  replicaCount: 3
+
+  serviceAccount:
+    # Specifies whether a service account should be created
+    create: true
+    # Annotations to add to the service account
+    annotations: {}
+    # The name of the service account to use.
+    # If not set and create is true, a name is generated using the fullname template
+    name: ""
+
+  podAnnotations: {}
+
+  podSecurityContext:
+    runAsNonRoot: true
+
+  image:
+    name: varmor
+    pullPolicy: Always
+    # Overrides the image tag whose default is the chart appVersion.
+    tag: ""
+
+  securityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop:
+      - MKNOD
+      - NET_RAW
+
+  args: []
+
+  defenseInDepth:
+    args:
+    - --enableDefenseInDepth
+
+  restartExistWorkloads:
+    args:
+    - --restartExistWorkloads
+
+  resources:
+    limits:
+      cpu: 200m
+      memory: 300Mi
+    requests:
+      cpu: 100m
+      memory: 200Mi
+
+  autoscaling:
+    enabled: false
+    minReplicas: 3
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 80
+    # targetMemoryUtilizationPercentage: 80
+
+  nodeSelector: {}
+
+  affinity: {}
+
+  tolerations: []
+
+
+agent:
+  name: agent
+
+  serviceAccount:
+    # Specifies whether a service account should be created
+    create: true
+    # Annotations to add to the service account
+    annotations: {}
+    # The name of the service account to use.
+    # If not set and create is true, a name is generated using the fullname template
+    name: ""
+
+  podAnnotations: {}
+
+  podSecurityContext: {}
+
+  image:
+    name: varmor
+    pullPolicy: Always
+    # Overrides the image tag whose default is the chart appVersion.
+    tag: ""
+  
+  securityContext:
+    privileged: true
+    runAsUser: 0
+
+  args: []
+
+  appArmorLsmEnforcer:
+    volumeMounts:
+    - mountPath: /sys/module/apparmor
+      name: apparmor
+    - mountPath: /etc/apparmor.d
+      name: apparmor-dir
+    volumes:
+    - hostPath:
+        path: /sys/module/apparmor
+        type: Directory
+      name: apparmor
+    - hostPath:
+        path: /var/run/varmor/apparmor.d
+        type: DirectoryOrCreate
+      name: apparmor-dir
+    resources:
+      limits:
+        cpu: 200m
+        memory: 100Mi
+      requests:
+        cpu: 100m
+        memory: 40Mi
+
+  bpfLsmEnforcer:
+    args:
+    - --enableBpfEnforcer
+    volumeMounts:
+    - mountPath: /run/containerd/
+      name: containerd    
+    - mountPath: /proc
+      name: procfs
+      readOnly: true
+    volumes:
+    - hostPath:
+        path: /run/containerd/
+        type: Directory
+      name: containerd
+    - hostPath:
+        path: /proc
+        type: Directory
+      name: procfs
+    resources:
+      limits:
+        cpu: 200m
+        memory: 200Mi
+      requests:
+        cpu: 100m
+        memory: 100Mi
+
+  unloadAllAaProfile:
+    args:
+    - --unloadAllAaProfile
+
+  defenseInDepth:
+    args:
+    - --enableDefenseInDepth
+    volumeMounts:
+    - mountPath: /var/run/varmor/audit
+      name: audit-dir
+    volumes:
+    - hostPath:
+        path: /var/run/varmor/audit
+        type: DirectoryOrCreate
+      name: audit-dir
+
+  lsmRelated:
+    volumeMounts:
+    - mountPath: /sys/kernel/btf/vmlinux
+      name: btf
+    volumes:
+    - hostPath:
+        path: /sys/kernel/btf/vmlinux
+        type: File
+      name: btf
+
+  nodeSelector: {}
+
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+        - matchExpressions:
+          - key: kubernetes.io/os
+            operator: In
+            values:
+            - linux
+          - key: node.kubernetes.io/instance-type
+            operator: NotIn
+            values:
+            - virtual-node
+        - matchExpressions:
+          - key: beta.kubernetes.io/os
+            operator: In
+            values:
+            - linux
+          - key: beta.kubernetes.io/instance-type
+            operator: NotIn
+            values:
+            - virtual-node
+
+  tolerations:
+    - effect: NoSchedule
+      operator: Exists
+
+
+classifier:
+  name: classifier
+
+  replicaCount: 1
+
+  serviceAccount:
+    # Specifies whether a service account should be created
+    create: false
+    # Annotations to add to the service account
+    annotations: {}
+    # The name of the service account to use.
+    # If not set and create is true, a name is generated using the fullname template
+    name: ""
+
+  image:
+    name: classifier
+    pullPolicy: IfNotPresent
+    # Overrides the image tag whose default is the chart appVersion.
+    tag: ""
+
+  podAnnotations: {}
+
+  podSecurityContext:
+    runAsNonRoot: true
+
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+      - MKNOD
+      - NET_RAW
+
+  resources: {}
+    # We usually recommend not to specify default resources and to leave this as a conscious
+    # choice for the user. This also increases chances charts run on environments with little
+    # resources, such as Minikube. If you do want to specify resources, uncomment the following
+    # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+    # limits:
+    #   cpu: 100m
+    #   memory: 128Mi
+    # requests:
+    #   cpu: 100m
+    #   memory: 128Mi
+
+  autoscaling:
+    enabled: false
+    minReplicas: 3
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 80
+    # targetMemoryUtilizationPercentage: 80
+
+  nodeSelector: {}
+
+  affinity: {}
+
+  tolerations: []
