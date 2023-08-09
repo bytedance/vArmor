@@ -1,8 +1,7 @@
 # Binaries for programs and plugins
 bin
 github.com
-varmor-agent.kubeconfig
-varmor-manager.kubeconfig
+*.kubeconfig
 *.tar.gz
 *.tar
 *.tgz

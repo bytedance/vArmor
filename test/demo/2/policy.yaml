@@ -12,13 +12,13 @@ spec:
         operator: NotIn
         values: [dev, qa]
       matchLabels:
-        app: demo
+        app: demo-2
   policy:
     enforcer: BPF
     mode: EnhanceProtect
     enhanceProtect:
       hardeningRules:
-      - disable_cap_net_raw
+      - disable-cap-net-raw
       attackProtectionRules:
       - rules:
         - disable-write-etc

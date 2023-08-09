@@ -6,16 +6,16 @@ metadata:
   labels:
     sandbox.varmor.org/enable: "true"
     environment: production
-    app: demo
+    app: demo-2
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: demo
+      app: demo-2
   template:
     metadata:
       labels:
-        app: demo
+        app: demo-2
       annotations:
         container.bpf.security.beta.varmor.org/c0: unconfined
     spec:

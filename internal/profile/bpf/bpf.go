@@ -223,35 +223,38 @@ func newBpfNetworkRule(cidr string, ipAddress string, port uint32) (*varmor.Netw
 }
 
 func generateHardeningRules(rule string, content *varmor.BpfContent) error {
-	switch strings.ToLower(rule) {
+	rule = strings.ToLower(rule)
+	rule = strings.ReplaceAll(rule, "_", "-")
+
+	switch rule {
 	//// 1. Blocking escape vectors from privileged container
 	// disallow write core_pattern
-	case "disallow_write_core_pattern":
+	case "disallow-write-core-pattern":
 		fileContent, err := newBpfPathRule("/proc/sys/kernel/core_pattern", AaMayWrite|AaMayAppend)
 		if err != nil {
 			return err
 		}
 		content.Files = append(content.Files, *fileContent)
 	// disallow write release_agent
-	case "disallow_write_release_agent":
+	case "disallow-write-release-agent":
 		fileContent, err := newBpfPathRule("/sys/fs/cgroup/**/release_agent", AaMayWrite|AaMayAppend)
 		if err != nil {
 			return err
 		}
 		content.Files = append(content.Files, *fileContent)
 	// disallow insmond
-	case "disallow_insmod":
+	case "disallow-insmod":
 		content.Capabilities |= 1 << unix.CAP_SYS_MODULE
 	// disallow load ebpf program
-	case "disallow_load_ebpf":
+	case "disallow-load-ebpf":
 		content.Capabilities |= (1 << unix.CAP_SYS_ADMIN) | (1 << unix.CAP_BPF)
 
 	//// 2. Disable capabilities
 	// disable all capabilities
-	case "disable_cap_all":
+	case "disable-cap-all":
 		content.Capabilities = (1 << (unix.CAP_LAST_CAP + 1)) - 1
 	// disable privileged capabilities
-	case "disable_cap_privileged":
+	case "disable-cap-privileged":
 		content.Capabilities |= ((1 << unix.CAP_DAC_READ_SEARCH) |
 			(1 << unix.CAP_LINUX_IMMUTABLE) |
 			(1 << unix.CAP_NET_BROADCAST) |
@@ -277,104 +280,105 @@ func generateHardeningRules(rule string, content *varmor.BpfContent) error {
 			(1 << unix.CAP_BLOCK_SUSPEND) |
 			(1 << unix.CAP_AUDIT_READ))
 	// disable the specified capability
-	case "disable_cap_chown":
+	case "disable-cap-chown":
 		content.Capabilities |= 1 << unix.CAP_CHOWN
-	case "disable_cap_dac_override":
+	case "disable-cap-dac-override":
 		content.Capabilities |= 1 << unix.CAP_DAC_OVERRIDE
-	case "disable_cap_dac_read_search":
+	case "disable-cap-dac-read-search":
 		content.Capabilities |= 1 << unix.CAP_DAC_READ_SEARCH
-	case "disable_cap_fowner":
+	case "disable-cap-fowner":
 		content.Capabilities |= 1 << unix.CAP_FOWNER
-	case "disable_cap_fsetid":
+	case "disable-cap-fsetid":
 		content.Capabilities |= 1 << unix.CAP_FSETID
-	case "disable_cap_kill":
+	case "disable-cap-kill":
 		content.Capabilities |= 1 << unix.CAP_KILL
-	case "disable_cap_setgid":
+	case "disable-cap-setgid":
 		content.Capabilities |= 1 << unix.CAP_SETGID
-	case "disable_cap_setuid":
+	case "disable-cap-setuid":
 		content.Capabilities |= 1 << unix.CAP_SETUID
-	case "disable_cap_setpcap":
+	case "disable-cap-setpcap":
 		content.Capabilities |= 1 << unix.CAP_SETPCAP
-	case "disable_cap_linux_immutable":
+	case "disable-cap-linux-immutable":
 		content.Capabilities |= 1 << unix.CAP_LINUX_IMMUTABLE
-	case "disable_cap_net_bind_service":
+	case "disable-cap-net-bind-service":
 		content.Capabilities |= 1 << unix.CAP_NET_BIND_SERVICE
-	case "disable_cap_net_broadcast":
+	case "disable-cap-net-broadcast":
 		content.Capabilities |= 1 << unix.CAP_NET_BROADCAST
-	case "disable_cap_net_admin":
+	case "disable-cap-net-admin":
 		content.Capabilities |= 1 << unix.CAP_NET_ADMIN
-	case "disable_cap_net_raw":
+	case "disable-cap-net-raw":
 		content.Capabilities |= 1 << unix.CAP_NET_RAW
-	case "disable_cap_ipc_lock":
+	case "disable-cap-ipc-lock":
 		content.Capabilities |= 1 << unix.CAP_IPC_LOCK
-	case "disable_cap_ipc_owner":
+	case "disable-cap-ipc-owner":
 		content.Capabilities |= 1 << unix.CAP_IPC_OWNER
-	case "disable_cap_sys_module":
+	case "disable-cap-sys-module":
 		content.Capabilities |= 1 << unix.CAP_SYS_MODULE
-	case "disable_cap_sys_rawio":
+	case "disable-cap-sys-rawio":
 		content.Capabilities |= 1 << unix.CAP_SYS_RAWIO
-	case "disable_cap_sys_chroot":
+	case "disable-cap-sys-chroot":
 		content.Capabilities |= 1 << unix.CAP_SYS_CHROOT
-	case "disable_cap_sys_ptrace":
+	case "disable-cap-sys-ptrace":
 		content.Capabilities |= 1 << unix.CAP_SYS_PTRACE
-	case "disable_cap_sys_pacct":
+	case "disable-cap-sys-pacct":
 		content.Capabilities |= 1 << unix.CAP_SYS_PACCT
-	case "disable_cap_sys_admin":
+	case "disable-cap-sys-admin":
 		content.Capabilities |= 1 << unix.CAP_SYS_ADMIN
-	case "disable_cap_sys_boot":
+	case "disable-cap-sys-boot":
 		content.Capabilities |= 1 << unix.CAP_SYS_BOOT
-	case "disable_cap_sys_nice":
+	case "disable-cap-sys-nice":
 		content.Capabilities |= 1 << unix.CAP_SYS_NICE
-	case "disable_cap_sys_resource":
+	case "disable-cap-sys-resource":
 		content.Capabilities |= 1 << unix.CAP_SYS_RESOURCE
-	case "disable_cap_sys_time":
+	case "disable-cap-sys-time":
 		content.Capabilities |= 1 << unix.CAP_SYS_TIME
-	case "disable_cap_sys_tty_config":
+	case "disable-cap-sys-tty-config":
 		content.Capabilities |= 1 << unix.CAP_SYS_TTY_CONFIG
-	case "disable_cap_mknod":
+	case "disable-cap-mknod":
 		content.Capabilities |= 1 << unix.CAP_MKNOD
-	case "disable_cap_lease":
+	case "disable-cap-lease":
 		content.Capabilities |= 1 << unix.CAP_LEASE
-	case "disable_cap_audit_write":
+	case "disable-cap-audit-write":
 		content.Capabilities |= 1 << unix.CAP_AUDIT_WRITE
-	case "disable_cap_audit_control":
+	case "disable-cap-audit-control":
 		content.Capabilities |= 1 << unix.CAP_AUDIT_CONTROL
-	case "disable_cap_setfcap":
+	case "disable-cap-setfcap":
 		content.Capabilities |= 1 << unix.CAP_SETFCAP
-	case "disable_cap_mac_override":
+	case "disable-cap-mac-override":
 		content.Capabilities |= 1 << unix.CAP_MAC_OVERRIDE
-	case "disable_cap_mac_admin":
+	case "disable-cap-mac-admin":
 		content.Capabilities |= 1 << unix.CAP_MAC_ADMIN
-	case "disable_cap_syslog":
+	case "disable-cap-syslog":
 		content.Capabilities |= 1 << unix.CAP_SYSLOG
-	case "disable_cap_wake_alarm":
+	case "disable-cap-wake-alarm":
 		content.Capabilities |= 1 << unix.CAP_WAKE_ALARM
-	case "disable_cap_block_suspend":
+	case "disable-cap-block-suspend":
 		content.Capabilities |= 1 << unix.CAP_BLOCK_SUSPEND
-	case "disable_cap_audit_read":
+	case "disable-cap-audit-read":
 		content.Capabilities |= 1 << unix.CAP_AUDIT_READ
-	case "disable_cap_perfmon":
+	case "disable-cap-perfmon":
 		content.Capabilities |= 1 << unix.CAP_PERFMON
-	case "disable_cap_bpf":
+	case "disable-cap-bpf":
 		content.Capabilities |= 1 << unix.CAP_BPF
 
 	//// 3. Kernel vulnerability mitigation
 	// diallow create user namespace
-	case "disallow_create_user_ns":
+	case "disallow-create-user-ns":
 		// TODO: add support for userns_create hook point (Linux v6.1+)
 		fallthrough
 	// diallow abuse user namespace
-	case "disallow_abuse_user_ns":
+	case "disallow-abuse-user-ns":
 		content.Capabilities |= 1 << unix.CAP_SYS_ADMIN
 	}
 	return nil
 }
 
 func generateVulMitigationRules(rule string, content *varmor.BpfContent) error {
-	switch strings.ToLower(rule) {
+	rule = strings.ToLower(rule)
+	rule = strings.ReplaceAll(rule, "_", "-")
+
+	switch rule {
 	case "cgroups-lxcfs-escape-mitigation":
-		fallthrough
-	case "cgroups_lxcfs_escape_mitigation":
 		fileContent, err := newBpfPathRule("/**/release_agent", AaMayWrite|AaMayAppend)
 		if err != nil {
 			return err
@@ -407,7 +411,10 @@ func generateAttackProtectionRules(rule string, content *varmor.BpfContent) erro
 	var networkContent *varmor.NetworkContent
 	var err error
 
-	switch strings.ToLower(rule) {
+	rule = strings.ToLower(rule)
+	rule = strings.ReplaceAll(rule, "_", "-")
+
+	switch rule {
 	//// 4. Mitigate container information leakage
 	case "mitigate-sa-leak":
 		fileContent, err = newBpfPathRule("/run/secrets/kubernetes.io/serviceaccount/**", AaMayRead)
@@ -538,18 +545,12 @@ func generateRawFileRules(rule varmor.FileRule, bpfContent *varmor.BpfContent) e
 
 	for _, permission := range rule.Permissions {
 		switch strings.ToLower(permission) {
-		case "r":
-			fallthrough
-		case "read":
+		case "read", "r":
 			permissions |= AaMayRead
-		case "w":
-			fallthrough
-		case "write":
+		case "write", "w":
 			permissions |= AaMayWrite
 			permissions |= AaMayAppend
-		case "a":
-			fallthrough
-		case "append":
+		case "append", "a":
 			permissions |= AaMayAppend
 		}
 	}
@@ -572,9 +573,7 @@ func generateRawProcessRules(rule varmor.FileRule, bpfContent *varmor.BpfContent
 
 	for _, permission := range rule.Permissions {
 		switch strings.ToLower(permission) {
-		case "x":
-			fallthrough
-		case "exec":
+		case "exec", "x":
 			permissions |= AaMayExec
 		}
 	}

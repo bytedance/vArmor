@@ -12,7 +12,7 @@ spec:
         operator: NotIn
         values: [dev, qa]
       matchLabels:
-        app: demo
+        app: demo-2
   policy:
     enforcer: BPF
     mode: AlwaysAllow
