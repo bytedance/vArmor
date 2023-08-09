@@ -37,50 +37,53 @@ func GenerateRuntimeDefaultProfile(profileName string) string {
 }
 
 func generateHardeningRules(rule string) (rules string) {
-	switch strings.ToLower(rule) {
+	rule = strings.ToLower(rule)
+	rule = strings.ReplaceAll(rule, "_", "-")
+
+	switch rule {
 	//// 1. Blocking escape vectors from privileged container
 	// disallow write core_pattern
-	case "disallow_write_core_pattern":
+	case "disallow-write-core-pattern":
 		rules += "  deny /proc/sys/kernel/core_pattern w,\n"
 	// disallow mount procfs
-	case "disallow_mount_procfs":
+	case "disallow-mount-procfs":
 		rules += "  deny mount fstype=proc,\n"
 	// disallow write release_agent
-	case "disallow_write_release_agent":
+	case "disallow-write-release-agent":
 		rules += "  deny /sys/fs/cgroup/**/release_agent w,\n"
 	// disallow mount cgroupfs
-	case "disallow_mount_cgroupfs":
+	case "disallow-mount-cgroupfs":
 		rules += "  deny mount fstype=cgroup,\n"
 	// disallow debug disk devices
-	case "disallow_debug_disk_device":
+	case "disallow-debug-disk-device":
 		rules += "{{range $value := .DiskDevices}}"
 		rules += "  deny /dev/{{$value}} rw,\n"
 		rules += "{{end}}"
 	// disallow mount disk devices
-	case "disallow_mount_disk_device":
+	case "disallow-mount-disk-device":
 		rules += "{{range $value := .DiskDevices}}"
 		rules += "  deny mount /dev/{{$value}},\n"
 		rules += "{{end}}"
 	// disallow mount anything
-	case "disallow_mount":
+	case "disallow-mount":
 		rules += "  deny mount,\n"
 	// disallow insmond
-	case "disallow_insmod":
+	case "disallow-insmod":
 		rules += "  deny capability sys_module,\n"
 	// disallow load ebpf program
-	case "disallow_load_ebpf":
+	case "disallow-load-ebpf":
 		rules += "  deny capability sys_admin,\n"
 		rules += "  deny capability bpf,\n"
 	// disallow access to the root of the task through procfs
-	case "disallow_access_procfs_root":
+	case "disallow-access-procfs-root":
 		rules += "  deny ptrace read,\n"
 
 	//// 2. Disable capabilities
 	// disable all capabilities
-	case "disable_cap_all":
+	case "disable-cap-all":
 		rules += "  deny capability,\n"
 	// disable privileged capabilities
-	case "disable_cap_privileged":
+	case "disable-cap-privileged":
 		rules += `  deny capability dac_read_search,
   deny capability linux_immutable,
   deny capability net_broadcast,
@@ -107,100 +110,103 @@ func generateHardeningRules(rule string) (rules string) {
   deny capability audit_read,
 `
 	// disable the specified capability
-	case "disable_cap_chown":
+	case "disable-cap-chown":
 		rules += "  deny capability chown,\n"
-	case "disable_cap_dac_override":
+	case "disable-cap-dac-override":
 		rules += "  deny capability dac_override,\n"
-	case "disable_cap_dac_read_search":
+	case "disable-cap-dac-read-search":
 		rules += "  deny capability dac_read_search,\n"
-	case "disable_cap_fowner":
+	case "disable-cap-fowner":
 		rules += "  deny capability fowner,\n"
-	case "disable_cap_fsetid":
+	case "disable-cap-fsetid":
 		rules += "  deny capability fsetid,\n"
-	case "disable_cap_kill":
+	case "disable-cap-kill":
 		rules += "  deny capability kill,\n"
-	case "disable_cap_setgid":
+	case "disable-cap-setgid":
 		rules += "  deny capability setgid,\n"
-	case "disable_cap_setuid":
+	case "disable-cap-setuid":
 		rules += "  deny capability setuid,\n"
-	case "disable_cap_setpcap":
+	case "disable-cap-setpcap":
 		rules += "  deny capability setpcap,\n"
-	case "disable_cap_linux_immutable":
+	case "disable-cap-linux-immutable":
 		rules += "  deny capability linux_immutable,\n"
-	case "disable_cap_net_bind_service":
+	case "disable-cap-net-bind-service":
 		rules += "  deny capability net_bind_service,\n"
-	case "disable_cap_net_broadcast":
+	case "disable-cap-net-broadcast":
 		rules += "  deny capability net_broadcast,\n"
-	case "disable_cap_net_admin":
+	case "disable-cap-net-admin":
 		rules += "  deny capability net_admin,\n"
-	case "disable_cap_net_raw":
+	case "disable-cap-net-raw":
 		rules += "  deny capability net_raw,\n"
-	case "disable_cap_ipc_lock":
+	case "disable-cap-ipc-lock":
 		rules += "  deny capability ipc_lock,\n"
-	case "disable_cap_ipc_owner":
+	case "disable-cap-ipc-owner":
 		rules += "  deny capability ipc_owner,\n"
-	case "disable_cap_sys_module":
+	case "disable-cap-sys-module":
 		rules += "  deny capability sys_module,\n"
-	case "disable_cap_sys_rawio":
+	case "disable-cap-sys-rawio":
 		rules += "  deny capability sys_rawio,\n"
-	case "disable_cap_sys_chroot":
+	case "disable-cap-sys-chroot":
 		rules += "  deny capability sys_chroot,\n"
-	case "disable_cap_sys_ptrace":
+	case "disable-cap-sys-ptrace":
 		rules += "  deny capability sys_ptrace,\n"
-	case "disable_cap_sys_pacct":
+	case "disable-cap-sys-pacct":
 		rules += "  deny capability sys_pacct,\n"
-	case "disable_cap_sys_admin":
+	case "disable-cap-sys-admin":
 		rules += "  deny capability sys_admin,\n"
-	case "disable_cap_sys_boot":
+	case "disable-cap-sys-boot":
 		rules += "  deny capability sys_boot,\n"
-	case "disable_cap_sys_nice":
+	case "disable-cap-sys-nice":
 		rules += "  deny capability sys_nice,\n"
-	case "disable_cap_sys_resource":
+	case "disable-cap-sys-resource":
 		rules += "  deny capability sys_resource,\n"
-	case "disable_cap_sys_time":
+	case "disable-cap-sys-time":
 		rules += "  deny capability sys_time,\n"
-	case "disable_cap_sys_tty_config":
+	case "disable-cap-sys-tty-config":
 		rules += "  deny capability sys_tty_config,\n"
-	case "disable_cap_mknod":
+	case "disable-cap-mknod":
 		rules += "  deny capability mknod,\n"
-	case "disable_cap_lease":
+	case "disable-cap-lease":
 		rules += "  deny capability lease,\n"
-	case "disable_cap_audit_write":
+	case "disable-cap-audit-write":
 		rules += "  deny capability audit_write,\n"
-	case "disable_cap_audit_control":
+	case "disable-cap-audit-control":
 		rules += "  deny capability audit_control,\n"
-	case "disable_cap_setfcap":
+	case "disable-cap-setfcap":
 		rules += "  deny capability setfcap,\n"
-	case "disable_cap_mac_override":
+	case "disable-cap-mac-override":
 		rules += "  deny capability mac_override,\n"
-	case "disable_cap_mac_admin":
+	case "disable-cap-mac-admin":
 		rules += "  deny capability mac_admin,\n"
-	case "disable_cap_syslog":
+	case "disable-cap-syslog":
 		rules += "  deny capability syslog,\n"
-	case "disable_cap_wake_alarm":
+	case "disable-cap-wake-alarm":
 		rules += "  deny capability wake_alarm,\n"
-	case "disable_cap_block_suspend":
+	case "disable-cap-block-suspend":
 		rules += "  deny capability block_suspend,\n"
-	case "disable_cap_audit_read":
+	case "disable-cap-audit-read":
 		rules += "  deny capability audit_read,\n"
-	case "disable_cap_perfmon":
+	case "disable-cap-perfmon":
 		rules += "  deny capability perfmon,\n"
-	case "disable_cap_bpf":
+	case "disable-cap-bpf":
 		rules += "  deny capability bpf,\n"
 
 	//// 3. Kernel vulnerability mitigation
 	// forward-compatible
-	case "disallow_create_user_ns":
+	case "disallow-create-user-ns":
 		fallthrough
 	// diallow abuse user namespace
-	case "disallow_abuse_user_ns":
+	case "disallow-abuse-user-ns":
 		rules += "  deny capability sys_admin,\n"
 	}
 	return rules
 }
 
 func generateAttackProtectionRules(rule string) (rules string) {
-	switch strings.ToLower(rule) {
+	rule = strings.ToLower(rule)
+	rule = strings.ReplaceAll(rule, "_", "-")
+
+	switch rule {
 	//// 4. Mitigate container information leakage
 	case "mitigate-sa-leak":
 		rules += "  deny /run/secrets/kubernetes.io/serviceaccount/** r,\n"
@@ -236,8 +242,11 @@ func generateAttackProtectionRules(rule string) (rules string) {
 }
 
 func generateVulMitigationRules(rule string) (rules string) {
-	switch strings.ToLower(rule) {
-	case "cgroups_lxcfs_escape_mitigation":
+	rule = strings.ToLower(rule)
+	rule = strings.ReplaceAll(rule, "_", "-")
+
+	switch rule {
+	case "cgroups-lxcfs-escape-mitigation":
 		rules += "  deny /**/release_agent w,\n"
 		rules += "  deny /**/devices/devices.allow w,\n"
 		rules += "  deny /**/devices/**/devices.allow w,\n"
