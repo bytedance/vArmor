@@ -1,4 +1,6 @@
 # The Performance Specification
+[English](performance_specification.md) | 简体中文
+
 ## 影响因素
 vArmor 的用户态组件和内核态组件对性能的影响因素如下表所示
 

@@ -1,4 +1,6 @@
 # The Policy Manual
+[English](policy_manual.md) | 简体中文
+
 ## 策略语法
 vArmor 基于 AppArmor enforcer 和 BPF enforcer 的策略语法开发了内置策略。与此同时，vArmor 也支持用户按照对应语法自定义策略。
 

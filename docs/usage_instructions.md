@@ -1,4 +1,6 @@
 # Usage Instructions
+English | [简体中文](usage_instructions.zh_CN.md)
+
 ## Configuration
 TODO
 ## Usage

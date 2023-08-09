@@ -1,4 +1,6 @@
 # Usage Instructions
+[English](usage_instructions.md) | 简体中文
+
 ## 配置选项
 vArmor 支持基于 AppArmor 和 BPF 两种 LSM 对 Kubernetes 中的工作负载进行沙箱加固。由于不同的系统环境所支持的 LSM 不同，因此 vArmor 支持在安装时，通过 helm 命令行参数对它的功能进行配置。目前支持以下功能的配置
 
