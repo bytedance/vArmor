@@ -7,6 +7,7 @@ github.com
 *.tgz
 *.log
 *.txt
+!requirements.txt
 __pycache__
 venv
 coverage.out
