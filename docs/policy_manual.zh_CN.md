@@ -45,7 +45,7 @@ BPF enforcer 支持用户根据语法自定义规则，每类规则的数量上�
 
 （注：不同 enforcer 所支持的内置策略与语法仍旧处于开发中）
 
-| 模式 | 类型 | 子类 | <div style="width:270px">规则名称 & ID</div> | 适用容器 | 说明 | 原理 & 影响 | 支持的 enforcer |
+| 模式 | 类型 | 子类 | 规则名称 & ID | 适用容器 | 说明 | 原理 & 影响 | 支持的 enforcer |
 |-----|-----|-----|---------------------------------------------|---------|------|------------|----------------|
 |**AlwaysAllow**|**Always Allow**|-|-|ALL|在容器启动时不对其施加任何限制，可在稍后变更配置，从而在无需重启工作负载的情况下动态调整防护策略。|-|AppArmor<br>BPF
 |**RuntimeDefault**|**Runtime Default**|-|-|Unprivileged|使用与容器运行时组件相同的默认策略（如 containerd 的 [cri-containerd.apparmor.d](https://github.com/containerd/containerd/blob/main/contrib/apparmor/template.go)）进行基础防护，防护强度较弱。（受限于强制访问控制的差异，BPF enforcer 相比 AppArmor enforcer 存在一定裁剪）|-|AppArmor<br>BPF
@@ -77,3 +77,4 @@ BPF enforcer 支持用户根据语法自定义规则，每类规则的数量上�
 |              |                 |              |禁止执行 sudo、su 命令<br><br>`disable-su-sudo`|ALL|此规则禁止容器进程执行 sudo/su 命令进行权限提升。<br><br>当容器内的进程以非 root 用户运行时，攻击者需要先提权至 root 用户进行后续攻击。而 sudo/su 命令是本地提权的常见途径之一。|禁止 sudo、su 执行<br><br>有些基础镜像会动态链接 su 到 /bin/busybox，此情况下还需配合“禁止执行 busybox 命令”策略使用|AppArmor<br>BPF
 |              |                 |特定可执行文件沙箱限制|-|ALL|此规则对 “容器信息泄漏缓解” 和 “容器敏感命令限制” 两类策略的应用场景进行了扩充，使用户可以对容器内的任意可执行文件实施沙箱限制。<br><br>对指定的可执行文件开启任意防护策略，实现两个目的：<br>1). 避免沙箱策略影响容器内应用服务的正常行为<br>2). 对容器内指定可执行文件进行沙箱限制，增加攻击者成本和难度。<br><br>例如：可以利用此能力对容器中的 busybox、bash、sh、curl 进行限制，禁止利用它们来泄露 ServiceAccount token、泄露宿主机 IP 等。从而增大攻击者获得容器的反弹 shell 后实施后续攻击的难度与成本。与此同时，容器 Entrypoint 指向的应用服务的行为则不受这些沙箱策略的限制，可以正常获取 ServiceAccount token 等，从而避免沙箱策略影响应用服务的正常行为。<br><br>注：受限于 BPF LSM 的实现原理，BPF enforcer 无法提供此功能|为特定可执行文件开启沙箱限制|AppArmor
 |              |**Vulnerability Mitigation**|-|缓解 cgroups & lxcfs 逃逸<br><br>`cgroups-lxcfs-escape-mitigation`|ALL|若用户将宿主机的 /sys/fs/cgroup 挂载进了容器，或者使用了 lxcfs 为容器提供资源视图。在这两种场景下可能存在容器逃逸风险，攻击者可以在容器内改写 cgroup 子文件系统实施容器逃逸。|AppArmor Enforcer 阻止在容器内修改：<br>/\*\*/release_agent, <br>/\*\*/devices/device.allow,<br>/\*\*/devices/\*\*/device.allow, <br>/\*\*/devices/cgroup.procs,<br>/\*\*/devices/\*\*/cgroup.procs,<br>/\*\*/devices/task,<br>/\*\*/devices/\*\*/task,<br><br>BPF Enforcer 阻止在容器内修改：<br>/\*\*/release_agent<br>/\*\*/devices.allow<br>/\*\*/cgroup.procs<br>/\*\*/devices/tasks<br>|AppArmor<br>BPF
+|-|-|-|THIS_IS_A_PLACEHOLDER_PLACEHOLDE|-|-|-|-
