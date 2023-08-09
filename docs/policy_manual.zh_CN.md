@@ -45,8 +45,8 @@ BPF enforcer 支持用户根据语法自定义规则，每类规则的数量上�
 
 （注：不同 enforcer 所支持的内置策略与语法仍旧处于开发中）
 
-| 模式 | 类型 | 子类 | 规则名称 & ID | 适用容器 | 说明 | 原理 & 影响 | 支持的 enforcer |
-|-----|-----|-----|---------------|---------|------|------------|----------------|
+| 模式 | 类型 | 子类 | <div style="width:270px">规则名称 & ID</div> | 适用容器 | 说明 | 原理 & 影响 | 支持的 enforcer |
+|-----|-----|-----|---------------------------------------------|---------|------|------------|----------------|
 |**AlwaysAllow**|**Always Allow**|-|-|ALL|在容器启动时不对其施加任何限制，可在稍后变更配置，从而在无需重启工作负载的情况下动态调整防护策略。|-|AppArmor<br>BPF
 |**RuntimeDefault**|**Runtime Default**|-|-|Unprivileged|使用与容器运行时组件相同的默认策略（如 containerd 的 [cri-containerd.apparmor.d](https://github.com/containerd/containerd/blob/main/contrib/apparmor/template.go)）进行基础防护，防护强度较弱。（受限于强制访问控制的差异，BPF enforcer 相比 AppArmor enforcer 存在一定裁剪）|-|AppArmor<br>BPF
 |**EnhanceProtect**|**Hardening**|阻断特权容器的常见逃逸向量|禁止改写 procfs core_pattern<br><br>`disallow-write-core-pattern`|Privileged|攻击者可能会在特权容器中，直接改写特权容器内的 procfs core_pattern，以此来实施容器逃逸。|禁止修改 procfs 的 core_pattern|AppArmor<br>BPF
@@ -59,9 +59,9 @@ BPF enforcer 支持用户根据语法自定义规则，每类规则的数量上�
 |              |         |                      |禁止加载内核模块<br><br>`disallow-insmod`|Privileged|攻击者可能会在特权容器中（CAP_SYS_MODULE），通过执行内核模块加载命令 insmod，向内核中注入代码。|禁用 cap_sys_module|AppArmor<br>BPF
 |              |         |                      |禁止加载 ebpf Program<br><br>`disallow-load-ebpf`|ALL|攻击者可能会在特权容器中（CAP_SYS_ADMIN & CAP_BPF），加载 ebpf Program 实现数据窃取和隐藏。<br><br>注：CAP_BPF 自 Linux 5.8 引入。|禁用 cap_sys_admin, cap_bpf|AppArmor<br>BPF
 |              |         |                      |禁止访问进程文件系统的根目录<br><br>`disallow-access-procfs-root`|ALL|本策略禁止容器内进程访问进程文件系统的根目录（即 /proc/[PID]/root），防止攻击者利用共享 pid ns 的进程进行攻击。<br><br>攻击者可能会在共享了宿主机 pid ns、与其他容器共享 pid ns 的容器环境中，即通过读写 /proc/*/root 来访问容器外的进程文件系统，实现信息泄露、权限提升、横向移动等攻击。|禁止访问进程文件系统的根目录|AppArmor
-|              |         |禁用 capabilities|禁用所有 capabilities<br><br>`disable-cap-all`|ALL|禁用所有 capabilities 或任意指定的 capabilities|-|AppArmor<br>BPF
+|              |         |禁用 capabilities|禁用所有 capabilities<br><br>`disable-cap-all`|ALL|禁用所有 capabilities|-|AppArmor<br>BPF
 |              |         |                |禁用特权 capability<br><br>`disable-cap-privileged`|ALL|禁用所有的特权 capabilities（可直接造成逃逸的 capabilities），仅允许部分非特权 capabilities|-|AppArmor<br>BPF
-|              |         |                |禁用任意 capability<br><br>`disable-cap-XXXX`|ALL|禁用任意指定的 capabilities，请将 XXXX 替换为 man capabilities 中的值，例如 disable-cap-net-raw 或 disable-cap_net_raw|-|AppArmor<br>BPF
+|              |         |                |禁用任意 capability<br><br>`disable-cap-XXXX`|ALL|禁用任意指定的 capabilities，请将 XXXX 替换为 man capabilities 中的值，例如 disable-cap-net-raw|-|AppArmor<br>BPF
 |              |         |阻断部分内核漏洞利用向量|禁止滥用 user namespace<br><br>`disallow-abuse-user-ns`|ALL|user namespace 可以被用于增强容器隔离性。但它的出现同时也增大了内核的攻击面，或使得某些内核漏洞更容易被利用。攻击者可以在容器内，通过创建 user namespace 来获取全部特权，从而扩大内核攻击面。<br><br>禁止容器进程通过 user namesapce 获取 cap_sys_admin 特权可用于降低内核攻击面，阻断部分内核漏洞的利用路径。<br>在未设置 kernel.unprivileged_userns_clone=0 或 user.max_user_namespace=0 的系统上，可通过此规则来为容器进行加固。|限制通过 User Namespace 滥用 cap_sys_admin |AppArmor<br>BPF
 |              |**Attack Protection**|容器信息泄露缓解|缓解 Service Account 泄露<br><br>`mitigate-sa-leak`|ALL|此规则禁止容器进程读取 Service Account 相关的敏感信息，包括 token、namespace、CA 证书。避免 Default SA 泄漏、错误配置的 SA 泄漏带来的安全风险，攻击者通过 RCE 漏洞获取 k8s 容器内的权限后，非常倾向于通过泄漏其 SA 信息来进行进一步的渗透入侵活动。<br><br>在大部分用户场景中，并不需要使用 SA 与 API Server 进行通信。而默认情况下，k8s 会为不需要与 API Server 通信的 Pod 设置 Default SA。|禁止 Service Account 文件的读操作|AppArmor<br>BPF
 |              |                 |             |缓解宿主机磁盘设备号泄露<br><br>`mitigate-disk-device-number-leak`|ALL|此规则禁止容器进程读取 /proc/[PID]/mountinfo, /proc/partitions。<br><br>攻击者可能会通过读取容器进程的挂载信息来获取宿主机磁盘设备的设备号，从而用于后续的容器逃逸。|禁止 mountinfo, partitions 的读操作|AppArmor<br>BPF
