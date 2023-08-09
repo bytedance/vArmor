@@ -372,6 +372,8 @@ func generateHardeningRules(rule string, content *varmor.BpfContent) error {
 
 func generateVulMitigationRules(rule string, content *varmor.BpfContent) error {
 	switch strings.ToLower(rule) {
+	case "cgroups-lxcfs-escape-mitigation":
+		fallthrough
 	case "cgroups_lxcfs_escape_mitigation":
 		fileContent, err := newBpfPathRule("/**/release_agent", AaMayWrite|AaMayAppend)
 		if err != nil {

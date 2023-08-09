@@ -237,6 +237,8 @@ func generateAttackProtectionRules(rule string) (rules string) {
 
 func generateVulMitigationRules(rule string) (rules string) {
 	switch strings.ToLower(rule) {
+	case "cgroups-lxcfs-escape-mitigation":
+		fallthrough
 	case "cgroups_lxcfs_escape_mitigation":
 		rules += "  deny /**/release_agent w,\n"
 		rules += "  deny /**/devices/devices.allow w,\n"
