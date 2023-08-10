@@ -55,14 +55,14 @@ For specific details, please refer to the [Built-in Policies](docs/policy_manual
 ## Quick start
 ### Step 1. Fetch chart
 ```
-helm pull oci://elkeid-cn-beijing.cr.volces.com/varmor/varmor --version 0.5.1
+helm pull oci://elkeid-cn-beijing.cr.volces.com/varmor/varmor --version 0.5.2
 ```
 
 ### Step 2. Install
 Some features of **vArmor** require configuration during installation. For more details, please refer to the [Configuration Options ](docs/usage_instructions.md).
 ```
 kubectl create ns varmor
-helm install varmor varmor-0.5.1.tgz \
+helm install varmor varmor-0.5.2.tgz \
     -n varmor \
     --set image.registry="elkeid-cn-beijing.cr.volces.com"
 ```
