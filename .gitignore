@@ -8,6 +8,7 @@ github.com
 *.log
 *.txt
 !requirements.txt
+!boilerplate.go.txt
 __pycache__
 venv
 coverage.out
