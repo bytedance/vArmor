@@ -289,27 +289,21 @@ func main() {
 			// Tag the leader Pod with "identity: leader" label so that agents can use varmor-status-svc for state synchronization.
 			if !debug {
 				tag := func() error {
+					err := varmorutils.UnTagLeaderPod(kubeClient.CoreV1().Pods(config.Namespace))
+					if err != nil {
+						return err
+					}
 					return varmorutils.TagLeaderPod(kubeClient.CoreV1().Pods(config.Namespace))
 				}
 				err := retry.OnError(retry.DefaultRetry, retriable, tag)
 				if err != nil {
-					setupLog.Error(err, "varmorutils.TagLeaderPod()")
+					setupLog.Error(err, "Retag Leader failed")
 					os.Exit(1)
 				}
 			}
 		}
 
 		leaderStop := func() {
-			if !debug {
-				untag := func() error {
-					return varmorutils.UnTagLeaderPod(kubeClient.CoreV1().Pods(config.Namespace))
-				}
-				err := retry.OnError(retry.DefaultRetry, retriable, untag)
-				if err != nil {
-					setupLog.Error(err, "varmorutils.UnTagLeaderPod()")
-					os.Exit(1)
-				}
-			}
 			statusSvc.CleanUp()
 			policyCtrl.CleanUp()
 			signal.RequestShutdown()

@@ -31,6 +31,7 @@ import (
 	coreV1 "k8s.io/api/core/v1"
 	k8errors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	types "k8s.io/apimachinery/pkg/types"
 	appsv1 "k8s.io/client-go/kubernetes/typed/apps/v1"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
@@ -658,8 +659,32 @@ func TagLeaderPod(podInterface corev1.PodInterface) error {
 }
 
 func UnTagLeaderPod(podInterface corev1.PodInterface) error {
-	jsonPatch := `[{"op": "remove", "path": "/metadata/labels/identity"}]`
-	_, err := podInterface.Patch(context.Background(), os.Getenv("HOSTNAME"), types.JSONPatchType, []byte(jsonPatch), metav1.PatchOptions{})
+	selector := metav1.LabelSelector{
+		MatchLabels: map[string]string{
+			"app.kubernetes.io/component": "varmor-manager",
+			"identity":                    "leader",
+		},
+	}
+
+	listOpt := metav1.ListOptions{
+		LabelSelector:   labels.Set(selector.MatchLabels).String(),
+		ResourceVersion: "0",
+	}
+	pods, err := podInterface.List(context.Background(), listOpt)
+	if err != nil {
+		if k8errors.IsNotFound(err) {
+			return nil
+		}
+		return err
+	}
+
+	for _, pod := range pods.Items {
+		jsonPatch := `[{"op": "remove", "path": "/metadata/labels/identity"}]`
+		_, err := podInterface.Patch(context.Background(), pod.Name, types.JSONPatchType, []byte(jsonPatch), metav1.PatchOptions{})
+		if err != nil {
+			return err
+		}
+	}
 
 	return err
 }
