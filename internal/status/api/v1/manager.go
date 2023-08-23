@@ -79,22 +79,6 @@ func NewStatusManager(coreInterface corev1.CoreV1Interface, appsInterface appsv1
 		debug:             debug,
 		log:               log,
 	}
-
-	logger := m.log.WithName("NewStatusManager")
-	err := m.retrieveDesiredNumber()
-	if err != nil {
-		logger.Error(err, "m.retrieveDesiredNumber() failed")
-	} else {
-		logger.Info("DesiredNumber initialized", "number", m.desiredNumber)
-	}
-
-	err = m.rebuildPolicyStatuses()
-	if err != nil {
-		logger.Error(err, "m.rebuildPolicyStatuses() failed")
-	}
-
-	logger.V(3).Info("PolicyStatuses cache rebuilt", "length", len(m.PolicyStatuses), "content", m.PolicyStatuses)
-
 	return &m
 }
 
@@ -119,11 +103,7 @@ func (m *StatusManager) retrieveDesiredNumber() error {
 		return nil
 	}
 	retriable := func(err error) bool {
-		if err == nil {
-			return false
-		} else {
-			return true
-		}
+		return err != nil
 	}
 	err := retry.OnError(retry.DefaultRetry, retriable, retrieveAgentDsStatus)
 	return err
@@ -496,6 +476,19 @@ func (m *StatusManager) reconcileStatus(stopCh <-chan struct{}) {
 func (m *StatusManager) Run(stopCh <-chan struct{}) {
 
 	defer utilruntime.HandleCrash()
+
+	err := m.retrieveDesiredNumber()
+	if err != nil {
+		m.log.Error(err, "m.retrieveDesiredNumber() failed")
+	} else {
+		m.log.Info("DesiredNumber initialized", "number", m.desiredNumber)
+	}
+
+	err = m.rebuildPolicyStatuses()
+	if err != nil {
+		m.log.Error(err, "m.rebuildPolicyStatuses() failed")
+	}
+	m.log.V(3).Info("PolicyStatuses cache rebuilt", "length", len(m.PolicyStatuses), "content", m.PolicyStatuses)
 
 	go m.reconcileStatus(stopCh)
 	go wait.Until(m.statusWorker, time.Second, stopCh)
