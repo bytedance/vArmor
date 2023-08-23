@@ -275,11 +275,7 @@ func main() {
 		}
 
 		retriable := func(err error) bool {
-			if err == nil {
-				return false
-			} else {
-				return true
-			}
+			return err != nil
 		}
 
 		// Wrap all controllers that need leaderelection, start them once by the leader.
