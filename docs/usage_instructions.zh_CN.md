@@ -78,12 +78,12 @@ vArmor 支持基于 AppArmor 和 BPF 两种 LSM 对 Kubernetes 中的工作负�
 
   * BpfRawRules 说明
 
-    |字段|子字段|子字段|类型|值|描述|
+    |字段|字段类型|子字段|子字段类型|值|描述|
     |---|-----|-----|---|--|---|
-    |Files|FileRule|Pattern|string（必选）|任意符合策略语法的字符串（最大长度 64 bytes）|用于匹配文件路径、文件名称。语法参见
+    |Files|[]FileRule|Pattern|string（必选）|任意符合策略语法的字符串（最大长度 64 bytes）|用于匹配文件路径、文件名称。语法参见
     |     |        |Permissions|[]string（必选）|read 或 r<br>write 或 w<br>exec 或 e|禁止使用的权限，write 权限隐式包含 link, rename 等权限
-    |Processes|FileRule|-|-|-|-
-    |Network|Egresses|-|[]NetworkEgressRule（可选）|-|对外联请求进行访问控制（仅支持 connect 行为，不支持已建立链接的 socket）
+    |Processes|[]FileRule|-|-|-|-
+    |Network|NetworkRule|Egresses|[]NetworkEgressRule（可选）|-|对外联请求进行访问控制（仅支持 connect 行为，不支持已建立链接的 socket）
 
   * NetworkEgressRule
   
