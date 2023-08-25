@@ -79,7 +79,7 @@ func main() {
 	flag.Float64Var(&clientRateLimitQPS, "clientRateLimitQPS", 0, "Configure the maximum QPS to the master from vArmor. Uses the client default if zero.")
 	flag.IntVar(&clientRateLimitBurst, "clientRateLimitBurst", 0, "Configure the maximum burst for throttle. Uses the client default if zero.")
 	flag.StringVar(&managerIP, "managerIP", "0.0.0.0", "Configure the IP address of manager.")
-	flag.StringVar(&webhookMatchLabel, "webhookMatchLabel", "sandbox.varmor.org/enable=true", "Configure the matchLabel of webhook configuration")
+	flag.StringVar(&webhookMatchLabel, "webhookMatchLabel", "sandbox.varmor.org/enable=true", "Configure the matchLabel of webhook configuration, the valid format is key=value or nil")
 	flag.DurationVar(&statusUpdateCycle, "statusUpdateCycle", time.Hour*2, "Configure the status update cycle for VarmorPolicy and ArmorProfile")
 
 	if err := flag.Set("v", "2"); err != nil {
@@ -89,12 +89,14 @@ func main() {
 	flag.Parse()
 
 	// Set the webhook matchLabels configuration.
-	labelKvs := strings.Split(webhookMatchLabel, "=")
-	if len(labelKvs) != 2 {
-		setupLog.Error(fmt.Errorf("format error"), "failed to parse the --webhookMatchLabel argument, the correct format is key=value")
-		os.Exit(1)
+	if webhookMatchLabel != "" {
+		labelKvs := strings.Split(webhookMatchLabel, "=")
+		if len(labelKvs) != 2 {
+			setupLog.Error(fmt.Errorf("format error"), "failed to parse the --webhookMatchLabel argument, the valid format is key=value or nil")
+			os.Exit(1)
+		}
+		config.WebhookSelectorLabel[labelKvs[0]] = labelKvs[1]
 	}
-	config.WebhookSelectorLabel[labelKvs[0]] = labelKvs[1]
 
 	debug := kubeconfig != ""
 	stopCh := signal.SetupSignalHandler()
