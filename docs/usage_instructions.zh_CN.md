@@ -10,7 +10,7 @@ vArmor 支持基于 AppArmor 和 BPF 两种 LSM 对 Kubernetes 中的工作负�
 | 开启 BPF enforcer | --set bpfLsmEnforcer.enabled=true | 默认关闭；当系统支持 BPF LSM 时可通过此参数开启
 | 允许 vArmor 对工作负载进行滚动重启 | --set restartExistWorkloads.enabled=true | 默认关闭；开启后，当创建或删除 VarmorPolicy 时，vArmor 会对符合条件的 Workloads (Deployments, DaemonSet, StatefulSet) 进行滚动重启，从而开启或关闭防护
 | 退出时卸载所有 AppArmor Profile | --set unloadAllAaProfile.enabled=true | 默认关闭；开启后，Agent 退出时，将会卸载所有已加载的 AppArmor Profile
-| 设置 webhook MatchLabel | --set "manager.args={--webhookMatchLabel=KEY=VALUE}" | 默认为 sandbox.varmor.org/enable=true，即只有当包含此 label 的 Workloads 被创建时，才会被 vArmor 判断是否需要开启沙箱防护（注：只允许设置一个 label）
+| 设置 webhook MatchLabel | --set "manager.args={--webhookMatchLabel=KEY=VALUE}" | 默认为 sandbox.varmor.org/enable=true，即只有当包含此 label 的 Workloads 被创建时，才会被 vArmor 判断是否需要开启沙箱防护。也可通过 --set "manager.args={--webhookMatchLabel=}" 禁用 webhook matchlabel（注：只允许设置一个 label）
 | 开启深度防护功能 [实验功能] | --set defenseInDepth.enabled=true | 默认关闭；当需要对工作负载进行动态建模，生成 VarmorPolicy 时开启。当前只支持 AppArmor enforcer
 
 
