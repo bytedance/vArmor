@@ -74,7 +74,7 @@ vArmor 支持基于 AppArmor 和 BPF 两种 LSM 对 Kubernetes 中的工作负�
     |字段|类型|值|描述|
     |---|---|--|----|
     |Rules|[]string（必选）||可使用的内置规则列表详见 [Built-in Policies](policy_manual.zh_CN.md#内置策略-wip)
-    |Targets|[]string（必选）|任意可执行文件的全路径|对目标可执行文件开启 Rules 中指定的沙箱规则，仅支持 AppArmor enforcer
+    |Targets|[]string（可选）|任意可执行文件的全路径|对目标可执行文件开启 Rules 中指定的沙箱规则，仅支持 AppArmor enforcer
 
   * BpfRawRules 说明
 
