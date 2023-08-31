@@ -127,6 +127,6 @@ Below is a demonstration of using vArmor to harden a Deployment and defend again
 
 
 ## 404Starlink
-<img src lazysrc="https://github.com/knownsec/404StarLink-Project/raw/master/logo.png" width="30%">
+<img src="https://github.com/knownsec/404StarLink-Project/raw/master/logo.png" width="30%">
 
 vArmor has joined [404Starlink](https://github.com/knownsec/404StarLink)

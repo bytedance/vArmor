@@ -123,6 +123,6 @@ vArmor 在研发初期参考了 [Nirmata](https://nirmata.com/) 开发的 [kyver
 
 
 ## 404星链计划
-<img src lazysrc="https://github.com/knownsec/404StarLink-Project/raw/master/logo.png" width="30%">
+<img src="https://github.com/knownsec/404StarLink-Project/raw/master/logo.png" width="30%">
 
 vArmor 现已加入 [404星链计划](https://github.com/knownsec/404StarLink)
