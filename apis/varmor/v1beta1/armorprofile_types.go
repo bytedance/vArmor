@@ -38,11 +38,17 @@ type NetworkContent struct {
 	Port    uint32 `json:"port,omitempty"`
 }
 
+type PtraceContent struct {
+	Permissions uint32 `json:"permissions"`
+	Flags       uint32 `json:"flags"`
+}
+
 type BpfContent struct {
 	Capabilities uint64           `json:"capabilities,omitempty"`
 	Files        []FileContent    `json:"files,omitempty"`
 	Processes    []FileContent    `json:"processes,omitempty"`
 	Networks     []NetworkContent `json:"networks,omitempty"`
+	Ptrace       PtraceContent    `json:"ptrace,omitempty"`
 }
 
 type Profile struct {

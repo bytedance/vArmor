@@ -131,6 +131,18 @@ spec:
                           - permissions
                           type: object
                         type: array
+                      ptrace:
+                        properties:
+                          flags:
+                            format: int32
+                            type: integer
+                          permissions:
+                            format: int32
+                            type: integer
+                        required:
+                        - flags
+                        - permissions
+                        type: object
                     type: object
                   content:
                     type: string
