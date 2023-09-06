@@ -232,14 +232,32 @@ type NetworkEgressRule struct {
 }
 
 type NetworkRule struct {
-	// Egresses is the list of egress rules to be applied to restrict particular IPs and ports.
+	// Egresses are the list of egress rules to be applied to restrict particular IPs and ports.
 	Egresses []NetworkEgressRule `json:"egresses"`
+}
+
+type PtraceRule struct {
+	// StrictMode is used to indicate whether to restrict ptrace permissions for all source and destination processes.
+	// If set to false, it restricts ptrace permissions only for processes in other containers.
+	// If set to true, it restricts ptrace permissions for all processes (except those within the init mnt namespace)
+	StrictMode bool `json:"strictMode,omitempty"`
+	// Permissions are used to indicate which ptrace-related permissions of the target container should be restricted.
+	// Available values: trace, traceby, read, readby.
+	//
+	// trace, traceby
+	//    For "write" operations, or other operations that are more dangerous, such as: ptrace attaching (PTRACE_ATTACH) to
+	//    another process or calling process_vm_writev(2).
+	// read, readby
+	//    For "read" operations or other operations that are less dangerous, such as: get_robust_list(2); kcmp(2); reading
+	//    /proc/pid/auxv, /proc/pid/environ, or /proc/pid/stat; or readlink(2) of a /proc/pid/ns/* file.
+	Permissions []string `json:"permissions,omitempty"`
 }
 
 type BpfRawRules struct {
 	Files     []FileRule  `json:"files,omitempty"`
 	Processes []FileRule  `json:"processes,omitempty"`
 	Network   NetworkRule `json:"network,omitempty"`
+	Ptrace    PtraceRule  `json:"ptrace,omitempty"`
 }
 
 type EnhanceProtect struct {

@@ -50,6 +50,7 @@ type BpfEnforcer struct {
 	pathRenameLink   link.Link
 	bprmLink         link.Link
 	sockConnLink     link.Link
+	ptraceLink       link.Link
 	bpfProfileCache  map[string]bpfProfile // <profileName: bpfProfile>
 	containerCache   map[string]enforceID  // global cache <containerID: enforceID>
 	log              logr.Logger
@@ -119,6 +120,15 @@ func (enforcer *BpfEnforcer) initBPF() error {
 		MaxEntries: uint32(varmortypes.MaxBpfNetworkRuleCount),
 	}
 	collectionSpec.Maps["v_net_outer"].InnerMap = &netInnerMap
+
+	// Set the mnt ns id to the BPF program
+	initMntNsId, err := readMntNsID(1)
+	if err != nil {
+		return err
+	}
+	collectionSpec.RewriteConstants(map[string]interface{}{
+		"init_mnt_ns": initMntNsId,
+	})
 
 	// Load pre-compiled programs and maps into the kernel.
 	enforcer.log.Info("load ebpf program and maps into the kernel")
@@ -191,6 +201,15 @@ func (enforcer *BpfEnforcer) initBPF() error {
 	}
 	enforcer.sockConnLink = sockConnLink
 
+	enforcer.log.Info("attach VarmorPtraceAccessCheck to the LSM hook point")
+	ptraceLink, err := link.AttachLSM(link.LSMOptions{
+		Program: enforcer.objs.VarmorPtraceAccessCheck,
+	})
+	if err != nil {
+		return err
+	}
+	enforcer.ptraceLink = ptraceLink
+
 	return nil
 }
 
@@ -204,6 +223,7 @@ func (enforcer *BpfEnforcer) RemoveBPF() {
 	enforcer.pathRenameLink.Close()
 	enforcer.bprmLink.Close()
 	enforcer.sockConnLink.Close()
+	enforcer.ptraceLink.Close()
 	enforcer.objs.Close()
 }
 

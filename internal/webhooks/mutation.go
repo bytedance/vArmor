@@ -119,7 +119,7 @@ func failureResponse(uid types.UID, message string) *admissionv1.AdmissionRespon
 }
 
 // TODO: do we need to inject the VARMOR env to workload for behavior learning when process AdmissionRequest?
-func buildPatch(obj interface{}, enforcer string, target varmor.Target, apparmorName string) (patch string, err error) {
+func buildPatch(obj interface{}, enforcer string, target varmor.Target, apparmorName string, bpfExclusiveMode bool) (patch string, err error) {
 	var jsonPatch string
 
 	switch target.Kind {
@@ -151,7 +151,9 @@ func buildPatch(obj interface{}, enforcer string, target varmor.Target, apparmor
 					continue
 				}
 				jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/template/metadata/annotations/container.bpf.security.beta.varmor.org~1%s", "value": "localhost/%s"},`, container, apparmorName)
-				jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/template/metadata/annotations/container.apparmor.security.beta.kubernetes.io~1%s", "value": "unconfined"},`, container)
+				if bpfExclusiveMode {
+					jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/template/metadata/annotations/container.apparmor.security.beta.kubernetes.io~1%s", "value": "unconfined"},`, container)
+				}
 			case "AppArmor":
 				key := fmt.Sprintf("container.apparmor.security.beta.kubernetes.io/%s", container)
 				if value, ok := deploy.Spec.Template.Annotations[key]; ok && value == "unconfined" {
@@ -188,7 +190,9 @@ func buildPatch(obj interface{}, enforcer string, target varmor.Target, apparmor
 					continue
 				}
 				jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/template/metadata/annotations/container.bpf.security.beta.varmor.org~1%s", "value": "localhost/%s"},`, container, apparmorName)
-				jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/template/metadata/annotations/container.apparmor.security.beta.kubernetes.io~1%s", "value": "unconfined"},`, container)
+				if bpfExclusiveMode {
+					jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/template/metadata/annotations/container.apparmor.security.beta.kubernetes.io~1%s", "value": "unconfined"},`, container)
+				}
 			case "AppArmor":
 				key := fmt.Sprintf("container.apparmor.security.beta.kubernetes.io/%s", container)
 				if value, ok := statefulSet.Spec.Template.Annotations[key]; ok && value == "unconfined" {
@@ -225,7 +229,9 @@ func buildPatch(obj interface{}, enforcer string, target varmor.Target, apparmor
 					continue
 				}
 				jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/template/metadata/annotations/container.bpf.security.beta.varmor.org~1%s", "value": "localhost/%s"},`, container, apparmorName)
-				jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/template/metadata/annotations/container.apparmor.security.beta.kubernetes.io~1%s", "value": "unconfined"},`, container)
+				if bpfExclusiveMode {
+					jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/template/metadata/annotations/container.apparmor.security.beta.kubernetes.io~1%s", "value": "unconfined"},`, container)
+				}
 			case "AppArmor":
 				key := fmt.Sprintf("container.apparmor.security.beta.kubernetes.io/%s", container)
 				if value, ok := daemonSet.Spec.Template.Annotations[key]; ok && value == "unconfined" {
@@ -258,7 +264,9 @@ func buildPatch(obj interface{}, enforcer string, target varmor.Target, apparmor
 					continue
 				}
 				jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/metadata/annotations/container.bpf.security.beta.varmor.org~1%s", "value": "localhost/%s"},`, container, apparmorName)
-				jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/metadata/annotations/container.apparmor.security.beta.kubernetes.io~1%s", "value": "unconfined"},`, container)
+				if bpfExclusiveMode {
+					jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/metadata/annotations/container.apparmor.security.beta.kubernetes.io~1%s", "value": "unconfined"},`, container)
+				}
 			case "AppArmor":
 				key := fmt.Sprintf("container.apparmor.security.beta.kubernetes.io/%s", container)
 				if value, ok := pod.Annotations[key]; ok && value == "unconfined" {

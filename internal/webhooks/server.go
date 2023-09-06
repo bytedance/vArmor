@@ -41,11 +41,12 @@ import (
 
 // WebhookServer contains configured TLS server with MutationWebhook.
 type WebhookServer struct {
-	server          *http.Server
-	webhookRegister *webhookconfig.Register
-	policyCacher    *policycacher.PolicyCacher
-	deserializer    runtime.Decoder
-	log             logr.Logger
+	server           *http.Server
+	webhookRegister  *webhookconfig.Register
+	policyCacher     *policycacher.PolicyCacher
+	deserializer     runtime.Decoder
+	bpfExclusiveMode bool
+	log              logr.Logger
 }
 
 func NewWebhookServer(
@@ -54,13 +55,15 @@ func NewWebhookServer(
 	tlsPair *varmortls.PemPair,
 	addr string,
 	port int,
+	bpfExclusiveMode bool,
 	log logr.Logger,
 ) (*WebhookServer, error) {
 
 	ws := &WebhookServer{
-		webhookRegister: webhookRegister,
-		policyCacher:    policyCacher,
-		log:             log,
+		webhookRegister:  webhookRegister,
+		policyCacher:     policyCacher,
+		bpfExclusiveMode: bpfExclusiveMode,
+		log:              log,
 	}
 
 	scheme := runtime.NewScheme()
@@ -169,7 +172,7 @@ func (ws *WebhookServer) resourceMutation(request *admissionv1.AdmissionRequest)
 
 			if target.Name != "" && target.Name == deploy.Name {
 				logger.Info("mutating resource", "resource kind", request.Kind.Kind, "resource namespace", request.Namespace, "resource name", request.Name, "apparmor profile", apName)
-				patch, err := buildPatch(&deploy, enforcer, target, apName)
+				patch, err := buildPatch(&deploy, enforcer, target, apName, ws.bpfExclusiveMode)
 				if err != nil {
 					logger.Error(err, "ws.buildPatch()")
 					break
@@ -182,7 +185,7 @@ func (ws *WebhookServer) resourceMutation(request *admissionv1.AdmissionRequest)
 				}
 				if selector.Matches(labels.Set(deploy.Labels)) {
 					logger.Info("mutating resource", "resource kind", request.Kind.Kind, "resource namespace", request.Namespace, "resource name", request.Name, "apparmor profile", apName)
-					patch, err := buildPatch(&deploy, enforcer, target, apName)
+					patch, err := buildPatch(&deploy, enforcer, target, apName, ws.bpfExclusiveMode)
 					if err != nil {
 						logger.Error(err, "ws.buildPatch()")
 						break
@@ -199,7 +202,7 @@ func (ws *WebhookServer) resourceMutation(request *admissionv1.AdmissionRequest)
 
 			if target.Name != "" && target.Name == statusful.Name {
 				logger.Info("mutating resource", "resource kind", request.Kind.Kind, "resource namespace", request.Namespace, "resource name", request.Name, "apparmor profile", apName)
-				patch, err := buildPatch(&statusful, enforcer, target, apName)
+				patch, err := buildPatch(&statusful, enforcer, target, apName, ws.bpfExclusiveMode)
 				if err != nil {
 					logger.Error(err, "ws.buildPatch()")
 					break
@@ -212,7 +215,7 @@ func (ws *WebhookServer) resourceMutation(request *admissionv1.AdmissionRequest)
 				}
 				if selector.Matches(labels.Set(statusful.Labels)) {
 					logger.Info("mutating resource", "resource kind", request.Kind.Kind, "resource namespace", request.Namespace, "resource name", request.Name, "apparmor profile", apName)
-					patch, err := buildPatch(&statusful, enforcer, target, apName)
+					patch, err := buildPatch(&statusful, enforcer, target, apName, ws.bpfExclusiveMode)
 					if err != nil {
 						logger.Error(err, "ws.buildPatch()")
 						break
@@ -234,7 +237,7 @@ func (ws *WebhookServer) resourceMutation(request *admissionv1.AdmissionRequest)
 
 			if target.Name != "" && target.Name == daemon.Name {
 				logger.Info("mutating resource", "resource kind", request.Kind.Kind, "resource namespace", request.Namespace, "resource name", request.Name, "apparmor profile", apName)
-				patch, err := buildPatch(&daemon, enforcer, target, apName)
+				patch, err := buildPatch(&daemon, enforcer, target, apName, ws.bpfExclusiveMode)
 				if err != nil {
 					logger.Error(err, "ws.buildPatch()")
 					break
@@ -247,7 +250,7 @@ func (ws *WebhookServer) resourceMutation(request *admissionv1.AdmissionRequest)
 				}
 				if selector.Matches(labels.Set(daemon.Labels)) {
 					logger.Info("mutating resource", "resource kind", request.Kind.Kind, "resource namespace", request.Namespace, "resource name", request.Name, "apparmor profile", apName)
-					patch, err := buildPatch(&daemon, enforcer, target, apName)
+					patch, err := buildPatch(&daemon, enforcer, target, apName, ws.bpfExclusiveMode)
 					if err != nil {
 						logger.Error(err, "ws.buildPatch()")
 						break
@@ -264,7 +267,7 @@ func (ws *WebhookServer) resourceMutation(request *admissionv1.AdmissionRequest)
 
 			if target.Name != "" && target.Name == pod.Name {
 				logger.Info("mutating resource", "resource kind", request.Kind.Kind, "resource namespace", request.Namespace, "resource name", request.Name, "apparmor profile", apName)
-				patch, err := buildPatch(&pod, enforcer, target, apName)
+				patch, err := buildPatch(&pod, enforcer, target, apName, ws.bpfExclusiveMode)
 				if err != nil {
 					logger.Error(err, "ws.buildPatch()")
 					break
@@ -281,7 +284,7 @@ func (ws *WebhookServer) resourceMutation(request *admissionv1.AdmissionRequest)
 					} else {
 						logger.Info("mutating resource", "resource kind", request.Kind.Kind, "resource namespace", request.Namespace, "resource name", request.Name, "apparmor profile", apName)
 					}
-					patch, err := buildPatch(&pod, enforcer, target, apName)
+					patch, err := buildPatch(&pod, enforcer, target, apName, ws.bpfExclusiveMode)
 					if err != nil {
 						logger.Error(err, "ws.buildPatch()")
 						break

@@ -64,6 +64,7 @@ type bpfProgramSpecs struct {
 	VarmorPathRename        *ebpf.ProgramSpec `ebpf:"varmor_path_rename"`
 	VarmorPathRenameTail    *ebpf.ProgramSpec `ebpf:"varmor_path_rename_tail"`
 	VarmorPathSymlink       *ebpf.ProgramSpec `ebpf:"varmor_path_symlink"`
+	VarmorPtraceAccessCheck *ebpf.ProgramSpec `ebpf:"varmor_ptrace_access_check"`
 	VarmorSocketConnect     *ebpf.ProgramSpec `ebpf:"varmor_socket_connect"`
 }
 
@@ -77,6 +78,7 @@ type bpfMapSpecs struct {
 	V_fileBuffer *ebpf.MapSpec `ebpf:"v_file_buffer"`
 	V_fileOuter  *ebpf.MapSpec `ebpf:"v_file_outer"`
 	V_netOuter   *ebpf.MapSpec `ebpf:"v_net_outer"`
+	V_ptrace     *ebpf.MapSpec `ebpf:"v_ptrace"`
 }
 
 // bpfObjects contains all objects after they have been loaded into the kernel.
@@ -104,6 +106,7 @@ type bpfMaps struct {
 	V_fileBuffer *ebpf.Map `ebpf:"v_file_buffer"`
 	V_fileOuter  *ebpf.Map `ebpf:"v_file_outer"`
 	V_netOuter   *ebpf.Map `ebpf:"v_net_outer"`
+	V_ptrace     *ebpf.Map `ebpf:"v_ptrace"`
 }
 
 func (m *bpfMaps) Close() error {
@@ -114,6 +117,7 @@ func (m *bpfMaps) Close() error {
 		m.V_fileBuffer,
 		m.V_fileOuter,
 		m.V_netOuter,
+		m.V_ptrace,
 	)
 }
 
@@ -129,6 +133,7 @@ type bpfPrograms struct {
 	VarmorPathRename        *ebpf.Program `ebpf:"varmor_path_rename"`
 	VarmorPathRenameTail    *ebpf.Program `ebpf:"varmor_path_rename_tail"`
 	VarmorPathSymlink       *ebpf.Program `ebpf:"varmor_path_symlink"`
+	VarmorPtraceAccessCheck *ebpf.Program `ebpf:"varmor_ptrace_access_check"`
 	VarmorSocketConnect     *ebpf.Program `ebpf:"varmor_socket_connect"`
 }
 
@@ -142,6 +147,7 @@ func (p *bpfPrograms) Close() error {
 		p.VarmorPathRename,
 		p.VarmorPathRenameTail,
 		p.VarmorPathSymlink,
+		p.VarmorPtraceAccessCheck,
 		p.VarmorSocketConnect,
 	)
 }

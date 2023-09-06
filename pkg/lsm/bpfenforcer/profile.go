@@ -40,7 +40,7 @@ func (enforcer *BpfEnforcer) newEnforceID(pid uint32) (enforceID, error) {
 }
 
 func (enforcer *BpfEnforcer) applyProfile(nsID uint32, bpfContent varmor.BpfContent) error {
-	// capability rules
+	// capability rule
 	if bpfContent.Capabilities != 0 {
 		err := enforcer.objs.V_capable.Put(&nsID, &bpfContent.Capabilities)
 		if err != nil {
@@ -192,11 +192,25 @@ func (enforcer *BpfEnforcer) applyProfile(nsID uint32, bpfContent varmor.BpfCont
 		}
 	}
 
+	// ptrace rule
+	if bpfContent.Ptrace.Permissions != 0 && bpfContent.Ptrace.Flags != 0 {
+		rule := uint64(bpfContent.Ptrace.Permissions)<<32 + uint64(bpfContent.Ptrace.Flags)
+		err := enforcer.objs.V_ptrace.Put(&nsID, &rule)
+		if err != nil {
+			return err
+		}
+	} else {
+		err := enforcer.objs.V_ptrace.Delete(&nsID)
+		if err != nil && !errors.Is(err, ebpf.ErrKeyNotExist) {
+			enforcer.log.Error(err, "V_ptrace.Delete()")
+		}
+	}
+
 	return nil
 }
 
 func (enforcer *BpfEnforcer) deleteProfile(nsID uint32) {
-	// capability rules
+	// capability rule
 	err := enforcer.objs.V_capable.Delete(&nsID)
 	if err != nil && !errors.Is(err, ebpf.ErrKeyNotExist) {
 		enforcer.log.Error(err, "V_capable.Delete()")
@@ -218,5 +232,11 @@ func (enforcer *BpfEnforcer) deleteProfile(nsID uint32) {
 	err = enforcer.objs.V_netOuter.Delete(&nsID)
 	if err != nil && !errors.Is(err, ebpf.ErrKeyNotExist) {
 		enforcer.log.Error(err, "V_netOuter.Delete()")
+	}
+
+	// ptrace rule
+	err = enforcer.objs.V_ptrace.Delete(&nsID)
+	if err != nil && !errors.Is(err, ebpf.ErrKeyNotExist) {
+		enforcer.log.Error(err, "V_ptrace.Delete()")
 	}
 }

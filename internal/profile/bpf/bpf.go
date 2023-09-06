@@ -27,18 +27,22 @@ import (
 )
 
 const (
-	PreciseMatch = 0x00000001
-	GreedyMatch  = 0x00000002
-	PrefixMatch  = 0x00000004
-	SuffixMatch  = 0x00000008
-	CidrMatch    = 0x00000020
-	Ipv4Match    = 0x00000040
-	Ipv6Match    = 0x00000080
-	PortMatch    = 0x00000100
-	AaMayExec    = 0x00000001
-	AaMayWrite   = 0x00000002
-	AaMayRead    = 0x00000004
-	AaMayAppend  = 0x00000008
+	PreciseMatch  = 0x00000001
+	GreedyMatch   = 0x00000002
+	PrefixMatch   = 0x00000004
+	SuffixMatch   = 0x00000008
+	CidrMatch     = 0x00000020
+	Ipv4Match     = 0x00000040
+	Ipv6Match     = 0x00000080
+	PortMatch     = 0x00000100
+	AaMayExec     = 0x00000001
+	AaMayWrite    = 0x00000002
+	AaMayRead     = 0x00000004
+	AaMayAppend   = 0x00000008
+	AaPtraceTrace = 0x00000002
+	AaPtraceRead  = 0x00000004
+	AaMayBeTraced = 0x00000008
+	AaMayBeRead   = 0x00000010
 )
 
 func reverseString(s string) string {
@@ -248,6 +252,10 @@ func generateHardeningRules(rule string, content *varmor.BpfContent) error {
 	// disallow load ebpf program
 	case "disallow-load-ebpf":
 		content.Capabilities |= (1 << unix.CAP_SYS_ADMIN) | (1 << unix.CAP_BPF)
+	// disallow access to the root of the task through procfs
+	case "disallow-access-procfs-root":
+		content.Ptrace.Permissions |= AaPtraceRead
+		content.Ptrace.Flags |= PreciseMatch
 
 	//// 2. Disable capabilities
 	// disable all capabilities
@@ -601,6 +609,34 @@ func generateRawNetworkRules(rule varmor.NetworkEgressRule, bpfContent *varmor.B
 	return nil
 }
 
+func generateRawPtraceRule(rule varmor.PtraceRule, bpfContent *varmor.BpfContent) error {
+	var permissions uint32
+
+	for _, permission := range rule.Permissions {
+		switch strings.ToLower(permission) {
+		case "trace":
+			permissions |= AaPtraceTrace
+		case "read":
+			permissions |= AaPtraceRead
+		case "traceby":
+			permissions |= AaMayBeTraced
+		case "readby":
+			permissions |= AaMayBeRead
+		}
+	}
+
+	if permissions != 0 {
+		bpfContent.Ptrace.Permissions = permissions
+		if rule.StrictMode {
+			bpfContent.Ptrace.Flags = GreedyMatch
+		} else {
+			bpfContent.Ptrace.Flags = PreciseMatch
+		}
+	}
+
+	return nil
+}
+
 func GenerateEnhanceProtectProfile(enhanceProtect *varmor.EnhanceProtect, bpfContent *varmor.BpfContent) error {
 	var err error
 	// Hardening
@@ -661,6 +697,11 @@ func GenerateEnhanceProtectProfile(enhanceProtect *varmor.EnhanceProtect, bpfCon
 		if err != nil {
 			return err
 		}
+	}
+
+	err = generateRawPtraceRule(enhanceProtect.BpfRawRules.Ptrace, bpfContent)
+	if err != nil {
+		return err
 	}
 
 	if len(bpfContent.Files) > varmortypes.MaxBpfFileRuleCount {
