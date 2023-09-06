@@ -132,15 +132,12 @@ func PostDataToStatusService(reqBody []byte, debug bool, address string, port in
 	return httpPostWithRetry(reqBody, debug, varmorconfig.StatusServiceName, varmorconfig.Namespace, address, port, varmorconfig.DataSyncPath, retryTimes)
 }
 
-func modifyDeploymentAnnotationsAndEnv(enforcer string, target varmor.Target, deploy *appsV1.Deployment, profileName, uniqueID string) {
+func modifyDeploymentAnnotationsAndEnv(enforcer string, target varmor.Target, deploy *appsV1.Deployment, profileName, uniqueID string, bpfExclusiveMode bool) {
 	for key, value := range deploy.Spec.Template.Annotations {
 		switch enforcer {
 		case "BPF":
 			if strings.HasPrefix(key, "container.bpf.security.beta.varmor.org/") && value != "unconfined" {
 				delete(deploy.Spec.Template.Annotations, key)
-				container := key[len("container.bpf.security.beta.varmor.org/"):]
-				apparmorKey := "container.apparmor.security.beta.kubernetes.io/" + container
-				delete(deploy.Spec.Template.Annotations, apparmorKey)
 			}
 		case "AppArmor":
 			if strings.HasPrefix(key, "container.apparmor.security.beta.kubernetes.io/") && value != "unconfined" {
@@ -182,8 +179,11 @@ func modifyDeploymentAnnotationsAndEnv(enforcer string, target varmor.Target, de
 				continue
 			}
 			deploy.Spec.Template.Annotations[key] = fmt.Sprintf("localhost/%s", profileName)
-			key = fmt.Sprintf("container.apparmor.security.beta.kubernetes.io/%s", container.Name)
-			deploy.Spec.Template.Annotations[key] = "unconfined"
+
+			if bpfExclusiveMode {
+				key = fmt.Sprintf("container.apparmor.security.beta.kubernetes.io/%s", container.Name)
+				deploy.Spec.Template.Annotations[key] = "unconfined"
+			}
 		case "AppArmor":
 			key := fmt.Sprintf("container.apparmor.security.beta.kubernetes.io/%s", container.Name)
 			if value, ok := deploy.Spec.Template.Annotations[key]; ok && value == "unconfined" {
@@ -204,15 +204,12 @@ func modifyDeploymentAnnotationsAndEnv(enforcer string, target varmor.Target, de
 	}
 }
 
-func modifyStatefulSetAnnotationsAndEnv(enforcer string, target varmor.Target, stateful *appsV1.StatefulSet, profileName, uniqueID string) {
+func modifyStatefulSetAnnotationsAndEnv(enforcer string, target varmor.Target, stateful *appsV1.StatefulSet, profileName, uniqueID string, bpfExclusiveMode bool) {
 	for key, value := range stateful.Spec.Template.Annotations {
 		switch enforcer {
 		case "BPF":
 			if strings.HasPrefix(key, "container.bpf.security.beta.varmor.org/") && value != "unconfined" {
 				delete(stateful.Spec.Template.Annotations, key)
-				container := key[len("container.bpf.security.beta.varmor.org/"):]
-				apparmorKey := "container.apparmor.security.beta.kubernetes.io/" + container
-				delete(stateful.Spec.Template.Annotations, apparmorKey)
 			}
 		case "AppArmor":
 			if strings.HasPrefix(key, "container.apparmor.security.beta.kubernetes.io/") && value != "unconfined" {
@@ -254,8 +251,11 @@ func modifyStatefulSetAnnotationsAndEnv(enforcer string, target varmor.Target, s
 				continue
 			}
 			stateful.Spec.Template.Annotations[key] = fmt.Sprintf("localhost/%s", profileName)
-			key = fmt.Sprintf("container.apparmor.security.beta.kubernetes.io/%s", container.Name)
-			stateful.Spec.Template.Annotations[key] = "unconfined"
+
+			if bpfExclusiveMode {
+				key = fmt.Sprintf("container.apparmor.security.beta.kubernetes.io/%s", container.Name)
+				stateful.Spec.Template.Annotations[key] = "unconfined"
+			}
 		case "AppArmor":
 			key := fmt.Sprintf("container.apparmor.security.beta.kubernetes.io/%s", container.Name)
 			if value, ok := stateful.Spec.Template.Annotations[key]; ok && value == "unconfined" {
@@ -276,15 +276,12 @@ func modifyStatefulSetAnnotationsAndEnv(enforcer string, target varmor.Target, s
 	}
 }
 
-func modifyDaemonSetAnnotationsAndEnv(enforcer string, target varmor.Target, daemon *appsV1.DaemonSet, profileName, uniqueID string) {
+func modifyDaemonSetAnnotationsAndEnv(enforcer string, target varmor.Target, daemon *appsV1.DaemonSet, profileName, uniqueID string, bpfExclusiveMode bool) {
 	for key, value := range daemon.Spec.Template.Annotations {
 		switch enforcer {
 		case "BPF":
 			if strings.HasPrefix(key, "container.bpf.security.beta.varmor.org/") && value != "unconfined" {
 				delete(daemon.Spec.Template.Annotations, key)
-				container := key[len("container.bpf.security.beta.varmor.org/"):]
-				apparmorKey := "container.apparmor.security.beta.kubernetes.io/" + container
-				delete(daemon.Spec.Template.Annotations, apparmorKey)
 			}
 		case "AppArmor":
 			if strings.HasPrefix(key, "container.apparmor.security.beta.kubernetes.io/") && value != "unconfined" {
@@ -326,8 +323,11 @@ func modifyDaemonSetAnnotationsAndEnv(enforcer string, target varmor.Target, dae
 				continue
 			}
 			daemon.Spec.Template.Annotations[key] = fmt.Sprintf("localhost/%s", profileName)
-			key = fmt.Sprintf("container.apparmor.security.beta.kubernetes.io/%s", container.Name)
-			daemon.Spec.Template.Annotations[key] = "unconfined"
+
+			if bpfExclusiveMode {
+				key = fmt.Sprintf("container.apparmor.security.beta.kubernetes.io/%s", container.Name)
+				daemon.Spec.Template.Annotations[key] = "unconfined"
+			}
 		case "AppArmor":
 			key := fmt.Sprintf("container.apparmor.security.beta.kubernetes.io/%s", container.Name)
 			if value, ok := daemon.Spec.Template.Annotations[key]; ok && value == "unconfined" {
@@ -355,6 +355,7 @@ func UpdateWorkloadAnnotationsAndEnv(
 	target varmor.Target,
 	profileName string,
 	uniqueID string,
+	bpfExclusiveMode bool,
 	logger logr.Logger) {
 	switch target.Kind {
 	case "Deployment":
@@ -379,7 +380,7 @@ func UpdateWorkloadAnnotationsAndEnv(
 				}
 
 				deployOld := deploy.DeepCopy()
-				modifyDeploymentAnnotationsAndEnv(enforcer, target, deploy, profileName, uniqueID)
+				modifyDeploymentAnnotationsAndEnv(enforcer, target, deploy, profileName, uniqueID, bpfExclusiveMode)
 				if reflect.DeepEqual(deployOld, deploy) {
 					return nil
 				}
@@ -435,7 +436,7 @@ func UpdateWorkloadAnnotationsAndEnv(
 					}
 
 					deployOld := deploy.DeepCopy()
-					modifyDeploymentAnnotationsAndEnv(enforcer, target, deploy, profileName, uniqueID)
+					modifyDeploymentAnnotationsAndEnv(enforcer, target, deploy, profileName, uniqueID, bpfExclusiveMode)
 					if reflect.DeepEqual(deployOld, deploy) {
 						return nil
 					}
@@ -476,7 +477,7 @@ func UpdateWorkloadAnnotationsAndEnv(
 				}
 
 				statefulOld := stateful.DeepCopy()
-				modifyStatefulSetAnnotationsAndEnv(enforcer, target, stateful, profileName, uniqueID)
+				modifyStatefulSetAnnotationsAndEnv(enforcer, target, stateful, profileName, uniqueID, bpfExclusiveMode)
 				if reflect.DeepEqual(statefulOld, stateful) {
 					return nil
 				}
@@ -532,7 +533,7 @@ func UpdateWorkloadAnnotationsAndEnv(
 					}
 
 					statefulOld := stateful.DeepCopy()
-					modifyStatefulSetAnnotationsAndEnv(enforcer, target, stateful, profileName, uniqueID)
+					modifyStatefulSetAnnotationsAndEnv(enforcer, target, stateful, profileName, uniqueID, bpfExclusiveMode)
 					if reflect.DeepEqual(statefulOld, stateful) {
 						return nil
 					}
@@ -573,7 +574,7 @@ func UpdateWorkloadAnnotationsAndEnv(
 				}
 
 				daemonOld := daemon.DeepCopy()
-				modifyDaemonSetAnnotationsAndEnv(enforcer, target, daemon, profileName, uniqueID)
+				modifyDaemonSetAnnotationsAndEnv(enforcer, target, daemon, profileName, uniqueID, bpfExclusiveMode)
 				if reflect.DeepEqual(daemonOld, daemon) {
 					return nil
 				}
@@ -629,7 +630,7 @@ func UpdateWorkloadAnnotationsAndEnv(
 					}
 
 					daemonOld := daemon.DeepCopy()
-					modifyDaemonSetAnnotationsAndEnv(enforcer, target, daemon, profileName, uniqueID)
+					modifyDaemonSetAnnotationsAndEnv(enforcer, target, daemon, profileName, uniqueID, bpfExclusiveMode)
 					if reflect.DeepEqual(daemonOld, &daemon) {
 						return nil
 					}

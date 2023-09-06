@@ -61,6 +61,7 @@ var (
 	clientRateLimitBurst  int
 	managerIP             string
 	webhookMatchLabel     string
+	bpfExclusiveMode      bool
 	statusUpdateCycle     time.Duration
 	setupLog              = log.Log.WithName("SETUP")
 )
@@ -80,6 +81,7 @@ func main() {
 	flag.IntVar(&clientRateLimitBurst, "clientRateLimitBurst", 0, "Configure the maximum burst for throttle. Uses the client default if zero.")
 	flag.StringVar(&managerIP, "managerIP", "0.0.0.0", "Configure the IP address of manager.")
 	flag.StringVar(&webhookMatchLabel, "webhookMatchLabel", "sandbox.varmor.org/enable=true", "Configure the matchLabel of webhook configuration, the valid format is key=value or nil")
+	flag.BoolVar(&bpfExclusiveMode, "bpfExclusiveMode", false, "Set this flag to enable exclusive mode for the BPF enforcer. It will disable the AppArmor confinement when using the BPF enforcer.")
 	flag.DurationVar(&statusUpdateCycle, "statusUpdateCycle", time.Hour*2, "Configure the status update cycle for VarmorPolicy and ArmorProfile")
 
 	if err := flag.Set("v", "2"); err != nil {
@@ -236,6 +238,7 @@ func main() {
 			tlsPair,
 			managerIP,
 			config.WebhookServicePort,
+			bpfExclusiveMode,
 			log.Log.WithName("WEBHOOK-SERVER"))
 		if err != nil {
 			setupLog.Error(err, "Failed to create webhook webhookServer")
@@ -268,6 +271,7 @@ func main() {
 			statusSvc.StatusManager,
 			restartExistWorkloads,
 			enableDefenseInDepth,
+			bpfExclusiveMode,
 			debug,
 			log.Log.WithName("POLICY"),
 		)

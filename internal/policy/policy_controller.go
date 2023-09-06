@@ -60,6 +60,7 @@ type PolicyController struct {
 	statusManager         *statusmanager.StatusManager
 	restartExistWorkloads bool
 	enableDefenseInDepth  bool
+	bpfExclusiveMode      bool
 	debug                 bool
 	log                   logr.Logger
 }
@@ -73,6 +74,7 @@ func NewPolicyController(
 	statusManager *statusmanager.StatusManager,
 	restartExistWorkloads bool,
 	enableDefenseInDepth bool,
+	bpfExclusiveMode bool,
 	debug bool,
 	log logr.Logger) (*PolicyController, error) {
 
@@ -87,6 +89,7 @@ func NewPolicyController(
 		statusManager:         statusManager,
 		restartExistWorkloads: restartExistWorkloads,
 		enableDefenseInDepth:  enableDefenseInDepth,
+		bpfExclusiveMode:      bpfExclusiveMode,
 		debug:                 debug,
 		log:                   log,
 	}
@@ -180,7 +183,7 @@ func (pc *PolicyController) handleDeleteVarmorPolicy(namespace, name string) err
 	if pc.restartExistWorkloads {
 		// This will trigger the rolling upgrade of the target workload
 		logger.Info("delete annotations of target workloads asynchronously")
-		go varmorutils.UpdateWorkloadAnnotationsAndEnv(pc.appsInterface, namespace, ap.Spec.Profile.Enforcer, ap.Spec.Target, "", "", logger)
+		go varmorutils.UpdateWorkloadAnnotationsAndEnv(pc.appsInterface, namespace, ap.Spec.Profile.Enforcer, ap.Spec.Target, "", "", false, logger)
 	}
 
 	// Cleanup the PolicyStatus and ModelingStatus of status manager for the deleted VarmorPolicy/ArmorProfile object
@@ -352,7 +355,7 @@ func (pc *PolicyController) handleAddVarmorPolicy(vp *varmor.VarmorPolicy) error
 	if pc.restartExistWorkloads {
 		// This will trigger the rolling upgrade of the target workload.
 		logger.Info("add annotations to target workload asynchronously")
-		go varmorutils.UpdateWorkloadAnnotationsAndEnv(pc.appsInterface, vp.Namespace, vp.Spec.Policy.Enforcer, vp.Spec.Target, ap.Name, ap.Spec.BehaviorModeling.UniqueID, logger)
+		go varmorutils.UpdateWorkloadAnnotationsAndEnv(pc.appsInterface, vp.Namespace, vp.Spec.Policy.Enforcer, vp.Spec.Target, ap.Name, ap.Spec.BehaviorModeling.UniqueID, pc.bpfExclusiveMode, logger)
 	}
 
 	return nil

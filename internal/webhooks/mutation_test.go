@@ -29,18 +29,20 @@ import (
 
 func Test_buildPatch(t *testing.T) {
 	testCases := []struct {
-		name           string
-		kind           string
-		enforcer       string
-		expectedResult string
-		rawTarget      []byte
-		rawResource    []byte
+		name             string
+		kind             string
+		enforcer         string
+		bpfExclusiveMode bool
+		expectedResult   string
+		rawTarget        []byte
+		rawResource      []byte
 	}{
 		{
-			name:           "patchDeploymentAllContainersConfined",
-			kind:           "Deployment",
-			enforcer:       "AppArmor",
-			expectedResult: `[{"op": "add", "path": "/metadata/annotations", "value": {}},{"op": "add", "path": "/spec/template/metadata/annotations", "value": {}},{"op": "replace", "path": "/spec/template/metadata/annotations/container.apparmor.security.beta.kubernetes.io~1test1", "value": "localhost/varmor-testns-test"},{"op": "replace", "path": "/spec/template/metadata/annotations/container.apparmor.security.beta.kubernetes.io~1test2", "value": "localhost/varmor-testns-test"},{"op": "replace", "path": "/metadata/annotations/webhook.varmor.org~1mutatedAt", "value": "TIME_STRING"}]`,
+			name:             "patchDeploymentAllContainersConfined",
+			kind:             "Deployment",
+			enforcer:         "AppArmor",
+			bpfExclusiveMode: false,
+			expectedResult:   `[{"op": "add", "path": "/metadata/annotations", "value": {}},{"op": "add", "path": "/spec/template/metadata/annotations", "value": {}},{"op": "replace", "path": "/spec/template/metadata/annotations/container.apparmor.security.beta.kubernetes.io~1test1", "value": "localhost/varmor-testns-test"},{"op": "replace", "path": "/spec/template/metadata/annotations/container.apparmor.security.beta.kubernetes.io~1test2", "value": "localhost/varmor-testns-test"},{"op": "replace", "path": "/metadata/annotations/webhook.varmor.org~1mutatedAt", "value": "TIME_STRING"}]`,
 			rawTarget: []byte(`
     kind: Deployment
     name: 1.1-test`),
@@ -77,10 +79,11 @@ func Test_buildPatch(t *testing.T) {
             - containerPort: 5000`),
 		},
 		{
-			name:           "patchDeploymentPartContainerConfined",
-			kind:           "Deployment",
-			enforcer:       "AppArmor",
-			expectedResult: `[{"op": "add", "path": "/metadata/annotations", "value": {}},{"op": "replace", "path": "/spec/template/metadata/annotations/container.apparmor.security.beta.kubernetes.io~1test1", "value": "localhost/varmor-testns-test"},{"op": "replace", "path": "/metadata/annotations/webhook.varmor.org~1mutatedAt", "value": "TIME_STRING"}]`,
+			name:             "patchDeploymentPartContainerConfined",
+			kind:             "Deployment",
+			enforcer:         "AppArmor",
+			bpfExclusiveMode: false,
+			expectedResult:   `[{"op": "add", "path": "/metadata/annotations", "value": {}},{"op": "replace", "path": "/spec/template/metadata/annotations/container.apparmor.security.beta.kubernetes.io~1test1", "value": "localhost/varmor-testns-test"},{"op": "replace", "path": "/metadata/annotations/webhook.varmor.org~1mutatedAt", "value": "TIME_STRING"}]`,
 			rawTarget: []byte(`
     kind: Deployment
     name: 1.1-test`),
@@ -119,10 +122,11 @@ func Test_buildPatch(t *testing.T) {
             - containerPort: 5000`),
 		},
 		{
-			name:           "patchDeploymentAllContainersUnconfined",
-			kind:           "Deployment",
-			enforcer:       "AppArmor",
-			expectedResult: `[{"op": "add", "path": "/metadata/annotations", "value": {}},{"op": "replace", "path": "/metadata/annotations/webhook.varmor.org~1mutatedAt", "value": "TIME_STRING"}]`,
+			name:             "patchDeploymentAllContainersUnconfined",
+			kind:             "Deployment",
+			enforcer:         "AppArmor",
+			bpfExclusiveMode: false,
+			expectedResult:   `[{"op": "add", "path": "/metadata/annotations", "value": {}},{"op": "replace", "path": "/metadata/annotations/webhook.varmor.org~1mutatedAt", "value": "TIME_STRING"}]`,
 			rawTarget: []byte(`
     kind: Deployment
     name: 1.1-test`),
@@ -162,10 +166,11 @@ func Test_buildPatch(t *testing.T) {
             - containerPort: 5000`),
 		},
 		{
-			name:           "patchDeploymentNoContainersConfined",
-			kind:           "Deployment",
-			enforcer:       "AppArmor",
-			expectedResult: `[{"op": "add", "path": "/metadata/annotations", "value": {}},{"op": "replace", "path": "/metadata/annotations/webhook.varmor.org~1mutatedAt", "value": "TIME_STRING"}]`,
+			name:             "patchDeploymentNoContainersConfined",
+			kind:             "Deployment",
+			enforcer:         "AppArmor",
+			bpfExclusiveMode: false,
+			expectedResult:   `[{"op": "add", "path": "/metadata/annotations", "value": {}},{"op": "replace", "path": "/metadata/annotations/webhook.varmor.org~1mutatedAt", "value": "TIME_STRING"}]`,
 			rawTarget: []byte(`
     kind: Deployment
     name: 1.1-test
@@ -206,10 +211,11 @@ func Test_buildPatch(t *testing.T) {
             - containerPort: 5000`),
 		},
 		{
-			name:           "patchPodAllContainersConfined",
-			kind:           "Pod",
-			enforcer:       "AppArmor",
-			expectedResult: `[{"op": "replace", "path": "/metadata/annotations/container.apparmor.security.beta.kubernetes.io~1test", "value": "localhost/varmor-testns-test"},{"op": "replace", "path": "/metadata/annotations/container.apparmor.security.beta.kubernetes.io~1test1", "value": "localhost/varmor-testns-test"},{"op": "replace", "path": "/metadata/annotations/webhook.varmor.org~1mutatedAt", "value": "TIME_STRING"}]`,
+			name:             "patchPodAllContainersConfined",
+			kind:             "Pod",
+			enforcer:         "AppArmor",
+			bpfExclusiveMode: false,
+			expectedResult:   `[{"op": "replace", "path": "/metadata/annotations/container.apparmor.security.beta.kubernetes.io~1test", "value": "localhost/varmor-testns-test"},{"op": "replace", "path": "/metadata/annotations/container.apparmor.security.beta.kubernetes.io~1test1", "value": "localhost/varmor-testns-test"},{"op": "replace", "path": "/metadata/annotations/webhook.varmor.org~1mutatedAt", "value": "TIME_STRING"}]`,
 			rawTarget: []byte(`
     kind: Pod
     name: 4.1-test`),
@@ -235,10 +241,11 @@ func Test_buildPatch(t *testing.T) {
       `),
 		},
 		{
-			name:           "patchPodPartContainerConfined",
-			kind:           "Pod",
-			enforcer:       "AppArmor",
-			expectedResult: `[{"op": "replace", "path": "/metadata/annotations/container.apparmor.security.beta.kubernetes.io~1test", "value": "localhost/varmor-testns-test"},{"op": "replace", "path": "/metadata/annotations/webhook.varmor.org~1mutatedAt", "value": "TIME_STRING"}]`,
+			name:             "patchPodPartContainerConfined",
+			kind:             "Pod",
+			enforcer:         "AppArmor",
+			bpfExclusiveMode: false,
+			expectedResult:   `[{"op": "replace", "path": "/metadata/annotations/container.apparmor.security.beta.kubernetes.io~1test", "value": "localhost/varmor-testns-test"},{"op": "replace", "path": "/metadata/annotations/webhook.varmor.org~1mutatedAt", "value": "TIME_STRING"}]`,
 			rawTarget: []byte(`
     kind: Pod
     name: 4.1-test`),
@@ -264,10 +271,11 @@ func Test_buildPatch(t *testing.T) {
       `),
 		},
 		{
-			name:           "patchPodNoContainersConfined",
-			kind:           "Pod",
-			enforcer:       "AppArmor",
-			expectedResult: "",
+			name:             "patchPodNoContainersConfined",
+			kind:             "Pod",
+			enforcer:         "AppArmor",
+			bpfExclusiveMode: false,
+			expectedResult:   "",
 			rawTarget: []byte(`
     kind: Pod
     name: 4.1-test
@@ -295,10 +303,51 @@ func Test_buildPatch(t *testing.T) {
       `),
 		},
 		{
-			name:           "patchDeploymentPartContainerConfinedWithBPF",
-			kind:           "Deployment",
-			enforcer:       "BPF",
-			expectedResult: `[{"op": "add", "path": "/metadata/annotations", "value": {}},{"op": "replace", "path": "/spec/template/metadata/annotations/container.bpf.security.beta.varmor.org~1c1", "value": "localhost/varmor-testns-test"},{"op": "replace", "path": "/spec/template/metadata/annotations/container.apparmor.security.beta.kubernetes.io~1c1", "value": "unconfined"},{"op": "replace", "path": "/metadata/annotations/webhook.varmor.org~1mutatedAt", "value": "TIME_STRING"}]`,
+			name:             "patchDeploymentPartContainerConfinedWithBPFAndExclusiveMode",
+			kind:             "Deployment",
+			enforcer:         "BPF",
+			bpfExclusiveMode: true,
+			expectedResult:   `[{"op": "add", "path": "/metadata/annotations", "value": {}},{"op": "replace", "path": "/spec/template/metadata/annotations/container.bpf.security.beta.varmor.org~1c1", "value": "localhost/varmor-testns-test"},{"op": "replace", "path": "/spec/template/metadata/annotations/container.apparmor.security.beta.kubernetes.io~1c1", "value": "unconfined"},{"op": "replace", "path": "/metadata/annotations/webhook.varmor.org~1mutatedAt", "value": "TIME_STRING"}]`,
+			rawTarget: []byte(`
+    kind: Deployment
+    name: 4.1-test`),
+			rawResource: []byte(`
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: 4.1-test
+        namespace: demo
+        labels:
+          sandbox.varmor.org/enable: "true"
+          environment: production
+          app: demo
+      spec:
+        replicas: 1
+        selector:
+          matchLabels:
+            app: demo
+        template:
+          metadata:
+            labels:
+              app: demo
+            annotations:
+              container.bpf.security.beta.varmor.org/c0: unconfined
+          spec:
+            containers:
+            - name: c0
+              image: debian:10
+              command: ["/bin/sh", "-c", "sleep infinity"]
+            - name: c1
+              image: debian:10
+              command: ["/bin/sh", "-c", "sleep infinity"]
+      `),
+		},
+		{
+			name:             "patchDeploymentPartContainerConfinedWithBPF",
+			kind:             "Deployment",
+			enforcer:         "BPF",
+			bpfExclusiveMode: false,
+			expectedResult:   `[{"op": "add", "path": "/metadata/annotations", "value": {}},{"op": "replace", "path": "/spec/template/metadata/annotations/container.bpf.security.beta.varmor.org~1c1", "value": "localhost/varmor-testns-test"},{"op": "replace", "path": "/metadata/annotations/webhook.varmor.org~1mutatedAt", "value": "TIME_STRING"}]`,
 			rawTarget: []byte(`
     kind: Deployment
     name: 4.1-test`),
@@ -350,7 +399,7 @@ func Test_buildPatch(t *testing.T) {
 				assert.NilError(t, err)
 
 				deploy := obj.(*appsv1.Deployment)
-				patch, err := buildPatch(deploy, tc.enforcer, target, apparmorName)
+				patch, err := buildPatch(deploy, tc.enforcer, target, apparmorName, tc.bpfExclusiveMode)
 				if err != nil {
 					assert.Assert(t, err != nil)
 				}
@@ -366,7 +415,7 @@ func Test_buildPatch(t *testing.T) {
 				assert.NilError(t, err)
 
 				pod := obj.(*corev1.Pod)
-				patch, err := buildPatch(pod, tc.enforcer, target, apparmorName)
+				patch, err := buildPatch(pod, tc.enforcer, target, apparmorName, tc.bpfExclusiveMode)
 				if err != nil {
 					assert.Assert(t, err != nil)
 				}
