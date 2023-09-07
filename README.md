@@ -37,7 +37,7 @@ You can leverage **vArmor** in the following scenarios to provide sandbox protec
 
 ## The Built-in Policies
 
-**vArmor** offers 5 types of built-in policies and custom interfaces to meet various protection requirements. Due to the differences between AppArmor LSM and BPF LSM, there are variations in the rules and syntax supported by different enforcers.
+**vArmor** offers 5 types of [built-in policies](docs/policy_manual.md#built-in-policies-wip) and custom interfaces to meet various protection requirements. Due to the differences between AppArmor LSM and BPF LSM, there are variations in the rules and syntax supported by different enforcers.
 
 | Type                      | Description              |
 |---------------------------|--------------------------|
@@ -47,19 +47,18 @@ You can leverage **vArmor** in the following scenarios to provide sandbox protec
 | Attack Protection         | The rules aims to protect against hacker penetration techniques, thereby increasing the difficulty and cost of attacks and enabling a defense-in-depth approach. It includes:<br>* Mitigating information leakage within containers<br>* Prohibiting the execution of sensitive actions<br>* Applying sandbox restrictions to specific executable files (AppArmor enforcer only)|
 | Vulnerability Mitigation  | The rules is aimed at providing protection against vulnerabilities caused by insecure configurations, specific zero-day vulnerabilities, and security vulnerabilities caused by software features. It aims to block or increase the difficulty of vulnerability exploitation until the vulnerabilities are fixed.<br><br>(Note: This depends on the specific vulnerability type or exploit vector.)|
 
-
-For specific details, please refer to the [Built-in Policies](docs/policy_manual.md#built-in-policies-wip) documentation. Please define your sandbox policies for workloads follow on the [System Interface](docs/usage_instructions.md#system-interface).
-
 *Note: The built-in policies and syntax supported by different enforcers are still under development.*
 
 ## Quick start
+
+**For more configuration options and detailed instructions, please refer to the [usage instructions](docs/usage_instructions.md).**
+
 ### Step 1. Fetch chart
 ```
 helm pull oci://elkeid-cn-beijing.cr.volces.com/varmor/varmor --version 0.5.2
 ```
 
 ### Step 2. Install
-Some features of **vArmor** require configuration during installation. For more details, please refer to the [Configuration Options ](docs/usage_instructions.md).
 ```
 kubectl create ns varmor
 helm install varmor varmor-0.5.2.tgz \

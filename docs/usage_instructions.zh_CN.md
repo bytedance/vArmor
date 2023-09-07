@@ -44,12 +44,10 @@ vArmor 支持基于 AppArmor 和 BPF 两种 LSM 对 Kubernetes 中的工作负�
 
 ## 系统接口
 ### VarmorPolicy
-* 命名空间类型资源
-* High Level CR
-  * 与保护对象的命名空间一致
-  * 用户可创建、更新、删除，从而实现对防护的配置
-  * 控制面可以在前端提供更加易用的界面、API 接口
-* CRD 说明详见 [VarmorPolicy Instructions](interface_instructions.zh_CN.md)，CRD 定义详见 [VarmorPolicy CRD](../config/crds/crd.varmor.org_varmorpolicies.yaml)
+* 命名空间类型资源，与防护对象的命名空间一致
+* 通过创建、更新、删除 VarmorPolicy 对象来对目标工作负载进行防护
+* VarmorPolicy 接口描述详见 [Interface Instructions](interface_instructions.zh_CN.md)
+* VarmorPolicy 定义详见 [VarmorPolicy CRD](../config/crds/crd.varmor.org_varmorpolicies.yaml)
 * VarmorPolicyStatus 说明
 
   |字段|值|含义|
@@ -67,10 +65,8 @@ vArmor 支持基于 AppArmor 和 BPF 两种 LSM 对 Kubernetes 中的工作负�
   |     |False|Profile 还未被所有的 Agents 处理和加载
 
 ### ArmorProfile
-* 命名空间类型资源
-* Low Level CR
-  * 与保护对象的命名空间一致
-  * 向用户屏蔽底层逻辑，仅由 vArmor 内部使用
+* 命名空间类型资源，与防护对象的命名空间一致
+* 向用户屏蔽底层逻辑，仅由 vArmor 内部使用
 * CRD 定义详见 [ArmorProfile CRD](../config/crds/crd.varmor.org_armorprofiles.yaml)
 * ArmorProfileStatus 说明
 

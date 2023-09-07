@@ -34,7 +34,7 @@
 
 
 ## 内置策略
-**vArmor** 提供 5 种类型的内置策略和自定义接口，以满足不同的防护需求。由于 AppArmor LSM 和 BPF LSM 的差异，不同 enforcer 所支持的规则和语法会有所区别。
+**vArmor** 提供 5 种类型的[内置策略](docs/policy_manual.zh_CN.md#内置策略-wip)和自定义接口，以满足不同的防护需求。由于 AppArmor LSM 和 BPF LSM 的差异，不同 enforcer 所支持的规则和语法会有所区别。
 
 |类型|说明|
 |-------------------------|----------------------------------------------------------------------------------|
@@ -44,19 +44,18 @@
 | Attack Protection       | 针对黑客渗透入侵手法进行防护的策略。从而增加攻击的难度和成本，进行纵深防御。包括：<br>* 容器信息泄露缓解<br>* 禁止执行敏感行为<br>* 对特定可执行文件进行沙箱限制（仅限 AppArmor enforcer）|
 | Vulnerability Mitigation| 针对由不安全配置导致的漏洞、特定 0day 漏洞、由软件 feature 导致的安全漏洞，在漏洞被修复前提供防护策略，阻断或增加漏洞利用的难度<br>（注：取决于漏洞类型或漏洞利用向量）。|
 
-详见 [内置策略](docs/policy_manual.zh_CN.md#内置策略-wip) ，你可以根据 [系统接口](docs/usage_instructions.zh_CN.md#系统接口) 为工作负载定义沙箱策略。
-
 *注意：不同 enforcer 所支持的内置策略与语法仍旧处于开发中。*
 
 
 ## 快速上手
+**更多配置项和使用说明详见 [使用指南](docs/usage_instructions.zh_CN.md)**
+
 ### Step 1. 拉取 chart 包
 ```
 helm pull oci://elkeid-cn-beijing.cr.volces.com/varmor/varmor --version 0.5.2
 ```
 
 ### Step 2. 安装
-**vArmor** 的某些功能需在安装时进行配置，详见 [配置选项](docs/usage_instructions.zh_CN.md#配置选项)
 ```
 kubectl create ns varmor
 helm install varmor varmor-0.5.2.tgz \
