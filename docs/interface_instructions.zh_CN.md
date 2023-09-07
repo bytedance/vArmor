@@ -20,6 +20,7 @@
 |      |defenseInDepth|ModelingDuration<br>*int*|动态建模的时间（单位：分钟）[实验功能]
 |      ||autoEnable<br>*bool*|可选字段，用于指定建模完成后是否自动开启防护（默认值：false）[实验功能]
 |      ||privileged<br>*bool*|可选字段，若要使用 AppArmor enforcer 对特权容器进行防护，请务必将此值设置为 true（默认值：false）[实验功能]
+|      ||PLACEHOLDER_PLACEHOLDER_PLA|
 
 ### AttackProtectionRules
 
@@ -38,6 +39,7 @@
 |network<br>*NetworkRule*     |egresses<br>*[NetworkEgressRule](interface_instructions.zh_CN.md#networkegressrule) array*|对外联请求进行访问控制（仅支持 connect 行为，不支持已建立链接的 socket）
 |ptrace<br>*PtraceRule*       |strictMode<br>*bool*|可选字段，true 代表对所有（目标、来源）进程进行限制，false 代表仅对容器外的（目标、来源）进程进行限制（默认值：false）
 |                             |permissions<br>*string array*|禁止使用的权限，例如：禁止 trace 其他目标进程、禁止 read 其他目标进程、禁止被其他来源进程 trace（宿主机进程除外）、readby: 禁止被其他来源进程 read（宿主机进程除外）<br>可用值: trace, read, traceby, readby
+|PLACEHOLDER_PL|PLACEHOLDER_PLACEHOLDER|
 
 ### NetworkEgressRule
   
