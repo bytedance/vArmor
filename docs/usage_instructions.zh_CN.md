@@ -49,65 +49,22 @@ vArmor 支持基于 AppArmor 和 BPF 两种 LSM 对 Kubernetes 中的工作负�
   * 与保护对象的命名空间一致
   * 用户可创建、更新、删除，从而实现对防护的配置
   * 控制面可以在前端提供更加易用的界面、API 接口
-* CRD 定义详见 [VarmorPolicy CRD](../config/crds/crd.varmor.org_varmorpolicies.yaml)
-  * VarmorPolicySpec 说明
+* CRD 说明详见 [VarmorPolicy Instructions](interface_instructions.zh_CN.md)，CRD 定义详见 [VarmorPolicy CRD](../config/crds/crd.varmor.org_varmorpolicies.yaml)
+* VarmorPolicyStatus 说明
 
-    |字段|子字段|子字段|类型|值|描述|
-    |---|-----|-------|---|--|---|
-    |Target|Kind|-|string（必选）|Deployment<br>StatefulSet<br>DaemonSet<br>Pod|用于指定防护目标的 Workloads 类型
-    |      |Name|-|string（可选）|任意值|用于指定防护目标的对象名称
-    |      |Containers|-|[]string（可选）|任意值|用于指定防护目标的容器名，如果为空默认对 Workloads 中的所有容器开启沙箱防护（注：不含 initContainers, ephemeralContainers）
-    |      |Selector|-|LabelSelector（可选）|任意值|用于根据标签选择器识别防护目标，并开启沙箱防护
-    |Policy|Enforcer|-|string（必选）|AppArmor<br>BPF|指定要使用的 LSM
-    |      |Mode|-|string（必选）|AlwaysAllow<br>RuntimeDefault<br>EnhanceProtect<br>CustomPolicy<br>DefenseInDepth|指定防护模式，不同模式的含义详见 [Built-in Policies](policy_manual.zh_CN.md#内置策略-wip)
-    |      |EnhanceProtect|HardeningRules|[]string（可选）||可使用的内置规则列表详见 [Built-in Policies](policy_manual.zh_CN.md#内置策略-wip)
-    |      ||AttackProtectionRules|[]AttackProtectionRules（可选）||可使用的内置规则列表详见 [Built-in Policies](policy_manual.zh_CN.md#内置策略-wip)
-    |      ||VulMitigationRules|[]string（可选）||可使用的内置规则列表详见 [Built-in Policies](policy_manual.zh_CN.md#内置策略-wip)
-    |      ||AppArmorRawRules|[]string（可选）||支持用户设置原始的 AppArmor rules
-    |      ||BpfRawRules|BpfRawRules（可选）||支持用户设置原始的 BPF rules
-    |      |DefenseInDepth|ModelingDuration|int（必选）|任意值|动态建模的时间（单位：分钟）
-    |      ||AutoEnable|bool（可选）|true<br>false|建模完成后是否自动开启防护（默认值：false）
-    |      |Privileged||bool（可选）|true<br>false|若要使用 AppArmor enforcer 对特权容器进行防护，请务必将此值设置为 true（默认值：false）
-
-  * AttackProtectionRules 说明
-
-    |字段|类型|值|描述|
-    |---|---|--|----|
-    |Rules|[]string（必选）||可使用的内置规则列表详见 [Built-in Policies](policy_manual.zh_CN.md#内置策略-wip)
-    |Targets|[]string（可选）|任意可执行文件的全路径|对目标可执行文件开启 Rules 中指定的沙箱规则，仅支持 AppArmor enforcer
-
-  * BpfRawRules 说明
-
-    |字段|字段类型|子字段|子字段类型|值|描述|
-    |---|-----|-----|---|--|---|
-    |Files|[]FileRule|Pattern|string（必选）|任意符合策略语法的字符串（最大长度 64 bytes）|用于匹配文件路径、文件名称。语法参见
-    |     |        |Permissions|[]string（必选）|read 或 r<br>write 或 w<br>exec 或 e|禁止使用的权限，write 权限隐式包含 link, rename 等权限
-    |Processes|[]FileRule|-|-|-|-
-    |Network|NetworkRule|Egresses|[]NetworkEgressRule（可选）|-|对外联请求进行访问控制（仅支持 connect 行为，不支持已建立链接的 socket）
-
-  * NetworkEgressRule
-  
-    |字段|类型|值|描述|
-    |---|---|--|----|
-    |IPBlock|string（可选）|任意标准的 CIDR，支持 IPv6|用于对指定 CIDR 范围内的 IP 地址进行外联限制，例如<br>* 192.168.1.1/24 代表 192.168.1.0 ~ 192.168.1.255 范围内的 IP 地址<br>* 2001:db8::/32 代表 2001:db8:: ~ 2001:db8:ffff:ffff:ffff:ffff:ffff:ffff 范围内的 IP 地址<br>（注：同一个 NetworkEgressRule 中，IPBlock 和 IP 字段互斥，不能同时出现）
-    |IP|string（可选）|任意标准的 IP 地址，支持 IPv6|用于对特定的 IP 地址进行外联限制
-    |Port|int（可选）|1~65535|用于对指定的端口进行外联限制，当为空时，默认对（匹配 IP 地址的）所有端口进行外联限制。否则仅对特定端口进行控制
-
-  * VarmorPolicyStatus
-
-    |字段|值|含义|
-    |---|--|---|
-    |Phase|Pending|已经创建了 ArmorProfile，待 Agent 组件响应
-    |     |Protecting|防护中，正在进行强制访问控制
-    |     |Modeling|正在为目标应用进行行为建模
-    |     |Completed|已完成应用服务的行为建模
-    |     |Error|处理出错，请查看 Conditions 相关信息获取错误原因
-    |Conditions|Type=Created<br>Status=True|VarmorPolicy 的创建事件已经被 controller 响应，且处理成功
-    |          |Type=Created<br>Status=False<br>Reason=XXX<br>Message=YYY|VarmorPolicy 的创建事件已经被 controller 响应，但处理失败。包含失败的原因及错误信息
-    |          |Type=Updated<br>Status=True|VarmorPolicy 的更新事件已经被 controller 响应，且处理成功
-    |          |Type=Updated<br>Status=False<br>Reason=XXX<br>Message=YYY|VarmorPolicy 的更新事件已经被 controller 响应，但处理失败。包含失败的原因及错误信息
-    |Ready|True|Profile 已经被所有的 Agents 处理和加载
-    |     |False|Profile 还未被所有的 Agents 处理和加载
+  |字段|值|含义|
+  |---|--|---|
+  |Phase|Pending|已经创建了 ArmorProfile，待 Agent 组件响应
+  |     |Protecting|防护中，正在进行强制访问控制
+  |     |Modeling|正在为目标应用进行行为建模
+  |     |Completed|已完成应用服务的行为建模
+  |     |Error|处理出错，请查看 Conditions 相关信息获取错误原因
+  |Conditions|Type=Created<br>Status=True|VarmorPolicy 的创建事件已经被 controller 响应，且处理成功
+  |          |Type=Created<br>Status=False<br>Reason=XXX<br>Message=YYY|VarmorPolicy 的创建事件已经被 controller 响应，但处理失败。包含失败的原因及错误信息
+  |          |Type=Updated<br>Status=True|VarmorPolicy 的更新事件已经被 controller 响应，且处理成功
+  |          |Type=Updated<br>Status=False<br>Reason=XXX<br>Message=YYY|VarmorPolicy 的更新事件已经被 controller 响应，但处理失败。包含失败的原因及错误信息
+  |Ready|True|Profile 已经被所有的 Agents 处理和加载
+  |     |False|Profile 还未被所有的 Agents 处理和加载
 
 ### ArmorProfile
 * 命名空间类型资源
@@ -115,7 +72,7 @@ vArmor 支持基于 AppArmor 和 BPF 两种 LSM 对 Kubernetes 中的工作负�
   * 与保护对象的命名空间一致
   * 向用户屏蔽底层逻辑，仅由 vArmor 内部使用
 * CRD 定义详见 [ArmorProfile CRD](../config/crds/crd.varmor.org_armorprofiles.yaml)
-  * ArmorProfileStatus 说明
+* ArmorProfileStatus 说明
 
     |字段|值|含义|
     |---|--|---|
