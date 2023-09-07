@@ -52,6 +52,11 @@ spec:
           {{- toYaml . | nindent 8 }}
         {{- end }}
         {{- end }}
+        {{- if .Values.bpfExclusiveMode.enabled }}
+        {{- with .Values.manager.bpfExclusiveMode.args }}
+          {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- end }}
         {{- end }}
         securityContext:
           {{- toYaml .Values.manager.securityContext | nindent 10 }}

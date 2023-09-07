@@ -21,6 +21,9 @@ restartExistWorkloads:
 unloadAllAaProfile:
   enabled: false
 
+bpfExclusiveMode:
+  enabled: false
+
 # [Experimental feature]
 defenseInDepth:
   enabled: false
@@ -76,6 +79,10 @@ manager:
   restartExistWorkloads:
     args:
     - --restartExistWorkloads
+
+  bpfExclusiveMode:
+    args:
+    - --bpfExclusiveMode
 
   resources:
     limits:
