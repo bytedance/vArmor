@@ -12,14 +12,14 @@
 |      |selector<br>*[LabelSelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.26/#labelselector-v1-meta)*|-|可选字段，用于根据标签选择器识别防护目标，并开启沙箱防护
 |policy|enforcer<br>*string*|-|指定要使用的 LSM，可用值: AppArmor, BPF
 |      |mode<br>*string*|-|用于指定防护模式，不同模式的含义详见 [Built-in Policies](policy_manual.zh_CN.md#内置策略-wip)<br>可用值：AlwaysAllow, RuntimeDefault, EnhanceProtect, CustomPolicy, DefenseInDepth
-|      |enhanceProtect|hardeningRules<br>*string array*|可选字段，用于指定要使用的内置规则，详见 [Built-in Policies](policy_manual.zh_CN.md#内置策略-wip)
+|      |enhanceProtect|hardeningRules<br>*string array*|可选字段，用于指定要使用的内置加固规则，详见 [Built-in Policies](policy_manual.zh_CN.md#内置策略-wip)
 |      ||attackProtectionRules<br>*[AttackProtectionRules](interface_instructions.zh_CN.md#attackprotectionrules) array*|可选字段，用于指定要使用的内置规则，详见 [Built-in Policies](policy_manual.zh_CN.md#内置策略-wip)
 |      ||vulMitigationRules<br>*string array*|可选字段，用于指定要使用的内置规则，详见 [Built-in Policies](policy_manual.zh_CN.md#内置策略-wip)
 |      ||appArmorRawRules<br>*string array*|可选字段，用于设置原始的 AppArmor rules，参见 [AppArmor 语法](policy_manual.zh_CN.md#apparmor-enforcer)
 |      ||bpfRawRules<br>*[BpfRawRules](interface_instructions.zh_CN.md#bpfrawrules) array*|可选字段，用于支持用户设置原始的 BPF rules
 |      |defenseInDepth|ModelingDuration<br>*int*|动态建模的时间（单位：分钟）[实验功能]
 |      ||autoEnable<br>*bool*|可选字段，用于指定建模完成后是否自动开启防护（默认值：false）[实验功能]
-|      ||privileged<br>*bool*|可选字段，若要使用 AppArmor enforcer 对特权容器进行防护，请务必将此值设置为 true（默认值：false）[实验功能]
+|      |privileged<br>*bool*|-|可选字段，若要使用 AppArmor enforcer 对特权容器进行防护，请务必将此值设置为 true（默认值：false）[实验功能]
 |      ||PLACEHOLDER_PLACEHOLDER_PLA|
 
 ### AttackProtectionRules
@@ -34,9 +34,9 @@
 |字段|子字段|描述|
 |---|-----|---|
 |files<br>*FileRule array*    |pattern<br>*string*|任意符合策略语法的字符串（最大长度 64 bytes），用于匹配文件路径、文件名称。语法参见 [BPF enforcer 策略语法](policy_manual.zh_CN.md#bpf-enforcer-wip)。
-|                             |permissions<br>*string array*|禁止使用的权限，其中 write 权限隐式包含 append, rename, hard link, symbol link 权限<br>可用值：read, write, exec
+|                             |permissions<br>*string array*|禁止使用的权限，其中 write 权限隐式包含 append, rename, hard link, symbol link 权限<br>可用值：read(r), write(w), append(a), exec(e)
 |processes<br>*FileRule array*|-|同上
-|network<br>*NetworkRule*     |egresses<br>*[NetworkEgressRule](interface_instructions.zh_CN.md#networkegressrule) array*|对外联请求进行访问控制（仅支持 connect 行为，不支持已建立链接的 socket）
+|network<br>*NetworkRule*     |egresses<br>*[NetworkEgressRule](interface_instructions.zh_CN.md#networkegressrule) array*|对外联请求进行访问控制
 |ptrace<br>*PtraceRule*       |strictMode<br>*bool*|可选字段，true 代表对所有（目标、来源）进程进行限制，false 代表仅对容器外的（目标、来源）进程进行限制（默认值：false）
 |                             |permissions<br>*string array*|禁止使用的权限，例如：禁止 trace 其他目标进程、禁止 read 其他目标进程、禁止被其他来源进程 trace（宿主机进程除外）、readby: 禁止被其他来源进程 read（宿主机进程除外）<br>可用值: trace, read, traceby, readby
 |PLACEHOLDER_PL|PLACEHOLDER_PLACEHOLDER|

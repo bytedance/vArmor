@@ -6,7 +6,7 @@ vArmor offers 5 types of built-in policies and custom interfaces to meet various
 
 *Note: The built-in policies and syntax supported by different enforcers are still under development.*
 
-| Mode<br>(.spec.policy.mode) | Type | Subtype | Rule Name & Rule ID | Applicable Container | Description | Principle & Impact | Supported Enforcer |
+| Mode | Type | Subtype | Rule Name & ID | Applicable Container | Description | Principle & Impact | Supported Enforcer |
 |------|------|---------|---------------------|----------------------|-------------|--------------------|--------------------|
 |**AlwaysAllow**|**Always Allow**|-|-|ALL|At container startup, no restrictions are imposed, and the configuration can be modified later, allowing dynamic adjustments to the protection policy without the need to restart workloads.|-|AppArmor<br>BPF
 |**RuntimeDefault**|**Runtime Default**|-|-|Unprivileged|Basic protection is provided using the same default policy as the container runtime components (such as containerd's [cri-containerd.apparmor.d](https://github.com/containerd/containerd/blob/main/contrib/apparmor/template.go)), resulting in relatively weaker protection. (Subject to differences in mandatory access control, BPF enforcer may have some pruning compared to AppArmor enforcer)|-|AppArmor<br>BPF
@@ -36,14 +36,41 @@ vArmor offers 5 types of built-in policies and custom interfaces to meet various
 |              |                 |              |Prohibit the execution of curl command<br><br>`disable-curl`|ALL|Attackers may use the curl command to initiate network access and download malicious programs from external sources for subsequent attacks, such as persistence, privilege escalation, network scanning, cryptocurrency mining, and more.<br><br>This rule limits network access by prohibiting the execution of the curl command.|Prohibit the execution of curl command.|AppArmor<br>BPF
 |              |                 |              |Prohibit the execution of chmod command<br><br>`disable-chmod`|ALL|When attackers gain control over a container through vulnerabilities, they typically attempt to download additional attack code or tools into the container for further attacks, such as privilege escalation, lateral movement, cryptocurrency mining, and more. In this attack chain, attackers often use the chmod command to modify file permissions for execution.|Prohibit the execution of chmod command.<br><br>Some base images may symlink wget to /bin/busybox. In this scenario, it's also necessary to prohibit the execution of busybox command.|AppArmor<br>BPF
 |              |                 |              |Prohibit the execution of su/sudo command<br><br>`disable-su-sudo`|ALL|When processes within a container run as non-root users, attackers often need to escalate privileges to the root user for further attacks. The sudo/su commands are common local privilege escalation avenues.|Prohibit the execution of su/sudo command.<br><br>Some base images may symlink su to /bin/busybox. In this scenario, it's also necessary to prohibit the execution of busybox command.|AppArmor<br>BPF
-|              |                 |Restrict Specific Executable|-|ALL|This rule extends the use cases of 'Mitigating Information Leakage' and 'Disabling Sensitive Operations', it allows user to apply restrictions only to specific executable programs within containers.<br><br>Restricting specified executable programs serves two purposes:<br>1). Preventing sandbox policies from affecting the execution of application services within containers.<br>2).Restricting specified executable programs within containers increases the cost and difficulty for attackers<br><br>For example, this feature can be used to restrict programs like busybox, bash, sh, curl within containers, preventing attackers from using them to execute sensitive operations. Meanwhile, the application services is unaffected by sandbox policies and can continue to access ServiceAccount tokens and perform other tasks normally.<br><br>Note: Due to the implementation principles of BPF LSM, this functionality cannot be provided by the BPF enforcer.|Enable sandbox restrictions for specified executable programs.|AppArmor
+|              |                 |Restrict Specific Executable|-|ALL|This rule extends the use cases of 'Mitigating Information Leakage' and 'Disabling Sensitive Operations', it allows user to apply restrictions only to specific executable programs within containers.<br><br>Restricting specified executable programs serves two purposes:<br>1). Preventing sandbox policies from affecting the execution of application services within containers.<br>2).Restricting specified executable programs within containers increases the cost and difficulty for attackers<br><br>For example, this feature can be used to restrict programs like busybox, bash, sh, curl within containers, preventing attackers from using them to execute sensitive operations. Meanwhile, the application services is unaffected by sandbox policies and can continue to access ServiceAccount tokens and perform other tasks normally.<br><br>*Note: Due to the implementation principles of BPF LSM, this feature cannot be provided by the BPF enforcer.*|Enable sandbox restrictions for specified executable programs.|AppArmor
 |              |**Vulnerability Mitigation**|-|Mitigate cgroups & lxcfs escape<br><br>`cgroups-lxcfs-escape-mitigation`|ALL|If users mount the host's cgroupfs into a container or use lxcfs to provide a resource view for the container, there may be a risk of container escape in both scenarios. Attackers could manipulate cgroupfs from within the container to achieve container escape.|AppArmor Enforcer prevents writing to：<br>/\*\*/release_agent, <br>/\*\*/devices/device.allow,<br>/\*\*/devices/\*\*/device.allow, <br>/\*\*/devices/cgroup.procs,<br>/\*\*/devices/\*\*/cgroup.procs,<br>/\*\*/devices/task,<br>/\*\*/devices/\*\*/task,<br><br>BPF Enforcer prevents writing to：<br>/\*\*/release_agent<br>/\*\*/devices.allow<br>/\*\*/cgroup.procs<br>/\*\*/devices/tasks<br>|AppArmor<br>BPF
 |-|-|-|THIS_IS_A_PLACEHOLDER_PLACEHOLDE|-|-|-|-
 
 
 ## Syntax
+vArmor also supports users in customizing policies based on the syntax of AppArmor enforcer and BPF enforcer.
+
 ### AppArmor enforcer
-TODO
+The AppArmor enforcer supports users in customizing policies based on the syntax of AppArmor.
+* Refer to [syntax of security profiles for AppArmor](https://manpages.ubuntu.com/manpages/jammy/man5/apparmor.d.5.html) and [AppArmor_Core_Policy_Reference](https://gitlab.com/apparmor/apparmor/-/wikis/AppArmor_Core_Policy_Reference) for the syntax details.
+* Usage:
+  * Add a custom rule in .spec.policy.enhanceProtect.appArmorRawRules[]
+  * Please ensure that each rule ends with a comma
+
 
 ### BPF enforcer (WIP)
-TODO
+The BPF enforcer supports users in customizing policies based on the syntax, with an upper limit of 50 rules per rule type. Each node of Kubernetes can enable sandboxing for up to 100 containers.
+
+* File Permission
+  
+  | Permission / Permission Abbreviate |  Implied Permissions | Description |
+  |------------------------------------|----------------------|-------------|
+  |read / r|-<br>rename<br>hard link|Restrict read permission.<br>Prohibit abusing 'rename **oldpath** newpath' to bypass read restrictions on oldpath.<br>Prohibit abusing 'ln **TARGET** LINK_NAME' to bypass read restrictions on TARGET.
+  |write / w|-<br>append<br>rename<br>hard link<br>symbol link<br>chmod<br>chown|Restrict write permission.<br>Prohibit using the O_APPEND flag to bypass map_file_to_perms() for append operations.<br>Prohibit abusing 'rename oldpath **newpath**' to bypass write restrictions on newpath.<br>Prohibit abusing 'ln TARGET **LINK_NAME**' to bypass write restrictions on LINK_NAME.<br>Prohibit abusing symlink to bypass write restrictions on the target file.<br>WIP<br>WIP
+  |exec / x|-|Prohibit execution permission.
+  |append / a|-|Prohibit append permission.
+
+* File Globbing Syntax 
+  | Globbing | Description | Examples | Notes |
+  |----------|-------------|----------|-------|
+  |*|- Used only to match file names.<br>- It will match dot files except the special dot files . and ..<br>- Supports only a single *, and does not support \*\* and * appearing together.|- fi\* matches any file name starting with 'fi'.<br>- *le matches any file name ending with 'le'.<br>- *.log matches any file name ending with '.log'|The behavior of this globbing may change in future versions.|
+  |\**|- Match zero, one, or multiple characters in multi-level directories.<br>- It will match dot files except the special dot files . and ..<br>- Supports only a single \*\*, and does not support ** and * appearing together.|- /tmp/\*\*/33 matches any file that starts with /tmp and ends with /33, including /tmp/33.<br>- /tmp/\*\* matches any file or directory that starts with /tmp.<br>- /tm** matches any file or directory that starts with /tm.<br>- /t**/33 matches any file or directory that starts with /t and ends with /33.
+
+* Network Permission
+  * Currently, vArmor supports connection access control for specified IP addresses, IP address blocks (CIDR blocks), and ports.
+  * When specific IP addresses or IP address blocks are specified without specifying ports, it defaults to affecting all ports.
+  * Please refer to [NetworkEgressRule](./interface_instructions.md#networkegressrule) for specific details.

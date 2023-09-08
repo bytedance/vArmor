@@ -393,8 +393,8 @@ spec:
                       sandbox features. Only worked with the AppArmor enforcer.'
                     properties:
                       autoEnable:
-                        description: AutoEnable decides whether or not to enable enforce
-                          mode after modeling is complete
+                        description: AutoEnable decides whether or not to enable the
+                          access control after modeling is complete
                         type: boolean
                       modelingDuration:
                         description: ModelingDuration is the duration in minutes to
@@ -418,17 +418,21 @@ spec:
                           type: string
                         type: array
                       attackProtectionRules:
+                        description: AttackProtectionRules are used to specify the
+                          built-in attack protection rules
                         items:
                           properties:
                             rules:
+                              description: Rules is the list of built-in attack protection
+                                rules to be used.
                               items:
                                 type: string
                               type: array
                             targets:
-                              description: Targets is used to specify the targets
-                                to which the policy applies. It can be any executable
-                                file but it must be a full path. It only works when
-                                using AppArmor as enforcer.
+                              description: Targets are used to specify the workloads
+                                to which the policy applies. They must be specified
+                                as full paths to executable files, and this feature
+                                is only effective when using AppArmor as the enforcer.
                               items:
                                 type: string
                               type: array
@@ -443,8 +447,13 @@ spec:
                             items:
                               properties:
                                 pattern:
+                                  description: Pattern can be any string (maximum
+                                    length 64 bytes) that conforms to the policy syntax,
+                                    used for matching file paths and filenames
                                   type: string
                                 permissions:
+                                  description: Permissions are used to specify the
+                                    file permissions to be disabled.
                                   items:
                                     type: string
                                   type: array
@@ -484,8 +493,13 @@ spec:
                             items:
                               properties:
                                 pattern:
+                                  description: Pattern can be any string (maximum
+                                    length 64 bytes) that conforms to the policy syntax,
+                                    used for matching file paths and filenames
                                   type: string
                                 permissions:
+                                  description: Permissions are used to specify the
+                                    file permissions to be disabled.
                                   items:
                                     type: string
                                   type: array
@@ -513,21 +527,25 @@ spec:
                                   type: string
                                 type: array
                               strictMode:
-                                description: StrictMode is used to indicate whether
+                                description: 'StrictMode is used to indicate whether
                                   to restrict ptrace permissions for all source and
-                                  destination processes. If set to false, it restricts
-                                  ptrace permissions only for processes in other containers.
-                                  If set to true, it restricts ptrace permissions
-                                  for all processes (except those within the init
-                                  mnt namespace)
+                                  destination processes. Default: false If set to
+                                  false, it restricts ptrace-related permissions only
+                                  for processes in other containers. If set to true,
+                                  it restricts ptrace-related permissions for all
+                                  processes, except those within the init mnt namespace.'
                                 type: boolean
                             type: object
                         type: object
                       hardeningRules:
+                        description: HardeningRules are used to specify the built-in
+                          hardening rules
                         items:
                           type: string
                         type: array
                       vulMitigationRules:
+                        description: VulMitigationRules are used to specify the built-in
+                          vulnerability mitigation rules
                         items:
                           type: string
                         type: array

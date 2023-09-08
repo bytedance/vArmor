@@ -211,14 +211,17 @@ type CustomPolicy struct {
 }
 
 type AttackProtectionRules struct {
+	// Rules is the list of built-in attack protection rules to be used.
 	Rules []string `json:"rules"`
-	// Targets is used to specify the targets to which the policy applies. It can be any executable file but it must be a full path.
-	// It only works when using AppArmor as enforcer.
+	// Targets are used to specify the workloads to which the policy applies. They must be specified as full paths to executable files,
+	// and this feature is only effective when using AppArmor as the enforcer.
 	Targets []string `json:"targets,omitempty"`
 }
 
 type FileRule struct {
-	Pattern     string   `json:"pattern"`
+	// Pattern can be any string (maximum length 64 bytes) that conforms to the policy syntax, used for matching file paths and filenames
+	Pattern string `json:"pattern"`
+	// Permissions are used to specify the file permissions to be disabled.
 	Permissions []string `json:"permissions"`
 }
 
@@ -238,8 +241,9 @@ type NetworkRule struct {
 
 type PtraceRule struct {
 	// StrictMode is used to indicate whether to restrict ptrace permissions for all source and destination processes.
-	// If set to false, it restricts ptrace permissions only for processes in other containers.
-	// If set to true, it restricts ptrace permissions for all processes (except those within the init mnt namespace)
+	//     Default: false
+	//     If set to false, it restricts ptrace-related permissions only for processes in other containers.
+	//     If set to true, it restricts ptrace-related permissions for all processes, except those within the init mnt namespace.
 	StrictMode bool `json:"strictMode,omitempty"`
 	// Permissions are used to indicate which ptrace-related permissions of the target container should be restricted.
 	// Available values: trace, traceby, read, readby.
@@ -261,9 +265,12 @@ type BpfRawRules struct {
 }
 
 type EnhanceProtect struct {
-	HardeningRules        []string                `json:"hardeningRules,omitempty"`
+	// HardeningRules are used to specify the built-in hardening rules
+	HardeningRules []string `json:"hardeningRules,omitempty"`
+	// AttackProtectionRules are used to specify the built-in attack protection rules
 	AttackProtectionRules []AttackProtectionRules `json:"attackProtectionRules,omitempty"`
-	VulMitigationRules    []string                `json:"vulMitigationRules,omitempty"`
+	// VulMitigationRules are used to specify the built-in vulnerability mitigation rules
+	VulMitigationRules []string `json:"vulMitigationRules,omitempty"`
 	// AppArmorRawRules is used to set native AppArmor rules, each rule must end with a comma
 	AppArmorRawRules []string `json:"appArmorRawRules,omitempty"`
 	// BpfRawRules is used to set native BPF rules
@@ -273,7 +280,7 @@ type EnhanceProtect struct {
 type DefenseInDepth struct {
 	// ModelingDuration is the duration in minutes to modeling
 	ModelingDuration int `json:"modelingDuration"`
-	// AutoEnable decides whether or not to enable enforce mode after modeling is complete
+	// AutoEnable decides whether or not to enable the access control after modeling is complete
 	AutoEnable bool `json:"autoEnable,omitempty"`
 }
 
