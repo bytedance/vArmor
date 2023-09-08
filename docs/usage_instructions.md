@@ -13,7 +13,6 @@ vArmor allows you to configure its functionality during installation using the h
 | `--set unloadAllAaProfile.enabled=true` | Default: disabled. When enabled, all AppArmor profiles loaded by vArmor will be unloaded when the Agent exits.
 | `--set "manager.args={--webhookMatchLabel=KEY=VALUE}"` | The default value is: `sandbox.varmor.org/enable=true`. vArmor will only enable sandbox protection for Workloads that contain this label. You can disable this feature by using `--set 'manager.args={--webhookMatchLabel=}'`.
 | `--set defenseInDepth.enabled=true` | Default: disabled. Experimental feature. Currently, only the AppArmor enforcer supports the DefenseInDepth mode.
-|PLACEHOLDER_PLACEHOLDER_PLACEHOLDER_PL||
 
 
 ## Usage

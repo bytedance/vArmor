@@ -63,7 +63,6 @@ The BPF enforcer supports users in customizing policies based on the syntax, wit
   |write / w|-<br>append<br>rename<br>hard link<br>symbol link<br>chmod<br>chown|Restrict write permission.<br>Prohibit using the O_APPEND flag to bypass map_file_to_perms() for append operations.<br>Prohibit abusing 'rename oldpath **newpath**' to bypass write restrictions on newpath.<br>Prohibit abusing 'ln TARGET **LINK_NAME**' to bypass write restrictions on LINK_NAME.<br>Prohibit abusing symlink to bypass write restrictions on the target file.<br>WIP<br>WIP
   |exec / x|-|Prohibit execution permission.
   |append / a|-|Prohibit append permission.
-  |||THIS_IS_A_PLACEHOLDER_PLACEHOLDER_PLACEHOLDER|
 
 * File Globbing Syntax 
   | Globbing | Description | Examples | Notes |

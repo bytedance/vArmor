@@ -13,7 +13,6 @@ vArmor 支持在安装时，通过 helm 命令对它的功能进行配置。
 | `--set unloadAllAaProfile.enabled=true` | 默认关闭；开启后，Agent 退出时，将会卸载所有已加载的 AppArmor Profile
 | `--set "manager.args={--webhookMatchLabel=KEY=VALUE}"` | 默认值为：`sandbox.varmor.org/enable=true`。vArmor 只会对包含此 label 的 Workloads 开启沙箱防护。You can disable this feature by using `--set 'manager.args={--webhookMatchLabel=}'`
 | `--set defenseInDepth.enabled=true` | 默认关闭；此为实验功能，仅 AppArmor enforcer 支持 DefenseInDepth 模式
-|PLACEHOLDER_PLACEHOLDER_PLACEHOLDER_PL||
 
 ## 使用说明
 ### 接口操作
