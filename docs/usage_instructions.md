@@ -4,15 +4,16 @@ English | [简体中文](usage_instructions.zh_CN.md)
 ## Configuration
 vArmor allows you to configure its functionality during installation using the helm command.
 
-| Feature | Helm Options | Description |
-|---------|--------------|-------------|
-| Disable AppArmor enforcer. | --set appArmorLsmEnforcer.enabled=false | Default: enabled. The AppArmor enforcer can be disabled with it when the system does not support AppArmor LSM.
-| Enable BPF enforcer. | --set bpfLsmEnforcer.enabled=true | Default: disabled. The BPF enforcer can be enabled when the system supports BPF LSM.
-| Enable BPF enforcer in exclusive mode. | --set bpfExclusiveMode.enabled=true | Default: disabled. When enabled, AppArmor protection for the target workload will be disabled when a VarmorPolicy object uses the BPF enforcer.
-| Allow rolling restart of existing workloads. | --set restartExistWorkloads.enabled=true | Default: disabled. When enabled, vArmor will perform a rolling restart of existing workloads (only for Deployments, DaemonSet, and StatefulSet resources) that meet the conditions when creating or deleting a VarmorPolicy object.
-| Unload all AppArmor profiles when exits. | --set unloadAllAaProfile.enabled=true | Default: disabled. When enabled, all AppArmor profiles loaded by vArmor will be unloaded when the Agent exits.
-| Set webhook MatchLabel. | --set "manager.args={--webhookMatchLabel=KEY=VALUE}" | The default value is: `sandbox.varmor.org/enable=true`。vArmor will only enable sandbox protection for Workloads that contain this label. 可通过 `--set "manager.args={--webhookMatchLabel=}"` 禁用此功能。
-| Enable DefenseInDepth mode support. [Experimental] | --set defenseInDepth.enabled=true | Default: disabled. Experimental feature. Currently, only the AppArmor enforcer supports the DefenseInDepth mode.
+| Helm Options | Description |
+|--------------|-------------|
+| `--set appArmorLsmEnforcer.enabled=false` | Default: enabled. The AppArmor enforcer can be disabled with it when the system does not support AppArmor LSM.
+| `--set bpfLsmEnforcer.enabled=true` | Default: disabled. The BPF enforcer can be enabled when the system supports BPF LSM.
+| `--set bpfExclusiveMode.enabled=true` | Default: disabled. When enabled, AppArmor protection for the target workload will be disabled when a VarmorPolicy object uses the BPF enforcer.
+| `--set restartExistWorkloads.enabled=true` | Default: disabled. When enabled, vArmor will perform a rolling restart of existing workloads (only for Deployments, DaemonSet, and StatefulSet resources) that meet the conditions when creating or deleting a VarmorPolicy object.
+| `--set unloadAllAaProfile.enabled=true` | Default: disabled. When enabled, all AppArmor profiles loaded by vArmor will be unloaded when the Agent exits.
+| `--set "manager.args={--webhookMatchLabel=KEY=VALUE}"` | The default value is: `sandbox.varmor.org/enable=true`. vArmor will only enable sandbox protection for Workloads that contain this label. You can disable this feature by using `--set 'manager.args={--webhookMatchLabel=}'`.
+| `--set defenseInDepth.enabled=true` | Default: disabled. Experimental feature. Currently, only the AppArmor enforcer supports the DefenseInDepth mode.
+|PLACEHOLDER_PLACEHOLDER_PLACEHOLDER_PL||
 
 
 ## Usage

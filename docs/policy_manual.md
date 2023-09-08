@@ -38,7 +38,7 @@ vArmor offers 5 types of built-in policies and custom interfaces to meet various
 |              |                 |              |Prohibit the execution of su/sudo command<br><br>`disable-su-sudo`|ALL|When processes within a container run as non-root users, attackers often need to escalate privileges to the root user for further attacks. The sudo/su commands are common local privilege escalation avenues.|Prohibit the execution of su/sudo command.<br><br>Some base images may symlink su to /bin/busybox. In this scenario, it's also necessary to prohibit the execution of busybox command.|AppArmor<br>BPF
 |              |                 |Restrict Specific Executable|-|ALL|This rule extends the use cases of 'Mitigating Information Leakage' and 'Disabling Sensitive Operations', it allows user to apply restrictions only to specific executable programs within containers.<br><br>Restricting specified executable programs serves two purposes:<br>1). Preventing sandbox policies from affecting the execution of application services within containers.<br>2).Restricting specified executable programs within containers increases the cost and difficulty for attackers<br><br>For example, this feature can be used to restrict programs like busybox, bash, sh, curl within containers, preventing attackers from using them to execute sensitive operations. Meanwhile, the application services is unaffected by sandbox policies and can continue to access ServiceAccount tokens and perform other tasks normally.<br><br>*Note: Due to the implementation principles of BPF LSM, this feature cannot be provided by the BPF enforcer.*|Enable sandbox restrictions for specified executable programs.|AppArmor
 |              |**Vulnerability Mitigation**|-|Mitigate cgroups & lxcfs escape<br><br>`cgroups-lxcfs-escape-mitigation`|ALL|If users mount the host's cgroupfs into a container or use lxcfs to provide a resource view for the container, there may be a risk of container escape in both scenarios. Attackers could manipulate cgroupfs from within the container to achieve container escape.|AppArmor Enforcer prevents writing to：<br>/\*\*/release_agent, <br>/\*\*/devices/device.allow,<br>/\*\*/devices/\*\*/device.allow, <br>/\*\*/devices/cgroup.procs,<br>/\*\*/devices/\*\*/cgroup.procs,<br>/\*\*/devices/task,<br>/\*\*/devices/\*\*/task,<br><br>BPF Enforcer prevents writing to：<br>/\*\*/release_agent<br>/\*\*/devices.allow<br>/\*\*/cgroup.procs<br>/\*\*/devices/tasks<br>|AppArmor<br>BPF
-|-|-|-|THIS_IS_A_PLACEHOLDER_PLACEHOLDE|-|-|-|-
+|-|-|-|THIS_IS_A_PLACEHOLDER_PLACEH|-|-|-|-
 
 
 ## Syntax
@@ -63,6 +63,7 @@ The BPF enforcer supports users in customizing policies based on the syntax, wit
   |write / w|-<br>append<br>rename<br>hard link<br>symbol link<br>chmod<br>chown|Restrict write permission.<br>Prohibit using the O_APPEND flag to bypass map_file_to_perms() for append operations.<br>Prohibit abusing 'rename oldpath **newpath**' to bypass write restrictions on newpath.<br>Prohibit abusing 'ln TARGET **LINK_NAME**' to bypass write restrictions on LINK_NAME.<br>Prohibit abusing symlink to bypass write restrictions on the target file.<br>WIP<br>WIP
   |exec / x|-|Prohibit execution permission.
   |append / a|-|Prohibit append permission.
+  |||THIS_IS_A_PLACEHOLDER_PLACEHOLDER_PLACEHOLDER|
 
 * File Globbing Syntax 
   | Globbing | Description | Examples | Notes |

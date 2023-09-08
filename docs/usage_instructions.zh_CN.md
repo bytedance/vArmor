@@ -4,16 +4,16 @@
 ## 配置选项
 vArmor 支持在安装时，通过 helm 命令对它的功能进行配置。
 
-|功能|helm 参数|备注|
-|---|--------|----|
-| 关闭 AppArmor enforcer | --set appArmorLsmEnforcer.enabled=false | 默认开启；当系统不支持 AppArmor LSM 时可通过此参数关闭
-| 开启 BPF enforcer | --set bpfLsmEnforcer.enabled=true | 默认关闭；当系统支持 BPF LSM 时可通过此参数开启
-| 开启 BPF enforcer 独占模式 | --set bpfExclusiveMode.enabled=true | 默认关闭；开启后当 VarmorPolicy 使用 BPF enforcer 时，将禁用目标工作负载的 AppArmor 防护
-| 允许对工作负载进行滚动重启 | --set restartExistWorkloads.enabled=true | 默认关闭；开启后，当创建或删除 VarmorPolicy 时，vArmor 会对符合条件的 Workloads (Deployments, DaemonSet, StatefulSet) 进行滚动重启，从而开启或关闭防护
-| 退出时卸载所有 AppArmor Profile | --set unloadAllAaProfile.enabled=true | 默认关闭；开启后，Agent 退出时，将会卸载所有已加载的 AppArmor Profile
-| 设置 Webhook MatchLabel | --set "manager.args={--webhookMatchLabel=KEY=VALUE}" | 默认值为：sandbox.varmor.org/enable=true。vArmor 只会对包含此 label 的 Workloads 开启沙箱防护。You can disable this feature by using `--set 'manager.args={--webhookMatchLabel=}'`
-| 开启 DefenseInDepth 支持 [实验功能] | --set defenseInDepth.enabled=true | 默认关闭；此为实验功能，仅 AppArmor enforcer 支持 DefenseInDepth 模式
-
+|helm 参数|描述|
+|--------|----|
+| `--set appArmorLsmEnforcer.enabled=false` | 默认开启；当系统不支持 AppArmor LSM 时可通过此参数关闭
+| `--set bpfLsmEnforcer.enabled=true` | 默认关闭；当系统支持 BPF LSM 时可通过此参数开启
+| `--set bpfExclusiveMode.enabled=true` | 默认关闭；开启后当 VarmorPolicy 使用 BPF enforcer 时，将禁用目标工作负载的 AppArmor 防护
+| `--set restartExistWorkloads.enabled=true` | 默认关闭；开启后，当创建或删除 VarmorPolicy 时，vArmor 会对符合条件的 Workloads (Deployments, DaemonSet, StatefulSet) 进行滚动重启，从而开启或关闭防护
+| `--set unloadAllAaProfile.enabled=true` | 默认关闭；开启后，Agent 退出时，将会卸载所有已加载的 AppArmor Profile
+| `--set "manager.args={--webhookMatchLabel=KEY=VALUE}"` | 默认值为：`sandbox.varmor.org/enable=true`。vArmor 只会对包含此 label 的 Workloads 开启沙箱防护。You can disable this feature by using `--set 'manager.args={--webhookMatchLabel=}'`
+| `--set defenseInDepth.enabled=true` | 默认关闭；此为实验功能，仅 AppArmor enforcer 支持 DefenseInDepth 模式
+|PLACEHOLDER_PLACEHOLDER_PLACEHOLDER_PL||
 
 ## 使用说明
 ### 接口操作

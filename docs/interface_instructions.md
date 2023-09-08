@@ -21,7 +21,7 @@ English | [简体中文](interface_instructions.zh_CN.md)
 |      |defenseInDepth|ModelingDuration<br>*int*|[Experimental] ModelingDuration is the duration in minutes to modeling. 
 |      ||autoEnable<br>*bool*|[Experimental] Optional. AutoEnable decides whether or not to enable the access control after modeling is complete. (Default: false)
 |      |privileged<br>*bool*|-|Optional. Privileged is used to identify whether the policy is for the privileged container. Only used for the AppArmor enforcer.
-|      ||PLACEHOLDER_PLACEHOLDER_PLA|
+|      ||PLACEHOLDER_PLACEHOL|
 
 ### AttackProtectionRules
 
@@ -40,7 +40,7 @@ English | [简体中文](interface_instructions.zh_CN.md)
 |network<br>*NetworkRule*     |egresses<br>*[NetworkEgressRule](interface_instructions.md#networkegressrule) array*|Optional. Egresses are the list of egress rules to be applied to restrict particular IPs and ports.
 |ptrace<br>*PtraceRule*       |strictMode<br>*bool*|Optional. If set to false, it restricts ptrace-related permissions only for processes in other containers. If set to true, it restricts ptrace-related permissions for all processes, except those within the init mnt namespace.. (Default: false)
 |                             |permissions<br>*string array*|Prohibited ptrace-related permissions. Available values: trace, traceby, read, readby. <br>- trace: prohibiting tracing of other container processes. <br>- read: prohibiting reading of other container processes. <br>- traceby: prohibiting being traced by other processes (excluding the host processes). <br>- readby: prohibiting being read by other processes (excluding the host processes).
-|PLACEHOLDER_PL|PLACEHOLDER_PLACEHOLDER|
+|PLACEHOLDER_PL|PLACEHOLDER_PLACEHO|
 
 ### NetworkEgressRule
 | Field | Description |
