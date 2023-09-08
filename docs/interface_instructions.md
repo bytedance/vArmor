@@ -21,7 +21,7 @@ English | [简体中文](interface_instructions.zh_CN.md)
 |      |defenseInDepth|ModelingDuration<br>*int*|[Experimental] ModelingDuration is the duration in minutes to modeling. 
 |      ||autoEnable<br>*bool*|[Experimental] Optional. AutoEnable decides whether or not to enable the access control after modeling is complete. (Default: false)
 |      |privileged<br>*bool*|-|Optional. Privileged is used to identify whether the policy is for the privileged container. Only used for the AppArmor enforcer.
-|      ||PLACEHOLDER_PLACE|
+|      ||PLACEHOLDER_PLACEHOD|
 
 ### AttackProtectionRules
 
@@ -29,7 +29,7 @@ English | [简体中文](interface_instructions.zh_CN.md)
 |-------|-------------|
 |rules<br>*string array*|List of built-in attack protection rules to be used, please refer to [Built-in Policies](policy_manual.md#built-in-policies-wip).
 |targets<br>*string array*|Optional. Targets are used to specify the workloads to which the policy applies. They must be specified as full paths to executable files, and this feature is only effective when using AppArmor as the enforcer.
-|PLACEHOLDER||
+|PLACEHOLDER
 
 ### BpfRawRules
 
@@ -49,3 +49,4 @@ English | [简体中文](interface_instructions.zh_CN.md)
 |ipBlock<br>*string*|Optional. IPBlock defines policy on a particular IPBlock with CIDR. If this field is set then neither of the IP field can be. For example: <br>* 192.168.1.1/24 represents IP addresses within the range of 192.168.1.0 to 192.168.1.255.<br>* 2001:db8::/32 represents IP addresses within the range of 2001:db8:: to 2001:db8:ffff:ffff:ffff:ffff:ffff:ffff
 |ip<br>*string*|Optional. IP defines policy on a particular IP. If this field is set then neither of the IPBlock field can be.
 |port<br>*int*|Optional. Port defines policy on a particular port. If this field is zero or missing, this rule matches all ports.<br>Available values: 1 to 65535
+|PLACEHOLDER|
