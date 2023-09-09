@@ -26,13 +26,13 @@ vArmor 用户态组件默认使用下表所示的值进行资源申请
 
 
 ## 性能影响
-### AppArmor LSM
+### AppArmor Enforcer
 未做对比测试。可参考 19 年社区对 Linux AppArmor LSM 进行的性能测试 [Linux 5.5 Git Threadripper + No Apparmor](https://openbenchmarking.org/result/1912315-PTS-LINUX55G46)
 
-### BPF LSM
-我们利用 [byte-unixbench](https://github.com/kdlucas/byte-unixbench) 在安装了 veLinux with 5.10 kernel 的 VKE 集群中对 BPF enforcer (v0.5.0) 进行了初步的性能测试。
+### BPF Enforcer
+我们利用 [byte-unixbench](https://github.com/kdlucas/byte-unixbench) 在 VKE with kernel 5.10 集群中对 BPF enforcer (v0.5.0) 进行了初步的性能测试。
 
-注：后续我们计划针对典型应用和场景，进行进一步对比测试
+*注：后续我们计划针对典型应用和场景，进行进一步对比测试*
 
 测试环境：
 * 集群版本 v1.20.15-vke.10
@@ -58,5 +58,5 @@ vArmor 用户态组件默认使用下表所示的值进行资源申请
   * 当云主机在高负载时，cache 局部性/热度导致文件拷贝被加速等原因导致了波动
   * 云主机存在超售情况，宿主机在测试期间整体负载存在波动，从而导致云主机内的基线测试结果有所波动
 
-  <img src="./bpf_enforcer_benchmark.zh_CN.png" width="600">
+  <img src="./bpf_enforcer_benchmark.png" width="600">
   
