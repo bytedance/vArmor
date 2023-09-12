@@ -52,13 +52,13 @@
 
 ### Step 1. 拉取 chart 包
 ```
-helm pull oci://elkeid-cn-beijing.cr.volces.com/varmor/varmor --version 0.5.2
+helm pull oci://elkeid-cn-beijing.cr.volces.com/varmor/varmor --version 0.5.3
 ```
 
 ### Step 2. 安装
 ```
 kubectl create ns varmor
-helm install varmor varmor-0.5.2.tgz \
+helm install varmor varmor-0.5.3.tgz \
     -n varmor \
     --set image.registry="elkeid-cn-beijing.cr.volces.com"
 ```
