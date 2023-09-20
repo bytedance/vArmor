@@ -51,6 +51,7 @@ type BpfEnforcer struct {
 	bprmLink         link.Link
 	sockConnLink     link.Link
 	ptraceLink       link.Link
+	mountLink        link.Link
 	bpfProfileCache  map[string]bpfProfile // <profileName: bpfProfile>
 	containerCache   map[string]enforceID  // global cache <containerID: enforceID>
 	log              logr.Logger
@@ -96,7 +97,7 @@ func (enforcer *BpfEnforcer) initBPF() error {
 		Name:       "v_file_inner_",
 		Type:       ebpf.Hash,
 		KeySize:    4,
-		ValueSize:  4*2 + 64*2,
+		ValueSize:  4*2 + uint32(varmortypes.MaxFilePathPatternLength)*2,
 		MaxEntries: uint32(varmortypes.MaxBpfFileRuleCount),
 	}
 	collectionSpec.Maps["v_file_outer"].InnerMap = &fileInnerMap
@@ -106,7 +107,7 @@ func (enforcer *BpfEnforcer) initBPF() error {
 		Name:       "v_bprm_inner_",
 		Type:       ebpf.Hash,
 		KeySize:    4,
-		ValueSize:  4*2 + 64*2,
+		ValueSize:  4*2 + uint32(varmortypes.MaxFilePathPatternLength)*2,
 		MaxEntries: uint32(varmortypes.MaxBpfBprmRuleCount),
 	}
 	collectionSpec.Maps["v_bprm_outer"].InnerMap = &bprmInnerMap
@@ -120,6 +121,15 @@ func (enforcer *BpfEnforcer) initBPF() error {
 		MaxEntries: uint32(varmortypes.MaxBpfNetworkRuleCount),
 	}
 	collectionSpec.Maps["v_net_outer"].InnerMap = &netInnerMap
+
+	mountInnerMap := ebpf.MapSpec{
+		Name:       "v_mount_inner_",
+		Type:       ebpf.Hash,
+		KeySize:    4,
+		ValueSize:  4*3 + uint32(varmortypes.MaxFileSystemTypeLength) + uint32(varmortypes.MaxFilePathPatternLength)*2,
+		MaxEntries: uint32(varmortypes.MaxBpfMountRuleCount),
+	}
+	collectionSpec.Maps["v_mount_outer"].InnerMap = &mountInnerMap
 
 	// Set the mnt ns id to the BPF program
 	initMntNsId, err := readMntNsID(1)
@@ -210,6 +220,15 @@ func (enforcer *BpfEnforcer) initBPF() error {
 	}
 	enforcer.ptraceLink = ptraceLink
 
+	enforcer.log.Info("attach VarmorMount to the LSM hook point")
+	mountLink, err := link.AttachLSM(link.LSMOptions{
+		Program: enforcer.objs.VarmorMount,
+	})
+	if err != nil {
+		return err
+	}
+	enforcer.mountLink = mountLink
+
 	return nil
 }
 
@@ -224,6 +243,7 @@ func (enforcer *BpfEnforcer) RemoveBPF() {
 	enforcer.bprmLink.Close()
 	enforcer.sockConnLink.Close()
 	enforcer.ptraceLink.Close()
+	enforcer.mountLink.Close()
 	enforcer.objs.Close()
 }
 

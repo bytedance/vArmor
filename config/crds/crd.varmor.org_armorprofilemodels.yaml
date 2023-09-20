@@ -160,6 +160,31 @@ spec:
                           - permissions
                           type: object
                         type: array
+                      mounts:
+                        items:
+                          properties:
+                            flags:
+                              format: int32
+                              type: integer
+                            fstype:
+                              type: string
+                            mountFlags:
+                              format: int32
+                              type: integer
+                            prefix:
+                              type: string
+                            reverseMountflags:
+                              format: int32
+                              type: integer
+                            suffix:
+                              type: string
+                          required:
+                          - flags
+                          - fstype
+                          - mountFlags
+                          - reverseMountflags
+                          type: object
+                        type: array
                       networks:
                         items:
                           properties:

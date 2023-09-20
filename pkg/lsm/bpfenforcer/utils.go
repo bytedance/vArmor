@@ -21,20 +21,6 @@ import (
 	"strings"
 )
 
-type bpfPathRule struct {
-	Permissions uint32
-	Flags       uint32
-	Prefix      [64]byte
-	Suffix      [64]byte
-}
-
-type bpfNetworkRule struct {
-	Flags   uint32
-	Address [16]byte
-	Mask    [16]byte
-	Port    uint32
-}
-
 func readMntNsID(pid uint32) (uint32, error) {
 	path := fmt.Sprintf("/proc/%d/ns/mnt", pid)
 	realPath, err := os.Readlink(path)

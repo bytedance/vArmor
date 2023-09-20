@@ -43,12 +43,22 @@ type PtraceContent struct {
 	Flags       uint32 `json:"flags"`
 }
 
+type MountContent struct {
+	Flags             uint32 `json:"flags"`
+	MountFlags        uint32 `json:"mountFlags"`
+	ReverseMountflags uint32 `json:"reverseMountflags"`
+	Fstype            string `json:"fstype"`
+	Prefix            string `json:"prefix,omitempty"`
+	Suffix            string `json:"suffix,omitempty"`
+}
+
 type BpfContent struct {
 	Capabilities uint64           `json:"capabilities,omitempty"`
 	Files        []FileContent    `json:"files,omitempty"`
 	Processes    []FileContent    `json:"processes,omitempty"`
 	Networks     []NetworkContent `json:"networks,omitempty"`
 	Ptrace       PtraceContent    `json:"ptrace,omitempty"`
+	Mounts       []MountContent   `json:"mounts,omitempty"`
 }
 
 type Profile struct {

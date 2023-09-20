@@ -462,6 +462,41 @@ spec:
                               - permissions
                               type: object
                             type: array
+                          mounts:
+                            items:
+                              properties:
+                                flags:
+                                  description: "Flags are used to specify the mount
+                                    flags to enforce. They are almost the same as
+                                    the 'MOUNT FLAGS LIST' of AppArmor. \n Available
+                                    values: \n All Flags: all Command Flags: ro(r,
+                                    read-only), rw(w), suid, nosuid, dev, nodev, exec,
+                                    noexec, sync, async, mand, nomand, dirsync, atime,
+                                    noatime, diratime, nodiratime, silent, loud, relatime,
+                                    norelatime, iversion, noiversion, strictatime,
+                                    nostrictatime Generic Flags: remount, bind(B),
+                                    move(M), rbind(R), make-unbindable, make-private(private),
+                                    make-slave(slave), make-shared(shared), make-runbindable,
+                                    make-rprivate, make-rslave, make-rshared"
+                                  items:
+                                    type: string
+                                  type: array
+                                fstype:
+                                  description: Fstype is used to specify the type
+                                    of filesystem to enforce. It can be '*' to match
+                                    any type.
+                                  type: string
+                                sourcePattern:
+                                  description: SourcePattern can be any string (maximum
+                                    length 64 bytes) that conforms to the policy syntax,
+                                    used for matching file paths and filenames
+                                  type: string
+                              required:
+                              - flags
+                              - fstype
+                              - sourcePattern
+                              type: object
+                            type: array
                           network:
                             properties:
                               egresses:
@@ -535,6 +570,8 @@ spec:
                                   it restricts ptrace-related permissions for all
                                   processes, except those within the init mnt namespace.'
                                 type: boolean
+                            required:
+                            - permissions
                             type: object
                         type: object
                       hardeningRules:
