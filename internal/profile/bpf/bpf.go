@@ -322,6 +322,20 @@ func generateHardeningRules(rule string, content *varmor.BpfContent) error {
 			return err
 		}
 		content.Files = append(content.Files, *fileContent)
+	// disallow mount procfs
+	case "disallow-mount-procfs":
+		// mount new
+		mountContent, err := newBpfMountRule("**", "proc", 0xFFFFFFFF, 0xFFFFFFFF)
+		if err != nil {
+			return err
+		}
+		content.Mounts = append(content.Mounts, *mountContent)
+		// bind, rbind, remount
+		mountContent, err = newBpfMountRule("/proc**", "none", 0xFFFFFFFF, 0xFFFFFFFF)
+		if err != nil {
+			return err
+		}
+		content.Mounts = append(content.Mounts, *mountContent)
 	// disallow write release_agent
 	case "disallow-write-release-agent":
 		fileContent, err := newBpfPathRule("/sys/fs/cgroup/**/release_agent", AaMayWrite|AaMayAppend)
@@ -329,6 +343,27 @@ func generateHardeningRules(rule string, content *varmor.BpfContent) error {
 			return err
 		}
 		content.Files = append(content.Files, *fileContent)
+	// disallow mount cgroupfs
+	case "disallow-mount-cgroupfs":
+		// mount new
+		mountContent, err := newBpfMountRule("**", "cgroup", 0xFFFFFFFF, 0xFFFFFFFF)
+		if err != nil {
+			return err
+		}
+		content.Mounts = append(content.Mounts, *mountContent)
+		// bind, rbind, remount
+		mountContent, err = newBpfMountRule("/sys**", "none", 0xFFFFFFFF, 0xFFFFFFFF)
+		if err != nil {
+			return err
+		}
+		content.Mounts = append(content.Mounts, *mountContent)
+	// disallow mount anything
+	case "disallow-mount":
+		mountContent, err := newBpfMountRule("**", "*", 0xFFFFFFFF, 0xFFFFFFFF)
+		if err != nil {
+			return err
+		}
+		content.Mounts = append(content.Mounts, *mountContent)
 	// disallow insmond
 	case "disallow-insmod":
 		content.Capabilities |= 1 << unix.CAP_SYS_MODULE
