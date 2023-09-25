@@ -331,7 +331,7 @@ func generateHardeningRules(rule string, content *varmor.BpfContent) error {
 		}
 		content.Mounts = append(content.Mounts, *mountContent)
 		// bind, rbind, remount
-		mountContent, err = newBpfMountRule("/proc**", "none", 0xFFFFFFFF, 0xFFFFFFFF)
+		mountContent, err = newBpfMountRule("/proc**", "none", unix.MS_BIND|unix.MS_REC|unix.MS_REMOUNT|unix.MS_MOVE, 0)
 		if err != nil {
 			return err
 		}
@@ -352,7 +352,7 @@ func generateHardeningRules(rule string, content *varmor.BpfContent) error {
 		}
 		content.Mounts = append(content.Mounts, *mountContent)
 		// bind, rbind, remount
-		mountContent, err = newBpfMountRule("/sys**", "none", 0xFFFFFFFF, 0xFFFFFFFF)
+		mountContent, err = newBpfMountRule("/sys**", "none", unix.MS_BIND|unix.MS_REC|unix.MS_REMOUNT|unix.MS_MOVE, 0)
 		if err != nil {
 			return err
 		}
