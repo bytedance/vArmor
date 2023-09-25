@@ -25,6 +25,7 @@ import (
 	"github.com/go-logr/logr"
 
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
+	lsmutils "github.com/bytedance/vArmor/pkg/lsm/utils"
 	varmortypes "github.com/bytedance/vArmor/pkg/types"
 )
 
@@ -355,8 +356,58 @@ func (enforcer *BpfEnforcer) Run(stopCh <-chan struct{}) {
 	enforcer.eventHandler(stopCh)
 }
 
+func (enforcer *BpfEnforcer) pretreatment(bpfContent *varmor.BpfContent) {
+	// Disk Device
+	for index, file := range bpfContent.Files {
+		if file.Prefix == "{{.DiskDevices}}" {
+			bpfContent.Files = append(bpfContent.Files[:index], bpfContent.Files[index+1:]...)
+
+			devices, err := lsmutils.RetrieveDiskDeviceList()
+			if err != nil {
+				enforcer.log.Error(err, "lsmutils.RetrieveDiskDeviceList()")
+				break
+			}
+
+			for _, device := range devices {
+				content := varmor.FileContent{
+					Permissions: file.Permissions,
+					Flags:       file.Flags,
+					Prefix:      "/dev/" + device,
+				}
+				bpfContent.Files = append(bpfContent.Files, content)
+			}
+		}
+	}
+
+	for index, mount := range bpfContent.Mounts {
+		if mount.Prefix == "{{.DiskDevices}}" {
+			bpfContent.Mounts = append(bpfContent.Mounts[:index], bpfContent.Mounts[index+1:]...)
+
+			devices, err := lsmutils.RetrieveDiskDeviceList()
+			if err != nil {
+				enforcer.log.Error(err, "lsmutils.RetrieveDiskDeviceList()")
+				break
+			}
+
+			for _, device := range devices {
+				content := varmor.MountContent{
+					Flags:             mount.Flags,
+					MountFlags:        mount.MountFlags,
+					ReverseMountflags: mount.ReverseMountflags,
+					Fstype:            mount.Fstype,
+					Prefix:            "/dev/" + device,
+				}
+				bpfContent.Mounts = append(bpfContent.Mounts, content)
+			}
+			break
+		}
+	}
+}
+
 // SaveAndApplyBpfProfile save the BPF profile to the cache, and update it to the kernel for the existing BPF profile
 func (enforcer *BpfEnforcer) SaveAndApplyBpfProfile(profileName string, bpfContent varmor.BpfContent) error {
+	enforcer.pretreatment(&bpfContent)
+
 	// save/update the BPF profile to the cache
 	if profile, ok := enforcer.bpfProfileCache[profileName]; ok {
 		if reflect.DeepEqual(bpfContent, profile.bpfContent) {

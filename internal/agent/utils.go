@@ -15,12 +15,8 @@
 package agent
 
 import (
-	"bufio"
 	"context"
-	"encoding/base64"
 	"fmt"
-	"html/template"
-	"io"
 	"os"
 	"os/exec"
 	"regexp"
@@ -51,10 +47,6 @@ profile cri-containerd.apparmor.d flags=(attach_disconnected,mediate_deleted) {
 	minKernelVersionForBPFLSM      = "5.7"
 	regexVersion                   = "^\\d+\\.?\\d*\\.?\\d*" // ^\d+\.?\d*\.?\d*
 )
-
-type templateData struct {
-	DiskDevices []string
-}
 
 func isAppArmorEnabled() bool {
 	content, err := os.ReadFile("/sys/module/apparmor/parameters/enabled")
@@ -133,77 +125,6 @@ func retrieveNodeName(podInterface corev1.PodInterface, debug bool) (string, err
 	} else {
 		return "", err
 	}
-}
-
-func retrieveDiskDeviceList() ([]string, error) {
-	f, err := os.Open("/proc/partitions")
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-	r := bufio.NewReader(f)
-
-	var devices []string
-	for {
-		p, err := r.ReadString('\n')
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return nil, err
-		}
-
-		if strings.HasPrefix(p, "major") {
-			continue
-		} else {
-			dev := strings.Fields(p)
-			if len(dev) == 4 {
-				devices = append(devices, dev[3])
-			}
-		}
-	}
-	return devices, nil
-}
-
-func retrieveTemplateData() (*templateData, error) {
-	data := templateData{}
-
-	// Retrieve the list of Node disk devices.
-	devices, err := retrieveDiskDeviceList()
-	if err != nil {
-		return nil, err
-	}
-	data.DiskDevices = append(data.DiskDevices, devices...)
-
-	return &data, nil
-}
-
-func generateAppArmorProfile(templateContent string, templateData *templateData, f io.Writer) error {
-	t, err := template.New("apparmor_profile").Parse(templateContent)
-	if err != nil {
-		return err
-	}
-	return t.Execute(f, templateData)
-}
-
-func saveAppArmorProfile(fileName string, content string) error {
-	templateContent, err := base64.StdEncoding.DecodeString(content)
-	if err != nil {
-		return err
-	}
-
-	f, err := os.Create(fileName)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	templateData, err := retrieveTemplateData()
-	if err != nil {
-		return err
-	}
-
-	return generateAppArmorProfile(string(templateContent), templateData, f)
 }
 
 func newProfileStatus(namespace, name, nodeName string, status varmorTypes.Status, message string) *varmorTypes.ProfileStatus {

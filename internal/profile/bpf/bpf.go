@@ -357,6 +357,20 @@ func generateHardeningRules(rule string, content *varmor.BpfContent) error {
 			return err
 		}
 		content.Mounts = append(content.Mounts, *mountContent)
+	// disallow debug disk devices
+	case "disallow-debug-disk-device":
+		fileContent, err := newBpfPathRule("{{.DiskDevices}}", AaMayRead|AaMayWrite|AaMayAppend)
+		if err != nil {
+			return err
+		}
+		content.Files = append(content.Files, *fileContent)
+	// disallow mount disk devices
+	case "disallow-mount-disk-device":
+		mountContent, err := newBpfMountRule("{{.DiskDevices}}", "*", 0xFFFFFFFF, 0xFFFFFFFF)
+		if err != nil {
+			return err
+		}
+		content.Mounts = append(content.Mounts, *mountContent)
 	// disallow mount anything
 	case "disallow-mount":
 		mountContent, err := newBpfMountRule("**", "*", 0xFFFFFFFF, 0xFFFFFFFF)
