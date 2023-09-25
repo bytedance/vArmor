@@ -118,6 +118,9 @@ func GenerateProfile(policy varmor.Policy, name string, complete bool, newProfil
 		default:
 			return nil, fmt.Errorf("unknown enforcer")
 		}
+
+	default:
+		return nil, fmt.Errorf("unknown mode")
 	}
 
 	return &profile, nil

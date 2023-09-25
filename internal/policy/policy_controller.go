@@ -280,7 +280,7 @@ func (pc *PolicyController) ignoreAdd(vp *varmor.VarmorPolicy, logger logr.Logge
 	}
 
 	if !pc.enableDefenseInDepth && vp.Spec.Policy.Mode == varmortypes.DefenseInDepthMode {
-		err := fmt.Errorf("disallow switch spec.policy.mode from others to DefenseInDepth")
+		err := fmt.Errorf("the DefenseInDepth mode is not enabled")
 		logger.Error(err, "update VarmorPolicy/status with forbidden info")
 		err = pc.updateVarmorPolicyStatus(vp, "", true, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyCreated, apicorev1.ConditionFalse,
 			"Forbidden",
