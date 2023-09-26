@@ -39,10 +39,9 @@ func (enforcer *BpfEnforcer) newEnforceID(pid uint32) (enforceID, error) {
 	return id, nil
 }
 
-func (enforcer *BpfEnforcer) applyProfile(nsID uint32, bpfContent varmor.BpfContent) error {
-	// capability rule
-	if bpfContent.Capabilities != 0 {
-		err := enforcer.objs.V_capable.Put(&nsID, &bpfContent.Capabilities)
+func (enforcer *BpfEnforcer) applyCapabilityRule(nsID uint32, caps uint64) error {
+	if caps != 0 {
+		err := enforcer.objs.V_capable.Put(&nsID, &caps)
 		if err != nil {
 			return err
 		}
@@ -52,15 +51,17 @@ func (enforcer *BpfEnforcer) applyProfile(nsID uint32, bpfContent varmor.BpfCont
 			enforcer.log.Error(err, "V_capable.Delete()")
 		}
 	}
+	return nil
+}
 
-	// file rules
-	if len(bpfContent.Files) != 0 {
+func (enforcer *BpfEnforcer) applyFileRules(nsID uint32, files []varmor.FileContent) error {
+	if len(files) != 0 {
 		mapName := fmt.Sprintf("v_file_inner_%d", nsID)
 		innerMapSpec := ebpf.MapSpec{
 			Name:       mapName,
 			Type:       ebpf.Hash,
 			KeySize:    4,
-			ValueSize:  4*2 + 64*2,
+			ValueSize:  4*2 + uint32(varmortypes.MaxFilePathPatternLength)*2,
 			MaxEntries: uint32(varmortypes.MaxBpfFileRuleCount),
 		}
 		innerMap, err := ebpf.NewMap(&innerMapSpec)
@@ -69,7 +70,7 @@ func (enforcer *BpfEnforcer) applyProfile(nsID uint32, bpfContent varmor.BpfCont
 		}
 		defer innerMap.Close()
 
-		for i, file := range bpfContent.Files {
+		for i, file := range files {
 			var prefix, suffix [varmortypes.MaxFilePathPatternLength]byte
 			copy(prefix[:], file.Prefix)
 			copy(suffix[:], file.Suffix)
@@ -96,14 +97,17 @@ func (enforcer *BpfEnforcer) applyProfile(nsID uint32, bpfContent varmor.BpfCont
 		}
 	}
 
-	// process rules
-	if len(bpfContent.Processes) != 0 {
+	return nil
+}
+
+func (enforcer *BpfEnforcer) applyProcessRules(nsID uint32, processes []varmor.FileContent) error {
+	if len(processes) != 0 {
 		mapName := fmt.Sprintf("v_bprm_inner_%d", nsID)
 		innerMapSpec := ebpf.MapSpec{
 			Name:       mapName,
 			Type:       ebpf.Hash,
 			KeySize:    4,
-			ValueSize:  4*2 + 64*2,
+			ValueSize:  4*2 + uint32(varmortypes.MaxFilePathPatternLength)*2,
 			MaxEntries: uint32(varmortypes.MaxBpfBprmRuleCount),
 		}
 		innerMap, err := ebpf.NewMap(&innerMapSpec)
@@ -112,7 +116,7 @@ func (enforcer *BpfEnforcer) applyProfile(nsID uint32, bpfContent varmor.BpfCont
 		}
 		defer innerMap.Close()
 
-		for i, file := range bpfContent.Processes {
+		for i, file := range processes {
 			var prefix, suffix [varmortypes.MaxFilePathPatternLength]byte
 			copy(prefix[:], file.Prefix)
 			copy(suffix[:], file.Suffix)
@@ -139,8 +143,11 @@ func (enforcer *BpfEnforcer) applyProfile(nsID uint32, bpfContent varmor.BpfCont
 		}
 	}
 
-	// network rules
-	if len(bpfContent.Networks) != 0 {
+	return nil
+}
+
+func (enforcer *BpfEnforcer) applyNetworkRules(nsID uint32, networks []varmor.NetworkContent) error {
+	if len(networks) != 0 {
 		mapName := fmt.Sprintf("v_net_inner_%d", nsID)
 		innerMapSpec := ebpf.MapSpec{
 			Name:       mapName,
@@ -155,7 +162,7 @@ func (enforcer *BpfEnforcer) applyProfile(nsID uint32, bpfContent varmor.BpfCont
 		}
 		defer innerMap.Close()
 
-		for i, network := range bpfContent.Networks {
+		for i, network := range networks {
 			var rule bpfNetworkRule
 
 			rule.Flags = network.Flags
@@ -192,9 +199,12 @@ func (enforcer *BpfEnforcer) applyProfile(nsID uint32, bpfContent varmor.BpfCont
 		}
 	}
 
-	// ptrace rule
-	if bpfContent.Ptrace.Permissions != 0 && bpfContent.Ptrace.Flags != 0 {
-		rule := uint64(bpfContent.Ptrace.Permissions)<<32 + uint64(bpfContent.Ptrace.Flags)
+	return nil
+}
+
+func (enforcer *BpfEnforcer) applyPtraceRule(nsID uint32, ptrace varmor.PtraceContent) error {
+	if ptrace.Permissions != 0 && ptrace.Flags != 0 {
+		rule := uint64(ptrace.Permissions)<<32 + uint64(ptrace.Flags)
 		err := enforcer.objs.V_ptrace.Put(&nsID, &rule)
 		if err != nil {
 			return err
@@ -204,6 +214,89 @@ func (enforcer *BpfEnforcer) applyProfile(nsID uint32, bpfContent varmor.BpfCont
 		if err != nil && !errors.Is(err, ebpf.ErrKeyNotExist) {
 			enforcer.log.Error(err, "V_ptrace.Delete()")
 		}
+	}
+	return nil
+}
+
+func (enforcer *BpfEnforcer) applyMountRules(nsID uint32, mounts []varmor.MountContent) error {
+	if len(mounts) != 0 {
+		mapName := fmt.Sprintf("v_mount_inner_%d", nsID)
+		innerMapSpec := ebpf.MapSpec{
+			Name:       mapName,
+			Type:       ebpf.Hash,
+			KeySize:    4,
+			ValueSize:  4*3 + uint32(varmortypes.MaxFileSystemTypeLength) + uint32(varmortypes.MaxFilePathPatternLength)*2,
+			MaxEntries: uint32(varmortypes.MaxBpfMountRuleCount),
+		}
+		innerMap, err := ebpf.NewMap(&innerMapSpec)
+		if err != nil {
+			return err
+		}
+		defer innerMap.Close()
+
+		for i, mount := range mounts {
+			var fstype [varmortypes.MaxFileSystemTypeLength]byte
+			var prefix, suffix [varmortypes.MaxFilePathPatternLength]byte
+			copy(fstype[:], mount.Fstype)
+			copy(prefix[:], mount.Prefix)
+			copy(suffix[:], mount.Suffix)
+
+			var rule bpfMountRule
+			rule.Flags = mount.Flags
+			rule.MountFlags = mount.MountFlags
+			rule.ReverseMountFlags = mount.ReverseMountflags
+			rule.Fstype = fstype
+			rule.Prefix = prefix
+			rule.Suffix = suffix
+			var index uint32 = uint32(i)
+			err = innerMap.Put(&index, &rule)
+			if err != nil {
+				return err
+			}
+		}
+		err = enforcer.objs.V_mountOuter.Put(&nsID, innerMap)
+		if err != nil {
+			return err
+		}
+	} else {
+		err := enforcer.objs.V_mountOuter.Delete(&nsID)
+		if err != nil && !errors.Is(err, ebpf.ErrKeyNotExist) {
+			enforcer.log.Error(err, "V_mountOuter.Delete()")
+		}
+	}
+
+	return nil
+}
+
+func (enforcer *BpfEnforcer) applyProfile(nsID uint32, bpfContent varmor.BpfContent) (err error) {
+	err = enforcer.applyCapabilityRule(nsID, bpfContent.Capabilities)
+	if err != nil {
+		return err
+	}
+
+	err = enforcer.applyFileRules(nsID, bpfContent.Files)
+	if err != nil {
+		return err
+	}
+
+	err = enforcer.applyProcessRules(nsID, bpfContent.Processes)
+	if err != nil {
+		return err
+	}
+
+	err = enforcer.applyNetworkRules(nsID, bpfContent.Networks)
+	if err != nil {
+		return err
+	}
+
+	err = enforcer.applyPtraceRule(nsID, bpfContent.Ptrace)
+	if err != nil {
+		return err
+	}
+
+	err = enforcer.applyMountRules(nsID, bpfContent.Mounts)
+	if err != nil {
+		return err
 	}
 
 	return nil
@@ -238,5 +331,11 @@ func (enforcer *BpfEnforcer) deleteProfile(nsID uint32) {
 	err = enforcer.objs.V_ptrace.Delete(&nsID)
 	if err != nil && !errors.Is(err, ebpf.ErrKeyNotExist) {
 		enforcer.log.Error(err, "V_ptrace.Delete()")
+	}
+
+	// mount rules
+	err = enforcer.objs.V_mountOuter.Delete(&nsID)
+	if err != nil && !errors.Is(err, ebpf.ErrKeyNotExist) {
+		enforcer.log.Error(err, "V_mountOuter.Delete()")
 	}
 }

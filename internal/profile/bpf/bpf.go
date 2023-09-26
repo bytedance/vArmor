@@ -117,11 +117,11 @@ func newBpfPathRule(pattern string, permissions uint32) (*varmor.FileContent, er
 	starWildcardLen := len(regexp2FindAllString(re, pattern))
 
 	if starWildcardLen > 0 && strings.Contains(pattern, "**") {
-		return nil, fmt.Errorf("the globbing * and ** in the pattern cannot be used at the same time")
+		return nil, fmt.Errorf("the globbing * and ** in the pattern '%s' cannot be used at the same time", pattern)
 	}
 
 	if starWildcardLen > 1 || strings.Count(pattern, "**") > 1 {
-		return nil, fmt.Errorf("the globbing * or ** in the pattern can only be used once")
+		return nil, fmt.Errorf("the globbing * or ** in the pattern '%s' can only be used once", pattern)
 	}
 
 	// Create bpfPathRule
@@ -130,7 +130,7 @@ func newBpfPathRule(pattern string, permissions uint32) (*varmor.FileContent, er
 
 	if starWildcardLen > 0 {
 		if strings.Contains(pattern, "/") {
-			return nil, fmt.Errorf("the pattern with globbing * is not supported")
+			return nil, fmt.Errorf("the pattern '%s' with globbing * is not supported", pattern)
 		}
 
 		stringList := strings.Split(pattern, "*")
@@ -161,6 +161,14 @@ func newBpfPathRule(pattern string, permissions uint32) (*varmor.FileContent, er
 	} else {
 		pathRule.Prefix = pattern
 		flags |= PreciseMatch | PrefixMatch
+	}
+
+	if len(pathRule.Prefix) >= varmortypes.MaxFilePathPatternLength {
+		return nil, fmt.Errorf("the length of prefix '%s' should be less than the maximum (%d)", pathRule.Prefix, varmortypes.MaxFilePathPatternLength)
+	}
+
+	if len(pathRule.Suffix) >= varmortypes.MaxFilePathPatternLength {
+		return nil, fmt.Errorf("the length of suffix '%s' should be less than the maximum (%d)", pathRule.Suffix, varmortypes.MaxFilePathPatternLength)
 	}
 
 	pathRule.Flags = flags
@@ -226,6 +234,81 @@ func newBpfNetworkRule(cidr string, ipAddress string, port uint32) (*varmor.Netw
 	return &networkRule, nil
 }
 
+func newBpfMountRule(sourcePattern string, fstype string, mountFlags uint32, reverseMountFlags uint32) (*varmor.MountContent, error) {
+	// Pre-check
+	if len(fstype) >= varmortypes.MaxFileSystemTypeLength {
+		return nil, fmt.Errorf("the length of fstype '%s' should be less than the maximum (%d)", fstype, varmortypes.MaxFileSystemTypeLength)
+	}
+
+	re, err := regexp2.Compile(`(?<!\*)\*(?!\*)`, regexp2.None)
+	if err != nil {
+		return nil, err
+	}
+	starWildcardLen := len(regexp2FindAllString(re, sourcePattern))
+
+	if starWildcardLen > 0 && strings.Contains(sourcePattern, "**") {
+		return nil, fmt.Errorf("the globbing * and ** in the pattern '%s' cannot be used at the same time", sourcePattern)
+	}
+
+	if starWildcardLen > 1 || strings.Count(sourcePattern, "**") > 1 {
+		return nil, fmt.Errorf("the globbing * or ** in the pattern '%s' can only be used once", sourcePattern)
+	}
+
+	// Create bpfMountRule
+	var mountRule varmor.MountContent
+	var flags uint32
+
+	if starWildcardLen > 0 {
+		if strings.Contains(sourcePattern, "/") {
+			return nil, fmt.Errorf("the pattern '%s' with globbing * is not supported", sourcePattern)
+		}
+
+		stringList := strings.Split(sourcePattern, "*")
+
+		if len(stringList[0]) > 0 {
+			mountRule.Prefix = stringList[0]
+			flags |= PrefixMatch
+		}
+
+		if len(stringList[1]) > 0 {
+			mountRule.Suffix = reverseString(stringList[1])
+			flags |= SuffixMatch
+		}
+	} else if strings.Contains(sourcePattern, "**") {
+		flags |= GreedyMatch
+
+		stringList := strings.Split(sourcePattern, "**")
+
+		if len(stringList[0]) > 0 {
+			mountRule.Prefix = stringList[0]
+			flags |= PrefixMatch
+		}
+
+		if len(stringList[1]) > 0 {
+			mountRule.Suffix = reverseString(stringList[1])
+			flags |= SuffixMatch
+		}
+	} else {
+		mountRule.Prefix = sourcePattern
+		flags |= PreciseMatch | PrefixMatch
+	}
+
+	if len(mountRule.Prefix) >= varmortypes.MaxFilePathPatternLength {
+		return nil, fmt.Errorf("the length of prefix '%s' should be less than the maximum (%d)", mountRule.Prefix, varmortypes.MaxFilePathPatternLength)
+	}
+
+	if len(mountRule.Suffix) >= varmortypes.MaxFilePathPatternLength {
+		return nil, fmt.Errorf("the length of suffix '%s' should be less than the maximum (%d)", mountRule.Suffix, varmortypes.MaxFilePathPatternLength)
+	}
+
+	mountRule.Flags = flags
+	mountRule.Fstype = fstype
+	mountRule.MountFlags = mountFlags
+	mountRule.ReverseMountflags = reverseMountFlags
+
+	return &mountRule, nil
+}
+
 func generateHardeningRules(rule string, content *varmor.BpfContent) error {
 	rule = strings.ToLower(rule)
 	rule = strings.ReplaceAll(rule, "_", "-")
@@ -239,6 +322,20 @@ func generateHardeningRules(rule string, content *varmor.BpfContent) error {
 			return err
 		}
 		content.Files = append(content.Files, *fileContent)
+	// disallow mount procfs
+	case "disallow-mount-procfs":
+		// mount new
+		mountContent, err := newBpfMountRule("**", "proc", 0xFFFFFFFF, 0xFFFFFFFF)
+		if err != nil {
+			return err
+		}
+		content.Mounts = append(content.Mounts, *mountContent)
+		// bind, rbind, remount
+		mountContent, err = newBpfMountRule("/proc**", "none", unix.MS_BIND|unix.MS_REC|unix.MS_REMOUNT|unix.MS_MOVE, 0)
+		if err != nil {
+			return err
+		}
+		content.Mounts = append(content.Mounts, *mountContent)
 	// disallow write release_agent
 	case "disallow-write-release-agent":
 		fileContent, err := newBpfPathRule("/sys/fs/cgroup/**/release_agent", AaMayWrite|AaMayAppend)
@@ -246,6 +343,41 @@ func generateHardeningRules(rule string, content *varmor.BpfContent) error {
 			return err
 		}
 		content.Files = append(content.Files, *fileContent)
+	// disallow mount cgroupfs
+	case "disallow-mount-cgroupfs":
+		// mount new
+		mountContent, err := newBpfMountRule("**", "cgroup", 0xFFFFFFFF, 0xFFFFFFFF)
+		if err != nil {
+			return err
+		}
+		content.Mounts = append(content.Mounts, *mountContent)
+		// bind, rbind, remount
+		mountContent, err = newBpfMountRule("/sys**", "none", unix.MS_BIND|unix.MS_REC|unix.MS_REMOUNT|unix.MS_MOVE, 0)
+		if err != nil {
+			return err
+		}
+		content.Mounts = append(content.Mounts, *mountContent)
+	// disallow debug disk devices
+	case "disallow-debug-disk-device":
+		fileContent, err := newBpfPathRule("{{.DiskDevices}}", AaMayRead|AaMayWrite|AaMayAppend)
+		if err != nil {
+			return err
+		}
+		content.Files = append(content.Files, *fileContent)
+	// disallow mount disk devices
+	case "disallow-mount-disk-device":
+		mountContent, err := newBpfMountRule("{{.DiskDevices}}", "*", 0xFFFFFFFF, 0xFFFFFFFF)
+		if err != nil {
+			return err
+		}
+		content.Mounts = append(content.Mounts, *mountContent)
+	// disallow mount anything
+	case "disallow-mount":
+		mountContent, err := newBpfMountRule("**", "*", 0xFFFFFFFF, 0xFFFFFFFF)
+		if err != nil {
+			return err
+		}
+		content.Mounts = append(content.Mounts, *mountContent)
 	// disallow insmond
 	case "disallow-insmod":
 		content.Capabilities |= 1 << unix.CAP_SYS_MODULE
@@ -637,6 +769,112 @@ func generateRawPtraceRule(rule varmor.PtraceRule, bpfContent *varmor.BpfContent
 	return nil
 }
 
+func generateRawMountRule(rule varmor.MountRule, bpfContent *varmor.BpfContent) error {
+	var mountFlags, reverseMountFlags uint32
+
+	for _, flag := range rule.Flags {
+		switch strings.ToLower(flag) {
+		// All Flags:
+		case "all":
+			mountFlags = 0xFFFFFFFF
+			reverseMountFlags = 0xFFFFFFFF
+		// Command Flags
+		case "remount":
+			mountFlags |= unix.MS_REMOUNT
+		case "bind", "B":
+			mountFlags |= unix.MS_BIND
+		case "move", "M":
+			mountFlags |= unix.MS_MOVE
+		case "rbind", "R":
+			mountFlags |= unix.MS_BIND
+			mountFlags |= unix.MS_REC
+		case "make-unbindable":
+			mountFlags |= unix.MS_UNBINDABLE
+		case "make-private":
+			mountFlags |= unix.MS_PRIVATE
+		case "make-slave":
+			mountFlags |= unix.MS_SLAVE
+		case "make-shared":
+			mountFlags |= unix.MS_SHARED
+		case "make-runbindable":
+			mountFlags |= unix.MS_BIND
+			mountFlags |= unix.MS_REC
+			mountFlags |= unix.MS_UNBINDABLE
+		case "make-rprivate":
+			mountFlags |= unix.MS_BIND
+			mountFlags |= unix.MS_REC
+			mountFlags |= unix.MS_PRIVATE
+		case "make-rslave":
+			mountFlags |= unix.MS_BIND
+			mountFlags |= unix.MS_REC
+			mountFlags |= unix.MS_SLAVE
+		case "make-rshared":
+			mountFlags |= unix.MS_BIND
+			mountFlags |= unix.MS_REC
+			mountFlags |= unix.MS_SHARED
+		// Generic Flags
+		case "ro", "r", "read-only":
+			mountFlags |= unix.MS_RDONLY
+		case "nosuid":
+			mountFlags |= unix.MS_NOSUID
+		case "nodev":
+			mountFlags |= unix.MS_NODEV
+		case "noexec":
+			mountFlags |= unix.MS_NOEXEC
+		case "sync":
+			mountFlags |= unix.MS_SYNCHRONOUS
+		case "mand":
+			mountFlags |= unix.MS_MANDLOCK
+		case "dirsync":
+			mountFlags |= unix.MS_DIRSYNC
+		case "noatime":
+			mountFlags |= unix.MS_NOATIME
+		case "nodiratime":
+			mountFlags |= unix.MS_NODIRATIME
+		case "silent":
+			mountFlags |= unix.MS_SILENT
+		case "relatime":
+			mountFlags |= unix.MS_RELATIME
+		case "iversion":
+			mountFlags |= unix.MS_I_VERSION
+		case "strictatime":
+			mountFlags |= unix.MS_STRICTATIME
+		case "rw", "w":
+			reverseMountFlags |= unix.MS_RDONLY
+		case "suid":
+			reverseMountFlags |= unix.MS_NOSUID
+		case "dev":
+			reverseMountFlags |= unix.MS_NODEV
+		case "exec":
+			reverseMountFlags |= unix.MS_NOEXEC
+		case "async":
+			reverseMountFlags |= unix.MS_SYNCHRONOUS
+		case "nomand":
+			reverseMountFlags |= unix.MS_MANDLOCK
+		case "atime":
+			reverseMountFlags |= unix.MS_NOATIME
+		case "diratime":
+			reverseMountFlags |= unix.MS_NODIRATIME
+		case "loud":
+			reverseMountFlags |= unix.MS_SILENT
+		case "norelatime":
+			reverseMountFlags |= unix.MS_RELATIME
+		case "noiversion":
+			reverseMountFlags |= unix.MS_I_VERSION
+		case "nostrictatime":
+			reverseMountFlags |= unix.MS_STRICTATIME
+		}
+	}
+
+	mountContent, err := newBpfMountRule(rule.SourcePattern, rule.Fstype, mountFlags, reverseMountFlags)
+	if err != nil {
+		return err
+	}
+	bpfContent.Mounts = append(bpfContent.Mounts, *mountContent)
+
+	return nil
+}
+
 func GenerateEnhanceProtectProfile(enhanceProtect *varmor.EnhanceProtect, bpfContent *varmor.BpfContent) error {
 	var err error
 	// Hardening
@@ -699,9 +937,18 @@ func GenerateEnhanceProtectProfile(enhanceProtect *varmor.EnhanceProtect, bpfCon
 		}
 	}
 
-	err = generateRawPtraceRule(enhanceProtect.BpfRawRules.Ptrace, bpfContent)
-	if err != nil {
-		return err
+	if len(enhanceProtect.BpfRawRules.Ptrace.Permissions) != 0 {
+		err = generateRawPtraceRule(enhanceProtect.BpfRawRules.Ptrace, bpfContent)
+		if err != nil {
+			return err
+		}
+	}
+
+	for _, rule := range enhanceProtect.BpfRawRules.Mounts {
+		err := generateRawMountRule(rule, bpfContent)
+		if err != nil {
+			return err
+		}
 	}
 
 	if len(bpfContent.Files) > varmortypes.MaxBpfFileRuleCount {
@@ -714,6 +961,10 @@ func GenerateEnhanceProtectProfile(enhanceProtect *varmor.EnhanceProtect, bpfCon
 
 	if len(bpfContent.Networks) > varmortypes.MaxBpfNetworkRuleCount {
 		return fmt.Errorf("the maximum number of BPF network rules exceeded(Max Count: %d)", varmortypes.MaxBpfNetworkRuleCount)
+	}
+
+	if len(bpfContent.Mounts) > varmortypes.MaxBpfMountRuleCount {
+		return fmt.Errorf("the maximum number of BPF mount rules exceeded(Max Count: %d)", varmortypes.MaxBpfMountRuleCount)
 	}
 
 	return nil

@@ -25,6 +25,7 @@ import (
 	"github.com/go-logr/logr"
 
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
+	lsmutils "github.com/bytedance/vArmor/pkg/lsm/utils"
 	varmortypes "github.com/bytedance/vArmor/pkg/types"
 )
 
@@ -51,6 +52,7 @@ type BpfEnforcer struct {
 	bprmLink         link.Link
 	sockConnLink     link.Link
 	ptraceLink       link.Link
+	mountLink        link.Link
 	bpfProfileCache  map[string]bpfProfile // <profileName: bpfProfile>
 	containerCache   map[string]enforceID  // global cache <containerID: enforceID>
 	log              logr.Logger
@@ -96,7 +98,7 @@ func (enforcer *BpfEnforcer) initBPF() error {
 		Name:       "v_file_inner_",
 		Type:       ebpf.Hash,
 		KeySize:    4,
-		ValueSize:  4*2 + 64*2,
+		ValueSize:  4*2 + uint32(varmortypes.MaxFilePathPatternLength)*2,
 		MaxEntries: uint32(varmortypes.MaxBpfFileRuleCount),
 	}
 	collectionSpec.Maps["v_file_outer"].InnerMap = &fileInnerMap
@@ -106,7 +108,7 @@ func (enforcer *BpfEnforcer) initBPF() error {
 		Name:       "v_bprm_inner_",
 		Type:       ebpf.Hash,
 		KeySize:    4,
-		ValueSize:  4*2 + 64*2,
+		ValueSize:  4*2 + uint32(varmortypes.MaxFilePathPatternLength)*2,
 		MaxEntries: uint32(varmortypes.MaxBpfBprmRuleCount),
 	}
 	collectionSpec.Maps["v_bprm_outer"].InnerMap = &bprmInnerMap
@@ -120,6 +122,15 @@ func (enforcer *BpfEnforcer) initBPF() error {
 		MaxEntries: uint32(varmortypes.MaxBpfNetworkRuleCount),
 	}
 	collectionSpec.Maps["v_net_outer"].InnerMap = &netInnerMap
+
+	mountInnerMap := ebpf.MapSpec{
+		Name:       "v_mount_inner_",
+		Type:       ebpf.Hash,
+		KeySize:    4,
+		ValueSize:  4*3 + uint32(varmortypes.MaxFileSystemTypeLength) + uint32(varmortypes.MaxFilePathPatternLength)*2,
+		MaxEntries: uint32(varmortypes.MaxBpfMountRuleCount),
+	}
+	collectionSpec.Maps["v_mount_outer"].InnerMap = &mountInnerMap
 
 	// Set the mnt ns id to the BPF program
 	initMntNsId, err := readMntNsID(1)
@@ -210,6 +221,15 @@ func (enforcer *BpfEnforcer) initBPF() error {
 	}
 	enforcer.ptraceLink = ptraceLink
 
+	enforcer.log.Info("attach VarmorMount to the LSM hook point")
+	mountLink, err := link.AttachLSM(link.LSMOptions{
+		Program: enforcer.objs.VarmorMount,
+	})
+	if err != nil {
+		return err
+	}
+	enforcer.mountLink = mountLink
+
 	return nil
 }
 
@@ -224,6 +244,7 @@ func (enforcer *BpfEnforcer) RemoveBPF() {
 	enforcer.bprmLink.Close()
 	enforcer.sockConnLink.Close()
 	enforcer.ptraceLink.Close()
+	enforcer.mountLink.Close()
 	enforcer.objs.Close()
 }
 
@@ -335,8 +356,58 @@ func (enforcer *BpfEnforcer) Run(stopCh <-chan struct{}) {
 	enforcer.eventHandler(stopCh)
 }
 
+func (enforcer *BpfEnforcer) pretreatment(bpfContent *varmor.BpfContent) {
+	// Disk Device
+	for index, file := range bpfContent.Files {
+		if file.Prefix == "{{.DiskDevices}}" {
+			bpfContent.Files = append(bpfContent.Files[:index], bpfContent.Files[index+1:]...)
+
+			devices, err := lsmutils.RetrieveDiskDeviceList()
+			if err != nil {
+				enforcer.log.Error(err, "lsmutils.RetrieveDiskDeviceList()")
+				break
+			}
+
+			for _, device := range devices {
+				content := varmor.FileContent{
+					Permissions: file.Permissions,
+					Flags:       file.Flags,
+					Prefix:      "/dev/" + device,
+				}
+				bpfContent.Files = append(bpfContent.Files, content)
+			}
+		}
+	}
+
+	for index, mount := range bpfContent.Mounts {
+		if mount.Prefix == "{{.DiskDevices}}" {
+			bpfContent.Mounts = append(bpfContent.Mounts[:index], bpfContent.Mounts[index+1:]...)
+
+			devices, err := lsmutils.RetrieveDiskDeviceList()
+			if err != nil {
+				enforcer.log.Error(err, "lsmutils.RetrieveDiskDeviceList()")
+				break
+			}
+
+			for _, device := range devices {
+				content := varmor.MountContent{
+					Flags:             mount.Flags,
+					MountFlags:        mount.MountFlags,
+					ReverseMountflags: mount.ReverseMountflags,
+					Fstype:            mount.Fstype,
+					Prefix:            "/dev/" + device,
+				}
+				bpfContent.Mounts = append(bpfContent.Mounts, content)
+			}
+			break
+		}
+	}
+}
+
 // SaveAndApplyBpfProfile save the BPF profile to the cache, and update it to the kernel for the existing BPF profile
 func (enforcer *BpfEnforcer) SaveAndApplyBpfProfile(profileName string, bpfContent varmor.BpfContent) error {
+	enforcer.pretreatment(&bpfContent)
+
 	// save/update the BPF profile to the cache
 	if profile, ok := enforcer.bpfProfileCache[profileName]; ok {
 		if reflect.DeepEqual(bpfContent, profile.bpfContent) {

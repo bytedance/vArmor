@@ -390,7 +390,7 @@ func (agent *Agent) handleCreateOrUpdateArmorProfile(ap *varmor.ArmorProfile, ke
 		if agent.appArmorSupported && needLoadApparmor {
 			logger.Info(fmt.Sprintf("saving the AppArmor profile ('%s') to Node/%s", ap.Spec.Profile.Name, agent.nodeName))
 			profilePath := filepath.Join(agent.appArmorProfileDir, ap.Spec.Profile.Name)
-			err := saveAppArmorProfile(profilePath, ap.Spec.Profile.Content)
+			err := varmorapparmor.SaveAppArmorProfile(profilePath, ap.Spec.Profile.Content)
 			if err != nil {
 				logger.Error(err, "saveAppArmorProfile()")
 				return agent.sendStatus(ap, varmortypes.Failed, "saveAppArmorProfile(): "+err.Error())

@@ -59,6 +59,7 @@ type bpfProgramSpecs struct {
 	VarmorBprmCheckSecurity *ebpf.ProgramSpec `ebpf:"varmor_bprm_check_security"`
 	VarmorCapable           *ebpf.ProgramSpec `ebpf:"varmor_capable"`
 	VarmorFileOpen          *ebpf.ProgramSpec `ebpf:"varmor_file_open"`
+	VarmorMount             *ebpf.ProgramSpec `ebpf:"varmor_mount"`
 	VarmorPathLink          *ebpf.ProgramSpec `ebpf:"varmor_path_link"`
 	VarmorPathLinkTail      *ebpf.ProgramSpec `ebpf:"varmor_path_link_tail"`
 	VarmorPathRename        *ebpf.ProgramSpec `ebpf:"varmor_path_rename"`
@@ -77,6 +78,7 @@ type bpfMapSpecs struct {
 	V_capable    *ebpf.MapSpec `ebpf:"v_capable"`
 	V_fileBuffer *ebpf.MapSpec `ebpf:"v_file_buffer"`
 	V_fileOuter  *ebpf.MapSpec `ebpf:"v_file_outer"`
+	V_mountOuter *ebpf.MapSpec `ebpf:"v_mount_outer"`
 	V_netOuter   *ebpf.MapSpec `ebpf:"v_net_outer"`
 	V_ptrace     *ebpf.MapSpec `ebpf:"v_ptrace"`
 }
@@ -105,6 +107,7 @@ type bpfMaps struct {
 	V_capable    *ebpf.Map `ebpf:"v_capable"`
 	V_fileBuffer *ebpf.Map `ebpf:"v_file_buffer"`
 	V_fileOuter  *ebpf.Map `ebpf:"v_file_outer"`
+	V_mountOuter *ebpf.Map `ebpf:"v_mount_outer"`
 	V_netOuter   *ebpf.Map `ebpf:"v_net_outer"`
 	V_ptrace     *ebpf.Map `ebpf:"v_ptrace"`
 }
@@ -116,6 +119,7 @@ func (m *bpfMaps) Close() error {
 		m.V_capable,
 		m.V_fileBuffer,
 		m.V_fileOuter,
+		m.V_mountOuter,
 		m.V_netOuter,
 		m.V_ptrace,
 	)
@@ -128,6 +132,7 @@ type bpfPrograms struct {
 	VarmorBprmCheckSecurity *ebpf.Program `ebpf:"varmor_bprm_check_security"`
 	VarmorCapable           *ebpf.Program `ebpf:"varmor_capable"`
 	VarmorFileOpen          *ebpf.Program `ebpf:"varmor_file_open"`
+	VarmorMount             *ebpf.Program `ebpf:"varmor_mount"`
 	VarmorPathLink          *ebpf.Program `ebpf:"varmor_path_link"`
 	VarmorPathLinkTail      *ebpf.Program `ebpf:"varmor_path_link_tail"`
 	VarmorPathRename        *ebpf.Program `ebpf:"varmor_path_rename"`
@@ -142,6 +147,7 @@ func (p *bpfPrograms) Close() error {
 		p.VarmorBprmCheckSecurity,
 		p.VarmorCapable,
 		p.VarmorFileOpen,
+		p.VarmorMount,
 		p.VarmorPathLink,
 		p.VarmorPathLinkTail,
 		p.VarmorPathRename,

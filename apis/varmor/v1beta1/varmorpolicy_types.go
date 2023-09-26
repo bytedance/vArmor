@@ -254,7 +254,27 @@ type PtraceRule struct {
 	// read, readby
 	//    For "read" operations or other operations that are less dangerous, such as: get_robust_list(2); kcmp(2); reading
 	//    /proc/pid/auxv, /proc/pid/environ, or /proc/pid/stat; or readlink(2) of a /proc/pid/ns/* file.
-	Permissions []string `json:"permissions,omitempty"`
+	//
+	Permissions []string `json:"permissions"`
+}
+
+type MountRule struct {
+	// SourcePattern can be any string (maximum length 64 bytes) that conforms to the policy syntax, used for matching file paths and filenames
+	SourcePattern string `json:"sourcePattern"`
+	// Fstype is used to specify the type of filesystem to enforce. It can be '*' to match any type.
+	Fstype string `json:"fstype"`
+	// Flags are used to specify the mount flags to enforce. They are almost the same as the 'MOUNT FLAGS LIST' of AppArmor.
+	//
+	// Available values:
+	//
+	//       All Flags: all
+	//   Command Flags: ro(r, read-only), rw(w), suid, nosuid, dev, nodev, exec, noexec,
+	//                  sync, async, mand, nomand, dirsync, atime, noatime, diratime, nodiratime,
+	//                  silent, loud, relatime, norelatime, iversion, noiversion, strictatime, nostrictatime
+	//   Generic Flags: remount, bind(B), move(M), rbind(R), make-unbindable, make-private(private), make-slave(slave),
+	//                  make-shared(shared), make-runbindable, make-rprivate, make-rslave, make-rshared
+	//
+	Flags []string `json:"flags"`
 }
 
 type BpfRawRules struct {
@@ -262,6 +282,7 @@ type BpfRawRules struct {
 	Processes []FileRule  `json:"processes,omitempty"`
 	Network   NetworkRule `json:"network,omitempty"`
 	Ptrace    PtraceRule  `json:"ptrace,omitempty"`
+	Mounts    []MountRule `json:"mounts,omitempty"`
 }
 
 type EnhanceProtect struct {

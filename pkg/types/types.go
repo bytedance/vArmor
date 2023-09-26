@@ -45,9 +45,17 @@ const (
 	// it's equal to the NET_INNER_MAP_ENTRIES_MAX of BPF code
 	MaxBpfNetworkRuleCount int = 50
 
+	// MaxBpfMountRuleCount is the max count of BPF mount rules,
+	// it's equal to the MOUNT_INNER_MAP_ENTRIES_MAX of BPF code
+	MaxBpfMountRuleCount int = 50
+
 	// MaxFilePathPatternLength is the max length of path pattern,
 	// it's equal to the FILE_PATH_PATTERN_SIZE_MAX of BPF code
 	MaxFilePathPatternLength int = 64
+
+	// MaxFileSystemTypeLength is the max length of fstype pattern,
+	// it's equal to the FILE_SYSTEM_TYPE_MAX of BPF code
+	MaxFileSystemTypeLength int = 16
 )
 
 // ContainerInfo describes the information collected by the runtime monitor
