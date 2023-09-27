@@ -136,12 +136,12 @@ func newBpfPathRule(pattern string, permissions uint32) (*varmor.FileContent, er
 		stringList := strings.Split(pattern, "*")
 
 		if len(stringList[0]) > 0 {
-			pathRule.Prefix = stringList[0]
+			pathRule.Pattern.Prefix = stringList[0]
 			flags |= PrefixMatch
 		}
 
 		if len(stringList[1]) > 0 {
-			pathRule.Suffix = reverseString(stringList[1])
+			pathRule.Pattern.Suffix = reverseString(stringList[1])
 			flags |= SuffixMatch
 		}
 	} else if strings.Contains(pattern, "**") {
@@ -150,28 +150,28 @@ func newBpfPathRule(pattern string, permissions uint32) (*varmor.FileContent, er
 		stringList := strings.Split(pattern, "**")
 
 		if len(stringList[0]) > 0 {
-			pathRule.Prefix = stringList[0]
+			pathRule.Pattern.Prefix = stringList[0]
 			flags |= PrefixMatch
 		}
 
 		if len(stringList[1]) > 0 {
-			pathRule.Suffix = reverseString(stringList[1])
+			pathRule.Pattern.Suffix = reverseString(stringList[1])
 			flags |= SuffixMatch
 		}
 	} else {
-		pathRule.Prefix = pattern
+		pathRule.Pattern.Prefix = pattern
 		flags |= PreciseMatch | PrefixMatch
 	}
 
-	if len(pathRule.Prefix) >= varmortypes.MaxFilePathPatternLength {
-		return nil, fmt.Errorf("the length of prefix '%s' should be less than the maximum (%d)", pathRule.Prefix, varmortypes.MaxFilePathPatternLength)
+	if len(pathRule.Pattern.Prefix) >= varmortypes.MaxFilePathPatternLength {
+		return nil, fmt.Errorf("the length of prefix '%s' should be less than the maximum (%d)", pathRule.Pattern.Prefix, varmortypes.MaxFilePathPatternLength)
 	}
 
-	if len(pathRule.Suffix) >= varmortypes.MaxFilePathPatternLength {
-		return nil, fmt.Errorf("the length of suffix '%s' should be less than the maximum (%d)", pathRule.Suffix, varmortypes.MaxFilePathPatternLength)
+	if len(pathRule.Pattern.Suffix) >= varmortypes.MaxFilePathPatternLength {
+		return nil, fmt.Errorf("the length of suffix '%s' should be less than the maximum (%d)", pathRule.Pattern.Suffix, varmortypes.MaxFilePathPatternLength)
 	}
 
-	pathRule.Flags = flags
+	pathRule.Pattern.Flags = flags
 	pathRule.Permissions = permissions
 
 	return &pathRule, nil
@@ -266,12 +266,12 @@ func newBpfMountRule(sourcePattern string, fstype string, mountFlags uint32, rev
 		stringList := strings.Split(sourcePattern, "*")
 
 		if len(stringList[0]) > 0 {
-			mountRule.Prefix = stringList[0]
+			mountRule.Pattern.Prefix = stringList[0]
 			flags |= PrefixMatch
 		}
 
 		if len(stringList[1]) > 0 {
-			mountRule.Suffix = reverseString(stringList[1])
+			mountRule.Pattern.Suffix = reverseString(stringList[1])
 			flags |= SuffixMatch
 		}
 	} else if strings.Contains(sourcePattern, "**") {
@@ -280,31 +280,31 @@ func newBpfMountRule(sourcePattern string, fstype string, mountFlags uint32, rev
 		stringList := strings.Split(sourcePattern, "**")
 
 		if len(stringList[0]) > 0 {
-			mountRule.Prefix = stringList[0]
+			mountRule.Pattern.Prefix = stringList[0]
 			flags |= PrefixMatch
 		}
 
 		if len(stringList[1]) > 0 {
-			mountRule.Suffix = reverseString(stringList[1])
+			mountRule.Pattern.Suffix = reverseString(stringList[1])
 			flags |= SuffixMatch
 		}
 	} else {
-		mountRule.Prefix = sourcePattern
+		mountRule.Pattern.Prefix = sourcePattern
 		flags |= PreciseMatch | PrefixMatch
 	}
 
-	if len(mountRule.Prefix) >= varmortypes.MaxFilePathPatternLength {
-		return nil, fmt.Errorf("the length of prefix '%s' should be less than the maximum (%d)", mountRule.Prefix, varmortypes.MaxFilePathPatternLength)
+	if len(mountRule.Pattern.Prefix) >= varmortypes.MaxFilePathPatternLength {
+		return nil, fmt.Errorf("the length of prefix '%s' should be less than the maximum (%d)", mountRule.Pattern.Prefix, varmortypes.MaxFilePathPatternLength)
 	}
 
-	if len(mountRule.Suffix) >= varmortypes.MaxFilePathPatternLength {
-		return nil, fmt.Errorf("the length of suffix '%s' should be less than the maximum (%d)", mountRule.Suffix, varmortypes.MaxFilePathPatternLength)
+	if len(mountRule.Pattern.Suffix) >= varmortypes.MaxFilePathPatternLength {
+		return nil, fmt.Errorf("the length of suffix '%s' should be less than the maximum (%d)", mountRule.Pattern.Suffix, varmortypes.MaxFilePathPatternLength)
 	}
 
-	mountRule.Flags = flags
-	mountRule.Fstype = fstype
+	mountRule.Pattern.Flags = flags
 	mountRule.MountFlags = mountFlags
 	mountRule.ReverseMountflags = reverseMountFlags
+	mountRule.Fstype = fstype
 
 	return &mountRule, nil
 }
@@ -330,7 +330,7 @@ func generateHardeningRules(rule string, content *varmor.BpfContent) error {
 			return err
 		}
 		content.Mounts = append(content.Mounts, *mountContent)
-		// bind, rbind, remount
+		// bind, rbind, remount, move
 		mountContent, err = newBpfMountRule("/proc**", "none", unix.MS_BIND|unix.MS_REC|unix.MS_REMOUNT|unix.MS_MOVE, 0)
 		if err != nil {
 			return err
@@ -351,7 +351,7 @@ func generateHardeningRules(rule string, content *varmor.BpfContent) error {
 			return err
 		}
 		content.Mounts = append(content.Mounts, *mountContent)
-		// bind, rbind, remount
+		// bind, rbind, remount, move
 		mountContent, err = newBpfMountRule("/sys**", "none", unix.MS_BIND|unix.MS_REC|unix.MS_REMOUNT|unix.MS_MOVE, 0)
 		if err != nil {
 			return err

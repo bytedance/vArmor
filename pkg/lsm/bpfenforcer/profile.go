@@ -72,14 +72,14 @@ func (enforcer *BpfEnforcer) applyFileRules(nsID uint32, files []varmor.FileCont
 
 		for i, file := range files {
 			var prefix, suffix [varmortypes.MaxFilePathPatternLength]byte
-			copy(prefix[:], file.Prefix)
-			copy(suffix[:], file.Suffix)
+			copy(prefix[:], file.Pattern.Prefix)
+			copy(suffix[:], file.Pattern.Suffix)
 
 			var rule bpfPathRule
-			rule.Flags = file.Flags
 			rule.Permissions = file.Permissions
-			rule.Prefix = prefix
-			rule.Suffix = suffix
+			rule.Pattern.Flags = file.Pattern.Flags
+			rule.Pattern.Prefix = prefix
+			rule.Pattern.Suffix = suffix
 			var index uint32 = uint32(i)
 			err = innerMap.Put(&index, &rule)
 			if err != nil {
@@ -118,14 +118,14 @@ func (enforcer *BpfEnforcer) applyProcessRules(nsID uint32, processes []varmor.F
 
 		for i, file := range processes {
 			var prefix, suffix [varmortypes.MaxFilePathPatternLength]byte
-			copy(prefix[:], file.Prefix)
-			copy(suffix[:], file.Suffix)
+			copy(prefix[:], file.Pattern.Prefix)
+			copy(suffix[:], file.Pattern.Suffix)
 
 			var rule bpfPathRule
-			rule.Flags = file.Flags
 			rule.Permissions = file.Permissions
-			rule.Prefix = prefix
-			rule.Suffix = suffix
+			rule.Pattern.Flags = file.Pattern.Flags
+			rule.Pattern.Prefix = prefix
+			rule.Pattern.Suffix = suffix
 			var index uint32 = uint32(i)
 			err = innerMap.Put(&index, &rule)
 			if err != nil {
@@ -238,16 +238,16 @@ func (enforcer *BpfEnforcer) applyMountRules(nsID uint32, mounts []varmor.MountC
 			var fstype [varmortypes.MaxFileSystemTypeLength]byte
 			var prefix, suffix [varmortypes.MaxFilePathPatternLength]byte
 			copy(fstype[:], mount.Fstype)
-			copy(prefix[:], mount.Prefix)
-			copy(suffix[:], mount.Suffix)
+			copy(prefix[:], mount.Pattern.Prefix)
+			copy(suffix[:], mount.Pattern.Suffix)
 
 			var rule bpfMountRule
-			rule.Flags = mount.Flags
 			rule.MountFlags = mount.MountFlags
 			rule.ReverseMountFlags = mount.ReverseMountflags
 			rule.Fstype = fstype
-			rule.Prefix = prefix
-			rule.Suffix = suffix
+			rule.Pattern.Flags = mount.Pattern.Flags
+			rule.Pattern.Prefix = prefix
+			rule.Pattern.Suffix = suffix
 			var index uint32 = uint32(i)
 			err = innerMap.Put(&index, &rule)
 			if err != nil {

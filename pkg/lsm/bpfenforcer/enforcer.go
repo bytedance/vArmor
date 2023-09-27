@@ -359,7 +359,7 @@ func (enforcer *BpfEnforcer) Run(stopCh <-chan struct{}) {
 func (enforcer *BpfEnforcer) pretreatment(bpfContent *varmor.BpfContent) {
 	// Disk Device
 	for index, file := range bpfContent.Files {
-		if file.Prefix == "{{.DiskDevices}}" {
+		if file.Pattern.Prefix == "{{.DiskDevices}}" {
 			bpfContent.Files = append(bpfContent.Files[:index], bpfContent.Files[index+1:]...)
 
 			devices, err := lsmutils.RetrieveDiskDeviceList()
@@ -371,8 +371,10 @@ func (enforcer *BpfEnforcer) pretreatment(bpfContent *varmor.BpfContent) {
 			for _, device := range devices {
 				content := varmor.FileContent{
 					Permissions: file.Permissions,
-					Flags:       file.Flags,
-					Prefix:      "/dev/" + device,
+					Pattern: varmor.PathPattern{
+						Flags:  file.Pattern.Flags,
+						Prefix: "/dev/" + device,
+					},
 				}
 				bpfContent.Files = append(bpfContent.Files, content)
 			}
@@ -380,7 +382,7 @@ func (enforcer *BpfEnforcer) pretreatment(bpfContent *varmor.BpfContent) {
 	}
 
 	for index, mount := range bpfContent.Mounts {
-		if mount.Prefix == "{{.DiskDevices}}" {
+		if mount.Pattern.Prefix == "{{.DiskDevices}}" {
 			bpfContent.Mounts = append(bpfContent.Mounts[:index], bpfContent.Mounts[index+1:]...)
 
 			devices, err := lsmutils.RetrieveDiskDeviceList()
@@ -391,11 +393,13 @@ func (enforcer *BpfEnforcer) pretreatment(bpfContent *varmor.BpfContent) {
 
 			for _, device := range devices {
 				content := varmor.MountContent{
-					Flags:             mount.Flags,
 					MountFlags:        mount.MountFlags,
 					ReverseMountflags: mount.ReverseMountflags,
 					Fstype:            mount.Fstype,
-					Prefix:            "/dev/" + device,
+					Pattern: varmor.PathPattern{
+						Flags:  mount.Pattern.Flags,
+						Prefix: "/dev/" + device,
+					},
 				}
 				bpfContent.Mounts = append(bpfContent.Mounts, content)
 			}

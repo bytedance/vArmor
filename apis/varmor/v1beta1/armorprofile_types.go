@@ -24,11 +24,15 @@ import (
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
+type PathPattern struct {
+	Flags  uint32 `json:"flags"`
+	Prefix string `json:"prefix,omitempty"`
+	Suffix string `json:"suffix,omitempty"`
+}
+
 type FileContent struct {
-	Permissions uint32 `json:"permissions"`
-	Flags       uint32 `json:"flags"`
-	Prefix      string `json:"prefix,omitempty"`
-	Suffix      string `json:"suffix,omitempty"`
+	Permissions uint32      `json:"permissions"`
+	Pattern     PathPattern `json:"pattern"`
 }
 
 type NetworkContent struct {
@@ -44,12 +48,10 @@ type PtraceContent struct {
 }
 
 type MountContent struct {
-	Flags             uint32 `json:"flags"`
-	MountFlags        uint32 `json:"mountFlags"`
-	ReverseMountflags uint32 `json:"reverseMountflags"`
-	Fstype            string `json:"fstype"`
-	Prefix            string `json:"prefix,omitempty"`
-	Suffix            string `json:"suffix,omitempty"`
+	MountFlags        uint32      `json:"mountFlags"`
+	ReverseMountflags uint32      `json:"reverseMountflags"`
+	Fstype            string      `json:"fstype"`
+	Pattern           PathPattern `json:"pattern"`
 }
 
 type BpfContent struct {

@@ -16,11 +16,15 @@ package bpfenforcer
 
 import varmortypes "github.com/bytedance/vArmor/pkg/types"
 
+type pathPattern struct {
+	Flags  uint32
+	Prefix [varmortypes.MaxFilePathPatternLength]byte
+	Suffix [varmortypes.MaxFilePathPatternLength]byte
+}
+
 type bpfPathRule struct {
 	Permissions uint32
-	Flags       uint32
-	Prefix      [varmortypes.MaxFilePathPatternLength]byte
-	Suffix      [varmortypes.MaxFilePathPatternLength]byte
+	Pattern     pathPattern
 }
 
 type bpfNetworkRule struct {
@@ -31,10 +35,8 @@ type bpfNetworkRule struct {
 }
 
 type bpfMountRule struct {
-	Flags             uint32
 	MountFlags        uint32
 	ReverseMountFlags uint32
 	Fstype            [varmortypes.MaxFileSystemTypeLength]byte
-	Prefix            [varmortypes.MaxFilePathPatternLength]byte
-	Suffix            [varmortypes.MaxFilePathPatternLength]byte
+	Pattern           pathPattern
 }

@@ -81,43 +81,53 @@ spec:
                       files:
                         items:
                           properties:
-                            flags:
-                              format: int32
-                              type: integer
+                            pattern:
+                              properties:
+                                flags:
+                                  format: int32
+                                  type: integer
+                                prefix:
+                                  type: string
+                                suffix:
+                                  type: string
+                              required:
+                              - flags
+                              type: object
                             permissions:
                               format: int32
                               type: integer
-                            prefix:
-                              type: string
-                            suffix:
-                              type: string
                           required:
-                          - flags
+                          - pattern
                           - permissions
                           type: object
                         type: array
                       mounts:
                         items:
                           properties:
-                            flags:
-                              format: int32
-                              type: integer
                             fstype:
                               type: string
                             mountFlags:
                               format: int32
                               type: integer
-                            prefix:
-                              type: string
+                            pattern:
+                              properties:
+                                flags:
+                                  format: int32
+                                  type: integer
+                                prefix:
+                                  type: string
+                                suffix:
+                                  type: string
+                              required:
+                              - flags
+                              type: object
                             reverseMountflags:
                               format: int32
                               type: integer
-                            suffix:
-                              type: string
                           required:
-                          - flags
                           - fstype
                           - mountFlags
+                          - pattern
                           - reverseMountflags
                           type: object
                         type: array
@@ -141,18 +151,23 @@ spec:
                       processes:
                         items:
                           properties:
-                            flags:
-                              format: int32
-                              type: integer
+                            pattern:
+                              properties:
+                                flags:
+                                  format: int32
+                                  type: integer
+                                prefix:
+                                  type: string
+                                suffix:
+                                  type: string
+                              required:
+                              - flags
+                              type: object
                             permissions:
                               format: int32
                               type: integer
-                            prefix:
-                              type: string
-                            suffix:
-                              type: string
                           required:
-                          - flags
+                          - pattern
                           - permissions
                           type: object
                         type: array
