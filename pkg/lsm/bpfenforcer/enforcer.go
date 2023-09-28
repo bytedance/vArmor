@@ -53,6 +53,7 @@ type BpfEnforcer struct {
 	sockConnLink     link.Link
 	ptraceLink       link.Link
 	mountLink        link.Link
+	moveMountLink    link.Link
 	bpfProfileCache  map[string]bpfProfile // <profileName: bpfProfile>
 	containerCache   map[string]enforceID  // global cache <containerID: enforceID>
 	log              logr.Logger
@@ -230,6 +231,15 @@ func (enforcer *BpfEnforcer) initBPF() error {
 	}
 	enforcer.mountLink = mountLink
 
+	enforcer.log.Info("attach VarmorMoveMount to the LSM hook point")
+	moveMountLink, err := link.AttachLSM(link.LSMOptions{
+		Program: enforcer.objs.VarmorMoveMount,
+	})
+	if err != nil {
+		return nil
+	}
+	enforcer.moveMountLink = moveMountLink
+
 	return nil
 }
 
@@ -245,6 +255,7 @@ func (enforcer *BpfEnforcer) RemoveBPF() {
 	enforcer.sockConnLink.Close()
 	enforcer.ptraceLink.Close()
 	enforcer.mountLink.Close()
+	enforcer.moveMountLink.Close()
 	enforcer.objs.Close()
 }
 
