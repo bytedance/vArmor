@@ -106,6 +106,15 @@ func GenerateRuntimeDefaultProfile(bpfContent *varmor.BpfContent) error {
 	}
 	bpfContent.Files = append(bpfContent.Files, *fileContent)
 
+	mountContent, err := newBpfMountRule("**", "*", 0xFFFFFFFF&^AaMayUmount, 0xFFFFFFFF)
+	if err != nil {
+		return err
+	}
+	bpfContent.Mounts = append(bpfContent.Mounts, *mountContent)
+
+	bpfContent.Ptrace.Permissions = AaPtraceTrace | AaMayBeTraced | AaMayRead | AaMayBeRead
+	bpfContent.Ptrace.Flags = PreciseMatch
+
 	return nil
 }
 
