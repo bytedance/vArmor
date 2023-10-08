@@ -49,8 +49,10 @@ func generateHardeningRules(rule string) (rules string) {
 	case "disallow-mount-procfs":
 		// mount new
 		rules += "  deny mount fstype=proc,\n"
-		// bind, rbind, remount, move
-		rules += "  deny mount options in (bind,rbind,remount,move),\n"
+		// bind, rbind, move
+		rules += "  deny mount options in (bind,rbind,move) /proc** -> /**,\n"
+		// remount
+		rules += "  deny mount options in (remount,bind,rbind) -> /proc**,\n"
 	// disallow write release_agent
 	case "disallow-write-release-agent":
 		rules += "  deny /sys/fs/cgroup/**/release_agent w,\n"
@@ -58,8 +60,11 @@ func generateHardeningRules(rule string) (rules string) {
 	case "disallow-mount-cgroupfs":
 		// mount new
 		rules += "  deny mount fstype=cgroup,\n"
-		// bind, rbind, remount, move
-		rules += "  deny mount options in (bind,rbind,remount,move),\n"
+		// bind, rbind, move
+		rules += "  deny mount options in (bind,rbind,move) /sys/fs/cgroup** -> /**,\n"
+		rules += "  deny mount options in (rbind) /sys** -> /**,\n"
+		// remount
+		rules += "  deny mount options in (remount,bind,rbind) -> /sys/fs/cgroup**,\n"
 	// disallow debug disk devices
 	case "disallow-debug-disk-device":
 		rules += "{{range $value := .DiskDevices}}"
