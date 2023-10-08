@@ -43,8 +43,8 @@ type NetworkContent struct {
 }
 
 type PtraceContent struct {
-	Permissions uint32 `json:"permissions"`
-	Flags       uint32 `json:"flags"`
+	Permissions uint32 `json:"permissions,omitempty"`
+	Flags       uint32 `json:"flags,omitempty"`
 }
 
 type MountContent struct {

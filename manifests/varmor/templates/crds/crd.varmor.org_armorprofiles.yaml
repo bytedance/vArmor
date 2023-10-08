@@ -179,9 +179,6 @@ spec:
                           permissions:
                             format: int32
                             type: integer
-                        required:
-                        - flags
-                        - permissions
                         type: object
                     type: object
                   content:
