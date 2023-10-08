@@ -43,6 +43,7 @@ const (
 	AaPtraceRead  = 0x00000004
 	AaMayBeTraced = 0x00000008
 	AaMayBeRead   = 0x00000010
+	AaMayUmount   = 0x00000200
 )
 
 func reverseString(s string) string {
@@ -325,13 +326,13 @@ func generateHardeningRules(rule string, content *varmor.BpfContent) error {
 	// disallow mount procfs
 	case "disallow-mount-procfs":
 		// mount new
-		mountContent, err := newBpfMountRule("**", "proc", 0xFFFFFFFF, 0xFFFFFFFF)
+		mountContent, err := newBpfMountRule("**", "proc", 0xFFFFFFFF&^AaMayUmount, 0xFFFFFFFF)
 		if err != nil {
 			return err
 		}
 		content.Mounts = append(content.Mounts, *mountContent)
-		// bind, rbind, remount, move
-		mountContent, err = newBpfMountRule("/proc**", "none", unix.MS_BIND|unix.MS_REC|unix.MS_REMOUNT|unix.MS_MOVE, 0)
+		// bind, rbind, remount, move, umount
+		mountContent, err = newBpfMountRule("/proc**", "none", unix.MS_BIND|unix.MS_REC|unix.MS_REMOUNT|unix.MS_MOVE|AaMayUmount, 0)
 		if err != nil {
 			return err
 		}
@@ -346,13 +347,13 @@ func generateHardeningRules(rule string, content *varmor.BpfContent) error {
 	// disallow mount cgroupfs
 	case "disallow-mount-cgroupfs":
 		// mount new
-		mountContent, err := newBpfMountRule("**", "cgroup", 0xFFFFFFFF, 0xFFFFFFFF)
+		mountContent, err := newBpfMountRule("**", "cgroup", 0xFFFFFFFF&^AaMayUmount, 0xFFFFFFFF)
 		if err != nil {
 			return err
 		}
 		content.Mounts = append(content.Mounts, *mountContent)
-		// bind, rbind, remount, move
-		mountContent, err = newBpfMountRule("/sys**", "none", unix.MS_BIND|unix.MS_REC|unix.MS_REMOUNT|unix.MS_MOVE, 0)
+		// bind, rbind, remount, move, umount
+		mountContent, err = newBpfMountRule("/sys**", "none", unix.MS_BIND|unix.MS_REC|unix.MS_REMOUNT|unix.MS_MOVE|AaMayUmount, 0)
 		if err != nil {
 			return err
 		}
@@ -366,14 +367,21 @@ func generateHardeningRules(rule string, content *varmor.BpfContent) error {
 		content.Files = append(content.Files, *fileContent)
 	// disallow mount disk devices
 	case "disallow-mount-disk-device":
-		mountContent, err := newBpfMountRule("{{.DiskDevices}}", "*", 0xFFFFFFFF, 0xFFFFFFFF)
+		mountContent, err := newBpfMountRule("{{.DiskDevices}}", "*", 0xFFFFFFFF&^AaMayUmount, 0xFFFFFFFF)
 		if err != nil {
 			return err
 		}
 		content.Mounts = append(content.Mounts, *mountContent)
 	// disallow mount anything
 	case "disallow-mount":
-		mountContent, err := newBpfMountRule("**", "*", 0xFFFFFFFF, 0xFFFFFFFF)
+		mountContent, err := newBpfMountRule("**", "*", 0xFFFFFFFF&^AaMayUmount, 0xFFFFFFFF)
+		if err != nil {
+			return err
+		}
+		content.Mounts = append(content.Mounts, *mountContent)
+	// disallow umount anything
+	case "disallow-umount":
+		mountContent, err := newBpfMountRule("**", "none", AaMayUmount, 0)
 		if err != nil {
 			return err
 		}
@@ -863,6 +871,9 @@ func generateRawMountRule(rule varmor.MountRule, bpfContent *varmor.BpfContent) 
 			reverseMountFlags |= unix.MS_I_VERSION
 		case "nostrictatime":
 			reverseMountFlags |= unix.MS_STRICTATIME
+		// Custom Flags
+		case "umount":
+			mountFlags |= AaMayUmount
 		}
 	}
 

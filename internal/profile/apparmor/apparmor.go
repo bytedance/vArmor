@@ -73,6 +73,9 @@ func generateHardeningRules(rule string) (rules string) {
 	// disallow mount
 	case "disallow-mount":
 		rules += "  deny mount,\n"
+	// disallow umount
+	case "disallow-umount":
+		rules += "  deny umount,\n"
 	// disallow insmond
 	case "disallow-insmod":
 		rules += "  deny capability sys_module,\n"
