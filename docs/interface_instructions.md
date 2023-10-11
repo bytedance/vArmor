@@ -35,12 +35,16 @@ English | [简体中文](interface_instructions.zh_CN.md)
 
 | Field | Subfield | Description |
 |-------|----------|-------------|
-|files<br>*FileRule array*    |pattern<br>*string*|Any string (maximum length 64 bytes) that conforms to the policy syntax, used for matching file paths and filenames. Please refer to [BPF Syntax](policy_manual.md#bpf-enforcer-wip).
-|                             |permissions<br>*string array*|Permissions are used to specify the file permissions to be disabled. Available values: read(r), write(w), append(a), exec(e)
+|files<br>*FileRule array*    |pattern<br>*string*|Any string (maximum length 128 bytes) that conforms to the policy syntax, used for matching file paths and filenames. Please refer to [BPF Syntax](policy_manual.md#bpf-enforcer-wip).
+|                             |permissions<br>*string array*|Permissions are used to specify the file permissions to be disabled.<br>Available values: `read(r), write(w), append(a), exec(e)`
 |processes<br>*FileRule array*|-|Same as above.
 |network<br>*NetworkRule*     |egresses<br>*[NetworkEgressRule](interface_instructions.md#networkegressrule) array*|Optional. Egresses are the list of egress rules to be applied to restrict particular IPs and ports.
-|ptrace<br>*PtraceRule*       |strictMode<br>*bool*|Optional. If set to false, it restricts ptrace-related permissions only for processes in other containers. If set to true, it restricts ptrace-related permissions for all processes, except those within the init mnt namespace.. (Default: false)
-|                             |permissions<br>*string array*|Prohibited ptrace-related permissions. Available values: trace, traceby, read, readby. <br>- trace: prohibiting tracing of other container processes. <br>- read: prohibiting reading of other container processes. <br>- traceby: prohibiting being traced by other processes (excluding the host processes). <br>- readby: prohibiting being read by other processes (excluding the host processes).
+|ptrace<br>*PtraceRule*       |strictMode<br>*bool*|Optional. If set to false, it restricts ptrace-related permissions only for processes in other containers. If set to true, it restricts ptrace-related permissions for all processes, except those within the init mnt namespace. (Default: false)
+|                             |permissions<br>*string array*|Prohibited ptrace-related permissions. Available values: `trace, traceby, read, readby`. <br>- `trace`: prohibiting tracing of other container processes. <br>- `read`: prohibiting reading of other container processes. <br>- `traceby`: prohibiting being traced by other processes (excluding the host processes). <br>- `readby`: prohibiting being read by other processes (excluding the host processes).
+|mounts<br>*MountRule array*  |sourcePattern<br>*string*|Any string (maximum length 128 bytes) that conforms to the policy syntax, used for matching the source paramater of [MOUNT(2)](https://man7.org/linux/man-pages/man2/mount.2.html), the target paramater of [UMOUNT(2)](https://man7.org/linux/man-pages/man2/umount.2.html), and the from_pathname paramater of MOVE_MOUNT(2). Please refer to [BPF Syntax](policy_manual.md#bpf-enforcer-wip).
+|                             |fstype<br>*string*|Any string (maximum length 16 bytes), used for matching the type of filesystem. `'*'` represents matching any filesystem.
+|                             |flags<br>*string array*|Prohibited mount flags. They are similar to AppArmor's [MOUNT FLAGS](https://manpages.ubuntu.com/manpages/focal/man5/apparmor.d.5.html), `'all'` represents matching all mount flags. <br>Available values: `all, ro(r, read-only), rw(w), suid, nosuid, dev, nodev, exec, noexec, sync, async, mand, nomand, dirsync, atime, noatime, diratime, nodiratime, silent, loud, relatime, norelatime, iversion, noiversion, strictatime, nostrictatime, remount, bind(B), move(M), rbind(R), make-unbindable, make-private(private), make-slave(slave), make-shared(shared), make-runbindable, make-rprivate, make-rslave, make-rshared, umount`
+|PLACEHOLDER_|PLACEHOLDER_PLACEHOD|
 |PLACEHOLDER|PLACEHOLDER_PLACEHO|
 
 ### NetworkEgressRule
