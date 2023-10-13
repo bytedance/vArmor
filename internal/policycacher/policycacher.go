@@ -27,31 +27,76 @@ import (
 )
 
 type PolicyCacher struct {
-	vpInformer       varmorinformer.VarmorPolicyInformer
-	vpLister         varmorlister.VarmorPolicyLister
-	vpInformerSynced cache.InformerSynced
-	PolicyTargets    map[string]varmor.Target
-	PolicyEnforcer   map[string]string
-	debug            bool
-	log              logr.Logger
+	vcpInformer           varmorinformer.VarmorClusterPolicyInformer
+	vcpLister             varmorlister.VarmorClusterPolicyLister
+	vcpInformerSynced     cache.InformerSynced
+	vpInformer            varmorinformer.VarmorPolicyInformer
+	vpLister              varmorlister.VarmorPolicyLister
+	vpInformerSynced      cache.InformerSynced
+	ClusterPolicyTargets  map[string]varmor.Target
+	ClusterPolicyEnforcer map[string]string
+	PolicyTargets         map[string]varmor.Target
+	PolicyEnforcer        map[string]string
+	debug                 bool
+	log                   logr.Logger
 }
 
 func NewPolicyCacher(
+	vcpInformer varmorinformer.VarmorClusterPolicyInformer,
 	vpInformer varmorinformer.VarmorPolicyInformer,
 	debug bool,
 	log logr.Logger) (*PolicyCacher, error) {
 
 	cacher := PolicyCacher{
-		vpInformer:       vpInformer,
-		vpLister:         vpInformer.Lister(),
-		vpInformerSynced: vpInformer.Informer().HasSynced,
-		PolicyTargets:    make(map[string]varmor.Target),
-		PolicyEnforcer:   make(map[string]string),
-		debug:            debug,
-		log:              log,
+		vcpInformer:       vcpInformer,
+		vcpLister:         vcpInformer.Lister(),
+		vcpInformerSynced: vcpInformer.Informer().HasSynced,
+		vpInformer:        vpInformer,
+		vpLister:          vpInformer.Lister(),
+		vpInformerSynced:  vpInformer.Informer().HasSynced,
+		PolicyTargets:     make(map[string]varmor.Target),
+		PolicyEnforcer:    make(map[string]string),
+		debug:             debug,
+		log:               log,
 	}
 
 	return &cacher, nil
+}
+
+func (c *PolicyCacher) addVarmorClusterPolicy(obj interface{}) {
+	logger := c.log.WithName("addVarmorClusterPolicy()")
+	vcp := obj.(*varmor.VarmorClusterPolicy)
+	key, err := cache.MetaNamespaceKeyFunc(vcp)
+	if err != nil {
+		logger.Error(err, "cache.MetaNamespaceKeyFunc()")
+		return
+	}
+	c.ClusterPolicyTargets[key] = vcp.Spec.DeepCopy().Target
+	c.ClusterPolicyEnforcer[key] = vcp.Spec.Policy.Enforcer
+}
+
+func (c *PolicyCacher) updateVarmorClusterPolicy(oldObj, newObj interface{}) {
+	logger := c.log.WithName("updateVarmorClusterPolicy()")
+	vcp := newObj.(*varmor.VarmorClusterPolicy)
+	key, err := cache.MetaNamespaceKeyFunc(vcp)
+	if err != nil {
+		logger.Error(err, "cache.MetaNamespaceKeyFunc()")
+		return
+	}
+	c.ClusterPolicyTargets[key] = vcp.Spec.DeepCopy().Target
+	c.ClusterPolicyEnforcer[key] = vcp.Spec.Policy.Enforcer
+}
+
+func (c *PolicyCacher) deleteVarmorClusterPolicy(obj interface{}) {
+	logger := c.log.WithName("deleteVarmorClusterPolicy()")
+	vcp := obj.(*varmor.VarmorClusterPolicy)
+	key, err := cache.MetaNamespaceKeyFunc(vcp)
+	if err != nil {
+		logger.Error(err, "cache.MetaNamespaceKeyFunc()")
+		return
+	}
+	delete(c.ClusterPolicyTargets, key)
+	delete(c.ClusterPolicyEnforcer, key)
 }
 
 func (c *PolicyCacher) addVarmorPolicy(obj interface{}) {
@@ -96,10 +141,21 @@ func (c *PolicyCacher) Run(stopCh <-chan struct{}) {
 
 	defer utilruntime.HandleCrash()
 
+	if !cache.WaitForCacheSync(stopCh, c.vcpInformerSynced) {
+		logger.Error(fmt.Errorf("failed to sync informer cache"), "cache.WaitForCacheSync()")
+		return
+	}
+
 	if !cache.WaitForCacheSync(stopCh, c.vpInformerSynced) {
 		logger.Error(fmt.Errorf("failed to sync informer cache"), "cache.WaitForCacheSync()")
 		return
 	}
+
+	c.vcpInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc:    c.addVarmorClusterPolicy,
+		UpdateFunc: c.updateVarmorClusterPolicy,
+		DeleteFunc: c.deleteVarmorClusterPolicy,
+	})
 
 	c.vpInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    c.addVarmorPolicy,

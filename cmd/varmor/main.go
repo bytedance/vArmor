@@ -168,7 +168,11 @@ func main() {
 			cancel()
 		}()
 
-		cacher, _ := policycacher.NewPolicyCacher(varmorInformer.Crd().V1beta1().VarmorPolicies(), debug, log.Log.WithName("POLICY-CACHER"))
+		cacher, _ := policycacher.NewPolicyCacher(
+			varmorInformer.Crd().V1beta1().VarmorClusterPolicies(),
+			varmorInformer.Crd().V1beta1().VarmorPolicies(),
+			debug,
+			log.Log.WithName("POLICY-CACHER"))
 		go cacher.Run(stopCh)
 
 		certRenewer := varmortls.NewCertRenewer(
