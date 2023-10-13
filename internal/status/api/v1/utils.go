@@ -45,10 +45,14 @@ func getHttpBody(c *gin.Context) ([]byte, error) {
 
 // generatePolicyStatusKey build the key of StatusManager.PolicyStatuses from ProfileStatus.
 //
-// Its format is "namespace/VarmorPolicyName".
+// Its format is "VarmorClusterPolicyName" or "namespace/VarmorPolicyName".
 func generatePolicyStatusKey(profileStatus *varmortypes.ProfileStatus) (string, error) {
+	clusterProfileNamePrefix := fmt.Sprintf(varmorprofile.ClusterProfileNameTemplate, profileStatus.Namespace, "")
 	profileNamePrefix := fmt.Sprintf(varmorprofile.ProfileNameTemplate, profileStatus.Namespace, "")
-	if strings.HasPrefix(profileStatus.ProfileName, profileNamePrefix) {
+	if strings.HasPrefix(profileStatus.ProfileName, clusterProfileNamePrefix) {
+		policyName := profileStatus.ProfileName[len(clusterProfileNamePrefix):]
+		return policyName, nil
+	} else if strings.HasPrefix(profileStatus.ProfileName, profileNamePrefix) {
 		policyName := profileStatus.ProfileName[len(profileNamePrefix):]
 		return profileStatus.Namespace + "/" + policyName, nil
 	} else {
@@ -57,8 +61,15 @@ func generatePolicyStatusKey(profileStatus *varmortypes.ProfileStatus) (string, 
 }
 
 func generatePolicyStatusKeyWithArmorProfile(ap *varmor.ArmorProfile) (string, error) {
+	clusterProfileNamePrefix := fmt.Sprintf(varmorprofile.ClusterProfileNameTemplate, ap.Namespace, "")
 	profileNamePrefix := fmt.Sprintf(varmorprofile.ProfileNameTemplate, ap.Namespace, "")
-	if strings.HasPrefix(ap.Name, profileNamePrefix) {
+
+	if strings.HasPrefix(ap.Name, clusterProfileNamePrefix) {
+		// cluster-scope profile
+		policyName := ap.Name[len(clusterProfileNamePrefix):]
+		return policyName, nil
+	} else if strings.HasPrefix(ap.Name, profileNamePrefix) {
+		// namespace-scope profile
 		policyName := ap.Name[len(profileNamePrefix):]
 		return ap.Namespace + "/" + policyName, nil
 	} else {

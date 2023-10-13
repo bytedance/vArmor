@@ -378,6 +378,7 @@ type VarmorPolicyStatus struct {
 //+genclient
 //+k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 //+kubebuilder:object:root=true
+//+kubebuilder:resource:shortName=vpol
 //+kubebuilder:subresource:status
 //+kubebuilder:printcolumn:name="ENFORCER",type=string,JSONPath=`.spec.policy.enforcer`
 //+kubebuilder:printcolumn:name="MODE",type=string,JSONPath=`.spec.policy.mode`

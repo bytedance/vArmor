@@ -1,6 +1,0 @@
-apiVersion: crd.varmor.org/v1beta1
-kind: ArmorProfileModel
-metadata:
-  name: armorprofilemodel-sample
-spec:
-  # TODO(user): Add fields here

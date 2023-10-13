@@ -51,6 +51,22 @@ rules:
   - patch
   - update
 - apiGroups:
+  - crd.varmor.org
+  resources:
+  - varmorclusterpolicies
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - crd.varmor.org
+  resources:
+  - varmorclusterpolicies/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
   - apps
   resources:
   - daemonsets

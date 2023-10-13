@@ -263,6 +263,23 @@ func main() {
 			os.Exit(1)
 		}
 
+		clusterPolicyCtrl, err := policy.NewClusterPolicyController(
+			kubeClient.CoreV1().Pods(config.Namespace),
+			kubeClient.AppsV1(),
+			varmorClient.CrdV1beta1(),
+			varmorInformer.Crd().V1beta1().VarmorClusterPolicies(),
+			statusSvc.StatusManager,
+			restartExistWorkloads,
+			enableDefenseInDepth,
+			bpfExclusiveMode,
+			debug,
+			log.Log.WithName("CLUSTER-POLICY"),
+		)
+		if err != nil {
+			setupLog.Error(err, "policy.NewClusterPolicyController()")
+			os.Exit(1)
+		}
+
 		policyCtrl, err := policy.NewPolicyController(
 			kubeClient.CoreV1().Pods(config.Namespace),
 			kubeClient.AppsV1(),
@@ -290,7 +307,8 @@ func main() {
 			go statusSvc.Run(stopCh)
 			// Only the leader validates the CA Cert periodically and rolling update manager when secrets changed or rootCA expired.
 			go certManager.Run(stopCh)
-			// Only the leader run as the VarmorPolicy controller.
+			// Only the leader run as the VarmorClusterPolicy & VarmorPolicy controller.
+			go clusterPolicyCtrl.Run(1, stopCh)
 			go policyCtrl.Run(1, stopCh)
 			// Tag the leader Pod with "identity: leader" label so that agents can use varmor-status-svc for state synchronization.
 			if !debug {
@@ -311,6 +329,7 @@ func main() {
 
 		leaderStop := func() {
 			statusSvc.CleanUp()
+			clusterPolicyCtrl.CleanUp()
 			policyCtrl.CleanUp()
 			signal.RequestShutdown()
 		}

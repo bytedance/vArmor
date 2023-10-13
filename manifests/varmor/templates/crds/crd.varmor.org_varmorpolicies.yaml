@@ -12,6 +12,8 @@ spec:
     kind: VarmorPolicy
     listKind: VarmorPolicyList
     plural: varmorpolicies
+    shortNames:
+    - vpol
     singular: varmorpolicy
   scope: Namespaced
   versions:

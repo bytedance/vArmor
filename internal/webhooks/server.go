@@ -160,7 +160,7 @@ func (ws *WebhookServer) resourceMutation(request *admissionv1.AdmissionRequest)
 		}
 
 		enforcer := ws.policyCacher.PolicyEnforcer[key]
-		apName := varmorprofile.GenerateArmorProfileName(policyNamespace, policyName)
+		apName := varmorprofile.GenerateArmorProfileName(policyNamespace, policyName, false)
 
 		switch request.Kind.Kind {
 		case "Deployment":

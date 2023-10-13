@@ -21,6 +21,7 @@ import (
 	utilrand "k8s.io/apimachinery/pkg/util/rand"
 
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
+	varmorconfig "github.com/bytedance/vArmor/internal/config"
 	apparmorprofile "github.com/bytedance/vArmor/internal/profile/apparmor"
 	bpfprofile "github.com/bytedance/vArmor/internal/profile/bpf"
 	varmortypes "github.com/bytedance/vArmor/internal/types"
@@ -28,11 +29,22 @@ import (
 
 // profileNameTemplate is the name of ArmorProfile object in k8s and AppArmor profile in host machine.
 //
-//	Its format is "varmor-{VarmorProfile Namespace}-{VarmorProfile Name}"
-const ProfileNameTemplate = "varmor-%s-%s"
+//	For namespace-scope profile, its format is "varmor-{VarmorProfile Namespace}-{VarmorProfile Name}"
+//	For cluster-scope profile, its format is "varmor-cluster-{vArmor Namespace}-{VarmorClusterProfile Name}"
+const (
+	ClusterProfileNameTemplate = "varmor-cluster-%s-%s"
+	ProfileNameTemplate        = "varmor-%s-%s"
+)
 
-func GenerateArmorProfileName(ns string, varmorProfileName string) string {
-	profileName := fmt.Sprintf(ProfileNameTemplate, ns, varmorProfileName)
+func GenerateArmorProfileName(ns string, name string, clusterScope bool) string {
+	profileName := ""
+
+	if clusterScope {
+		profileName = fmt.Sprintf(ClusterProfileNameTemplate, ns, name)
+	} else {
+		profileName = fmt.Sprintf(ProfileNameTemplate, ns, name)
+	}
+
 	return strings.ToLower(profileName)
 }
 
@@ -126,25 +138,44 @@ func GenerateProfile(policy varmor.Policy, name string, complete bool, newProfil
 	return &profile, nil
 }
 
-func NewArmorProfile(vp *varmor.VarmorPolicy) (*varmor.ArmorProfile, error) {
-	profileName := GenerateArmorProfileName(vp.Namespace, vp.Name)
-
+func NewArmorProfile(obj interface{}, clusterScope bool) (*varmor.ArmorProfile, error) {
 	ap := varmor.ArmorProfile{}
-	ap.Name = profileName
-	ap.Namespace = vp.Namespace
-	ap.Labels = vp.ObjectMeta.DeepCopy().Labels
 
-	profile, err := GenerateProfile(vp.Spec.Policy, profileName, false, "")
-	if err != nil {
-		return nil, err
-	}
-	ap.Spec.Profile = *profile
-	ap.Spec.Target = *vp.Spec.Target.DeepCopy()
+	if clusterScope {
+		vcp := obj.(*varmor.VarmorClusterPolicy)
+		profileName := GenerateArmorProfileName(varmorconfig.Namespace, vcp.Name, clusterScope)
 
-	if vp.Spec.Policy.Mode == varmortypes.DefenseInDepthMode {
-		ap.Spec.BehaviorModeling.Enable = true
-		ap.Spec.BehaviorModeling.ModelingDuration = vp.Spec.Policy.DefenseInDepth.ModelingDuration
-		ap.Spec.BehaviorModeling.UniqueID = utilrand.String(8)
+		ap.Name = profileName
+		ap.Namespace = varmorconfig.Namespace
+		ap.Labels = vcp.ObjectMeta.DeepCopy().Labels
+
+		profile, err := GenerateProfile(vcp.Spec.Policy, profileName, false, "")
+		if err != nil {
+			return nil, err
+		}
+		ap.Spec.Profile = *profile
+		ap.Spec.Target = *vcp.Spec.Target.DeepCopy()
+
+	} else {
+		vp := obj.(*varmor.VarmorPolicy)
+		profileName := GenerateArmorProfileName(vp.Namespace, vp.Name, clusterScope)
+
+		ap.Name = profileName
+		ap.Namespace = vp.Namespace
+		ap.Labels = vp.ObjectMeta.DeepCopy().Labels
+
+		profile, err := GenerateProfile(vp.Spec.Policy, profileName, false, "")
+		if err != nil {
+			return nil, err
+		}
+		ap.Spec.Profile = *profile
+		ap.Spec.Target = *vp.Spec.Target.DeepCopy()
+
+		if vp.Spec.Policy.Mode == varmortypes.DefenseInDepthMode {
+			ap.Spec.BehaviorModeling.Enable = true
+			ap.Spec.BehaviorModeling.ModelingDuration = vp.Spec.Policy.DefenseInDepth.ModelingDuration
+			ap.Spec.BehaviorModeling.UniqueID = utilrand.String(8)
+		}
 	}
 
 	return &ap, nil
