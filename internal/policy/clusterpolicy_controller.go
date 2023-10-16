@@ -126,7 +126,7 @@ func (c *ClusterPolicyController) handleDeleteVarmorClusterPolicy(name string) e
 	logger := c.log.WithName("handleDeleteVarmorPolicy()")
 
 	logger.Info("VarmorClusterPolicy", "name", name)
-	apName := varmorprofile.GenerateArmorProfileName(varmorconfig.Namespace, name, true)
+	apName := varmorprofile.GenerateArmorProfileName("", name, true)
 
 	logger.Info("retrieve ArmorProfile")
 	_, err := c.varmorInterface.ArmorProfiles(varmorconfig.Namespace).Get(context.Background(), apName, metav1.GetOptions{})
@@ -249,7 +249,7 @@ func (c *ClusterPolicyController) ignoreAdd(vcp *varmor.VarmorClusterPolicy, log
 
 	// Do not exceed the length of a standard Kubernetes name (63 characters)
 	// Note: The advisory length of AppArmor profile name is 100 (See https://bugs.launchpad.net/apparmor/+bug/1499544).
-	profileName := varmorprofile.GenerateArmorProfileName(varmorconfig.Namespace, vcp.Name, true)
+	profileName := varmorprofile.GenerateArmorProfileName("", vcp.Name, true)
 	if len(profileName) > 63 {
 		err := fmt.Errorf("the length of ArmorProfile name is exceed 63. name: %s, length: %d", profileName, len(profileName))
 		logger.Error(err, "update VarmorClusterPolicy/status with forbidden info")
@@ -478,7 +478,7 @@ func (c *ClusterPolicyController) syncClusterPolicy(key string) error {
 		}
 	}
 
-	apName := varmorprofile.GenerateArmorProfileName(varmorconfig.Namespace, vcp.Name, true)
+	apName := varmorprofile.GenerateArmorProfileName("", vcp.Name, true)
 	ap, err := c.varmorInterface.ArmorProfiles(varmorconfig.Namespace).Get(context.Background(), apName, metav1.GetOptions{})
 	if err != nil {
 		if k8errors.IsNotFound(err) {

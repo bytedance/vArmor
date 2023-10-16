@@ -18,7 +18,6 @@ import (
 	"context"
 	"fmt"
 	"reflect"
-	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -466,9 +465,12 @@ func (m *StatusManager) reconcileStatus(stopCh <-chan struct{}) {
 
 		// Update ArmorProfile from complain mode to enforce mode for DefenseInDepth.
 		case statusKey := <-m.UpdateModeCh:
-			key := strings.Split(statusKey, "/")
-			namespace := key[0]
-			vpName := key[1]
+			namespace, vpName, err := cache.SplitMetaNamespaceKey(statusKey)
+			if err != nil {
+				logger.Error(err, "cache.SplitMetaNamespaceKey()")
+				break
+			}
+
 			apName := varmorprofile.GenerateArmorProfileName(namespace, vpName, false)
 			logger.Info("update ArmorProfile (complain mode --> enforce mode)", "namespace", namespace, "name", apName)
 

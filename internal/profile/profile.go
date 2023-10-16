@@ -40,7 +40,7 @@ func GenerateArmorProfileName(ns string, name string, clusterScope bool) string 
 	profileName := ""
 
 	if clusterScope {
-		profileName = fmt.Sprintf(ClusterProfileNameTemplate, ns, name)
+		profileName = fmt.Sprintf(ClusterProfileNameTemplate, varmorconfig.Namespace, name)
 	} else {
 		profileName = fmt.Sprintf(ProfileNameTemplate, ns, name)
 	}
@@ -143,7 +143,7 @@ func NewArmorProfile(obj interface{}, clusterScope bool) (*varmor.ArmorProfile, 
 
 	if clusterScope {
 		vcp := obj.(*varmor.VarmorClusterPolicy)
-		profileName := GenerateArmorProfileName(varmorconfig.Namespace, vcp.Name, clusterScope)
+		profileName := GenerateArmorProfileName("", vcp.Name, clusterScope)
 
 		ap.Name = profileName
 		ap.Namespace = varmorconfig.Namespace
