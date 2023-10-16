@@ -364,8 +364,14 @@ func UpdateWorkloadAnnotationsAndEnv(
 		matchFields["metadata.name"] = target.Name
 	}
 
+	// The target must have the webhook selector label.
 	for key, value := range varmorconfig.WebhookSelectorLabel {
-		// The target must have the webhook selector label.
+		if target.Selector == nil {
+			target.Selector = &metav1.LabelSelector{}
+		}
+		if target.Selector.MatchLabels == nil {
+			target.Selector.MatchLabels = make(map[string]string)
+		}
 		target.Selector.MatchLabels[key] = value
 	}
 
