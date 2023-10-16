@@ -48,16 +48,18 @@ func NewPolicyCacher(
 	log logr.Logger) (*PolicyCacher, error) {
 
 	cacher := PolicyCacher{
-		vcpInformer:       vcpInformer,
-		vcpLister:         vcpInformer.Lister(),
-		vcpInformerSynced: vcpInformer.Informer().HasSynced,
-		vpInformer:        vpInformer,
-		vpLister:          vpInformer.Lister(),
-		vpInformerSynced:  vpInformer.Informer().HasSynced,
-		PolicyTargets:     make(map[string]varmor.Target),
-		PolicyEnforcer:    make(map[string]string),
-		debug:             debug,
-		log:               log,
+		vcpInformer:           vcpInformer,
+		vcpLister:             vcpInformer.Lister(),
+		vcpInformerSynced:     vcpInformer.Informer().HasSynced,
+		vpInformer:            vpInformer,
+		vpLister:              vpInformer.Lister(),
+		vpInformerSynced:      vpInformer.Informer().HasSynced,
+		ClusterPolicyTargets:  make(map[string]varmor.Target),
+		ClusterPolicyEnforcer: make(map[string]string),
+		PolicyTargets:         make(map[string]varmor.Target),
+		PolicyEnforcer:        make(map[string]string),
+		debug:                 debug,
+		log:                   log,
 	}
 
 	return &cacher, nil
