@@ -26,6 +26,7 @@ import (
 	admissionv1 "k8s.io/api/admission/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -141,6 +142,28 @@ func (ws *WebhookServer) handlerFunc(handler func(request *admissionv1.Admission
 	}
 }
 
+func (ws *WebhookServer) deserializeWorkload(request *admissionv1.AdmissionRequest) (interface{}, error) {
+	switch request.Kind.Kind {
+	case "Deployment":
+		deploy := appsv1.Deployment{}
+		_, _, err := ws.deserializer.Decode(request.Object.Raw, nil, &deploy)
+		return &deploy, err
+	case "StatefulSet":
+		statusful := appsv1.StatefulSet{}
+		_, _, err := ws.deserializer.Decode(request.Object.Raw, nil, &statusful)
+		return &statusful, err
+	case "DaemonSet":
+		daemon := appsv1.DaemonSet{}
+		_, _, err := ws.deserializer.Decode(request.Object.Raw, nil, &daemon)
+		return &daemon, err
+	case "Pod":
+		pod := corev1.Pod{}
+		_, _, err := ws.deserializer.Decode(request.Object.Raw, nil, &pod)
+		return &pod, err
+	}
+	return nil, fmt.Errorf("unsupported kind")
+}
+
 func (ws *WebhookServer) matchAndPatch(request *admissionv1.AdmissionRequest, key string, target varmor.Target, logger logr.Logger) *admissionv1.AdmissionResponse {
 	policyNamespace, policyName, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
@@ -164,137 +187,40 @@ func (ws *WebhookServer) matchAndPatch(request *admissionv1.AdmissionRequest, ke
 		enforcer = ws.policyCacher.PolicyEnforcer[key]
 	}
 
+	obj, err := ws.deserializeWorkload(request)
+	if err != nil {
+		logger.Error(err, "ws.deserializeWorkload()")
+		return nil
+	}
+
+	m, err := meta.Accessor(obj)
+	if err != nil {
+		logger.Error(err, "meta.Accessor()")
+		return nil
+	}
+
 	apName := varmorprofile.GenerateArmorProfileName(policyNamespace, policyName, clusterScope)
-
-	switch request.Kind.Kind {
-	case "Deployment":
-		deploy := appsv1.Deployment{}
-		if _, _, err := ws.deserializer.Decode(request.Object.Raw, nil, &deploy); err != nil {
-			logger.Error(err, "ws.deserializer.Decode()")
-			break
+	if target.Name != "" && target.Name == m.GetName() {
+		logger.Info("mutating resource", "resource kind", request.Kind.Kind, "resource namespace", request.Namespace, "resource name", request.Name, "profile", apName)
+		patch, err := buildPatch(obj, enforcer, target, apName, ws.bpfExclusiveMode)
+		if err != nil {
+			logger.Error(err, "ws.buildPatch()")
+			return nil
 		}
-
-		if target.Name != "" && target.Name == deploy.Name {
+		return successResponse(request.UID, []byte(patch))
+	} else if target.Selector != nil {
+		selector, err := metav1.LabelSelectorAsSelector(target.Selector)
+		if err != nil {
+			return nil
+		}
+		if selector.Matches(labels.Set(m.GetLabels())) {
 			logger.Info("mutating resource", "resource kind", request.Kind.Kind, "resource namespace", request.Namespace, "resource name", request.Name, "profile", apName)
-			patch, err := buildPatch(&deploy, enforcer, target, apName, ws.bpfExclusiveMode)
+			patch, err := buildPatch(obj, enforcer, target, apName, ws.bpfExclusiveMode)
 			if err != nil {
 				logger.Error(err, "ws.buildPatch()")
-				break
+				return nil
 			}
 			return successResponse(request.UID, []byte(patch))
-		} else if target.Selector != nil {
-			selector, err := metav1.LabelSelectorAsSelector(target.Selector)
-			if err != nil {
-				break
-			}
-			if selector.Matches(labels.Set(deploy.Labels)) {
-				logger.Info("mutating resource", "resource kind", request.Kind.Kind, "resource namespace", request.Namespace, "resource name", request.Name, "profile", apName)
-				patch, err := buildPatch(&deploy, enforcer, target, apName, ws.bpfExclusiveMode)
-				if err != nil {
-					logger.Error(err, "ws.buildPatch()")
-					break
-				}
-				return successResponse(request.UID, []byte(patch))
-			}
-		}
-	case "StatefulSet":
-		statusful := appsv1.StatefulSet{}
-		if _, _, err := ws.deserializer.Decode(request.Object.Raw, nil, &statusful); err != nil {
-			logger.Error(err, "ws.deserializer.Decode()")
-			break
-		}
-
-		if target.Name != "" && target.Name == statusful.Name {
-			logger.Info("mutating resource", "resource kind", request.Kind.Kind, "resource namespace", request.Namespace, "resource name", request.Name, "profile", apName)
-			patch, err := buildPatch(&statusful, enforcer, target, apName, ws.bpfExclusiveMode)
-			if err != nil {
-				logger.Error(err, "ws.buildPatch()")
-				break
-			}
-			return successResponse(request.UID, []byte(patch))
-		} else if target.Selector != nil {
-			selector, err := metav1.LabelSelectorAsSelector(target.Selector)
-			if err != nil {
-				break
-			}
-			if selector.Matches(labels.Set(statusful.Labels)) {
-				logger.Info("mutating resource", "resource kind", request.Kind.Kind, "resource namespace", request.Namespace, "resource name", request.Name, "profile", apName)
-				patch, err := buildPatch(&statusful, enforcer, target, apName, ws.bpfExclusiveMode)
-				if err != nil {
-					logger.Error(err, "ws.buildPatch()")
-					break
-				}
-				return successResponse(request.UID, []byte(patch))
-			}
-		}
-	case "DaemonSet":
-		daemon := appsv1.DaemonSet{}
-		if _, _, err := ws.deserializer.Decode(request.Object.Raw, nil, &daemon); err != nil {
-			logger.Error(err, "ws.deserializer.Decode()")
-			break
-		}
-
-		if _, _, err := ws.deserializer.Decode(request.Object.Raw, nil, &daemon); err != nil {
-			logger.Error(err, "ws.deserializer.Decode()")
-			break
-		}
-
-		if target.Name != "" && target.Name == daemon.Name {
-			logger.Info("mutating resource", "resource kind", request.Kind.Kind, "resource namespace", request.Namespace, "resource name", request.Name, "profile", apName)
-			patch, err := buildPatch(&daemon, enforcer, target, apName, ws.bpfExclusiveMode)
-			if err != nil {
-				logger.Error(err, "ws.buildPatch()")
-				break
-			}
-			return successResponse(request.UID, []byte(patch))
-		} else if target.Selector != nil {
-			selector, err := metav1.LabelSelectorAsSelector(target.Selector)
-			if err != nil {
-				break
-			}
-			if selector.Matches(labels.Set(daemon.Labels)) {
-				logger.Info("mutating resource", "resource kind", request.Kind.Kind, "resource namespace", request.Namespace, "resource name", request.Name, "profile", apName)
-				patch, err := buildPatch(&daemon, enforcer, target, apName, ws.bpfExclusiveMode)
-				if err != nil {
-					logger.Error(err, "ws.buildPatch()")
-					break
-				}
-				return successResponse(request.UID, []byte(patch))
-			}
-		}
-	case "Pod":
-		pod := corev1.Pod{}
-		if _, _, err := ws.deserializer.Decode(request.Object.Raw, nil, &pod); err != nil {
-			logger.Error(err, "ws.deserializer.Decode()")
-			break
-		}
-
-		if target.Name != "" && target.Name == pod.Name {
-			logger.Info("mutating resource", "resource kind", request.Kind.Kind, "resource namespace", request.Namespace, "resource name", request.Name, "profile", apName)
-			patch, err := buildPatch(&pod, enforcer, target, apName, ws.bpfExclusiveMode)
-			if err != nil {
-				logger.Error(err, "ws.buildPatch()")
-				break
-			}
-			return successResponse(request.UID, []byte(patch))
-		} else if target.Selector != nil {
-			selector, err := metav1.LabelSelectorAsSelector(target.Selector)
-			if err != nil {
-				break
-			}
-			if selector.Matches(labels.Set(pod.Labels)) {
-				if request.Name == "" {
-					logger.Info("mutating resource", "resource kind", request.Kind.Kind, "resource namespace", request.Namespace, "resource name", pod.GenerateName, "profile", apName)
-				} else {
-					logger.Info("mutating resource", "resource kind", request.Kind.Kind, "resource namespace", request.Namespace, "resource name", request.Name, "profile", apName)
-				}
-				patch, err := buildPatch(&pod, enforcer, target, apName, ws.bpfExclusiveMode)
-				if err != nil {
-					logger.Error(err, "ws.buildPatch()")
-					break
-				}
-				return successResponse(request.UID, []byte(patch))
-			}
 		}
 	}
 
