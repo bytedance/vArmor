@@ -167,7 +167,12 @@ func (c *PolicyController) handleDeleteVarmorPolicy(namespace, name string) erro
 	if c.restartExistWorkloads {
 		// This will trigger the rolling upgrade of the target workload
 		logger.Info("delete annotations of target workloads asynchronously")
-		go varmorutils.UpdateWorkloadAnnotationsAndEnv(c.appsInterface, namespace, ap.Spec.Profile.Enforcer, ap.Spec.Target, "", "", false, logger)
+		go varmorutils.UpdateWorkloadAnnotationsAndEnv(
+			c.appsInterface,
+			namespace,
+			ap.Spec.Profile.Enforcer,
+			ap.Spec.Target,
+			"", "", false, logger)
 	}
 
 	// Cleanup the PolicyStatus and ModelingStatus of status manager for the deleted VarmorPolicy/ArmorProfile object
@@ -256,7 +261,19 @@ func (c *PolicyController) ignoreAdd(vp *varmor.VarmorPolicy, logger logr.Logger
 		logger.Error(err, "update VarmorPolicy/status with forbidden info")
 		err = c.updateVarmorPolicyStatus(vp, "", true, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyCreated, apicorev1.ConditionFalse,
 			"Forbidden",
-			"You must specify the target workload by name or selector.")
+			"You should specify the target workload by name or selector.")
+		if err != nil {
+			logger.Error(err, "updateVarmorPolicyStatus()")
+		}
+		return true
+	}
+
+	if vp.Spec.Target.Name != "" && vp.Spec.Target.Selector != nil {
+		err := fmt.Errorf("target.Name and target.Selector are exclusive")
+		logger.Error(err, "update VarmorPolicy/status with forbidden info")
+		err = c.updateVarmorPolicyStatus(vp, "", true, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyCreated, apicorev1.ConditionFalse,
+			"Forbidden",
+			"You shouldn't specify the target workload by both both name and selector.")
 		if err != nil {
 			logger.Error(err, "updateVarmorPolicyStatus()")
 		}
@@ -339,7 +356,15 @@ func (c *PolicyController) handleAddVarmorPolicy(vp *varmor.VarmorPolicy) error 
 	if c.restartExistWorkloads {
 		// This will trigger the rolling upgrade of the target workload.
 		logger.Info("add annotations to target workload asynchronously")
-		go varmorutils.UpdateWorkloadAnnotationsAndEnv(c.appsInterface, vp.Namespace, vp.Spec.Policy.Enforcer, vp.Spec.Target, ap.Name, ap.Spec.BehaviorModeling.UniqueID, c.bpfExclusiveMode, logger)
+		go varmorutils.UpdateWorkloadAnnotationsAndEnv(
+			c.appsInterface,
+			vp.Namespace,
+			vp.Spec.Policy.Enforcer,
+			vp.Spec.Target,
+			ap.Name,
+			ap.Spec.BehaviorModeling.UniqueID,
+			c.bpfExclusiveMode,
+			logger)
 	}
 
 	return nil

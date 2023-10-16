@@ -25,6 +25,7 @@ import (
 	varmorprofile "github.com/bytedance/vArmor/internal/profile"
 	statusmanager "github.com/bytedance/vArmor/internal/status/api/v1"
 	varmortypes "github.com/bytedance/vArmor/internal/types"
+	varmorutils "github.com/bytedance/vArmor/internal/utils"
 	varmorinterface "github.com/bytedance/vArmor/pkg/client/clientset/versioned/typed/varmor/v1beta1"
 	varmorinformer "github.com/bytedance/vArmor/pkg/client/informers/externalversions/varmor/v1beta1"
 	varmorlister "github.com/bytedance/vArmor/pkg/client/listers/varmor/v1beta1"
@@ -129,7 +130,7 @@ func (c *ClusterPolicyController) handleDeleteVarmorClusterPolicy(name string) e
 	apName := varmorprofile.GenerateArmorProfileName("", name, true)
 
 	logger.Info("retrieve ArmorProfile")
-	_, err := c.varmorInterface.ArmorProfiles(varmorconfig.Namespace).Get(context.Background(), apName, metav1.GetOptions{})
+	ap, err := c.varmorInterface.ArmorProfiles(varmorconfig.Namespace).Get(context.Background(), apName, metav1.GetOptions{})
 	if err != nil {
 		if k8errors.IsNotFound(err) {
 			return nil
@@ -145,12 +146,16 @@ func (c *ClusterPolicyController) handleDeleteVarmorClusterPolicy(name string) e
 		return err
 	}
 
-	// TODO
-	// if c.restartExistWorkloads {
-	// 	// This will trigger the rolling upgrade of the target workload
-	// 	logger.Info("delete annotations of target workloads asynchronously")
-	// 	go varmorutils.UpdateWorkloadAnnotationsAndEnv(c.appsInterface, namespace, ap.Spec.Profile.Enforcer, ap.Spec.Target, "", "", false, logger)
-	// }
+	if c.restartExistWorkloads {
+		// This will trigger the rolling upgrade of the target workloads
+		logger.Info("delete annotations of target workloads asynchronously")
+		go varmorutils.UpdateWorkloadAnnotationsAndEnv(
+			c.appsInterface,
+			metav1.NamespaceAll,
+			ap.Spec.Profile.Enforcer,
+			ap.Spec.Target,
+			"", "", false, logger)
+	}
 
 	// Cleanup the PolicyStatus and ModelingStatus of status manager for the deleted VarmorClusterPolicy/ArmorProfile object
 	logger.Info("cleanup the policy status of statusmanager.policystatuses")
@@ -228,7 +233,19 @@ func (c *ClusterPolicyController) ignoreAdd(vcp *varmor.VarmorClusterPolicy, log
 		logger.Error(err, "update VarmorClusterPolicy/status with forbidden info")
 		err = c.updateVarmorClusterPolicyStatus(vcp, "", true, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyCreated, apicorev1.ConditionFalse,
 			"Forbidden",
-			"You must specify the target workload by name or selector.")
+			"You should specify the target workload by name or selector.")
+		if err != nil {
+			logger.Error(err, "updateVarmorClusterPolicyStatus()")
+		}
+		return true
+	}
+
+	if vcp.Spec.Target.Name != "" && vcp.Spec.Target.Selector != nil {
+		err := fmt.Errorf("target.Name and target.Selector are exclusive")
+		logger.Error(err, "update VarmorClusterPolicy/status with forbidden info")
+		err = c.updateVarmorClusterPolicyStatus(vcp, "", true, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyCreated, apicorev1.ConditionFalse,
+			"Forbidden",
+			"You shouldn't specify the target workload by both both name and selector.")
 		if err != nil {
 			logger.Error(err, "updateVarmorClusterPolicyStatus()")
 		}
@@ -298,18 +315,25 @@ func (c *ClusterPolicyController) handleAddVarmorClusterPolicy(vcp *varmor.Varmo
 	c.statusManager.UpdateDesiredNumber = true
 
 	logger.Info("create ArmorProfile")
-	_, err = c.varmorInterface.ArmorProfiles(varmorconfig.Namespace).Create(context.Background(), ap, metav1.CreateOptions{})
+	ap, err = c.varmorInterface.ArmorProfiles(varmorconfig.Namespace).Create(context.Background(), ap, metav1.CreateOptions{})
 	if err != nil {
 		logger.Error(err, "ArmorProfile().Create()")
 		return err
 	}
 
-	// TODO
-	// if c.restartExistWorkloads {
-	// 	// This will trigger the rolling upgrade of the target workload.
-	// 	logger.Info("add annotations to target workload asynchronously")
-	// 	go varmorutils.UpdateWorkloadAnnotationsAndEnv(c.appsInterface, vcp.Namespace, vcp.Spec.Policy.Enforcer, vcp.Spec.Target, ap.Name, ap.Spec.BehaviorModeling.UniqueID, c.bpfExclusiveMode, logger)
-	// }
+	if c.restartExistWorkloads {
+		// This will trigger the rolling upgrade of the target workloads
+		logger.Info("add annotations to target workload asynchronously")
+		go varmorutils.UpdateWorkloadAnnotationsAndEnv(
+			c.appsInterface,
+			metav1.NamespaceAll,
+			vcp.Spec.Policy.Enforcer,
+			vcp.Spec.Target,
+			ap.Name,
+			ap.Spec.BehaviorModeling.UniqueID,
+			c.bpfExclusiveMode,
+			logger)
+	}
 
 	return nil
 }

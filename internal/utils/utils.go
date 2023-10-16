@@ -31,6 +31,7 @@ import (
 	coreV1 "k8s.io/api/core/v1"
 	k8errors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
 	types "k8s.io/apimachinery/pkg/types"
 	appsv1 "k8s.io/client-go/kubernetes/typed/apps/v1"
@@ -357,26 +358,51 @@ func UpdateWorkloadAnnotationsAndEnv(
 	uniqueID string,
 	bpfExclusiveMode bool,
 	logger logr.Logger) {
+
+	matchFields := make(map[string]string)
+	if target.Name != "" {
+		matchFields["metadata.name"] = target.Name
+	}
+
+	for key, value := range varmorconfig.WebhookSelectorLabel {
+		// The target must have the webhook selector label.
+		target.Selector.MatchLabels[key] = value
+	}
+
+	selector, err := metav1.LabelSelectorAsSelector(target.Selector)
+	if err != nil {
+		logger.Error(err, "LabelSelectorAsSelector()")
+		return
+	}
+
+	listOpt := metav1.ListOptions{
+		LabelSelector:   selector.String(),
+		FieldSelector:   fields.Set(matchFields).String(),
+		ResourceVersion: "0",
+	}
+
 	switch target.Kind {
 	case "Deployment":
-		if target.Name != "" {
-			updateDeployment := func() error {
-				deploy, err := appsInterface.Deployments(namespace).Get(context.Background(), target.Name, metav1.GetOptions{})
-				if err != nil {
-					if k8errors.IsNotFound(err) {
-						return nil
-					}
-					return err
-				}
+		deploys, err := appsInterface.Deployments(namespace).List(context.Background(), listOpt)
+		if err != nil {
+			logger.Error(err, "Deployments().List()")
+			return
+		}
 
-				// The target must have the webhook selector label.
-				for key, value := range varmorconfig.WebhookSelectorLabel {
-					if _, ok := deploy.Annotations[key]; !ok {
-						return nil
+		for _, item := range deploys.Items {
+			needRegain := false
+			deploy := &item
+
+			updateDeployment := func() error {
+				if needRegain {
+					deploy, err = appsInterface.Deployments(deploy.Namespace).Get(context.Background(), deploy.Name, metav1.GetOptions{})
+					if err != nil {
+						if k8errors.IsNotFound(err) {
+							return nil
+						}
+						return err
 					}
-					if deploy.Annotations[key] != value {
-						return nil
-					}
+					needRegain = false
 				}
 
 				deployOld := deploy.DeepCopy()
@@ -384,9 +410,11 @@ func UpdateWorkloadAnnotationsAndEnv(
 				if reflect.DeepEqual(deployOld, deploy) {
 					return nil
 				}
-				deploy, err = appsInterface.Deployments(namespace).Update(context.Background(), deploy, metav1.UpdateOptions{})
+				deploy, err = appsInterface.Deployments(deploy.Namespace).Update(context.Background(), deploy, metav1.UpdateOptions{})
 				if err == nil {
 					logger.Info("the target workload has been updated", "Kind", "Deployments", "namespace", deploy.Namespace, "name", deploy.Name)
+				} else {
+					needRegain = true
 				}
 				return err
 			}
@@ -395,85 +423,29 @@ func UpdateWorkloadAnnotationsAndEnv(
 			if err != nil {
 				logger.Error(err, "failed to update the target workload")
 			}
-		} else if target.Selector != nil {
-			for key, value := range varmorconfig.WebhookSelectorLabel {
-				// The target must have the webhook selector label.
-				target.Selector.MatchLabels[key] = value
-			}
-			selector, err := metav1.LabelSelectorAsSelector(target.Selector)
-			if err != nil {
-				logger.Error(err, "LabelSelectorAsSelector()")
-				return
-			}
-			listOpt := metav1.ListOptions{
-				LabelSelector:   selector.String(),
-				ResourceVersion: "0",
-			}
-			deploys, err := appsInterface.Deployments(namespace).List(context.Background(), listOpt)
-			if err != nil {
-				logger.Error(err, "Deployments().List()")
-				return
-			}
-
-			if len(deploys.Items) == 0 {
-				return
-			}
-
-			for _, item := range deploys.Items {
-				needRegain := false
-				deploy := &item
-
-				updateDeployment := func() error {
-					if needRegain {
-						deploy, err = appsInterface.Deployments(namespace).Get(context.Background(), deploy.Name, metav1.GetOptions{})
-						if err != nil {
-							if k8errors.IsNotFound(err) {
-								return nil
-							}
-							return err
-						}
-						needRegain = false
-					}
-
-					deployOld := deploy.DeepCopy()
-					modifyDeploymentAnnotationsAndEnv(enforcer, target, deploy, profileName, uniqueID, bpfExclusiveMode)
-					if reflect.DeepEqual(deployOld, deploy) {
-						return nil
-					}
-					deploy, err = appsInterface.Deployments(namespace).Update(context.Background(), deploy, metav1.UpdateOptions{})
-					if err == nil {
-						logger.Info("the target workload has been updated", "Kind", "Deployments", "namespace", deploy.Namespace, "name", deploy.Name)
-					} else {
-						needRegain = true
-					}
-					return err
-				}
-
-				err := retry.RetryOnConflict(retry.DefaultRetry, updateDeployment)
-				if err != nil {
-					logger.Error(err, "failed to update the target workload")
-				}
-			}
 		}
-	case "StatefulSet":
-		if target.Name != "" {
-			updateStateful := func() error {
-				stateful, err := appsInterface.StatefulSets(namespace).Get(context.Background(), target.Name, metav1.GetOptions{})
-				if err != nil {
-					if k8errors.IsNotFound(err) {
-						return nil
-					}
-					return err
-				}
 
-				// The target must have the webhook selector label.
-				for key, value := range varmorconfig.WebhookSelectorLabel {
-					if _, ok := stateful.Annotations[key]; !ok {
-						return nil
+	case "StatefulSet":
+		statefuls, err := appsInterface.StatefulSets(namespace).List(context.Background(), listOpt)
+		if err != nil {
+			logger.Error(err, "StatefulSets().List()")
+			return
+		}
+
+		for _, item := range statefuls.Items {
+			needRegain := false
+			stateful := &item
+
+			updateStateful := func() error {
+				if needRegain {
+					stateful, err = appsInterface.StatefulSets(stateful.Namespace).Get(context.Background(), stateful.Name, metav1.GetOptions{})
+					if err != nil {
+						if k8errors.IsNotFound(err) {
+							return nil
+						}
+						return err
 					}
-					if stateful.Annotations[key] != value {
-						return nil
-					}
+					needRegain = false
 				}
 
 				statefulOld := stateful.DeepCopy()
@@ -481,9 +453,11 @@ func UpdateWorkloadAnnotationsAndEnv(
 				if reflect.DeepEqual(statefulOld, stateful) {
 					return nil
 				}
-				stateful, err = appsInterface.StatefulSets(namespace).Update(context.Background(), stateful, metav1.UpdateOptions{})
+				stateful, err = appsInterface.StatefulSets(stateful.Namespace).Update(context.Background(), stateful, metav1.UpdateOptions{})
 				if err == nil {
 					logger.Info("the target workload has been updated", "Kind", "StatefulSets", "namespace", stateful.Namespace, "name", stateful.Name)
+				} else {
+					needRegain = true
 				}
 				return err
 			}
@@ -492,95 +466,45 @@ func UpdateWorkloadAnnotationsAndEnv(
 			if err != nil {
 				logger.Error(err, "failed to update the target workload")
 			}
-		} else if target.Selector != nil {
-			for key, value := range varmorconfig.WebhookSelectorLabel {
-				// The target must have the webhook selector label.
-				target.Selector.MatchLabels[key] = value
-			}
-			selector, err := metav1.LabelSelectorAsSelector(target.Selector)
-			if err != nil {
-				logger.Error(err, "LabelSelectorAsSelector()")
-				return
-			}
-			listOpt := metav1.ListOptions{
-				LabelSelector:   selector.String(),
-				ResourceVersion: "0",
-			}
-			statefuls, err := appsInterface.StatefulSets(namespace).List(context.Background(), listOpt)
-			if err != nil {
-				logger.Error(err, "StatefulSets().List()")
-				return
-			}
-
-			if len(statefuls.Items) == 0 {
-				return
-			}
-
-			for _, item := range statefuls.Items {
-				needRegain := false
-				stateful := &item
-
-				updateStateful := func() error {
-					if needRegain {
-						stateful, err = appsInterface.StatefulSets(namespace).Get(context.Background(), stateful.Name, metav1.GetOptions{})
-						if err != nil {
-							if k8errors.IsNotFound(err) {
-								return nil
-							}
-							return err
-						}
-						needRegain = false
-					}
-
-					statefulOld := stateful.DeepCopy()
-					modifyStatefulSetAnnotationsAndEnv(enforcer, target, stateful, profileName, uniqueID, bpfExclusiveMode)
-					if reflect.DeepEqual(statefulOld, stateful) {
-						return nil
-					}
-					stateful, err = appsInterface.StatefulSets(namespace).Update(context.Background(), stateful, metav1.UpdateOptions{})
-					if err == nil {
-						logger.Info("the target workload has been updated", "Kind", "StatefulSets", "namespace", stateful.Namespace, "name", stateful.Name)
-					} else {
-						needRegain = true
-					}
-					return err
-				}
-
-				err := retry.RetryOnConflict(retry.DefaultRetry, updateStateful)
-				if err != nil {
-					logger.Error(err, "failed to update the target workload")
-				}
-			}
 		}
-	case "DaemonSet":
-		if target.Name != "" {
-			updateDaemon := func() error {
-				daemon, err := appsInterface.DaemonSets(namespace).Get(context.Background(), target.Name, metav1.GetOptions{})
-				if err != nil {
-					if k8errors.IsNotFound(err) {
-						return nil
-					}
-					return err
-				}
 
-				// The target must have the webhook selector label.
-				for key, value := range varmorconfig.WebhookSelectorLabel {
-					if _, ok := daemon.Annotations[key]; !ok {
-						return nil
+	case "DaemonSet":
+		daemons, err := appsInterface.DaemonSets(namespace).List(context.Background(), listOpt)
+		if err != nil {
+			logger.Error(err, "DaemonSets().List()")
+			return
+		}
+
+		if len(daemons.Items) == 0 {
+			return
+		}
+
+		for _, item := range daemons.Items {
+			needRegain := false
+			daemon := &item
+
+			updateDaemon := func() error {
+				if needRegain {
+					daemon, err = appsInterface.DaemonSets(daemon.Namespace).Get(context.Background(), daemon.Name, metav1.GetOptions{})
+					if err != nil {
+						if k8errors.IsNotFound(err) {
+							return nil
+						}
+						return err
 					}
-					if daemon.Annotations[key] != value {
-						return nil
-					}
+					needRegain = false
 				}
 
 				daemonOld := daemon.DeepCopy()
 				modifyDaemonSetAnnotationsAndEnv(enforcer, target, daemon, profileName, uniqueID, bpfExclusiveMode)
-				if reflect.DeepEqual(daemonOld, daemon) {
+				if reflect.DeepEqual(daemonOld, &daemon) {
 					return nil
 				}
-				daemon, err = appsInterface.DaemonSets(namespace).Update(context.Background(), daemon, metav1.UpdateOptions{})
+				daemon, err = appsInterface.DaemonSets(daemon.Namespace).Update(context.Background(), daemon, metav1.UpdateOptions{})
 				if err == nil {
 					logger.Info("the target workload has been updated", "Kind", "DaemonSets", "namespace", daemon.Namespace, "name", daemon.Name)
+				} else {
+					needRegain = true
 				}
 				return err
 			}
@@ -588,65 +512,6 @@ func UpdateWorkloadAnnotationsAndEnv(
 			err := retry.RetryOnConflict(retry.DefaultRetry, updateDaemon)
 			if err != nil {
 				logger.Error(err, "failed to update the target workload")
-			}
-		} else if target.Selector != nil {
-			for key, value := range varmorconfig.WebhookSelectorLabel {
-				// The target must have the webhook selector label.
-				target.Selector.MatchLabels[key] = value
-			}
-			selector, err := metav1.LabelSelectorAsSelector(target.Selector)
-			if err != nil {
-				logger.Error(err, "LabelSelectorAsSelector()")
-				return
-			}
-			listOpt := metav1.ListOptions{
-				LabelSelector:   selector.String(),
-				ResourceVersion: "0",
-			}
-			daemons, err := appsInterface.DaemonSets(namespace).List(context.Background(), listOpt)
-			if err != nil {
-				logger.Error(err, "DaemonSets().List()")
-				return
-			}
-
-			if len(daemons.Items) == 0 {
-				return
-			}
-
-			for _, item := range daemons.Items {
-				needRegain := false
-				daemon := &item
-
-				updateDaemon := func() error {
-					if needRegain {
-						daemon, err = appsInterface.DaemonSets(namespace).Get(context.Background(), daemon.Name, metav1.GetOptions{})
-						if err != nil {
-							if k8errors.IsNotFound(err) {
-								return nil
-							}
-							return err
-						}
-						needRegain = false
-					}
-
-					daemonOld := daemon.DeepCopy()
-					modifyDaemonSetAnnotationsAndEnv(enforcer, target, daemon, profileName, uniqueID, bpfExclusiveMode)
-					if reflect.DeepEqual(daemonOld, &daemon) {
-						return nil
-					}
-					daemon, err = appsInterface.DaemonSets(namespace).Update(context.Background(), daemon, metav1.UpdateOptions{})
-					if err == nil {
-						logger.Info("the target workload has been updated", "Kind", "DaemonSets", "namespace", daemon.Namespace, "name", daemon.Name)
-					} else {
-						needRegain = true
-					}
-					return err
-				}
-
-				err := retry.RetryOnConflict(retry.DefaultRetry, updateDaemon)
-				if err != nil {
-					logger.Error(err, "failed to update the target workload")
-				}
 			}
 		}
 	}
@@ -660,15 +525,13 @@ func TagLeaderPod(podInterface corev1.PodInterface) error {
 }
 
 func UnTagLeaderPod(podInterface corev1.PodInterface) error {
-	selector := metav1.LabelSelector{
-		MatchLabels: map[string]string{
-			"app.kubernetes.io/component": "varmor-manager",
-			"identity":                    "leader",
-		},
+	matchLabels := map[string]string{
+		"app.kubernetes.io/component": "varmor-manager",
+		"identity":                    "leader",
 	}
 
 	listOpt := metav1.ListOptions{
-		LabelSelector:   labels.Set(selector.MatchLabels).String(),
+		LabelSelector:   labels.Set(matchLabels).String(),
 		ResourceVersion: "0",
 	}
 	pods, err := podInterface.List(context.Background(), listOpt)
