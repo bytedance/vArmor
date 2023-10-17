@@ -17,25 +17,26 @@ vArmor allows you to configure its functionality during installation using the h
 
 ## Usage
 ### Interface Operations
-* The API interface for vArmor is the VarmorPolicy CR, which is a namespace-scoped resource. Users can create, modify, and delete VarmorPolicy objects in the cluster to protect workloads within the same namespace.
-* Workloads must have the label `sandbox.varmor.org/enable="true"` to be processed by vArmor's webhook server during creation and updates. If they meet the matching conditions specified in a VarmorPolicy object's `spec.target`, vArmor will enable sandbox protection for them.
-* vArmor supports performing a rolling restart of existing workloads that meet the matching conditions when a VarmorPolicy object is created or deleted. This rolling restart enables or disables protection for those workloads.
-* Once a VarmorPolicy object is created, its `spec.target` cannot be changed. Please create a new VarmorPolicy with the desired target to make changes.
-* After creating a VarmorPolicy object, you can dynamically switch protection modes and update protection rules by updating `spec.policy`. However, switching from DefenseInDepth mode to other modes is not supported, and vice versa (Note: Switching protection modes and updating protection rules does not require triggering a rolling restart of workloads).
+* vArmor provides API interfaces through VarmorPolicy CR and VarmorClusterPolicy CR, which are namespace-scoped and cluster-scoped resources. The VarmorClusterPolicy objects have higher priority than VarmorPolicy objects. It means prioritizing the use of VarmorClusterPolicy objects to protect matched workloads. You can create, modify, and delete VarmorPolicy/VarmorClusterPolicy objects in the cluster to protect specified workloads.
+* Workloads must have the label `sandbox.varmor.org/enable="true"` to be processed by vArmor's webhook server during creation and updates. If they meet the matching conditions specified in a VarmorPolicy/VarmorClusterPolicy object's `spec.target`, vArmor will enable sandbox for them.
+* vArmor supports performing a rolling restart of existing workloads that meet the matching conditions when a VarmorPolicy/VarmorClusterPolicy object is created or deleted. This rolling restart enables or disables protection for those workloads.
+* Once a VarmorPolicy/VarmorClusterPolicy object is created, its `spec.target` cannot be changed. Please create a new VarmorPolicy/VarmorClusterPolicy with the desired target to make changes.
+* After creating a VarmorPolicy/VarmorClusterPolicy object, you can dynamically switch protection modes and update protection rules by updating `spec.policy`. However, switching from DefenseInDepth mode to other modes is not supported, and vice versa (Note: Switching protection modes and updating protection rules does not require triggering a rolling restart of workloads).
 ### State Management
-* You can check the VarmorPolicy/Status to get information about the object's processing stage, error messages, and the processing status of AppArmor/BPF Profiles.
-* You can check the Profile Name by examining VarmorPolicy/Status. Afterwards, you can look at the corresponding ArmorProfile object with the same name in the same namespace to obtain the status and error information when the Agent processes the Profile. For example, you can determine which node failed to process it and the reasons for the failure.
+* You can check the status of VarmorPolicy/VarmorClusterPolicy object to get information about the processing stage, error messages, and the processing status of AppArmor/BPF Profiles.
+* You can check the `profileName` field by examining the status of VarmorPolicy/VarmorClusterPolicy object. Afterwards, you can look at the corresponding ArmorProfile object with the same name in the same namespace to obtain the status and error information when the Agent processes the Profile. For example, you can determine which node failed to process it and the reasons for the failure.
 ### Log Management
 * vArmor's manager and agent components currently log messages only to standard output.
 * You can leverage logging components for collection and configuring alerts. Such as `\* | select count(*) as ErrCount where __content__ LIKE 'E0%'`
 ### Uninstallation Guide
 If you are using the AppArmor enforcer, follow these steps to uninstall vArmor:
-* Filter out all VarmorPolicy objects using the AppArmor enforcer (`.spec.policy.enforcer` is AppArmor)
+* Filter out all VarmorPolicy/VarmorClusterPolicy objects using the AppArmor enforcer (`.spec.policy.enforcer` is AppArmor)
   ```
-  kubectl get VarmorPolicy -A -o wide | grep AppArmor
+  kubectl get VarmorPolicy -A | grep AppArmor
+  kubectl get VarmorClusterPolicy | grep AppArmor
   ```
-* Process each VarmorPolicy and its corresponding workloads one by one.
-  * Delete the VarmorPolicy object
+* Process each VarmorPolicy/VarmorClusterPolicy and its corresponding workloads one by one.
+  * Delete the VarmorPolicy/VarmorClusterPolicy object
   * When the workloads' type is Deployment, StatefulSet, or DaemonSet,
     * If you have enabled --restartExistWorkloads, you don't need to perform any additional steps.
     * If --restartExistWorkloads is not enabled, you will need to manually remove the annotations with key 'container.apparmor.security.beta.kubernetes.io/[CONTAINER_NAME]' from the corresponding workloads.
@@ -45,7 +46,6 @@ If you are using the AppArmor enforcer, follow these steps to uninstall vArmor:
 ## System Interface
 ### VarmorPolicy
 * Namespace-scoped resource, consistent with the namespace of the protected object.
-* Use vArmor by creating, updating, or deleting VarmorPolicy objects.
 * The VarmorPolicy interface details can be found in [Interface Instructions](interface_instructions.md).
 * The definition of VarmorPolicy can be found in [VarmorPolicy CRD](../config/crds/crd.varmor.org_varmorpolicies.yaml).
 * Explanation of VarmorPolicy/Status:
@@ -65,14 +65,13 @@ If you are using the AppArmor enforcer, follow these steps to uninstall vArmor:
   |     |False|The profile has not yet been processed and loaded by all agents.
 
 ### VarmorClusterPolicy
-* Cluster-scoped resource. The VarmorClusterPolicy objects have higher priority than VarmorPolicy objects. It means prioritizing the use of VarmorClusterPolicy to protect matched workloads.
-* Use vArmor to protect workloads by creating, updating, or deleting VarmorClusterPolicy objects.
+* Cluster-scoped resource.
 * The VarmorClusterPolicy interface details can be found in [Interface Instructions](interface_instructions.md)
 * The definition of VarmorClusterPolicy can be found in [VarmorClusterPolicy CRD](../config/crds/crd.varmor.org_varmorclusterpolicies.yaml)
 * VarmorClusterPolicy/Status same as VarmorPolicy/Status
 
 ### ArmorProfile
-* Namespace-scoped resource, consistent with the namespace of the protected object.
+* Namespace-scoped resource, consistent with the namespace of the protected object or the namespace of the vArmor components.
 * As an internal interface, used by vArmor only.
 * The definition of VarmorPolicy can be found in [ArmorProfile CRD](../config/crds/crd.varmor.org_armorprofiles.yaml).
 * Explanation of ArmorProfile/Status:

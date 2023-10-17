@@ -11,19 +11,19 @@ vArmor 支持在安装时，通过 helm 命令对它的功能进行配置。
 | `--set bpfExclusiveMode.enabled=true` | 默认关闭；开启后当 VarmorPolicy 使用 BPF enforcer 时，将禁用目标工作负载的 AppArmor 防护
 | `--set restartExistWorkloads.enabled=true` | 默认关闭；开启后，当创建或删除 VarmorPolicy 时，vArmor 会对符合条件的 Workloads (Deployments, DaemonSet, StatefulSet) 进行滚动重启，从而开启或关闭防护
 | `--set unloadAllAaProfile.enabled=true` | 默认关闭；开启后，Agent 退出时，将会卸载所有已加载的 AppArmor Profile
-| `--set "manager.args={--webhookMatchLabel=KEY=VALUE}"` | 默认值为：`sandbox.varmor.org/enable=true`。vArmor 只会对包含此 label 的 Workloads 开启沙箱防护。You can disable this feature by using `--set 'manager.args={--webhookMatchLabel=}'`
+| `--set "manager.args={--webhookMatchLabel=KEY=VALUE}"` | 默认值为：`sandbox.varmor.org/enable=true`。vArmor 只会对包含此 label 的 Workloads 开启沙箱防护。你可以使用 `--set 'manager.args={--webhookMatchLabel=}'` 关闭此特性。
 | `--set defenseInDepth.enabled=true` | 默认关闭；此为实验功能，仅 AppArmor enforcer 支持 DefenseInDepth 模式
 
 ## 使用说明
 ### 接口操作
-* vArmor 的 API 接口是 VarmorPolicy CR，它是命名空间类型的资源。用户可通过在集群中创建、修改、删除 VarmorPolicy 对象来对同一命名空间中的 Workloads 进行防护。
-* 防护目标必须具有 `sandbox.varmor.org/enable="true"` 标签，从而在创建、更新时被 vArmor （的 webhook server）处理。若其满足某个 VarmorPolicy 对象的 `spec.target` 匹配条件，vArmor 将会对其开启沙箱防护。
-* 创建或删除 VarmorPolicy 对象时，vArmor 支持对满足匹配条件的存量工作负载进行滚动重启，从而为其开启或关闭防护。
-* 创建 VarmorPolicy 对象后，其 `spec.target` 不可更改。请通过新建 VarmorPolicy 来更改匹配目标。
-* 创建 VarmorPolicy 对象后，可通过更新 `spec.policy` 来动态切换防护模式、更新防护规则。但不支持从 DefenseInDepth 模式切换为其他模式，反之亦然（注：切换防护模式、更新防护规则时，无需触发工作负载的滚动重启）。
+* vArmor 的 API 接口是 VarmorPolicy CR 和 VarmorClusterPolicy CR，它们分别是 namespace-scoped 和 cluster-scoped 类型的资源。VarmorClusterPolicy 的优先级高于 VarmorPolicy，即优先使用 VarmorClusterPolicy 对象对匹配的 Workloads 进行防护。你可通过在创建、修改、删除 VarmorPolicy/VarmorClusterPolicy 对象来对指定的 Workloads 进行防护。
+* 防护目标必须具有 `sandbox.varmor.org/enable="true"` 标签，从而在创建、更新时被 webhook server 处理。若其满足某个 VarmorPolicy/VarmorClusterPolicy 对象的 `spec.target` 匹配条件，vArmor 将会对其开启沙箱防护。
+* 创建或删除 VarmorPolicy/VarmorClusterPolicy 对象时，vArmor 支持对满足匹配条件的存量工作负载进行滚动重启，从而为其开启或关闭防护。
+* 创建 VarmorPolicy/VarmorClusterPolicy 对象后，其 `spec.target` 不可更改。请通过新建 VarmorPolicy 来更改匹配目标。
+* 创建 VarmorPolicy/VarmorClusterPolicy 对象后，可通过更新 `spec.policy` 来动态切换防护模式、更新防护规则。但不支持从 DefenseInDepth 模式切换为其他模式，反之亦然（注：切换防护模式、更新防护规则时，无需触发工作负载的滚动重启）。
 ### 状态管理
-* 可通过查看 VarmorPolicy/Status 获取对象的处理阶段、错误信息、AppArmor/BPF Profile 的处理状态等。
-* 可通过查看 VarmorPolicy/Status 获取 Profile Name。随后可查看相同命名空间下的同名 ArmorProfile 对象，从而获取 Agent 在处理 Profile 时的状态和错误信息。例如：哪个节点处理失败及其原因等。
+* 可通过查看 VarmorPolicy/VarmorClusterPolicy 对象的 Status 获取处理阶段、错误信息、AppArmor/BPF Profile 的处理状态等。
+* 可通过查看 VarmorPolicy/VarmorClusterPolicy 对象的 Status 获取`profileName` 字段。随后可查看相同命名空间下的同名 ArmorProfile 对象，从而获取 Agent 在处理 Profile 时的状态和错误信息。例如：哪个节点处理失败及其原因等。
 ### 日志管理
 * 当前 vArmor 的 manager & agent 组件仅通过标准输出记录日志。
 * 可以借助日志组件采集并配置告警，例如：`\* | select count(*) as ErrCount where __content__ LIKE 'E0%'`
@@ -31,10 +31,11 @@ vArmor 支持在安装时，通过 helm 命令对它的功能进行配置。
 若使用了 AppArmor enforcer，需按照以下步骤卸载 vArmor
 * 筛选出所有使用 AppArmor enforcer 的 VarmorPolicy（`.spec.policy.enforcer` 为 AppArmor）
   ```
-  kubectl get VarmorPolicy -A -o wide | grep AppArmor
+  kubectl get VarmorPolicy -A | grep AppArmor
+  kubectl get VarmorClusterPolicy | grep AppArmor
   ```
-* 逐个处理 VarmorPolicy 和对应的工作负载
-  * 删除 VarmorPolicy 对象
+* 逐个处理 VarmorPolicy/VarmorClusterPolicy 和对应的工作负载
+  * 删除 VarmorPolicy/VarmorClusterPolicy 对象
   * 当防护目标的类型为 Deployment, StatusfulSet, DaemonSet 时
     * 若开启了 --restartExistWorkloads，那么你无需其他额外工作
     * 若未开启 --restartExistWorkloads，你需要手动删除对应工作负载中 key 为 container.apparmor.security.beta.kubernetes.io/[CONTAINER_NAME] 的 annotation
@@ -45,7 +46,6 @@ vArmor 支持在安装时，通过 helm 命令对它的功能进行配置。
 ## 系统接口
 ### VarmorPolicy
 * 命名空间类型资源，与防护对象的命名空间一致
-* 通过创建、更新、删除 VarmorPolicy 对象来使用 vArmor
 * VarmorPolicy 接口描述详见 [Interface Instructions](interface_instructions.zh_CN.md)
 * VarmorPolicy 定义详见 [VarmorPolicy CRD](../config/crds/crd.varmor.org_varmorpolicies.yaml)
 * VarmorPolicy/Status 说明
@@ -65,14 +65,13 @@ vArmor 支持在安装时，通过 helm 命令对它的功能进行配置。
   |     |False|Profile 还未被所有的 Agents 处理和加载
 
 ### VarmorClusterPolicy
-* 集群范围资源，优先级高于 VarmorPolicy（即优先使用 VarmorClusterPolicy 对匹配的 Workloads 进行防护）
-* 通过创建、更新、删除 VarmorClusterPolicy 对象来使用 vArmor
+* 集群范围资源
 * VarmorClusterPolicy 接口描述详见 [Interface Instructions](interface_instructions.zh_CN.md)
 * VarmorClusterPolicy 定义详见 [VarmorClusterPolicy CRD](../config/crds/crd.varmor.org_varmorclusterpolicies.yaml)
 * VarmorClusterPolicy/Status 与 VarmorPolicy/Status 一致
 
 ### ArmorProfile
-* 命名空间类型资源，与防护对象的命名空间一致
+* 命名空间范围资源，与防护对象或 vArmor 组件的命名空间一致
 * 内部接口，仅由 vArmor 内部使用
 * CRD 定义详见 [ArmorProfile CRD](../config/crds/crd.varmor.org_armorprofiles.yaml)
 * ArmorProfile/Status 说明
