@@ -26,7 +26,7 @@ vArmor 支持在安装时，通过 helm 命令对它的功能进行配置。
 * 可通过查看 VarmorPolicy/VarmorClusterPolicy 对象的 Status 获取`profileName` 字段。随后可查看相同命名空间下的同名 ArmorProfile 对象，从而获取 Agent 在处理 Profile 时的状态和错误信息。例如：哪个节点处理失败及其原因等。
 ### 日志管理
 * 当前 vArmor 的 manager & agent 组件仅通过标准输出记录日志。
-* 可以借助日志组件采集并配置告警，例如：`\* | select count(*) as ErrCount where __content__ LIKE 'E0%'`
+* 可以借助日志组件采集并配置告警，例如：`\* | select count(*) as ErrCount where __content__ LIKE 'E%'`
 ### 卸载指南
 若使用了 AppArmor enforcer，需按照以下步骤卸载 vArmor
 * 筛选出所有使用 AppArmor enforcer 的 VarmorPolicy（`.spec.policy.enforcer` 为 AppArmor）
@@ -46,8 +46,8 @@ vArmor 支持在安装时，通过 helm 命令对它的功能进行配置。
 ## 系统接口
 ### VarmorPolicy
 * 命名空间类型资源，与防护对象的命名空间一致
-* VarmorPolicy 接口描述详见 [Interface Instructions](interface_instructions.zh_CN.md)
-* VarmorPolicy 定义详见 [VarmorPolicy CRD](../config/crds/crd.varmor.org_varmorpolicies.yaml)
+* 接口描述详见 [Interface Instructions](interface_instructions.zh_CN.md)
+* 定义详见 [VarmorPolicy CRD](../config/crds/crd.varmor.org_varmorpolicies.yaml)
 * VarmorPolicy/Status 说明
 
   |字段|值|含义|
@@ -66,14 +66,14 @@ vArmor 支持在安装时，通过 helm 命令对它的功能进行配置。
 
 ### VarmorClusterPolicy
 * 集群范围资源
-* VarmorClusterPolicy 接口描述详见 [Interface Instructions](interface_instructions.zh_CN.md)
-* VarmorClusterPolicy 定义详见 [VarmorClusterPolicy CRD](../config/crds/crd.varmor.org_varmorclusterpolicies.yaml)
+* 接口描述详见 [Interface Instructions](interface_instructions.zh_CN.md)
+* 定义详见 [VarmorClusterPolicy CRD](../config/crds/crd.varmor.org_varmorclusterpolicies.yaml)
 * VarmorClusterPolicy/Status 与 VarmorPolicy/Status 一致
 
 ### ArmorProfile
 * 命名空间范围资源，与防护对象或 vArmor 组件的命名空间一致
 * 内部接口，仅由 vArmor 内部使用
-* CRD 定义详见 [ArmorProfile CRD](../config/crds/crd.varmor.org_armorprofiles.yaml)
+* 定义详见 [ArmorProfile CRD](../config/crds/crd.varmor.org_armorprofiles.yaml)
 * ArmorProfile/Status 说明
 
     |字段|值|含义|
