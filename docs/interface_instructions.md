@@ -2,8 +2,8 @@
 # Interface Instructions
 English | [简体中文](interface_instructions.zh_CN.md)
 
-## VarmorPolicy
-### VarmorPolicySpec
+## VarmorPolicy / VarmorClusterPolicy
+### Spec
 
 | Field | Subfield | Subfield | Description |
 |-------|----------|----------|-------------|

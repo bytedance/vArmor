@@ -1,8 +1,8 @@
 # Interface Instructions
 [English](interface_instructions.md) | 简体中文
 
-## VarmorPolicy
-### VarmorPolicySpec
+## VarmorPolicy / VarmorClusterPolicy
+### Spec
 
 |字段|子字段|子字段|描述|
 |---|-----|-----|---|

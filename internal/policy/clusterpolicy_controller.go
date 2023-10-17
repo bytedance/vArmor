@@ -245,7 +245,7 @@ func (c *ClusterPolicyController) ignoreAdd(vcp *varmor.VarmorClusterPolicy, log
 		logger.Error(err, "update VarmorClusterPolicy/status with forbidden info")
 		err = c.updateVarmorClusterPolicyStatus(vcp, "", true, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyCreated, apicorev1.ConditionFalse,
 			"Forbidden",
-			"You shouldn't specify the target workload by both both name and selector.")
+			"You shouldn't specify the target workload by both name and selector.")
 		if err != nil {
 			logger.Error(err, "updateVarmorClusterPolicyStatus()")
 		}
