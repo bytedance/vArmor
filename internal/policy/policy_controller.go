@@ -78,7 +78,7 @@ func NewPolicyController(
 	debug bool,
 	log logr.Logger) (*PolicyController, error) {
 
-	pc := PolicyController{
+	c := PolicyController{
 		podInterface:          podInterface,
 		appsInterface:         appsInterface,
 		varmorInterface:       varmorInterface,
@@ -94,38 +94,38 @@ func NewPolicyController(
 		log:                   log,
 	}
 
-	return &pc, nil
+	return &c, nil
 }
 
-func (pc *PolicyController) enqueuePolicy(vp *varmor.VarmorPolicy, logger logr.Logger) {
+func (c *PolicyController) enqueuePolicy(vp *varmor.VarmorPolicy, logger logr.Logger) {
 	key, err := cache.MetaNamespaceKeyFunc(vp)
 	if err != nil {
 		logger.Error(err, "cache.MetaNamespaceKeyFunc()")
 		return
 	}
-	pc.queue.Add(key)
+	c.queue.Add(key)
 }
 
-func (pc *PolicyController) addVarmorPolicy(obj interface{}) {
-	logger := pc.log.WithName("AddFunc()")
+func (c *PolicyController) addVarmorPolicy(obj interface{}) {
+	logger := c.log.WithName("AddFunc()")
 
 	vp := obj.(*varmor.VarmorPolicy)
 
 	logger.V(3).Info("enqueue VarmorPolicy")
-	pc.enqueuePolicy(vp, logger)
+	c.enqueuePolicy(vp, logger)
 }
 
-func (pc *PolicyController) deleteVarmorPolicy(obj interface{}) {
-	logger := pc.log.WithName("DeleteFunc()")
+func (c *PolicyController) deleteVarmorPolicy(obj interface{}) {
+	logger := c.log.WithName("DeleteFunc()")
 
 	vp := obj.(*varmor.VarmorPolicy)
 
 	logger.V(3).Info("enqueue VarmorPolicy")
-	pc.enqueuePolicy(vp, logger)
+	c.enqueuePolicy(vp, logger)
 }
 
-func (pc *PolicyController) updateVarmorPolicy(oldObj, newObj interface{}) {
-	logger := pc.log.WithName("UpdateFunc()")
+func (c *PolicyController) updateVarmorPolicy(oldObj, newObj interface{}) {
+	logger := c.log.WithName("UpdateFunc()")
 
 	oldVp := oldObj.(*varmor.VarmorPolicy)
 	newVp := newObj.(*varmor.VarmorPolicy)
@@ -136,65 +136,54 @@ func (pc *PolicyController) updateVarmorPolicy(oldObj, newObj interface{}) {
 		logger.V(3).Info("nothing need to be updated")
 	} else {
 		logger.V(3).Info("enqueue VarmorPolicy")
-		pc.enqueuePolicy(newVp, logger)
+		c.enqueuePolicy(newVp, logger)
 	}
 }
 
-func (pc *PolicyController) retrieveArmorProfile(namespace, name string) (*varmor.ArmorProfile, error) {
-	ap, err := pc.varmorInterface.ArmorProfiles(namespace).Get(context.Background(), name, metav1.GetOptions{})
-	if err != nil {
-		return nil, err
-	}
-	return ap, nil
-}
-
-func (pc *PolicyController) retrieveVarmorPolicy(namespace, name string) (*varmor.VarmorPolicy, error) {
-	vp, err := pc.varmorInterface.VarmorPolicies(namespace).Get(context.Background(), name, metav1.GetOptions{})
-	if err != nil {
-		return nil, err
-	}
-	return vp, nil
-}
-
-func (pc *PolicyController) handleDeleteVarmorPolicy(namespace, name string) error {
-	logger := pc.log.WithName("handleDeleteVarmorPolicy()")
+func (c *PolicyController) handleDeleteVarmorPolicy(namespace, name string) error {
+	logger := c.log.WithName("handleDeleteVarmorPolicy()")
 
 	logger.Info("VarmorPolicy", "namespace", namespace, "name", name)
 
-	apName := varmorprofile.GenerateArmorProfileName(namespace, name)
+	apName := varmorprofile.GenerateArmorProfileName(namespace, name, false)
 
 	logger.Info("retrieve ArmorProfile")
-	ap, err := pc.retrieveArmorProfile(namespace, apName)
+	ap, err := c.varmorInterface.ArmorProfiles(namespace).Get(context.Background(), apName, metav1.GetOptions{})
 	if err != nil {
 		if k8errors.IsNotFound(err) {
 			return nil
 		}
-		logger.Error(err, "pc.retrieveArmorProfile()")
+		logger.Error(err, "c.varmorInterface.ArmorProfiles().Get()")
 		return err
 	}
 
 	logger.Info("delete ArmorProfile")
-	err = pc.varmorInterface.ArmorProfiles(namespace).Delete(context.Background(), apName, metav1.DeleteOptions{})
+	err = c.varmorInterface.ArmorProfiles(namespace).Delete(context.Background(), apName, metav1.DeleteOptions{})
 	if err != nil {
 		logger.Error(err, "ArmorProfile().Delete()")
 		return err
 	}
 
-	if pc.restartExistWorkloads {
+	if c.restartExistWorkloads {
 		// This will trigger the rolling upgrade of the target workload
 		logger.Info("delete annotations of target workloads asynchronously")
-		go varmorutils.UpdateWorkloadAnnotationsAndEnv(pc.appsInterface, namespace, ap.Spec.Profile.Enforcer, ap.Spec.Target, "", "", false, logger)
+		go varmorutils.UpdateWorkloadAnnotationsAndEnv(
+			c.appsInterface,
+			namespace,
+			ap.Spec.Profile.Enforcer,
+			ap.Spec.Target,
+			"", "", false, logger)
 	}
 
 	// Cleanup the PolicyStatus and ModelingStatus of status manager for the deleted VarmorPolicy/ArmorProfile object
 	logger.Info("cleanup the policy status (and if any modeling status) of statusmanager.policystatuses")
 	policyStatusKey := namespace + "/" + name
-	pc.statusManager.DeleteCh <- policyStatusKey
+	c.statusManager.DeleteCh <- policyStatusKey
 
 	return nil
 }
 
-func (pc *PolicyController) updateVarmorPolicyStatus(vp *varmor.VarmorPolicy, profileName string, resetReady bool, phase varmor.VarmorPolicyPhase, condType varmor.VarmorPolicyConditionType,
+func (c *PolicyController) updateVarmorPolicyStatus(vp *varmor.VarmorPolicy, profileName string, resetReady bool, phase varmor.VarmorPolicyPhase, condType varmor.VarmorPolicyConditionType,
 	status apicorev1.ConditionStatus, reason, message string) error {
 
 	var exist bool = false
@@ -234,18 +223,18 @@ func (pc *PolicyController) updateVarmorPolicyStatus(vp *varmor.VarmorPolicy, pr
 		vp.Status.Phase = phase
 	}
 
-	_, err := pc.varmorInterface.VarmorPolicies(vp.Namespace).UpdateStatus(context.Background(), vp, metav1.UpdateOptions{})
+	_, err := c.varmorInterface.VarmorPolicies(vp.Namespace).UpdateStatus(context.Background(), vp, metav1.UpdateOptions{})
 
 	return err
 }
 
-func (pc *PolicyController) resetArmorProfileModelStatus(namespace, name string, logger logr.Logger) error {
-	apm, err := pc.varmorInterface.ArmorProfileModels(namespace).Get(context.Background(), name, metav1.GetOptions{})
+func (c *PolicyController) resetArmorProfileModelStatus(namespace, name string, logger logr.Logger) error {
+	apm, err := c.varmorInterface.ArmorProfileModels(namespace).Get(context.Background(), name, metav1.GetOptions{})
 	if err == nil {
 		apm.Status.CompletedNumber = 0
 		apm.Status.Conditions = nil
 		apm.Status.Ready = false
-		_, err = pc.varmorInterface.ArmorProfileModels(namespace).UpdateStatus(context.Background(), apm, metav1.UpdateOptions{})
+		_, err = c.varmorInterface.ArmorProfileModels(namespace).UpdateStatus(context.Background(), apm, metav1.UpdateOptions{})
 		if err != nil {
 			logger.Error(err, "resetArmorProfileModelStatus()")
 		}
@@ -254,11 +243,11 @@ func (pc *PolicyController) resetArmorProfileModelStatus(namespace, name string,
 	return nil
 }
 
-func (pc *PolicyController) ignoreAdd(vp *varmor.VarmorPolicy, logger logr.Logger) bool {
+func (c *PolicyController) ignoreAdd(vp *varmor.VarmorPolicy, logger logr.Logger) bool {
 	if vp.Spec.Target.Kind != "Deployment" && vp.Spec.Target.Kind != "StatefulSet" && vp.Spec.Target.Kind != "DaemonSet" && vp.Spec.Target.Kind != "Pod" {
 		err := fmt.Errorf("Target.Kind is not supported")
 		logger.Error(err, "update VarmorPolicy/status with forbidden info")
-		err = pc.updateVarmorPolicyStatus(vp, "", true, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyCreated, apicorev1.ConditionFalse,
+		err = c.updateVarmorPolicyStatus(vp, "", true, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyCreated, apicorev1.ConditionFalse,
 			"Forbidden",
 			"This kind of target is not supported.")
 		if err != nil {
@@ -270,19 +259,31 @@ func (pc *PolicyController) ignoreAdd(vp *varmor.VarmorPolicy, logger logr.Logge
 	if vp.Spec.Target.Name == "" && vp.Spec.Target.Selector == nil {
 		err := fmt.Errorf("target.Name and target.Selector are empty")
 		logger.Error(err, "update VarmorPolicy/status with forbidden info")
-		err = pc.updateVarmorPolicyStatus(vp, "", true, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyCreated, apicorev1.ConditionFalse,
+		err = c.updateVarmorPolicyStatus(vp, "", true, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyCreated, apicorev1.ConditionFalse,
 			"Forbidden",
-			"You must specify the target workload by name or selector.")
+			"You should specify the target workload by name or selector.")
 		if err != nil {
 			logger.Error(err, "updateVarmorPolicyStatus()")
 		}
 		return true
 	}
 
-	if !pc.enableDefenseInDepth && vp.Spec.Policy.Mode == varmortypes.DefenseInDepthMode {
+	if vp.Spec.Target.Name != "" && vp.Spec.Target.Selector != nil {
+		err := fmt.Errorf("target.Name and target.Selector are exclusive")
+		logger.Error(err, "update VarmorPolicy/status with forbidden info")
+		err = c.updateVarmorPolicyStatus(vp, "", true, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyCreated, apicorev1.ConditionFalse,
+			"Forbidden",
+			"You shouldn't specify the target workload by both both name and selector.")
+		if err != nil {
+			logger.Error(err, "updateVarmorPolicyStatus()")
+		}
+		return true
+	}
+
+	if !c.enableDefenseInDepth && vp.Spec.Policy.Mode == varmortypes.DefenseInDepthMode {
 		err := fmt.Errorf("the DefenseInDepth mode is not enabled")
 		logger.Error(err, "update VarmorPolicy/status with forbidden info")
-		err = pc.updateVarmorPolicyStatus(vp, "", true, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyCreated, apicorev1.ConditionFalse,
+		err = c.updateVarmorPolicyStatus(vp, "", true, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyCreated, apicorev1.ConditionFalse,
 			"Forbidden",
 			"The DefenseInDepth feature is not enabled.")
 		if err != nil {
@@ -293,12 +294,12 @@ func (pc *PolicyController) ignoreAdd(vp *varmor.VarmorPolicy, logger logr.Logge
 
 	// Do not exceed the length of a standard Kubernetes name (63 characters)
 	// Note: The advisory length of AppArmor profile name is 100 (See https://bugs.launchpad.net/apparmor/+bug/1499544).
-	profileName := varmorprofile.GenerateArmorProfileName(vp.Namespace, vp.Name)
+	profileName := varmorprofile.GenerateArmorProfileName(vp.Namespace, vp.Name, false)
 	if len(profileName) > 63 {
 		err := fmt.Errorf("the length of ArmorProfile name is exceed 63. name: %s, length: %d", profileName, len(profileName))
 		logger.Error(err, "update VarmorPolicy/status with forbidden info")
 		msg := fmt.Sprintf("The length of VarmorProfile object name is too long, please limit it to %d bytes", 63-len(varmorprofile.ProfileNameTemplate)+4-len(vp.Namespace))
-		err = pc.updateVarmorPolicyStatus(vp, "", true, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyCreated, apicorev1.ConditionFalse,
+		err = c.updateVarmorPolicyStatus(vp, "", true, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyCreated, apicorev1.ConditionFalse,
 			"Forbidden",
 			msg)
 		if err != nil {
@@ -310,19 +311,19 @@ func (pc *PolicyController) ignoreAdd(vp *varmor.VarmorPolicy, logger logr.Logge
 	return false
 }
 
-func (pc *PolicyController) handleAddVarmorPolicy(vp *varmor.VarmorPolicy) error {
-	logger := pc.log.WithName("handleAddVarmorPolicy()")
+func (c *PolicyController) handleAddVarmorPolicy(vp *varmor.VarmorPolicy) error {
+	logger := c.log.WithName("handleAddVarmorPolicy()")
 
 	logger.Info("VarmorPolicy created", "namespace", vp.Namespace, "name", vp.Name, "labels", vp.Labels, "target", vp.Spec.Target)
 
-	if pc.ignoreAdd(vp, logger) {
+	if c.ignoreAdd(vp, logger) {
 		return nil
 	}
 
-	ap, err := varmorprofile.NewArmorProfile(vp)
+	ap, err := varmorprofile.NewArmorProfile(vp, false)
 	if err != nil {
 		logger.Error(err, "NewArmorProfile() failed")
-		err = pc.updateVarmorPolicyStatus(vp, "", true, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyCreated, apicorev1.ConditionFalse,
+		err = c.updateVarmorPolicyStatus(vp, "", true, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyCreated, apicorev1.ConditionFalse,
 			"Error",
 			err.Error())
 		if err != nil {
@@ -333,40 +334,48 @@ func (pc *PolicyController) handleAddVarmorPolicy(vp *varmor.VarmorPolicy) error
 	}
 
 	logger.Info("update VarmorPolicy/status (created=true)")
-	err = pc.updateVarmorPolicyStatus(vp, ap.Spec.Profile.Name, true, varmortypes.VarmorPolicyPending, varmortypes.VarmorPolicyCreated, apicorev1.ConditionTrue, "", "")
+	err = c.updateVarmorPolicyStatus(vp, ap.Spec.Profile.Name, true, varmortypes.VarmorPolicyPending, varmortypes.VarmorPolicyCreated, apicorev1.ConditionTrue, "", "")
 	if err != nil {
 		logger.Error(err, "updateVarmorPolicyStatus()")
 		return err
 	}
 
 	if vp.Spec.Policy.Mode == varmortypes.DefenseInDepthMode {
-		pc.resetArmorProfileModelStatus(ap.Namespace, ap.Name, logger)
+		c.resetArmorProfileModelStatus(ap.Namespace, ap.Name, logger)
 	}
 
-	pc.statusManager.UpdateDesiredNumber = true
+	c.statusManager.UpdateDesiredNumber = true
 
 	logger.Info("create ArmorProfile")
-	ap, err = pc.varmorInterface.ArmorProfiles(vp.Namespace).Create(context.Background(), ap, metav1.CreateOptions{})
+	ap, err = c.varmorInterface.ArmorProfiles(vp.Namespace).Create(context.Background(), ap, metav1.CreateOptions{})
 	if err != nil {
 		logger.Error(err, "ArmorProfile().Create()")
 		return err
 	}
 
-	if pc.restartExistWorkloads {
+	if c.restartExistWorkloads {
 		// This will trigger the rolling upgrade of the target workload.
 		logger.Info("add annotations to target workload asynchronously")
-		go varmorutils.UpdateWorkloadAnnotationsAndEnv(pc.appsInterface, vp.Namespace, vp.Spec.Policy.Enforcer, vp.Spec.Target, ap.Name, ap.Spec.BehaviorModeling.UniqueID, pc.bpfExclusiveMode, logger)
+		go varmorutils.UpdateWorkloadAnnotationsAndEnv(
+			c.appsInterface,
+			vp.Namespace,
+			vp.Spec.Policy.Enforcer,
+			vp.Spec.Target,
+			ap.Name,
+			ap.Spec.BehaviorModeling.UniqueID,
+			c.bpfExclusiveMode,
+			logger)
 	}
 
 	return nil
 }
 
-func (pc *PolicyController) ignoreUpdate(newVp *varmor.VarmorPolicy, oldAp *varmor.ArmorProfile, logger logr.Logger) (bool, error) {
+func (c *PolicyController) ignoreUpdate(newVp *varmor.VarmorPolicy, oldAp *varmor.ArmorProfile, logger logr.Logger) (bool, error) {
 	// Disallow modify the target of VarmorPolicy.
 	if !reflect.DeepEqual(newVp.Spec.Target, oldAp.Spec.Target) {
 		err := fmt.Errorf("modify spec.target is forbidden")
 		logger.Error(err, "update VarmorPolicy/status with forbidden info")
-		err = pc.updateVarmorPolicyStatus(newVp, "", true, varmortypes.VarmorPolicyUnchanged, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionFalse,
+		err = c.updateVarmorPolicyStatus(newVp, "", true, varmortypes.VarmorPolicyUnchanged, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionFalse,
 			"Forbidden",
 			"Modify the target of VarmorPolicy is not allowed. You need to recreate the VarmorPolicy object.")
 		return true, err
@@ -377,7 +386,7 @@ func (pc *PolicyController) ignoreUpdate(newVp *varmor.VarmorPolicy, oldAp *varm
 		oldAp.Spec.BehaviorModeling.ModelingDuration == 0 {
 		err := fmt.Errorf("disallow switch spec.policy.mode from others to DefenseInDepth")
 		logger.Error(err, "update VarmorPolicy/status with forbidden info")
-		err = pc.updateVarmorPolicyStatus(newVp, "", true, varmortypes.VarmorPolicyUnchanged, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionFalse,
+		err = c.updateVarmorPolicyStatus(newVp, "", true, varmortypes.VarmorPolicyUnchanged, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionFalse,
 			"Forbidden",
 			"Switch the mode from others to DefenseInDepth is not allowed. You need to recreate the VarmorPolicy object.")
 		return true, err
@@ -388,7 +397,7 @@ func (pc *PolicyController) ignoreUpdate(newVp *varmor.VarmorPolicy, oldAp *varm
 		oldAp.Spec.BehaviorModeling.ModelingDuration != 0 {
 		err := fmt.Errorf("disallow switch spec.policy.mode from DefenseInDepth to others")
 		logger.Error(err, "update VarmorPolicy/status with forbidden info")
-		err = pc.updateVarmorPolicyStatus(newVp, "", true, varmortypes.VarmorPolicyUnchanged, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionFalse,
+		err = c.updateVarmorPolicyStatus(newVp, "", true, varmortypes.VarmorPolicyUnchanged, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionFalse,
 			"Forbidden",
 			"Switch the mode from DefenseInDepth to others is not allowed. You need to recreate the VarmorPolicy object.")
 		return true, err
@@ -399,7 +408,7 @@ func (pc *PolicyController) ignoreUpdate(newVp *varmor.VarmorPolicy, oldAp *varm
 		(newVp.Status.Phase == varmortypes.VarmorPolicyCompleted || newVp.Status.Phase == varmortypes.VarmorPolicyProtecting) {
 		err := fmt.Errorf("disallow modify the VarmorPolicy that run as DefenseInDepth mode and already completed")
 		logger.Error(err, "update VarmorPolicy/status with forbidden info")
-		err = pc.updateVarmorPolicyStatus(newVp, "", false, varmortypes.VarmorPolicyUnchanged, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionFalse,
+		err = c.updateVarmorPolicyStatus(newVp, "", false, varmortypes.VarmorPolicyUnchanged, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionFalse,
 			"Forbidden",
 			"Modify the VarmorPolicy that run as DefenseInDepth mode and already completed is not allowed. You need to recreate the VarmorPolicy object.")
 		return true, err
@@ -417,7 +426,7 @@ func (pc *PolicyController) ignoreUpdate(newVp *varmor.VarmorPolicy, oldAp *varm
 	if newVp.Spec.Policy.Enforcer != oldAp.Spec.Profile.Enforcer {
 		err := fmt.Errorf("disallow switch the enforcer")
 		logger.Error(err, "update VarmorPolicy/status with forbidden info")
-		err = pc.updateVarmorPolicyStatus(newVp, "", true, varmortypes.VarmorPolicyUnchanged, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionFalse,
+		err = c.updateVarmorPolicyStatus(newVp, "", true, varmortypes.VarmorPolicyUnchanged, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionFalse,
 			"Forbidden",
 			"Switch the enforcer is not allowed. You need to recreate the VarmorPolicy object.")
 		return true, err
@@ -426,12 +435,12 @@ func (pc *PolicyController) ignoreUpdate(newVp *varmor.VarmorPolicy, oldAp *varm
 	return false, nil
 }
 
-func (pc *PolicyController) handleUpdateVarmorPolicy(newVp *varmor.VarmorPolicy, oldAp *varmor.ArmorProfile) error {
-	logger := pc.log.WithName("handleUpdateVarmorPolicy()")
+func (c *PolicyController) handleUpdateVarmorPolicy(newVp *varmor.VarmorPolicy, oldAp *varmor.ArmorProfile) error {
+	logger := c.log.WithName("handleUpdateVarmorPolicy()")
 
 	logger.Info("VarmorPolicy updated", "namespace", newVp.Namespace, "name", newVp.Name, "labels", newVp.Labels, "target", newVp.Spec.Target)
 
-	if ignore, err := pc.ignoreUpdate(newVp, oldAp, logger); ignore {
+	if ignore, err := c.ignoreUpdate(newVp, oldAp, logger); ignore {
 		if err != nil {
 			logger.Error(err, "ignoreUpdate()")
 		}
@@ -440,7 +449,7 @@ func (pc *PolicyController) handleUpdateVarmorPolicy(newVp *varmor.VarmorPolicy,
 
 	// First, reset VarmorPolicy/status
 	logger.Info("1. reset VarmorPolicy/status (updated=true)", "namesapce", newVp.Namespace, "name", newVp.Name)
-	err := pc.updateVarmorPolicyStatus(newVp, "", true, varmortypes.VarmorPolicyPending, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionTrue, "", "")
+	err := c.updateVarmorPolicyStatus(newVp, "", true, varmortypes.VarmorPolicyPending, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionTrue, "", "")
 	if err != nil {
 		logger.Error(err, "updateVarmorPolicyStatus()")
 		return err
@@ -451,7 +460,7 @@ func (pc *PolicyController) handleUpdateVarmorPolicy(newVp *varmor.VarmorPolicy,
 	newProfile, err := varmorprofile.GenerateProfile(newVp.Spec.Policy, oldAp.Spec.Profile.Name, false, "")
 	if err != nil {
 		logger.Error(err, "GenerateProfile() failed")
-		err = pc.updateVarmorPolicyStatus(newVp, "", true, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyCreated, apicorev1.ConditionFalse,
+		err = c.updateVarmorPolicyStatus(newVp, "", true, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyCreated, apicorev1.ConditionFalse,
 			"Error",
 			err.Error())
 		if err != nil {
@@ -467,7 +476,7 @@ func (pc *PolicyController) handleUpdateVarmorPolicy(newVp *varmor.VarmorPolicy,
 
 	// Last, do update
 	statusKey := newVp.Namespace + "/" + newVp.Name
-	pc.statusManager.UpdateDesiredNumber = true
+	c.statusManager.UpdateDesiredNumber = true
 	if !reflect.DeepEqual(oldAp.Spec, *newApSpec) {
 		// Update object
 		logger.Info("2. update the object and its status")
@@ -475,22 +484,22 @@ func (pc *PolicyController) handleUpdateVarmorPolicy(newVp *varmor.VarmorPolicy,
 		logger.Info("2.1. reset ArmorProfile/status and ArmorProfileModel/Status", "namespace", oldAp.Namespace, "name", oldAp.Name)
 		oldAp.Status.CurrentNumberLoaded = 0
 		oldAp.Status.Conditions = nil
-		oldAp, err = pc.varmorInterface.ArmorProfiles(newVp.Namespace).UpdateStatus(context.Background(), oldAp, metav1.UpdateOptions{})
+		oldAp, err = c.varmorInterface.ArmorProfiles(newVp.Namespace).UpdateStatus(context.Background(), oldAp, metav1.UpdateOptions{})
 		if err != nil {
 			logger.Error(err, "ArmorProfile().UpdateStatus()")
 			return err
 		}
 
 		if newVp.Spec.Policy.Mode == varmortypes.DefenseInDepthMode {
-			pc.resetArmorProfileModelStatus(newVp.Namespace, oldAp.Name, logger)
+			c.resetArmorProfileModelStatus(newVp.Namespace, oldAp.Name, logger)
 		}
 
 		logger.Info("2.2. reset the status cache", "status key", statusKey)
-		pc.statusManager.ResetCh <- statusKey
+		c.statusManager.ResetCh <- statusKey
 
 		logger.Info("2.3. update ArmorProfile")
 		oldAp.Spec = *newApSpec
-		_, err = pc.varmorInterface.ArmorProfiles(newVp.Namespace).Update(context.Background(), oldAp, metav1.UpdateOptions{})
+		_, err = c.varmorInterface.ArmorProfiles(newVp.Namespace).Update(context.Background(), oldAp, metav1.UpdateOptions{})
 		if err != nil {
 			logger.Error(err, "ArmorProfile().Update()")
 			return err
@@ -500,13 +509,13 @@ func (pc *PolicyController) handleUpdateVarmorPolicy(newVp *varmor.VarmorPolicy,
 		logger.Info("2. update the object' status")
 
 		logger.Info("2.1. update VarmorPolicy/status and ArmorProfile/status", "status key", statusKey)
-		pc.statusManager.UpdateStatusCh <- statusKey
+		c.statusManager.UpdateStatusCh <- statusKey
 	}
 	return nil
 }
 
-func (pc *PolicyController) syncPolicy(key string) error {
-	logger := pc.log.WithName("syncPolicy()")
+func (c *PolicyController) syncPolicy(key string) error {
+	logger := c.log.WithName("syncPolicy()")
 
 	startTime := time.Now()
 	logger.V(3).Info("started syncing policy", "key", key, "startTime", startTime)
@@ -520,97 +529,97 @@ func (pc *PolicyController) syncPolicy(key string) error {
 		return err
 	}
 
-	vp, err := pc.retrieveVarmorPolicy(namespace, name)
+	vp, err := c.varmorInterface.VarmorPolicies(namespace).Get(context.Background(), name, metav1.GetOptions{})
 	if err != nil {
 		if k8errors.IsNotFound(err) {
 			// VarmorPolicy delete event
 			logger.V(3).Info("processing VarmorPolicy delete event")
-			return pc.handleDeleteVarmorPolicy(namespace, name)
+			return c.handleDeleteVarmorPolicy(namespace, name)
 		} else {
-			logger.Error(err, "pc.retrieveVarmorPolicy()")
+			logger.Error(err, "c.varmorInterface.VarmorPolicies().Get()")
 			return err
 		}
 	}
 
-	apName := varmorprofile.GenerateArmorProfileName(vp.Namespace, vp.Name)
-	ap, err := pc.retrieveArmorProfile(vp.Namespace, apName)
+	apName := varmorprofile.GenerateArmorProfileName(vp.Namespace, vp.Name, false)
+	ap, err := c.varmorInterface.ArmorProfiles(vp.Namespace).Get(context.Background(), apName, metav1.GetOptions{})
 	if err != nil {
 		if k8errors.IsNotFound(err) {
 			// VarmorPolicy create event
 			logger.V(3).Info("processing VarmorPolicy create event")
-			return pc.handleAddVarmorPolicy(vp)
+			return c.handleAddVarmorPolicy(vp)
 		} else {
-			logger.Error(err, "pc.retrieveArmorProfile()")
+			logger.Error(err, "c.varmorInterface.ArmorProfiles().Get()")
 			return err
 		}
 	} else {
 		// VarmorPolicy update event
 		logger.V(3).Info("processing VarmorPolicy update event")
-		return pc.handleUpdateVarmorPolicy(vp, ap)
+		return c.handleUpdateVarmorPolicy(vp, ap)
 	}
 }
 
-func (pc *PolicyController) handleErr(err error, key interface{}) {
-	logger := pc.log
+func (c *PolicyController) handleErr(err error, key interface{}) {
+	logger := c.log
 	if err == nil {
-		pc.queue.Forget(key)
+		c.queue.Forget(key)
 		return
 	}
 
-	if pc.queue.NumRequeues(key) < maxRetries {
+	if c.queue.NumRequeues(key) < maxRetries {
 		logger.Error(err, "failed to sync policy", "key", key)
-		pc.queue.AddRateLimited(key)
+		c.queue.AddRateLimited(key)
 		return
 	}
 
 	utilruntime.HandleError(err)
 	logger.V(3).Info("dropping policy out of queue", "key", key)
-	pc.queue.Forget(key)
+	c.queue.Forget(key)
 }
 
-func (pc *PolicyController) processNextWorkItem() bool {
-	key, quit := pc.queue.Get()
+func (c *PolicyController) processNextWorkItem() bool {
+	key, quit := c.queue.Get()
 	if quit {
 		return false
 	}
-	defer pc.queue.Done(key)
-	err := pc.syncPolicy(key.(string))
-	pc.handleErr(err, key)
+	defer c.queue.Done(key)
+	err := c.syncPolicy(key.(string))
+	c.handleErr(err, key)
 
 	return true
 }
 
-func (pc *PolicyController) worker() {
-	for pc.processNextWorkItem() {
+func (c *PolicyController) worker() {
+	for c.processNextWorkItem() {
 	}
 }
 
 // Run begins watching and syncing.
-func (pc *PolicyController) Run(workers int, stopCh <-chan struct{}) {
-	logger := pc.log
+func (c *PolicyController) Run(workers int, stopCh <-chan struct{}) {
+	logger := c.log
 	logger.Info("starting")
 
 	defer utilruntime.HandleCrash()
 
-	if !cache.WaitForCacheSync(stopCh, pc.vpInformerSynced) {
+	if !cache.WaitForCacheSync(stopCh, c.vpInformerSynced) {
 		logger.Error(fmt.Errorf("failed to sync informer cache"), "cache.WaitForCacheSync()")
 		return
 	}
 
-	pc.vpInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc:    pc.addVarmorPolicy,
-		UpdateFunc: pc.updateVarmorPolicy,
-		DeleteFunc: pc.deleteVarmorPolicy,
+	c.vpInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc:    c.addVarmorPolicy,
+		UpdateFunc: c.updateVarmorPolicy,
+		DeleteFunc: c.deleteVarmorPolicy,
 	})
 
 	for i := 0; i < workers; i++ {
-		go wait.Until(pc.worker, time.Second, stopCh)
+		go wait.Until(c.worker, time.Second, stopCh)
 	}
 
 	<-stopCh
 }
 
-func (pc *PolicyController) CleanUp() {
-	pc.log.Info("cleaning up")
-	pc.queue.ShutDown()
+func (c *PolicyController) CleanUp() {
+	c.log.Info("cleaning up")
+	c.queue.ShutDown()
 }

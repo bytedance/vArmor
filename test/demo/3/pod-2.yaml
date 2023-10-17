@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo-3-deploy-2
+  namespace: default
+  labels:
+    app: demo-3-deploy-2
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: demo-3-deploy-2
+      vcp: demo-3
+      sandbox.varmor.org/enable: "true"
+  template:
+    metadata:
+      labels:
+        app: demo-3-deploy-2
+        vcp: demo-3
+        sandbox.varmor.org/enable: "true"
+    spec:
+      containers:
+      - name: test
+        image: debian:10
+        command: ["/bin/sh", "-c", "sleep infinity"]
+        securityContext:
+          # privileged: true
+          capabilities:
+            add:
+            - SYS_ADMIN

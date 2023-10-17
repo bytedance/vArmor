@@ -36,6 +36,10 @@ func (c *FakeCrdV1beta1) ArmorProfileModels(namespace string) v1beta1.ArmorProfi
 	return &FakeArmorProfileModels{c, namespace}
 }
 
+func (c *FakeCrdV1beta1) VarmorClusterPolicies() v1beta1.VarmorClusterPolicyInterface {
+	return &FakeVarmorClusterPolicies{c}
+}
+
 func (c *FakeCrdV1beta1) VarmorPolicies(namespace string) v1beta1.VarmorPolicyInterface {
 	return &FakeVarmorPolicies{c, namespace}
 }

@@ -22,4 +22,6 @@ type ArmorProfileExpansion interface{}
 
 type ArmorProfileModelExpansion interface{}
 
+type VarmorClusterPolicyExpansion interface{}
+
 type VarmorPolicyExpansion interface{}

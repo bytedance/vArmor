@@ -12,6 +12,8 @@ spec:
     kind: VarmorPolicy
     listKind: VarmorPolicyList
     plural: varmorpolicies
+    shortNames:
+    - vpol
     singular: varmorpolicy
   scope: Namespaced
   versions:
@@ -62,6 +64,7 @@ spec:
             type: object
           spec:
             description: VarmorPolicySpec defines the desired state of VarmorPolicy
+              or VarmorClusterPolicy
             properties:
               policy:
                 properties:
@@ -621,6 +624,7 @@ spec:
                     type: string
                   name:
                     description: Name is used to specify a specific workload name.
+                      The name field and selector field are mutually exclusive.
                     type: string
                   selector:
                     description: 'LabelSelector is used to match workloads that meet
@@ -678,6 +682,7 @@ spec:
             type: object
           status:
             description: VarmorPolicyStatus defines the observed state of VarmorPolicy
+              or VarmorClusterPolicy
             properties:
               conditions:
                 description: Conditions

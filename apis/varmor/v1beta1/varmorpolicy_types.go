@@ -29,7 +29,7 @@ type Target struct {
 	// Kind is used to specify the type of workloads for the protection targets.
 	// Available values: Deployment, StatefulSet, DaemonSet, Pod.
 	Kind string `json:"kind"`
-	// Name is used to specify a specific workload name.
+	// Name is used to specify a specific workload name. The name field and selector field are mutually exclusive.
 	Name string `json:"name,omitempty"`
 	// Containers are used to specify the names of the protected containers. If it is empty, sandbox protection
 	// will be enabled for all containers within the workload (excluding initContainers and ephemeralContainers).
@@ -327,7 +327,7 @@ type Policy struct {
 	Privileged bool `json:"privileged,omitempty"`
 }
 
-// VarmorPolicySpec defines the desired state of VarmorPolicy
+// VarmorPolicySpec defines the desired state of VarmorPolicy or VarmorClusterPolicy
 type VarmorPolicySpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
@@ -359,7 +359,7 @@ type VarmorPolicyCondition struct {
 
 type VarmorPolicyPhase string
 
-// VarmorPolicyStatus defines the observed state of VarmorPolicy
+// VarmorPolicyStatus defines the observed state of VarmorPolicy or VarmorClusterPolicy
 type VarmorPolicyStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
@@ -378,6 +378,7 @@ type VarmorPolicyStatus struct {
 //+genclient
 //+k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 //+kubebuilder:object:root=true
+//+kubebuilder:resource:shortName=vpol
 //+kubebuilder:subresource:status
 //+kubebuilder:printcolumn:name="ENFORCER",type=string,JSONPath=`.spec.policy.enforcer`
 //+kubebuilder:printcolumn:name="MODE",type=string,JSONPath=`.spec.policy.mode`

@@ -64,6 +64,13 @@ vArmor 支持在安装时，通过 helm 命令对它的功能进行配置。
   |Ready|True|Profile 已经被所有的 Agents 处理和加载
   |     |False|Profile 还未被所有的 Agents 处理和加载
 
+### VarmorClusterPolicy
+* 集群范围资源，优先级高于 VarmorPolicy（即优先使用 VarmorClusterPolicy 对匹配的 Workloads 进行防护）
+* 通过创建、更新、删除 VarmorClusterPolicy 对象来使用 vArmor
+* VarmorClusterPolicy 接口描述详见 [Interface Instructions](interface_instructions.zh_CN.md)
+* VarmorClusterPolicy 定义详见 [VarmorClusterPolicy CRD](../config/crds/crd.varmor.org_varmorclusterpolicies.yaml)
+* VarmorClusterPolicy/Status 与 VarmorPolicy/Status 一致
+
 ### ArmorProfile
 * 命名空间类型资源，与防护对象的命名空间一致
 * 内部接口，仅由 vArmor 内部使用

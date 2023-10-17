@@ -57,6 +57,8 @@ func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Crd().V1beta1().ArmorProfiles().Informer()}, nil
 	case v1beta1.SchemeGroupVersion.WithResource("armorprofilemodels"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Crd().V1beta1().ArmorProfileModels().Informer()}, nil
+	case v1beta1.SchemeGroupVersion.WithResource("varmorclusterpolicies"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Crd().V1beta1().VarmorClusterPolicies().Informer()}, nil
 	case v1beta1.SchemeGroupVersion.WithResource("varmorpolicies"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Crd().V1beta1().VarmorPolicies().Informer()}, nil
 

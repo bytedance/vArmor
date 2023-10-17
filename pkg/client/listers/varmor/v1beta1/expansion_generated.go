@@ -34,6 +34,10 @@ type ArmorProfileModelListerExpansion interface{}
 // ArmorProfileModelNamespaceLister.
 type ArmorProfileModelNamespaceListerExpansion interface{}
 
+// VarmorClusterPolicyListerExpansion allows custom methods to be added to
+// VarmorClusterPolicyLister.
+type VarmorClusterPolicyListerExpansion interface{}
+
 // VarmorPolicyListerExpansion allows custom methods to be added to
 // VarmorPolicyLister.
 type VarmorPolicyListerExpansion interface{}

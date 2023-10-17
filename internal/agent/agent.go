@@ -265,14 +265,6 @@ func (agent *Agent) updateArmorProfile(oldObj interface{}, newObj interface{}) {
 	}
 }
 
-func (agent *Agent) retrieveArmorProfile(namespace, name string) (*varmor.ArmorProfile, error) {
-	ap, err := agent.varmorInterface.ArmorProfiles(namespace).Get(context.Background(), name, metav1.GetOptions{})
-	if err != nil {
-		return nil, err
-	}
-	return ap, nil
-}
-
 func (agent *Agent) sendStatus(ap *varmor.ArmorProfile, status varmortypes.Status, message string) error {
 	s := varmortypes.ProfileStatus{
 		Namespace:   ap.Namespace,
@@ -494,14 +486,14 @@ func (agent *Agent) syncProfile(key string) error {
 		return err
 	}
 
-	ap, err := agent.retrieveArmorProfile(namespace, name)
+	ap, err := agent.varmorInterface.ArmorProfiles(namespace).Get(context.Background(), name, metav1.GetOptions{})
 	if err != nil {
 		if k8errors.IsNotFound(err) {
 			// ArmorProfile delete event
 			logger.V(3).Info("processing ArmorProfile delete event")
 			return agent.handleDeleteArmorProfile(namespace, name, key)
 		} else {
-			logger.Error(err, "agent.retrieveArmorProfile()")
+			logger.Error(err, "agent.varmorInterface.ArmorProfiles().Get()")
 			return err
 		}
 	} else {

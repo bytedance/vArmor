@@ -1,0 +1,21 @@
+apiVersion: crd.varmor.org/v1beta1
+kind: VarmorClusterPolicy
+metadata:
+  name: demo-3
+spec:
+  target:
+    kind: Pod
+    selector:
+      matchLabels:
+        vcp: demo-3
+  policy:
+    enforcer: BPF
+    mode: EnhanceProtect
+    enhanceProtect:
+      hardeningRules:
+      - disallow-mount-procfs
+      - disallow-mount-cgroupfs
+      attackProtectionRules:
+      - rules:
+        - mitigate-sa-leak
+        - disable-write-etc

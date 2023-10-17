@@ -28,6 +28,8 @@ type Interface interface {
 	ArmorProfiles() ArmorProfileInformer
 	// ArmorProfileModels returns a ArmorProfileModelInformer.
 	ArmorProfileModels() ArmorProfileModelInformer
+	// VarmorClusterPolicies returns a VarmorClusterPolicyInformer.
+	VarmorClusterPolicies() VarmorClusterPolicyInformer
 	// VarmorPolicies returns a VarmorPolicyInformer.
 	VarmorPolicies() VarmorPolicyInformer
 }
@@ -51,6 +53,11 @@ func (v *version) ArmorProfiles() ArmorProfileInformer {
 // ArmorProfileModels returns a ArmorProfileModelInformer.
 func (v *version) ArmorProfileModels() ArmorProfileModelInformer {
 	return &armorProfileModelInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
+}
+
+// VarmorClusterPolicies returns a VarmorClusterPolicyInformer.
+func (v *version) VarmorClusterPolicies() VarmorClusterPolicyInformer {
+	return &varmorClusterPolicyInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
 }
 
 // VarmorPolicies returns a VarmorPolicyInformer.

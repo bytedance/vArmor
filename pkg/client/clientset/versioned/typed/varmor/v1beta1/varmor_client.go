@@ -30,6 +30,7 @@ type CrdV1beta1Interface interface {
 	RESTClient() rest.Interface
 	ArmorProfilesGetter
 	ArmorProfileModelsGetter
+	VarmorClusterPoliciesGetter
 	VarmorPoliciesGetter
 }
 
@@ -44,6 +45,10 @@ func (c *CrdV1beta1Client) ArmorProfiles(namespace string) ArmorProfileInterface
 
 func (c *CrdV1beta1Client) ArmorProfileModels(namespace string) ArmorProfileModelInterface {
 	return newArmorProfileModels(c, namespace)
+}
+
+func (c *CrdV1beta1Client) VarmorClusterPolicies() VarmorClusterPolicyInterface {
+	return newVarmorClusterPolicies(c)
 }
 
 func (c *CrdV1beta1Client) VarmorPolicies(namespace string) VarmorPolicyInterface {

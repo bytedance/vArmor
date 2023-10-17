@@ -5,17 +5,17 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.11.3
   creationTimestamp: null
-  name: varmorpolicies.crd.varmor.org
+  name: varmorclusterpolicies.crd.varmor.org
 spec:
   group: crd.varmor.org
   names:
-    kind: VarmorPolicy
-    listKind: VarmorPolicyList
-    plural: varmorpolicies
+    kind: VarmorClusterPolicy
+    listKind: VarmorClusterPolicyList
+    plural: varmorclusterpolicies
     shortNames:
-    - vpol
-    singular: varmorpolicy
-  scope: Namespaced
+    - vcpol
+    singular: varmorclusterpolicy
+  scope: Cluster
   versions:
   - additionalPrinterColumns:
     - jsonPath: .spec.policy.enforcer
@@ -48,7 +48,8 @@ spec:
     name: v1beta1
     schema:
       openAPIV3Schema:
-        description: VarmorPolicy is the Schema for the varmorpolicies API
+        description: VarmorClusterPolicy is the Schema for the varmorclusterpolicies
+          API
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation
