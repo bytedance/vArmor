@@ -63,6 +63,14 @@ If you are using the AppArmor enforcer, follow these steps to uninstall vArmor:
   |          |Type=Updated<br>Status=False<br>Reason=XXX<br>Message=YYY|The update event of VarmorPolicy has been responded to by the controller, but processing has failed. This includes the reason for the failure and error information.
   |Ready|True|The profile has been processed and loaded by all agents.
   |     |False|The profile has not yet been processed and loaded by all agents.
+
+### VarmorClusterPolicy
+* Cluster-scoped resource. The VarmorClusterPolicy objects have higher priority than VarmorPolicy objects. It means prioritizing the use of VarmorClusterPolicy to protect matched workloads.
+* Use vArmor to protect workloads by creating, updating, or deleting VarmorClusterPolicy objects.
+* The VarmorClusterPolicy interface details can be found in [Interface Instructions](interface_instructions.md)
+* The definition of VarmorClusterPolicy can be found in [VarmorClusterPolicy CRD](../config/crds/crd.varmor.org_varmorclusterpolicies.yaml)
+* VarmorClusterPolicy/Status same as VarmorPolicy/Status
+
 ### ArmorProfile
 * Namespace-scoped resource, consistent with the namespace of the protected object.
 * As an internal interface, used by vArmor only.
