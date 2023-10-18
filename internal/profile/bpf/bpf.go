@@ -112,7 +112,7 @@ func GenerateRuntimeDefaultProfile(bpfContent *varmor.BpfContent) error {
 	}
 	bpfContent.Mounts = append(bpfContent.Mounts, *mountContent)
 
-	bpfContent.Ptrace.Permissions = AaPtraceTrace | AaMayBeTraced | AaMayRead | AaMayBeRead
+	bpfContent.Ptrace.Permissions = AaPtraceTrace | AaPtraceRead
 	bpfContent.Ptrace.Flags = PreciseMatch
 
 	return nil
