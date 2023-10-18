@@ -319,7 +319,7 @@ func newBpfMountRule(sourcePattern string, fstype string, mountFlags uint32, rev
 	return &mountRule, nil
 }
 
-func generateHardeningRules(rule string, content *varmor.BpfContent) error {
+func generateHardeningRules(rule string, content *varmor.BpfContent, privileged bool) error {
 	rule = strings.ToLower(rule)
 	rule = strings.ReplaceAll(rule, "_", "-")
 
@@ -334,6 +334,9 @@ func generateHardeningRules(rule string, content *varmor.BpfContent) error {
 		content.Files = append(content.Files, *fileContent)
 	// disallow mount procfs
 	case "disallow-mount-procfs":
+		if !privileged {
+			break
+		}
 		// mount new
 		mountContent, err := newBpfMountRule("**", "proc", 0xFFFFFFFF&^AaMayUmount, 0xFFFFFFFF)
 		if err != nil {
@@ -355,6 +358,9 @@ func generateHardeningRules(rule string, content *varmor.BpfContent) error {
 		content.Files = append(content.Files, *fileContent)
 	// disallow mount cgroupfs
 	case "disallow-mount-cgroupfs":
+		if !privileged {
+			break
+		}
 		// mount new
 		mountContent, err := newBpfMountRule("**", "cgroup", 0xFFFFFFFF&^AaMayUmount, 0xFFFFFFFF)
 		if err != nil {
@@ -376,6 +382,9 @@ func generateHardeningRules(rule string, content *varmor.BpfContent) error {
 		content.Files = append(content.Files, *fileContent)
 	// disallow mount disk devices
 	case "disallow-mount-disk-device":
+		if !privileged {
+			break
+		}
 		mountContent, err := newBpfMountRule("{{.DiskDevices}}", "*", 0xFFFFFFFF&^AaMayUmount, 0xFFFFFFFF)
 		if err != nil {
 			return err
@@ -383,6 +392,9 @@ func generateHardeningRules(rule string, content *varmor.BpfContent) error {
 		content.Mounts = append(content.Mounts, *mountContent)
 	// disallow mount anything
 	case "disallow-mount":
+		if !privileged {
+			break
+		}
 		mountContent, err := newBpfMountRule("**", "*", 0xFFFFFFFF&^AaMayUmount, 0xFFFFFFFF)
 		if err != nil {
 			return err
@@ -895,11 +907,20 @@ func generateRawMountRule(rule varmor.MountRule, bpfContent *varmor.BpfContent) 
 	return nil
 }
 
-func GenerateEnhanceProtectProfile(enhanceProtect *varmor.EnhanceProtect, bpfContent *varmor.BpfContent) error {
+func GenerateEnhanceProtectProfile(enhanceProtect *varmor.EnhanceProtect, bpfContent *varmor.BpfContent, privileged bool) error {
 	var err error
+
+	// Add default rules for unprivileged containers based on the rules of the RuntimeDefault mode
+	if !privileged {
+		err = GenerateRuntimeDefaultProfile(bpfContent)
+		if err != nil {
+			return err
+		}
+	}
+
 	// Hardening
 	for _, rule := range enhanceProtect.HardeningRules {
-		err = generateHardeningRules(rule, bpfContent)
+		err = generateHardeningRules(rule, bpfContent, privileged)
 		if err != nil {
 			return err
 		}
@@ -964,10 +985,12 @@ func GenerateEnhanceProtectProfile(enhanceProtect *varmor.EnhanceProtect, bpfCon
 		}
 	}
 
-	for _, rule := range enhanceProtect.BpfRawRules.Mounts {
-		err := generateRawMountRule(rule, bpfContent)
-		if err != nil {
-			return err
+	if privileged {
+		for _, rule := range enhanceProtect.BpfRawRules.Mounts {
+			err := generateRawMountRule(rule, bpfContent)
+			if err != nil {
+				return err
+			}
 		}
 	}
 

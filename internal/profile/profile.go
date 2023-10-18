@@ -90,7 +90,7 @@ func GenerateProfile(policy varmor.Policy, name string, complete bool, newProfil
 			profile.Content = apparmorprofile.GenerateEnhanceProtectProfile(&policy.EnhanceProtect, name, policy.Privileged)
 		case "BPF":
 			var bpfContent varmor.BpfContent
-			err = bpfprofile.GenerateEnhanceProtectProfile(&policy.EnhanceProtect, &bpfContent)
+			err = bpfprofile.GenerateEnhanceProtectProfile(&policy.EnhanceProtect, &bpfContent, policy.Privileged)
 			if err != nil {
 				return nil, err
 			}

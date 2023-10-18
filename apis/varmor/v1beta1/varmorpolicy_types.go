@@ -241,9 +241,9 @@ type NetworkRule struct {
 
 type PtraceRule struct {
 	// StrictMode is used to indicate whether to restrict ptrace permissions for all source and destination processes.
-	//     Default: false
-	//     If set to false, it restricts ptrace-related permissions only for processes in other containers.
-	//     If set to true, it restricts ptrace-related permissions for all processes, except those within the init mnt namespace.
+	// Default is false.
+	// If set to false, it restricts ptrace-related permissions only for processes in other containers.
+	// If set to true, it restricts ptrace-related permissions for all processes, except those within the init mnt namespace.
 	StrictMode bool `json:"strictMode,omitempty"`
 	// Permissions are used to indicate which ptrace-related permissions of the target container should be restricted.
 	// Available values: trace, traceby, read, readby.
@@ -323,7 +323,8 @@ type Policy struct {
 	// Only worked with the AppArmor enforcer.
 	DefenseInDepth DefenseInDepth `json:"defenseInDepth,omitempty"`
 	// Privileged is used to identify whether the policy is for the privileged container.
-	// Only used for the AppArmor enforcer.
+	// Default is false. If set to `nil` or `false`, the EnhanceProtect mode will build enhanced protection rules
+	// on top of the RuntimeDefault mode. Otherwise, it will enhance protection on top of the AlwaysAllow mode.
 	Privileged bool `json:"privileged,omitempty"`
 }
 

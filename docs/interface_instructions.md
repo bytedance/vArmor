@@ -20,7 +20,7 @@ English | [简体中文](interface_instructions.zh_CN.md)
 |      ||bpfRawRules<br>*[BpfRawRules](interface_instructions.md#bpfrawrules) array*|Optional. BpfRawRules is used to set native BPF rules.
 |      |defenseInDepth|ModelingDuration<br>*int*|[Experimental] ModelingDuration is the duration in minutes to modeling. 
 |      ||autoEnable<br>*bool*|[Experimental] Optional. AutoEnable decides whether or not to enable the access control after modeling is complete. (Default: false)
-|      |privileged<br>*bool*|-|Optional. Privileged is used to identify whether the policy is for the privileged container. Only used for the AppArmor enforcer.
+|      |privileged<br>*bool*|-|Optional. Privileged is used to identify whether the policy is for the privileged container. If set to `nil` or `false`, the **EnhanceProtect** mode will build enhanced protection rules on top of the **RuntimeDefault** mode. Otherwise, it will enhance protection on top of the **AlwaysAllow** mode. (Default: false)
 |      ||PLACEHOLDER_PLACEHOD|
 
 ### AttackProtectionRules

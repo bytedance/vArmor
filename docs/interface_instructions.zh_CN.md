@@ -19,7 +19,7 @@
 |      ||bpfRawRules<br>*[BpfRawRules](interface_instructions.zh_CN.md#bpfrawrules) array*|可选字段，用于支持用户设置原始的 BPF rules
 |      |defenseInDepth|ModelingDuration<br>*int*|动态建模的时间（单位：分钟）[实验功能]
 |      ||autoEnable<br>*bool*|可选字段，用于指定建模完成后是否自动开启防护（默认值：false）[实验功能]
-|      |privileged<br>*bool*|-|可选字段，若要使用 AppArmor enforcer 对特权容器进行防护，请务必将此值设置为 true（默认值：false）[实验功能]
+|      |privileged<br>*bool*|-|可选字段，若要对特权容器进行加固，请务必将此值设置为 true。若为空或 `false`，**EnhanceProtect** 模式将在 **RuntimeDefault** 模式的基础上进行增强防护。否则将在 **AlwaysAllow** 模式的基础上进行增强防护（默认值：false）
 |      ||PLACEHOLDER_PLACEHOLD|
 
 ### AttackProtectionRules
