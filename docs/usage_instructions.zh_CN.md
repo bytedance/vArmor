@@ -1,4 +1,4 @@
-# Usage Instructions
+# 使用说明
 [English](usage_instructions.md) | 简体中文
 
 ## 配置选项
@@ -66,7 +66,7 @@ vArmor 支持在安装时，通过 helm 命令对它的功能进行配置。
 
 ### VarmorClusterPolicy
 * 集群范围资源
-* 接口描述详见 [Interface Instructions](interface_instructions.zh_CN.md)
+* 接口说明详见 [Interface Instructions](interface_instructions.zh_CN.md)
 * 定义详见 [VarmorClusterPolicy CRD](../config/crds/crd.varmor.org_varmorclusterpolicies.yaml)
 * VarmorClusterPolicy/Status 与 VarmorPolicy/Status 一致
 

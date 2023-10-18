@@ -1,4 +1,4 @@
-# The Performance Specification
+# 性能说明
 [English](performance_specification.md) | 简体中文
 
 ## 影响因素

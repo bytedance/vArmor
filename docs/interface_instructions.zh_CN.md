@@ -1,4 +1,4 @@
-# Interface Instructions
+# 接口说明
 [English](interface_instructions.md) | 简体中文
 
 ## VarmorPolicy / VarmorClusterPolicy
@@ -11,10 +11,10 @@
 |      |containers<br>*string array*|-|可选字段，用于指定防护目标的容器名，如果为空默认对 Workloads 中的所有容器开启沙箱防护（注：不含 initContainers, ephemeralContainers）
 |      |selector<br>*[LabelSelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.26/#labelselector-v1-meta)*|-|可选字段，用于根据标签选择器识别防护目标，并开启沙箱防护
 |policy|enforcer<br>*string*|-|指定要使用的 LSM，可用值: AppArmor, BPF
-|      |mode<br>*string*|-|用于指定防护模式，不同模式的含义详见 [Built-in Rules](built_in_rules.zh_CN.md#内置规则)<br>可用值：AlwaysAllow, RuntimeDefault, EnhanceProtect, CustomPolicy, DefenseInDepth
-|      |enhanceProtect|hardeningRules<br>*string array*|可选字段，用于指定要使用的内置加固规则，详见 [Built-in Rules](built_in_rules.zh_CN.md#内置规则)
-|      ||attackProtectionRules<br>*[AttackProtectionRules](interface_instructions.zh_CN.md#attackprotectionrules) array*|可选字段，用于指定要使用的内置规则，详见 [Built-in Rules](built_in_rules.zh_CN.md#内置规则)
-|      ||vulMitigationRules<br>*string array*|可选字段，用于指定要使用的内置规则，详见 [Built-in Rules](built_in_rules.zh_CN.md#内置规则)
+|      |mode<br>*string*|-|用于指定防护模式，不同模式的含义详见 [内置规则](built_in_rules.zh_CN.md)<br>可用值：AlwaysAllow, RuntimeDefault, EnhanceProtect, CustomPolicy, DefenseInDepth
+|      |enhanceProtect|hardeningRules<br>*string array*|可选字段，用于指定要使用的内置加固规则，详见 [内置规则](built_in_rules.zh_CN.md)
+|      ||attackProtectionRules<br>*[AttackProtectionRules](interface_instructions.zh_CN.md#attackprotectionrules) array*|可选字段，用于指定要使用的内置规则，详见 [内置规则](built_in_rules.zh_CN.md)
+|      ||vulMitigationRules<br>*string array*|可选字段，用于指定要使用的内置规则，详见 [内置规则](built_in_rules.zh_CN.md)
 |      ||appArmorRawRules<br>*string array*|可选字段，用于设置自定义的 AppArmor rules，参见 [AppArmor 语法](interface_instructions.zh_CN.md#apparmor-enforcer)
 |      ||bpfRawRules<br>*[BpfRawRules](interface_instructions.zh_CN.md#bpfrawrules) array*|可选字段，用于支持用户设置自定义的 BPF rules
 |      |defenseInDepth|ModelingDuration<br>*int*|动态建模的时间（单位：分钟）[实验功能]
@@ -26,7 +26,7 @@
 
 |字段|描述|
 |---|----|
-|rules<br>*string array*|要使用的内置规则列表，详见 [Built-in Rules](built_in_rules.zh_CN.md#内置规则)
+|rules<br>*string array*|要使用的内置规则列表，详见 [内置规则](built_in_rules.zh_CN.md)
 |targets<br>*string array*|可选字段，仅对指定的可执行文件列表开启 Rules 中的内置规则，此功能仅支持 AppArmor enforcer
 |PLACEHOLDER|
 

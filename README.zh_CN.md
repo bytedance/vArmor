@@ -46,7 +46,7 @@
 
 
 ## 快速上手
-**更多配置项和使用说明详见 [使用指南](docs/usage_instructions.zh_CN.md)**
+**更多配置项和使用说明详见 [使用说明](docs/usage_instructions.zh_CN.md)**
 
 ### Step 1. 拉取 chart 包
 ```
