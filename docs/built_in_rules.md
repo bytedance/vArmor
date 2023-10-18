@@ -5,16 +5,16 @@ English | [简体中文](built_in_rules.zh_CN.md)
 
 **vArmor** protection policies can operate in three modes, it specified through the `spec.policy.mode` field of VarmorPolicy/VarmorClusterPolicy objects.
 
-* AlwaysAllow mode
+* **AlwaysAllow mode**
   * No mandatory access control rules are imposed on container.
   * Capable of dynamically modifying protection modes and rules without the need to restart workloads.
-* RuntimeDefault mode
+* **RuntimeDefault mode**
   * Basic protection is provided using the same default policy as the container runtime components (such as containerd's [cri-containerd.apparmor.d](https://github.com/containerd/containerd/blob/main/contrib/apparmor/template.go)).
   * Due to differences in Linux security modules, the BPF enforcer has some limitations in comparison to the AppArmor enforcer.
   * Capable of dynamically modifying protection modes and rules without the need to restart workloads
-* EnhanceProtect mode
-  * If the `spec.policy.privileged` field is set to `nil` or `false`, it will build enhanced protection rules on top of the **RuntimeDefault** mode.
-  * If the `spec.policy.privileged` field is set to `true`, it will enhance protection on top of the **AlwaysAllow** mode.
+* **EnhanceProtect mode**
+  * If the `spec.policy.privileged` field is set to `nil` or `false`, it will build enhanced protection rules on top of the RuntimeDefault mode.
+  * If the `spec.policy.privileged` field is set to `true`, it will enhance protection on top of the AlwaysAllow mode.
   * Capable of dynamically modifying protection modes and rules without the need to restart workloads
 
 
@@ -22,7 +22,7 @@ English | [简体中文](built_in_rules.zh_CN.md)
 
 **vArmor** supports defining protection policies ([VarmorPolicy/VarmorClusterPolicy](interface_instructions.zh_CN.md)) using built-in rules and custom interfaces in **EnhanceProtect** mode. The currently supported categories of built-in rules are shown in the following table.
 
-*Note:<br>- The built-in rules and syntax supported by different enforcers are still under development.<br>- Due to the differences between AppArmor LSM and BPF LSM, there are some limitations in the rules and syntax supported by different enforcers. For example, the AppArmor enforcer does not support fine-grained network access control, and BPF does not support access control for specified executables.*
+Note:<br>- The built-in rules and syntax supported by different enforcers are still under development.<br>- Due to the differences between AppArmor LSM and BPF LSM, there are some limitations in the rules and syntax supported by different enforcers. For example, the AppArmor enforcer does not support fine-grained network access control, and BPF does not support access control for specified executables.<br>
 
 | Category | Subcategory | Rule Name & ID | Applicable Container | Description | Principle & Impact | Supported Enforcer |
 |----------|-------------|----------------|----------------------|-------------|--------------------|--------------------|
