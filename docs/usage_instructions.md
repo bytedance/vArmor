@@ -27,7 +27,7 @@ vArmor allows you to configure its functionality during installation using the h
 * You can check the `profileName` field by examining the status of VarmorPolicy/VarmorClusterPolicy object. Afterwards, you can look at the corresponding ArmorProfile object with the same name in the same namespace to obtain the status and error information when the Agent processes the Profile. For example, you can determine which node failed to process it and the reasons for the failure.
 ### Log Management
 * vArmor's manager and agent components currently log messages only to standard output.
-* You can leverage logging components for collection and configuring alerts. Such as `\* | select count(*) as ErrCount where __content__ LIKE 'E0%'`
+* You can leverage logging components for collection and configuring alerts. Such as `\* | select count(*) as ErrCount where __content__ LIKE 'E%'`
 ### Uninstallation Guide
 If you are using the AppArmor enforcer, follow these steps to uninstall vArmor:
 * Filter out all VarmorPolicy/VarmorClusterPolicy objects using the AppArmor enforcer (`.spec.policy.enforcer` is AppArmor)
