@@ -16,8 +16,8 @@ English | [简体中文](interface_instructions.zh_CN.md)
 |      |enhanceProtect|hardeningRules<br>*string array*|Optional. HardeningRules are used to specify the built-in hardening rules, please refer to [Built-in Policies](policy_manual.md#built-in-policies-wip).
 |      ||attackProtectionRules<br>*[AttackProtectionRules](interface_instructions.md#attackprotectionrules) array*|Optional. AttackProtectionRules are used to specify the built-in attack protection rules, please refer to [Built-in Policies](policy_manual.md#built-in-policies-wip).
 |      ||vulMitigationRules<br>*string array*|Optional. VulMitigationRules are used to specify the built-in vulnerability mitigation rules, please refer to [Built-in Policies](policy_manual.md#built-in-policies-wip).
-|      ||appArmorRawRules<br>*string array*|Optional. AppArmorRawRules is used to set native AppArmor rules, each rule must end with a comma, please refer to [AppArmor Syntax](policy_manual.md#apparmor-enforcer).
-|      ||bpfRawRules<br>*[BpfRawRules](interface_instructions.md#bpfrawrules) array*|Optional. BpfRawRules is used to set native BPF rules.
+|      ||appArmorRawRules<br>*string array*|Optional. AppArmorRawRules is used to set custom AppArmor rules, each rule must end with a comma, please refer to [AppArmor Syntax](policy_manual.md#apparmor-enforcer).
+|      ||bpfRawRules<br>*[BpfRawRules](interface_instructions.md#bpfrawrules) array*|Optional. BpfRawRules is used to set custom BPF rules.
 |      |defenseInDepth|ModelingDuration<br>*int*|[Experimental] ModelingDuration is the duration in minutes to modeling. 
 |      ||autoEnable<br>*bool*|[Experimental] Optional. AutoEnable decides whether or not to enable the access control after modeling is complete. (Default: false)
 |      |privileged<br>*bool*|-|Optional. Privileged is used to identify whether the policy is for the privileged container. If set to `nil` or `false`, the **EnhanceProtect** mode will build enhanced protection rules on top of the **RuntimeDefault** mode. Otherwise, it will enhance protection on top of the **AlwaysAllow** mode. (Default: false)
