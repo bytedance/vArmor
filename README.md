@@ -54,14 +54,13 @@ You can leverage **vArmor** in the following scenarios to provide sandbox protec
 
 ### Step 1. Fetch chart
 ```
-helm pull oci://elkeid-cn-beijing.cr.volces.com/varmor/varmor --version 0.5.3
+helm pull oci://elkeid-cn-beijing.cr.volces.com/varmor/varmor --version 0.5.4
 ```
 
 ### Step 2. Install
 ```
-kubectl create ns varmor
-helm install varmor varmor-0.5.3.tgz \
-    -n varmor \
+helm install varmor varmor-0.5.4.tgz \
+    --namespace varmor --create-namespace \
     --set image.registry="elkeid-cn-beijing.cr.volces.com"
 ```
 
