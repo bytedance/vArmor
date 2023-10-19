@@ -3,7 +3,7 @@ English | [简体中文](built_in_rules.zh_CN.md)
 
 ## Introduction
 
-**vArmor** protection policies can operate in three modes, it specified through the `spec.policy.mode` field of VarmorPolicy/VarmorClusterPolicy objects.
+**vArmor** protection policies can operate in three modes, it specified through the `spec.policy.mode` field of [VarmorPolicy](usage_instructions.md#varmorpolicy)/[VarmorClusterPolicy](usage_instructions.md#varmorclusterpolicy) objects.
 
 * **AlwaysAllow mode**
   * No mandatory access control rules are imposed on container.
@@ -20,7 +20,7 @@ English | [简体中文](built_in_rules.zh_CN.md)
 
 ## Rule List
 
-**vArmor** supports defining protection policies ([VarmorPolicy/VarmorClusterPolicy](interface_instructions.zh_CN.md)) using built-in rules and custom interfaces in **EnhanceProtect** mode. The currently supported categories of built-in rules are shown in the following table.
+**vArmor** supports defining protection policies ([VarmorPolicy](usage_instructions.md#varmorpolicy)/[VarmorClusterPolicy](usage_instructions.md#varmorclusterpolicy)) using built-in rules and custom interfaces in **EnhanceProtect** mode. The currently supported built-in rules and categories are shown in the following table.
 
 Note:<br>- The built-in rules and syntax supported by different enforcers are still under development.<br>- Due to the differences between AppArmor LSM and BPF LSM, there are some limitations in the rules and syntax supported by different enforcers. For example, the AppArmor enforcer does not support fine-grained network access control, and BPF does not support access control for specified executables.<br>
 

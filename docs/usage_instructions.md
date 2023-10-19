@@ -53,8 +53,8 @@ If you are using the AppArmor enforcer, follow these steps to uninstall vArmor:
   | Fields | Value | Interpretation |
   |--------|-------|----------------|
   |Phase|Pending|The ArmorProfile has been created, waiting for a response from the Agent component.
-  |     |Protecting|Enforcing access control on the containers of the target workload
-  |     |Modeling|Modeling behavior for the target application
+  |     |Protecting|Enforcing access control on the containers of the target workload.
+  |     |Modeling|Currently modeling the behavior of the target application.
   |     |Completed|Behavior modeling for the target application has been completed.
   |     |Error|Error occurred, please retrieve error information through the conditions fields.
   |Conditions|Type=Created<br>Status=True|The creation event of VarmorPolicy has been responded by the controller and processed successfully.

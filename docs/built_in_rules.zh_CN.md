@@ -2,7 +2,7 @@
 [English](built_in_rules.md) | 简体中文
 
 ## 简介
-**vArmor** 防护策略可运行在 3 种模式下（通过 VarmorPolicy/VarmorClusterPolicy 对象的 `spec.policy.mode` 字段指定）。
+**vArmor** 防护策略可运行在 3 种模式下（通过 [VarmorPolicy](usage_instructions.zh_CN.md#varmorpolicy)/[VarmorClusterPolicy](usage_instructions.zh_CN.md#varmorclusterpolicy) 对象的 `spec.policy.mode` 字段指定）。
 * **AlwaysAllow 模式**
   * 在容器启动时不对其施加任何强制访问控制
   * 可动态调整防护模式与规则（无需重启工作负载）
@@ -17,7 +17,7 @@
 
 
 ## 规则列表
-**vArmor** 支持使用在 **EnhanceProtect** 模式下使用内置规则和自定义接口来定义防护策略（即 [VarmorPolicy/VarmorClusterPolicy](interface_instructions.zh_CN.md) 对象），当前支持的内置规则分类如下表所示。
+**vArmor** 支持使用在 **EnhanceProtect** 模式下使用内置规则和自定义接口来定义防护策略（即 [VarmorPolicy](usage_instructions.zh_CN.md#varmorpolicy)/[VarmorClusterPolicy](usage_instructions.zh_CN.md#varmorclusterpolicy) 对象），当前支持的内置规则及其分类如下表所示。
 
 注意：<br>- 不同 enforcer 所支持的内置策略与语法仍旧处于开发中。<br>- 由于 AppArmor 和 BPF LSM 的差异，不同 enforcer 所能支持的规则和语法会有所区别。例如 AppArmor enforcer 不支持细粒度的网络访问控制，BPF 不支持对指定的可执行程序进行访问控制等。<br>
 

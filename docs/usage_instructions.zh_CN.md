@@ -54,7 +54,7 @@ vArmor 支持在安装时，通过 helm 命令对它的功能进行配置。
   |---|--|---|
   |Phase|Pending|已经创建了 ArmorProfile，待 Agent 组件响应
   |     |Protecting|正在对目标工作负载的容器进行强制访问控制
-  |     |Modeling|正在为目标应用进行行为建模
+  |     |Modeling|正在对目标应用行为建模
   |     |Completed|已完成目标应用的行为建模
   |     |Error|处理出错，请查看 Conditions 相关信息获取错误原因
   |Conditions|Type=Created<br>Status=True|VarmorPolicy 的创建事件已经被 controller 响应，且处理成功
