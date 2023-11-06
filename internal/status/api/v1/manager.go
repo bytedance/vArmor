@@ -110,7 +110,7 @@ func (m *StatusManager) retrieveDesiredNumber() error {
 	return err
 }
 
-// retrieveNodeList retrieve the node name list where the agent is deployed.
+// retrieveNodeNameList retrieves the list of nodes where the agent is running.
 func (m *StatusManager) retrieveNodeNameList() ([]string, error) {
 	var nodes []string
 
@@ -132,7 +132,9 @@ func (m *StatusManager) retrieveNodeNameList() ([]string, error) {
 			return nil, err
 		}
 		for _, pod := range podList.Items {
-			nodes = append(nodes, pod.Spec.NodeName)
+			if pod.Status.Phase == v1.PodRunning {
+				nodes = append(nodes, pod.Spec.NodeName)
+			}
 		}
 	}
 
@@ -273,10 +275,10 @@ func (m *StatusManager) updateAllCRStatus(logger logr.Logger) {
 		return
 	}
 
-	// Get the node name list where the agent is deployed.
+	// Get the list of nodes where the agent is running.
 	nodes, err := m.retrieveNodeNameList()
 	if err != nil {
-		logger.Error(err, "m.retrieveNodeList()")
+		logger.Error(err, "m.retrieveNodeNameList()")
 		return
 	}
 

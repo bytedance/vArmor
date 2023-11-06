@@ -57,7 +57,7 @@ type Status string
 // ProfileStatus describes the process result of an ArmorProfile object by agents.
 type ProfileStatus struct {
 	Namespace   string `json:"namespace"`
-	ProfileName string `json:"armorProfile"` //  varmor-{namespace}-{name}
+	ProfileName string `json:"armorProfile"` //  varmor-{namespace}-{name} or varmor-cluster-{namespace}-{name}
 	NodeName    string `json:"nodeName"`
 	Status      Status `json:"status"`
 	Message     string `json:"message"`
