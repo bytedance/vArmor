@@ -14,6 +14,8 @@ spec:
       sandbox.varmor.org/enable: "true"
   template:
     metadata:
+      annotations:
+        container.apparmor.security.beta.kubernetes.io/test: unconfined
       labels:
         app: demo-3-deploy-2
         vcp: demo-3
