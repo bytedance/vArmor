@@ -106,8 +106,12 @@ manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and Cust
 generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
 	$(CONTROLLER_GEN) object:headerFile="scripts/boilerplate.go.txt" paths="./..."
 
+.PHONY: build-ebpf
+build-ebpf: ## Generate the ebpf code and lib.
+	make -C ./vArmor-ebpf generate-ebpf
+
 .PHONY: copy-ebpf
-copy-ebpf: ## Generate the ebpf code and lib.
+copy-ebpf: ## Copy the ebpf code and lib.
 	cp vArmor-ebpf/pkg/behavior/bpf_bpfel.go internal/behavior
 	cp vArmor-ebpf/pkg/behavior/bpf_bpfel.o internal/behavior
 	cp vArmor-ebpf/pkg/bpfenforcer/bpf_bpfel.go pkg/lsm/bpfenforcer
@@ -147,7 +151,7 @@ local: ## Build local binary.
 	go build -o bin/vArmor $(PWD)/$(VARMOR_PATH)
 
 .PHONY: build
-build: manifests generate copy-ebpf fmt vet local ## Build local binary when apis were modified.
+build: manifests generate build-ebpf copy-ebpf fmt vet local ## Build local binary when apis or bpf code were modified.
 
 .PHONY: docker-build
 docker-build: docker-build-varmor-amd64 docker-build-varmor-arm64 docker-build-classifier-amd64 docker-build-classifier-arm64 ## Build container images. 
