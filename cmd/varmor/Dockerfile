@@ -35,7 +35,7 @@ RUN make build-ebpf
 
 
 ## Building vArmor
-FROM golang:1.19-buster as vArmor-builder
+FROM golang:1.20-buster as vArmor-builder
 
 LABEL maintainer="vArmor authors"
 
@@ -79,6 +79,6 @@ COPY --from=apparmor-builder /usr/lib/libapparmor.* /usr/lib/
 COPY --from=apparmor-builder /usr/sbin/aa-remove-unknown /usr/sbin/aa-remove-unknown
 COPY --from=apparmor-builder /lib/apparmor/rc.apparmor.functions /lib/apparmor/rc.apparmor.functions
 
-USER 10001
+USER 10001:10001
 WORKDIR /varmor
 ENTRYPOINT ["/vArmor"]
