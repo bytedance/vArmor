@@ -12,8 +12,6 @@ RUN pip3 install notify2 psutil python-config
 RUN git clone https://gitlab.com/apparmor/apparmor.git
 WORKDIR /apparmor
 RUN git checkout apparmor-3.0
-
-# TODO: strip binrary
 RUN cd ./libraries/libapparmor && \
     sh ./autogen.sh && \
     sh ./configure --prefix=/usr --with-perl --with-python && \
@@ -26,8 +24,18 @@ RUN cd ./profiles && make && make install
 RUN echo "policy-features=/etc/apparmor.d/abi/varmor" >> /etc/apparmor/parser.conf
 
 
+## Building vArmor-ebpf
+FROM ghcr.io/cilium/ebpf-builder:1695900694 as vArmor-ebpf-builder
+
+RUN update-alternatives --install /usr/bin/clang clang /usr/bin/clang-17 90
+RUN update-alternatives --install /usr/bin/llvm-strip llvm-strip /usr/bin/llvm-strip-17 90
+ADD . /varmor
+WORKDIR /varmor
+RUN make build-ebpf
+
+
 ## Building vArmor
-FROM golang:1.19-buster as vArmor-builder
+FROM golang:1.20-buster as vArmor-builder
 
 LABEL maintainer="vArmor authors"
 
@@ -37,6 +45,11 @@ COPY --from=apparmor-builder /usr/include/aalogparse /usr/include/aalogparse
 ARG TARGETPLATFORM
 ADD . /varmor
 WORKDIR /varmor
+
+COPY --from=vArmor-ebpf-builder /varmor/vArmor-ebpf/pkg/behavior/bpf_bpfel.go /varmor/internal/behavior
+COPY --from=vArmor-ebpf-builder /varmor/vArmor-ebpf/pkg/behavior/bpf_bpfel.o /varmor/internal/behavior
+COPY --from=vArmor-ebpf-builder /varmor/vArmor-ebpf/pkg/bpfenforcer/bpf_bpfel.go /varmor/pkg/lsm/bpfenforcer
+COPY --from=vArmor-ebpf-builder /varmor/vArmor-ebpf/pkg/bpfenforcer/bpf_bpfel.o /varmor/pkg/lsm/bpfenforcer
 
 RUN export GOOS=$(echo ${TARGETPLATFORM} | cut -d / -f1) && \
     export GOARCH=$(echo ${TARGETPLATFORM} | cut -d / -f2)
@@ -66,6 +79,6 @@ COPY --from=apparmor-builder /usr/lib/libapparmor.* /usr/lib/
 COPY --from=apparmor-builder /usr/sbin/aa-remove-unknown /usr/sbin/aa-remove-unknown
 COPY --from=apparmor-builder /lib/apparmor/rc.apparmor.functions /lib/apparmor/rc.apparmor.functions
 
-USER 10001
+USER 10001:10001
 WORKDIR /varmor
 ENTRYPOINT ["/vArmor"]

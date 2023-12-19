@@ -4,25 +4,31 @@ VARMOR_PATH := cmd/varmor
 CLASSIFIER_PATH := cmd/classifier
 
 REGISTRY ?= elkeid-cn-beijing.cr.volces.com
+REGISTRY_AP ?= elkeid-ap-southeast-1.cr.volces.com
 REGISTRY_DEV ?= elkeid-test-cn-beijing.cr.volces.com
+
 NAMESPACE ?= varmor
-VARMOR_IMAGE_NAME := varmor
-CLASSIFIER_IMAGE_NAME := classifier
-
 REPO = $(REGISTRY)/$(NAMESPACE)
-VARMOR_IMAGE_TAG := $(shell VERSION=$(GIT_VERSION); echo $${VERSION%%-*})
-VARMOR_IMAGE ?= $(REPO)/$(VARMOR_IMAGE_NAME):$(VARMOR_IMAGE_TAG)
-CLASSIFIER_IMAGE_TAG := $(shell VERSION=$(GIT_VERSION); echo $${VERSION%%-*})
-CLASSIFIER_IMAGE ?= $(REPO)/$(CLASSIFIER_IMAGE_NAME):$(CLASSIFIER_IMAGE_TAG)
-CHART_APP_VERSION := $(shell VERSION=$(GIT_VERSION); echo $${VERSION%%-*})
-CHART_VERSION := $(shell VERSION=$(CHART_APP_VERSION); echo $${VERSION\#v})
-
+REPO_AP = $(REGISTRY_AP)/$(NAMESPACE)
 REPO_DEV = $(REGISTRY_DEV)/$(NAMESPACE)
+
+VARMOR_IMAGE_NAME := varmor
+VARMOR_IMAGE_TAG := $(shell VERSION=$(GIT_VERSION); echo $${VERSION%%-*})
 VARMOR_IMAGE_TAG_DEV := $(GIT_VERSION)
-VARMOR_IMAGE_DEV ?= $(REPO_DEV)/$(VARMOR_IMAGE_NAME):$(VARMOR_IMAGE_TAG_DEV)
+CLASSIFIER_IMAGE_NAME := classifier
+CLASSIFIER_IMAGE_TAG := $(shell VERSION=$(GIT_VERSION); echo $${VERSION%%-*})
 CLASSIFIER_IMAGE_TAG_DEV := $(GIT_VERSION)
+
+VARMOR_IMAGE ?= $(REPO)/$(VARMOR_IMAGE_NAME):$(VARMOR_IMAGE_TAG)
+VARMOR_IMAGE_AP ?= $(REPO_AP)/$(VARMOR_IMAGE_NAME):$(VARMOR_IMAGE_TAG)
+VARMOR_IMAGE_DEV ?= $(REPO_DEV)/$(VARMOR_IMAGE_NAME):$(VARMOR_IMAGE_TAG_DEV)
+CLASSIFIER_IMAGE ?= $(REPO)/$(CLASSIFIER_IMAGE_NAME):$(CLASSIFIER_IMAGE_TAG)
+CLASSIFIER_IMAGE_AP ?= $(REPO_AP)/$(CLASSIFIER_IMAGE_NAME):$(CLASSIFIER_IMAGE_TAG)
 CLASSIFIER_IMAGE_DEV ?= $(REPO_DEV)/$(CLASSIFIER_IMAGE_NAME):$(CLASSIFIER_IMAGE_TAG_DEV)
+
+CHART_APP_VERSION := $(shell VERSION=$(GIT_VERSION); echo $${VERSION%%-*})
 CHART_APP_VERSION_DEV := $(GIT_VERSION)
+CHART_VERSION := $(shell VERSION=$(CHART_APP_VERSION); echo $${VERSION\#v})
 CHART_VERSION_DEV := $(shell VERSION=$(CHART_APP_VERSION_DEV); echo $${VERSION\#v})
 
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
@@ -106,8 +112,12 @@ manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and Cust
 generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
 	$(CONTROLLER_GEN) object:headerFile="scripts/boilerplate.go.txt" paths="./..."
 
+.PHONY: build-ebpf
+build-ebpf: ## Generate the ebpf code and lib.
+	make -C ./vArmor-ebpf generate-ebpf
+
 .PHONY: copy-ebpf
-copy-ebpf: ## Generate the ebpf code and lib.
+copy-ebpf: ## Copy the ebpf code and lib.
 	cp vArmor-ebpf/pkg/behavior/bpf_bpfel.go internal/behavior
 	cp vArmor-ebpf/pkg/behavior/bpf_bpfel.o internal/behavior
 	cp vArmor-ebpf/pkg/bpfenforcer/bpf_bpfel.go pkg/lsm/bpfenforcer
@@ -147,7 +157,7 @@ local: ## Build local binary.
 	go build -o bin/vArmor $(PWD)/$(VARMOR_PATH)
 
 .PHONY: build
-build: manifests generate copy-ebpf fmt vet local ## Build local binary when apis were modified.
+build: manifests generate build-ebpf copy-ebpf fmt vet local ## Build local binary when apis or bpf code were modified.
 
 .PHONY: docker-build
 docker-build: docker-build-varmor-amd64 docker-build-varmor-arm64 docker-build-classifier-amd64 docker-build-classifier-arm64 ## Build container images. 
@@ -216,7 +226,7 @@ push-dev: ## Push images and chart to the private repository for development.
 	@echo "----------------------------------------"
 	docker manifest push $(CLASSIFIER_IMAGE_DEV)
 	@echo "----------------------------------------"
-	helm push varmor-$(CHART_VERSION_DEV).tgz oci://elkeid-test-cn-beijing.cr.volces.com/varmor
+	helm push varmor-$(CHART_VERSION_DEV).tgz oci://$(REPO_DEV)
 
 
 push: ## Push images and chart to the public repository for release.
@@ -230,6 +240,20 @@ push: ## Push images and chart to the public repository for release.
 	@echo "----------------------------------------"
 	docker manifest push $(VARMOR_IMAGE)
 	@echo "----------------------------------------"
+	docker tag $(VARMOR_IMAGE)-amd64 $(VARMOR_IMAGE_AP)-amd64
+	@echo "----------------------------------------"
+	docker tag $(VARMOR_IMAGE)-arm64 $(VARMOR_IMAGE_AP)-arm64
+	@echo "----------------------------------------"
+	docker push $(VARMOR_IMAGE_AP)-amd64
+	@echo "----------------------------------------"
+	docker push $(VARMOR_IMAGE_AP)-arm64
+	@echo "----------------------------------------"
+	-docker manifest rm $(VARMOR_IMAGE_AP)
+	@echo "----------------------------------------"
+	docker manifest create $(VARMOR_IMAGE_AP) $(VARMOR_IMAGE_AP)-amd64 $(VARMOR_IMAGE_AP)-arm64
+	@echo "----------------------------------------"
+	docker manifest push $(VARMOR_IMAGE_AP)
+	@echo "----------------------------------------"
 	docker push $(CLASSIFIER_IMAGE)-amd64
 	@echo "----------------------------------------"
 	docker push $(CLASSIFIER_IMAGE)-arm64
@@ -240,4 +264,20 @@ push: ## Push images and chart to the public repository for release.
 	@echo "----------------------------------------"
 	docker manifest push $(CLASSIFIER_IMAGE)
 	@echo "----------------------------------------"
-	helm push varmor-$(CHART_VERSION).tgz oci://elkeid-cn-beijing.cr.volces.com/varmor
+	docker tag $(CLASSIFIER_IMAGE)-amd64 $(CLASSIFIER_IMAGE_AP)-amd64
+	@echo "----------------------------------------"
+	docker tag $(CLASSIFIER_IMAGE)-arm64 $(CLASSIFIER_IMAGE_AP)-arm64
+	@echo "----------------------------------------"
+	docker push $(CLASSIFIER_IMAGE_AP)-amd64
+	@echo "----------------------------------------"
+	docker push $(CLASSIFIER_IMAGE_AP)-arm64
+	@echo "----------------------------------------"
+	-docker manifest rm $(CLASSIFIER_IMAGE_AP)
+	@echo "----------------------------------------"
+	docker manifest create $(CLASSIFIER_IMAGE_AP) $(CLASSIFIER_IMAGE_AP)-amd64 $(CLASSIFIER_IMAGE_AP)-arm64
+	@echo "----------------------------------------"
+	docker manifest push $(CLASSIFIER_IMAGE_AP)
+	@echo "----------------------------------------"
+	helm push varmor-$(CHART_VERSION).tgz oci://$(REPO)
+	@echo "----------------------------------------"
+	helm push varmor-$(CHART_VERSION).tgz oci://$(REPO_AP)

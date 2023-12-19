@@ -338,13 +338,16 @@ func generateHardeningRules(rule string, content *varmor.BpfContent, privileged 
 			break
 		}
 		// mount new
-		mountContent, err := newBpfMountRule("**", "proc", 0xFFFFFFFF&^AaMayUmount, 0xFFFFFFFF)
+		flags := 0xFFFFFFFF &^ unix.MS_REMOUNT &^ unix.MS_BIND &^ unix.MS_SHARED &^
+			unix.MS_PRIVATE &^ unix.MS_SLAVE &^ unix.MS_UNBINDABLE &^ unix.MS_MOVE &^ AaMayUmount
+		mountContent, err := newBpfMountRule("**", "proc", uint32(flags), 0xFFFFFFFF)
 		if err != nil {
 			return err
 		}
 		content.Mounts = append(content.Mounts, *mountContent)
 		// bind, rbind, remount, move, umount
-		mountContent, err = newBpfMountRule("/proc**", "none", unix.MS_BIND|unix.MS_REC|unix.MS_REMOUNT|unix.MS_MOVE|AaMayUmount, 0)
+		flags = unix.MS_BIND | unix.MS_REC | unix.MS_REMOUNT | unix.MS_MOVE | AaMayUmount
+		mountContent, err = newBpfMountRule("/proc**", "none", uint32(flags), 0)
 		if err != nil {
 			return err
 		}
@@ -362,13 +365,16 @@ func generateHardeningRules(rule string, content *varmor.BpfContent, privileged 
 			break
 		}
 		// mount new
-		mountContent, err := newBpfMountRule("**", "cgroup", 0xFFFFFFFF&^AaMayUmount, 0xFFFFFFFF)
+		flags := 0xFFFFFFFF &^ unix.MS_REMOUNT &^ unix.MS_BIND &^ unix.MS_SHARED &^
+			unix.MS_PRIVATE &^ unix.MS_SLAVE &^ unix.MS_UNBINDABLE &^ unix.MS_MOVE &^ AaMayUmount
+		mountContent, err := newBpfMountRule("**", "cgroup", uint32(flags), 0xFFFFFFFF)
 		if err != nil {
 			return err
 		}
 		content.Mounts = append(content.Mounts, *mountContent)
 		// bind, rbind, remount, move, umount
-		mountContent, err = newBpfMountRule("/sys**", "none", unix.MS_BIND|unix.MS_REC|unix.MS_REMOUNT|unix.MS_MOVE|AaMayUmount, 0)
+		flags = unix.MS_BIND | unix.MS_REC | unix.MS_REMOUNT | unix.MS_MOVE | AaMayUmount
+		mountContent, err = newBpfMountRule("/sys**", "none", uint32(flags), 0)
 		if err != nil {
 			return err
 		}
