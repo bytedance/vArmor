@@ -1,4 +1,3 @@
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -20,10 +19,12 @@ spec:
         app.kubernetes.io/name: varmor-manager
     spec:
       serviceAccountName: varmor-manager
-      nodeSelector: 
+      nodeSelector:
         kubernetes.io/os: linux
       securityContext:
         runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
       imagePullSecrets:
       - name: varmor-image-pull-secret
       containers:
