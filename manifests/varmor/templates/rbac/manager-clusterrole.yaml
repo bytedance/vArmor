@@ -93,9 +93,11 @@ rules:
   - patch
   - update
 - apiGroups:
-  - 'admissionregistration.k8s.io'
+  - admissionregistration.k8s.io
   resources:
   - mutatingwebhookconfigurations
+  resourceNames:
+  - varmor-resource-mutating-webhook-cfg
   verbs:
   - create
   - delete
