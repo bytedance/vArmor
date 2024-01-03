@@ -428,13 +428,13 @@ func (m *StatusManager) reconcileStatus(stopCh <-chan struct{}) {
 					} else {
 						if vp.Status.Phase == varmortypes.VarmorPolicyCompleted || vp.Status.Phase == varmortypes.VarmorPolicyProtecting {
 							createTime := ap.CreationTimestamp.Time
-							if time.Now().After(createTime.Add(time.Duration(vp.Spec.Policy.DefenseInDepth.ModelingDuration) * time.Minute)) {
+							if time.Now().After(createTime.Add(time.Duration(vp.Spec.Policy.ModelOptions.ModelingDuration) * time.Minute)) {
 								complete = true
 							}
 						}
 					}
 					if complete {
-						if vp.Spec.Policy.DefenseInDepth.AutoEnable {
+						if vp.Spec.Policy.ModelOptions.AutoEnable {
 							phase = varmortypes.VarmorPolicyProtecting
 						} else {
 							phase = varmortypes.VarmorPolicyCompleted
@@ -496,15 +496,13 @@ func (m *StatusManager) reconcileStatus(stopCh <-chan struct{}) {
 			}
 
 			var profile *varmor.Profile
-			if vp.Spec.Policy.DefenseInDepth.AutoEnable {
-				apm, err := m.varmorInterface.ArmorProfileModels(namespace).Get(context.Background(), apName, metav1.GetOptions{})
-				if err == nil {
-					profile, _ = varmorprofile.GenerateProfile(vp.Spec.Policy, ap.Name, true, apm.Spec.Profile.Content)
-				} else {
-					profile, _ = varmorprofile.GenerateProfile(vp.Spec.Policy, ap.Name, true, "")
-				}
+			if vp.Spec.Policy.ModelOptions.AutoEnable {
+				// TODO: set policy.ModelOptions.UseExistingModel to true
 			} else {
-				profile, _ = varmorprofile.GenerateProfile(vp.Spec.Policy, ap.Name, true, "")
+				profile, err = varmorprofile.GenerateProfile(vp.Spec.Policy, ap.Name, ap.Namespace, m.varmorInterface, true)
+				if err != nil {
+					logger.Error(err, "varmorprofile.GenerateProfile()")
+				}
 			}
 
 			ap.Spec.Profile = *profile

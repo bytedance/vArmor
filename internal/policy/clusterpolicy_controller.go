@@ -292,7 +292,7 @@ func (c *ClusterPolicyController) handleAddVarmorClusterPolicy(vcp *varmor.Varmo
 		return nil
 	}
 
-	ap, err := varmorprofile.NewArmorProfile(vcp, true)
+	ap, err := varmorprofile.NewArmorProfile(vcp, c.varmorInterface, true)
 	if err != nil {
 		logger.Error(err, "NewArmorProfile() failed")
 		err = c.updateVarmorClusterPolicyStatus(vcp, "", true, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyCreated, apicorev1.ConditionFalse,
@@ -385,7 +385,7 @@ func (c *ClusterPolicyController) ignoreUpdate(newVp *varmor.VarmorClusterPolicy
 	// Nothing need to be updated if VarmorClusterPolicy is in the modeling phase and its duration is not changed.
 	if newVp.Spec.Policy.Mode == varmortypes.DefenseInDepthMode &&
 		newVp.Status.Phase == varmortypes.VarmorPolicyModeling &&
-		newVp.Spec.Policy.DefenseInDepth.ModelingDuration == oldAp.Spec.BehaviorModeling.ModelingDuration {
+		newVp.Spec.Policy.ModelOptions.ModelingDuration == oldAp.Spec.BehaviorModeling.ModelingDuration {
 		logger.Info("nothing need to be updated (duration is not changed)")
 		return true, nil
 	}
@@ -425,7 +425,7 @@ func (c *ClusterPolicyController) handleUpdateVarmorClusterPolicy(newVp *varmor.
 
 	// Second, build a new ArmorProfileSpec
 	newApSpec := oldAp.Spec.DeepCopy()
-	newProfile, err := varmorprofile.GenerateProfile(newVp.Spec.Policy, oldAp.Spec.Profile.Name, false, "")
+	newProfile, err := varmorprofile.GenerateProfile(newVp.Spec.Policy, oldAp.Name, oldAp.Namespace, c.varmorInterface, false)
 	if err != nil {
 		logger.Error(err, "GenerateProfile() failed")
 		err = c.updateVarmorClusterPolicyStatus(newVp, "", true, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyCreated, apicorev1.ConditionFalse,

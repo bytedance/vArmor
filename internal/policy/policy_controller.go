@@ -320,7 +320,7 @@ func (c *PolicyController) handleAddVarmorPolicy(vp *varmor.VarmorPolicy) error 
 		return nil
 	}
 
-	ap, err := varmorprofile.NewArmorProfile(vp, false)
+	ap, err := varmorprofile.NewArmorProfile(vp, c.varmorInterface, false)
 	if err != nil {
 		logger.Error(err, "NewArmorProfile() failed")
 		err = c.updateVarmorPolicyStatus(vp, "", true, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyCreated, apicorev1.ConditionFalse,
@@ -417,7 +417,7 @@ func (c *PolicyController) ignoreUpdate(newVp *varmor.VarmorPolicy, oldAp *varmo
 	// Nothing need to be updated if VarmorPolicy is in the modeling phase and its duration is not changed.
 	if newVp.Spec.Policy.Mode == varmortypes.DefenseInDepthMode &&
 		newVp.Status.Phase == varmortypes.VarmorPolicyModeling &&
-		newVp.Spec.Policy.DefenseInDepth.ModelingDuration == oldAp.Spec.BehaviorModeling.ModelingDuration {
+		newVp.Spec.Policy.ModelOptions.ModelingDuration == oldAp.Spec.BehaviorModeling.ModelingDuration {
 		logger.Info("nothing need to be updated (duration is not changed)")
 		return true, nil
 	}
@@ -457,7 +457,7 @@ func (c *PolicyController) handleUpdateVarmorPolicy(newVp *varmor.VarmorPolicy, 
 
 	// Second, build a new ArmorProfileSpec
 	newApSpec := oldAp.Spec.DeepCopy()
-	newProfile, err := varmorprofile.GenerateProfile(newVp.Spec.Policy, oldAp.Spec.Profile.Name, false, "")
+	newProfile, err := varmorprofile.GenerateProfile(newVp.Spec.Policy, oldAp.Name, oldAp.Namespace, c.varmorInterface, false)
 	if err != nil {
 		logger.Error(err, "GenerateProfile() failed")
 		err = c.updateVarmorPolicyStatus(newVp, "", true, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyCreated, apicorev1.ConditionFalse,
@@ -471,7 +471,7 @@ func (c *PolicyController) handleUpdateVarmorPolicy(newVp *varmor.VarmorPolicy, 
 	}
 	newApSpec.Profile = *newProfile
 	if newVp.Spec.Policy.Mode == varmortypes.DefenseInDepthMode {
-		newApSpec.BehaviorModeling.ModelingDuration = newVp.Spec.Policy.DefenseInDepth.ModelingDuration
+		newApSpec.BehaviorModeling.ModelingDuration = newVp.Spec.Policy.ModelOptions.ModelingDuration
 	}
 
 	// Last, do update

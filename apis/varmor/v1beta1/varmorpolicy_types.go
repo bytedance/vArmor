@@ -39,6 +39,13 @@ type Target struct {
 	Selector *metav1.LabelSelector `json:"selector,omitempty"`
 }
 
+type Seccomp struct {
+	// Type is used to specify which type of seccomp profile to use.
+	// Available values: Unconfined, RuntimeDefault, BehaviorModel, Hybrid
+	// Default is Unconfined.
+	Type string `json:"type,omitempty"`
+}
+
 // MatchSourceType Structure
 type MatchSourceType struct {
 	Path      string `json:"path,omitempty"`
@@ -299,9 +306,11 @@ type EnhanceProtect struct {
 	BpfRawRules BpfRawRules `json:"bpfRawRules,omitempty"`
 }
 
-type DefenseInDepth struct {
+type ModelOptions struct {
+	// UseExistingModel decides whether or not to use the existing model for the AppArmor or Seccomp
+	UseExistingModel bool `json:"useExistingMode,omitempty"`
 	// ModelingDuration is the duration in minutes to modeling
-	ModelingDuration int `json:"modelingDuration"`
+	ModelingDuration int `json:"modelingDuration,omitempty"`
 	// AutoEnable decides whether or not to enable the access control after modeling is complete
 	AutoEnable bool `json:"autoEnable,omitempty"`
 }
@@ -309,19 +318,20 @@ type DefenseInDepth struct {
 type VarmorPolicyMode string
 
 type Policy struct {
+	// Seccomp is used to specify the seccomp settings.
+	Seccomp Seccomp `json:"seccomp"`
 	// Enforcer is used to specify which LSM to use for mandatory access control.
 	// Available values: AppArmor, BPF
 	Enforcer string `json:"enforcer"`
-	// Available values: AlwaysAllow, RuntimeDefault, EnhanceProtect, CustomPolicy, DefenseInDepth
+	// Available values: AlwaysAllow, RuntimeDefault, EnhanceProtect, CustomPolicy
 	Mode VarmorPolicyMode `json:"mode"`
 	// EnhanceProtect is used for building a policy for Hardening & AttackProtection & VulMitigation rules from templates.
 	EnhanceProtect EnhanceProtect `json:"enhanceProtect,omitempty"`
 	// [Experimental] CustomPolicy is almost the same as KubeArmor's SecuritySpec to increase compatibility.
 	// Only worked with the AppArmor enforcer.
 	CustomPolicy CustomPolicy `json:"customPolicy,omitempty"`
-	// [Experimental] DefenseInDepth is used for the defense-in-depth sandbox features.
-	// Only worked with the AppArmor enforcer.
-	DefenseInDepth DefenseInDepth `json:"defenseInDepth,omitempty"`
+	// [Experimental] ModelOptions is used for the modeling settings.
+	ModelOptions ModelOptions `json:"modelOptions,omitempty"`
 	// Privileged is used to identify whether the policy is for the privileged container.
 	// Default is false. If set to `nil` or `false`, the EnhanceProtect mode will build enhanced protection rules
 	// on top of the RuntimeDefault mode. Otherwise, it will enhance protection on top of the AlwaysAllow mode.
