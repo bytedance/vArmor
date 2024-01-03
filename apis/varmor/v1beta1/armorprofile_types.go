@@ -76,8 +76,6 @@ type BehaviorModeling struct {
 	Enable bool `json:"enable"`
 	// ModelingDuration is the duration in minutes to modeling
 	ModelingDuration int `json:"modelingDuration"`
-	// UniqueID used to mark container through environment variable
-	UniqueID string `json:"uniqueID"`
 }
 
 // ArmorProfileSpec defines the desired state of ArmorProfile

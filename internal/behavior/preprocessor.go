@@ -25,6 +25,7 @@ import "C"
 import (
 	"bufio"
 	"bytes"
+	"encoding/gob"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -50,37 +51,40 @@ const (
 )
 
 type DataPreprocessor struct {
-	nodeName         string
-	uniqueID         string
-	namespace        string
-	profileName      string
-	targetPIDs       []uint32
-	recordPath       string
-	debugFilePath    string
-	recordFile       *os.File
-	debugFile        *os.File
-	recordFileReader *bufio.Reader
-	debugFileWriter  *bufio.Writer
-	modeConvertor    map[uint32]string
-	behaviorData     varmortypes.BehaviorData
-	procRegex        *regexp.Regexp
-	procTaskRegex    *regexp.Regexp
-	overlayRegex     *regexp.Regexp
-	snapshotsRegex   *regexp.Regexp
-	overlayPrefixes  []string
-	randomExclusions []string
-	mlIP             string
-	mlPort           int
-	debug            bool
-	log              logr.Logger
+	nodeName              string
+	namespace             string
+	profileName           string
+	targetPIDs            map[uint32]struct{}
+	targetMnts            map[uint32]struct{}
+	auditRecordPath       string
+	bpfRecordPath         string
+	debugFilePath         string
+	auditRecordFile       *os.File
+	bpfRecordFile         *os.File
+	debugFile             *os.File
+	auditRecordFileReader *bufio.Reader
+	bpfRecordFileDecoder  *gob.Decoder
+	debugFileWriter       *bufio.Writer
+	modeConvertor         map[uint32]string
+	behaviorData          varmortypes.BehaviorData
+	procRegex             *regexp.Regexp
+	procTaskRegex         *regexp.Regexp
+	overlayRegex          *regexp.Regexp
+	snapshotsRegex        *regexp.Regexp
+	overlayPrefixes       []string
+	randomExclusions      []string
+	mlIP                  string
+	mlPort                int
+	debug                 bool
+	log                   logr.Logger
 }
 
 func NewDataPreprocessor(
 	nodeName string,
-	uniqueID string,
 	namespace string,
 	name string,
-	targetPIDs []uint32,
+	targetPIDs map[uint32]struct{},
+	targetMnts map[uint32]struct{},
 	mlIP string,
 	mlPort int,
 	debug bool,
@@ -88,12 +92,13 @@ func NewDataPreprocessor(
 
 	p := DataPreprocessor{
 		nodeName:         nodeName,
-		uniqueID:         uniqueID,
 		namespace:        namespace,
 		profileName:      name,
 		targetPIDs:       targetPIDs,
-		recordPath:       fmt.Sprintf("%s.records.log", uniqueID),
-		debugFilePath:    fmt.Sprintf("%s.preprocessor_debug.log", uniqueID),
+		targetMnts:       targetMnts,
+		auditRecordPath:  fmt.Sprintf("%s_audit_records.log", name),
+		bpfRecordPath:    fmt.Sprintf("%s_bpf_records.log", name),
+		debugFilePath:    fmt.Sprintf("%s_preprocessor_debug.log", name),
 		modeConvertor:    make(map[uint32]string, 0),
 		overlayPrefixes:  make([]string, 0),
 		randomExclusions: make([]string, 0),
@@ -684,12 +689,12 @@ func (p *DataPreprocessor) parseEventForTree(event *varmortypes.AaLogRecord) err
 func (p *DataPreprocessor) processAppArmorAuditRecords() error {
 	var lastError error
 	for {
-		line, err := p.recordFileReader.ReadString('\n')
+		line, err := p.auditRecordFileReader.ReadString('\n')
 		if err != nil {
 			if err == io.EOF {
 				break
 			} else {
-				p.log.Error(err, "p.recordFileReader.ReadString('\n')")
+				p.log.Error(err, "p.auditRecordFileReader.ReadString('\n')")
 				break
 			}
 		}
@@ -704,7 +709,7 @@ func (p *DataPreprocessor) processAppArmorAuditRecords() error {
 			continue
 		}
 
-		if varmorutils.InUint32Array(uint32(event.Pid), p.targetPIDs) {
+		if _, exists := p.targetPIDs[uint32(event.Pid)]; exists {
 			if p.debug {
 				p.debugFileWriter.WriteString("\n[+] ----------------------\n")
 				data, err := json.Marshal(event)
@@ -729,27 +734,81 @@ func (p *DataPreprocessor) processAppArmorAuditRecords() error {
 	return lastError
 }
 
+func (p *DataPreprocessor) containTargetPID(pid uint32) bool {
+	_, exists := p.targetPIDs[pid]
+	return exists
+}
+
+func (p *DataPreprocessor) addTargetPID(pid uint32) {
+	p.targetPIDs[pid] = struct{}{}
+}
+
+func (p *DataPreprocessor) containTargetMnt(id uint32) bool {
+	_, exists := p.targetMnts[id]
+	return exists
+}
+
+func (p *DataPreprocessor) addTargetMnt(id uint32) {
+	p.targetMnts[id] = struct{}{}
+}
+
+func (p *DataPreprocessor) GatherTargetPIDs() {
+	var err error
+
+	p.bpfRecordFile, err = os.Open(p.bpfRecordPath)
+	if err != nil {
+		p.log.Error(err, "os.Open() failed")
+	}
+	defer p.bpfRecordFile.Close()
+
+	p.bpfRecordFileDecoder = gob.NewDecoder(p.bpfRecordFile)
+
+	for {
+		var event bpfEvent
+		err := p.bpfRecordFileDecoder.Decode(&event)
+		if err != nil {
+			break
+		}
+
+		switch event.Type {
+		case varmortypes.SchedProcessFork, varmortypes.SchedProcessExec:
+			if event.ParentTgid != event.ChildTgid &&
+				p.containTargetPID(event.ParentTgid) &&
+				!p.containTargetPID(event.ChildTgid) {
+				p.addTargetPID(event.ChildTgid)
+				continue
+			}
+
+			if p.containTargetMnt(event.MntNsId) &&
+				!p.containTargetPID(event.ChildTgid) {
+				p.addTargetPID(event.ChildTgid)
+				continue
+			}
+		}
+	}
+}
+
 // Preprocess the AppArmor's audit record with the pid list of target container
 func (p *DataPreprocessor) Process() []byte {
+	var err error
+
 	defaultData := fmt.Sprintf("{\"namespace\":\"%s\",\"armorProfile\":\"%s\",\"nodeName\":\"%s\",\"dynamicResult\":{},\"status\":\"succeeded\",\"message\":\"\"}",
 		p.namespace, p.profileName, p.nodeName)
 
-	var err error
-	p.recordFile, err = os.Open(p.recordPath)
+	p.auditRecordFile, err = os.Open(p.auditRecordPath)
 	if err != nil {
-		p.log.Error(err, "os.Open() failed, nothing to preprocess", "uniqueID", p.uniqueID)
+		p.log.Error(err, "os.Open() failed, nothing to preprocess", "profile name", p.profileName)
 		return []byte(defaultData)
 	}
-	defer p.recordFile.Close()
+	defer p.auditRecordFile.Close()
+	p.auditRecordFileReader = bufio.NewReader(p.auditRecordFile)
 
 	if len(p.targetPIDs) == 0 {
-		p.log.Info("targetPIDs is empty, nothing to preprocess", "uniqueID", p.uniqueID)
+		p.log.Info("targetPIDs is empty, nothing to preprocess", "profile name", p.profileName)
 		return []byte(defaultData)
 	}
 
-	p.log.Info("start data preprocessing", "uniqueID", p.uniqueID)
-
-	p.recordFileReader = bufio.NewReader(p.recordFile)
+	p.log.Info("starting data preprocess", "profile name", p.profileName)
 
 	if p.debug {
 		p.debugFile, err = os.Create(p.debugFilePath)
@@ -757,16 +816,18 @@ func (p *DataPreprocessor) Process() []byte {
 			p.log.Error(err, "os.Create() failed")
 			return nil
 		}
+		defer p.debugFile.Close()
 		p.debugFileWriter = bufio.NewWriter(p.debugFile)
+		defer p.debugFileWriter.Flush()
 	}
 
 	err = p.processAppArmorAuditRecords()
 	if err != nil {
-		p.log.Error(err, "data preprocessing complated")
+		p.log.Error(err, "data preprocess completed")
 		p.behaviorData.Status = varmortypes.Failed
 		p.behaviorData.Message = fmt.Sprintf("%v", err)
 	} else {
-		p.log.Info("data preprocessing complated", "profile num", len(p.behaviorData.DynamicResult.Profiles))
+		p.log.Info("data preprocess completed", "profile num", len(p.behaviorData.DynamicResult.Profiles))
 		p.behaviorData.Status = varmortypes.Succeeded
 		p.behaviorData.Message = ""
 	}
@@ -781,8 +842,6 @@ func (p *DataPreprocessor) Process() []byte {
 		} else {
 			p.debugFileWriter.WriteString(string(data))
 		}
-		p.debugFileWriter.Flush()
-		p.debugFile.Close()
 	}
 
 	data, err := json.Marshal(p.behaviorData)

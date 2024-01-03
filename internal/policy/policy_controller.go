@@ -172,7 +172,7 @@ func (c *PolicyController) handleDeleteVarmorPolicy(namespace, name string) erro
 			namespace,
 			ap.Spec.Profile.Enforcer,
 			ap.Spec.Target,
-			"", "", false, logger)
+			"", false, logger)
 	}
 
 	// Cleanup the PolicyStatus and ModelingStatus of status manager for the deleted VarmorPolicy/ArmorProfile object
@@ -362,7 +362,6 @@ func (c *PolicyController) handleAddVarmorPolicy(vp *varmor.VarmorPolicy) error 
 			vp.Spec.Policy.Enforcer,
 			vp.Spec.Target,
 			ap.Name,
-			ap.Spec.BehaviorModeling.UniqueID,
 			c.bpfExclusiveMode,
 			logger)
 	}

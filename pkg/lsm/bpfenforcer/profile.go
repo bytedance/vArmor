@@ -23,11 +23,12 @@ import (
 
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
 	varmortypes "github.com/bytedance/vArmor/pkg/types"
+	varmorutils "github.com/bytedance/vArmor/pkg/utils"
 )
 
 // newEnforceID retrieve the mnt ns id with PID from the procfs, then create an enforceID object with it
 func (enforcer *BpfEnforcer) newEnforceID(pid uint32) (enforceID, error) {
-	mntNsID, err := readMntNsID(pid)
+	mntNsID, err := varmorutils.ReadMntNsID(pid)
 	if err != nil {
 		return enforceID{}, err
 	}

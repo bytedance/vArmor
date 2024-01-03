@@ -319,7 +319,7 @@ type VarmorPolicyMode string
 
 type Policy struct {
 	// Seccomp is used to specify the seccomp settings.
-	Seccomp Seccomp `json:"seccomp"`
+	Seccomp Seccomp `json:"seccomp,omitempty"`
 	// Enforcer is used to specify which LSM to use for mandatory access control.
 	// Available values: AppArmor, BPF
 	Enforcer string `json:"enforcer"`

@@ -75,7 +75,7 @@ type Agent struct {
 	debug                bool
 	managerIP            string
 	managerPort          int
-	mlPort               int
+	classifierPort       int
 	stopCh               <-chan struct{}
 	log                  logr.Logger
 }
@@ -90,7 +90,7 @@ func NewAgent(
 	debug bool,
 	managerIP string,
 	managerPort int,
-	mlPort int,
+	classifierPort int,
 	stopCh <-chan struct{},
 	log logr.Logger) (*Agent, error) {
 
@@ -112,7 +112,7 @@ func NewAgent(
 		debug:                debug,
 		managerIP:            managerIP,
 		managerPort:          managerPort,
-		mlPort:               mlPort,
+		classifierPort:       classifierPort,
 		stopCh:               stopCh,
 		log:                  log,
 	}
@@ -144,6 +144,15 @@ func NewAgent(
 	}
 	log.Info("NewAgent", "nodeName", agent.nodeName)
 
+	// RuntimeMonitor initialization
+	if agent.enableDefenseInDepth || agent.bpfLsmSupported {
+		log.Info("initialize the RuntimeMonitor")
+		agent.runtimeMonitor, err = varmorruntime.NewRuntimeMonitor(log.WithName("RUNTIME-MONITOR"))
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	// AppArmor LSM initialization
 	if agent.appArmorSupported {
 		log.Info("initialize the AppArmor LSM")
@@ -170,7 +179,7 @@ func NewAgent(
 		// [Experimental feature] Initialize the tracer for DefenseInDepth mode (It only works with AppArmor LSM for now).
 		if agent.enableDefenseInDepth {
 			log.Info("initialize the tracer for DefenseInDepth mode")
-			agent.tracer, err = varmorbehavior.NewBpfTracer(log.WithName("TRACER"))
+			agent.tracer, err = varmorbehavior.NewTracer(log.WithName("TRACER"))
 			if err != nil {
 				return nil, err
 			}
@@ -185,14 +194,10 @@ func NewAgent(
 			return nil, err
 		}
 
-		agent.runtimeMonitor, err = varmorruntime.NewRuntimeMonitor(
+		agent.runtimeMonitor.SetTaskNotifyChs(
 			agent.bpfEnforcer.TaskCreateCh,
 			agent.bpfEnforcer.TaskDeleteCh,
-			agent.bpfEnforcer.TaskDeleteSyncCh,
-			log.WithName("RUNTIME-MONITOR"))
-		if err != nil {
-			return nil, err
-		}
+			agent.bpfEnforcer.TaskDeleteSyncCh)
 
 		// Retrieve the count of existing ArmorProfile objects.
 		apList, err := agent.varmorInterface.ArmorProfiles(metav1.NamespaceAll).List(context.Background(), metav1.ListOptions{ResourceVersion: "0"})
@@ -352,8 +357,8 @@ func (agent *Agent) handleCreateOrUpdateArmorProfile(ap *varmor.ArmorProfile, ke
 				// Create a new modeller and start modeling.
 				modeller := varmorbehavior.NewBehaviorModeller(
 					agent.tracer,
+					agent.runtimeMonitor,
 					agent.nodeName,
-					ap.Spec.BehaviorModeling.UniqueID,
 					ap.Namespace,
 					ap.Name,
 					createTime,
@@ -361,7 +366,7 @@ func (agent *Agent) handleCreateOrUpdateArmorProfile(ap *varmor.ArmorProfile, ke
 					agent.stopCh,
 					agent.managerIP,
 					agent.managerPort,
-					agent.mlPort,
+					agent.classifierPort,
 					agent.debug,
 					agent.log.WithName("BEHAVIOR-MODELLER"))
 				if modeller != nil {
@@ -559,9 +564,12 @@ func (agent *Agent) Run(workers int, stopCh <-chan struct{}) {
 		go wait.Until(agent.worker, time.Second, stopCh)
 	}
 
+	if agent.enableDefenseInDepth || agent.bpfLsmSupported {
+		go agent.runtimeMonitor.Run(stopCh)
+	}
+
 	if agent.bpfLsmSupported {
 		go agent.bpfEnforcer.Run(stopCh)
-		go agent.runtimeMonitor.Run(stopCh)
 
 		// Wait for all existing ArmorProfile objects have been processed.
 		if agent.existingApCount > 0 {
@@ -581,7 +589,7 @@ func (agent *Agent) CleanUp() {
 	agent.queue.ShutDown()
 
 	if agent.appArmorSupported && agent.enableDefenseInDepth {
-		agent.tracer.RemoveBPF()
+		agent.tracer.Close()
 	}
 
 	if agent.appArmorSupported && agent.unloadAllAaProfile {
@@ -589,8 +597,11 @@ func (agent *Agent) CleanUp() {
 		varmorapparmor.UnloadAllAppArmorProfile(agent.appArmorProfileDir)
 	}
 
-	if agent.bpfLsmSupported {
+	if agent.enableDefenseInDepth || agent.bpfLsmSupported {
 		agent.runtimeMonitor.Close()
-		agent.bpfEnforcer.RemoveBPF()
+	}
+
+	if agent.bpfLsmSupported {
+		agent.bpfEnforcer.Close()
 	}
 }

@@ -20,7 +20,6 @@ import (
 	"strings"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	utilrand "k8s.io/apimachinery/pkg/util/rand"
 
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
 	varmorconfig "github.com/bytedance/vArmor/internal/config"
@@ -182,7 +181,6 @@ func NewArmorProfile(obj interface{}, varmorInterface varmorinterface.CrdV1beta1
 		if vp.Spec.Policy.Mode == varmortypes.DefenseInDepthMode {
 			ap.Spec.BehaviorModeling.Enable = true
 			ap.Spec.BehaviorModeling.ModelingDuration = vp.Spec.Policy.ModelOptions.ModelingDuration
-			ap.Spec.BehaviorModeling.UniqueID = utilrand.String(8)
 		}
 	}
 

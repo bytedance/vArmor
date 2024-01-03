@@ -50,6 +50,10 @@ const (
 
 	// AgentLabelSelector is the label selector for agents.
 	AgentLabelSelector string = "app.kubernetes.io/component=varmor-agent"
+
+	// Event type for tracing
+	SchedProcessFork uint32 = 1
+	SchedProcessExec uint32 = 2
 )
 
 type Status string

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package bpfenforcer
+package utils
 
 import (
 	"fmt"
@@ -21,7 +21,7 @@ import (
 	"strings"
 )
 
-func readMntNsID(pid uint32) (uint32, error) {
+func ReadMntNsID(pid uint32) (uint32, error) {
 	path := fmt.Sprintf("/proc/%d/ns/mnt", pid)
 	realPath, err := os.Readlink(path)
 	if err != nil {

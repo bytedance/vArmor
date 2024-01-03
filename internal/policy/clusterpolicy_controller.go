@@ -1,3 +1,17 @@
+// Copyright 2023 vArmor Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package policy
 
 import (
@@ -154,7 +168,7 @@ func (c *ClusterPolicyController) handleDeleteVarmorClusterPolicy(name string) e
 			metav1.NamespaceAll,
 			ap.Spec.Profile.Enforcer,
 			ap.Spec.Target,
-			"", "", false, logger)
+			"", false, logger)
 	}
 
 	// Cleanup the PolicyStatus and ModelingStatus of status manager for the deleted VarmorClusterPolicy/ArmorProfile object
@@ -330,7 +344,6 @@ func (c *ClusterPolicyController) handleAddVarmorClusterPolicy(vcp *varmor.Varmo
 			vcp.Spec.Policy.Enforcer,
 			vcp.Spec.Target,
 			ap.Name,
-			ap.Spec.BehaviorModeling.UniqueID,
 			c.bpfExclusiveMode,
 			logger)
 	}

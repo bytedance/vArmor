@@ -452,12 +452,6 @@ func (m *StatusManager) reconcileStatus(stopCh <-chan struct{}) {
 				if err != nil {
 					logger.Error(err, "m.updateVarmorPolicyStatus()")
 				}
-
-				// Patch workload to remove the injected env and tiger a rollout restart to enable the enforce protect mode.
-				if ready && complete {
-					logger.Info("3. patch workload to remove the injected env")
-					varmorutils.UpdateWorkloadAnnotationsAndEnv(m.appsInterface, namespace, vp.Spec.Policy.Enforcer, vp.Spec.Target, apName, "", false, logger)
-				}
 			}
 
 		// Periodically update all of the objects' statuses to avoid the interference from offline nodes.

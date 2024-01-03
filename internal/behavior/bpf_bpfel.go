@@ -18,11 +18,10 @@ type bpfEvent struct {
 	ParentTgid uint32
 	ChildPid   uint32
 	ChildTgid  uint32
+	MntNsId    uint32
 	ParentTask [16]uint8
 	ChildTask  [16]uint8
 	Filename   [64]uint8
-	Env        [256]uint8
-	Num        uint32
 }
 
 // loadBpf returns the embedded CollectionSpec for bpf.

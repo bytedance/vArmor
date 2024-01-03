@@ -618,7 +618,6 @@ spec:
                 required:
                 - enforcer
                 - mode
-                - seccomp
                 type: object
               target:
                 description: A label query over ArmorProfile that are managed by VarmorPolicy.

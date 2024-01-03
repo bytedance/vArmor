@@ -27,6 +27,7 @@ import (
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
 	lsmutils "github.com/bytedance/vArmor/pkg/lsm/utils"
 	varmortypes "github.com/bytedance/vArmor/pkg/types"
+	varmorutils "github.com/bytedance/vArmor/pkg/utils"
 )
 
 type enforceID struct {
@@ -135,7 +136,7 @@ func (enforcer *BpfEnforcer) initBPF() error {
 	collectionSpec.Maps["v_mount_outer"].InnerMap = &mountInnerMap
 
 	// Set the mnt ns id to the BPF program
-	initMntNsId, err := readMntNsID(1)
+	initMntNsId, err := varmorutils.ReadMntNsID(1)
 	if err != nil {
 		return err
 	}
@@ -253,8 +254,8 @@ func (enforcer *BpfEnforcer) initBPF() error {
 	return nil
 }
 
-// RemoveBPF close the BPF resources
-func (enforcer *BpfEnforcer) RemoveBPF() {
+// Close close the BPF resources
+func (enforcer *BpfEnforcer) Close() {
 	enforcer.log.Info("unload the bpf resources")
 	enforcer.capableLink.Close()
 	enforcer.openFileLink.Close()
