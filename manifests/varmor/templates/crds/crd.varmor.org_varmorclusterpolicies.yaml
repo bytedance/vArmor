@@ -594,7 +594,7 @@ spec:
                         description: ModelingDuration is the duration in minutes to
                           modeling
                         type: integer
-                      useExistingMode:
+                      useExistingModel:
                         description: UseExistingModel indicates whether to use an
                           existing model (the corresponding ArmorProfileModel object)
                           for protection.

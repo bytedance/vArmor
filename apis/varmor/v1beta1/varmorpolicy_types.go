@@ -308,7 +308,7 @@ type EnhanceProtect struct {
 
 type ModelOptions struct {
 	// UseExistingModel indicates whether to use an existing model (the corresponding ArmorProfileModel object) for protection.
-	UseExistingModel bool `json:"useExistingMode,omitempty"`
+	UseExistingModel bool `json:"useExistingModel,omitempty"`
 	// ModelingDuration is the duration in minutes to modeling
 	ModelingDuration int `json:"modelingDuration,omitempty"`
 	// AutoEnable determines whether protection is automatically activated after modeling is completed
