@@ -64,7 +64,6 @@ func httpPostWithRetry(reqBody []byte, debug bool, service string, namespace str
 	httpReq.Header.Set("Content-Type", "application/json")
 
 	var httpRsp *http.Response
-	rand.Seed(time.Now().UnixNano())
 
 	for i := 0; i < retryTimes; i++ {
 		httpRsp, err = client.Do(httpReq)
