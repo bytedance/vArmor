@@ -418,7 +418,8 @@ func (m *StatusManager) reconcileStatus(stopCh <-chan struct{}) {
 				logger.Info("2. update VarmorPolicy/status", "namespace", vp.Namespace, "name", vp.Name)
 				phase := varmortypes.VarmorPolicyProtecting
 				complete := false
-				if vp.Spec.Policy.Mode == varmortypes.DefenseInDepthMode {
+				if vp.Spec.Policy.Mode == varmortypes.DefenseInDepthMode &&
+					!vp.Spec.Policy.ModelOptions.UseExistingModel {
 					phase = varmortypes.VarmorPolicyModeling
 
 					if modelingStatus, ok := m.ModelingStatuses[statusKey]; ok {
@@ -467,21 +468,6 @@ func (m *StatusManager) reconcileStatus(stopCh <-chan struct{}) {
 				break
 			}
 
-			apName := varmorprofile.GenerateArmorProfileName(namespace, vpName, false)
-			logger.Info("update ArmorProfile (complain mode --> enforce mode)", "namespace", namespace, "name", apName)
-
-			vp, err := m.varmorInterface.VarmorPolicies(namespace).Get(context.Background(), vpName, metav1.GetOptions{})
-			if err != nil {
-				logger.Error(err, "m.varmorInterface.VarmorPolicies().Get()")
-				break
-			}
-
-			ap, err := m.varmorInterface.ArmorProfiles(namespace).Get(context.Background(), apName, metav1.GetOptions{})
-			if err != nil {
-				logger.Error(err, "m.varmorInterface.ArmorProfiles().Get()")
-				break
-			}
-
 			if policyStatus, ok := m.PolicyStatuses[statusKey]; ok {
 				policyStatus.FailedNumber = 0
 				policyStatus.SuccessedNumber = 0
@@ -489,14 +475,27 @@ func (m *StatusManager) reconcileStatus(stopCh <-chan struct{}) {
 				m.PolicyStatuses[statusKey] = policyStatus
 			}
 
-			var profile *varmor.Profile
+			vp, err := m.varmorInterface.VarmorPolicies(namespace).Get(context.Background(), vpName, metav1.GetOptions{})
+			if err != nil {
+				logger.Error(err, "m.varmorInterface.VarmorPolicies().Get()")
+				break
+			}
+
 			if vp.Spec.Policy.ModelOptions.AutoEnable {
-				// TODO: set policy.ModelOptions.UseExistingModel to true
-			} else {
-				profile, err = varmorprofile.GenerateProfile(vp.Spec.Policy, ap.Name, ap.Namespace, m.varmorInterface, true)
-				if err != nil {
-					logger.Error(err, "varmorprofile.GenerateProfile()")
-				}
+				vp.Spec.Policy.ModelOptions.UseExistingModel = true
+			}
+
+			apName := varmorprofile.GenerateArmorProfileName(namespace, vpName, false)
+			logger.Info("update ArmorProfile (complain mode --> enforce mode)", "namespace", namespace, "name", apName)
+			ap, err := m.varmorInterface.ArmorProfiles(namespace).Get(context.Background(), apName, metav1.GetOptions{})
+			if err != nil {
+				logger.Error(err, "m.varmorInterface.ArmorProfiles().Get()")
+				break
+			}
+
+			profile, err := varmorprofile.GenerateProfile(vp.Spec.Policy, ap.Name, ap.Namespace, m.varmorInterface, true)
+			if err != nil {
+				logger.Error(err, "varmorprofile.GenerateProfile()")
 			}
 
 			ap.Spec.Profile = *profile

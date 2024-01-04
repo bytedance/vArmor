@@ -121,7 +121,7 @@ func GenerateProfile(policy varmor.Policy, name string, namespace string, varmor
 				if err == nil {
 					profile.Content = apm.Spec.Profile.Content
 				} else {
-					return nil, fmt.Errorf("no models found")
+					return nil, fmt.Errorf("no existing model found")
 				}
 			} else {
 				if complete {
@@ -178,7 +178,8 @@ func NewArmorProfile(obj interface{}, varmorInterface varmorinterface.CrdV1beta1
 		ap.Spec.Profile = *profile
 		ap.Spec.Target = *vp.Spec.Target.DeepCopy()
 
-		if vp.Spec.Policy.Mode == varmortypes.DefenseInDepthMode {
+		if vp.Spec.Policy.Mode == varmortypes.DefenseInDepthMode &&
+			!vp.Spec.Policy.ModelOptions.UseExistingModel {
 			ap.Spec.BehaviorModeling.Enable = true
 			ap.Spec.BehaviorModeling.ModelingDuration = vp.Spec.Policy.ModelOptions.ModelingDuration
 		}

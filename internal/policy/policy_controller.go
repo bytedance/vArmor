@@ -340,7 +340,8 @@ func (c *PolicyController) handleAddVarmorPolicy(vp *varmor.VarmorPolicy) error 
 		return err
 	}
 
-	if vp.Spec.Policy.Mode == varmortypes.DefenseInDepthMode {
+	if vp.Spec.Policy.Mode == varmortypes.DefenseInDepthMode &&
+		!vp.Spec.Policy.ModelOptions.UseExistingModel {
 		c.resetArmorProfileModelStatus(ap.Namespace, ap.Name, logger)
 	}
 
