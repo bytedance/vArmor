@@ -586,16 +586,17 @@ spec:
                       settings.'
                     properties:
                       autoEnable:
-                        description: AutoEnable decides whether or not to enable the
-                          access control after modeling is complete
+                        description: AutoEnable determines whether protection is automatically
+                          activated after modeling is completed
                         type: boolean
                       modelingDuration:
                         description: ModelingDuration is the duration in minutes to
                           modeling
                         type: integer
                       useExistingMode:
-                        description: UseExistingModel decides whether or not to use
-                          the existing model for the AppArmor or Seccomp
+                        description: UseExistingModel indicates whether to use an
+                          existing model (the corresponding ArmorProfileModel object)
+                          for protection.
                         type: boolean
                     type: object
                   privileged:

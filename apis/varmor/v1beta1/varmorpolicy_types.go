@@ -307,11 +307,11 @@ type EnhanceProtect struct {
 }
 
 type ModelOptions struct {
-	// UseExistingModel decides whether or not to use the existing model for the AppArmor or Seccomp
+	// UseExistingModel indicates whether to use an existing model (the corresponding ArmorProfileModel object) for protection.
 	UseExistingModel bool `json:"useExistingMode,omitempty"`
 	// ModelingDuration is the duration in minutes to modeling
 	ModelingDuration int `json:"modelingDuration,omitempty"`
-	// AutoEnable decides whether or not to enable the access control after modeling is complete
+	// AutoEnable determines whether protection is automatically activated after modeling is completed
 	AutoEnable bool `json:"autoEnable,omitempty"`
 }
 
