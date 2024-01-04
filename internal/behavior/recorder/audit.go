@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package behavior
+package recorder
 
 import (
 	"bufio"
@@ -25,7 +25,7 @@ import (
 type AuditRecorder struct {
 	profileName           string
 	stopCh                <-chan struct{}
-	auditEventCh          chan string
+	AuditEventCh          chan string
 	recordPath            string
 	recordDebugPath       string
 	recordFile            *os.File
@@ -37,11 +37,11 @@ type AuditRecorder struct {
 	log                   logr.Logger
 }
 
-func newAuditRecorder(profileName string, stopCh <-chan struct{}, debug bool, log logr.Logger) *AuditRecorder {
+func NewAuditRecorder(profileName string, stopCh <-chan struct{}, debug bool, log logr.Logger) *AuditRecorder {
 	r := AuditRecorder{
 		profileName:     profileName,
 		stopCh:          stopCh,
-		auditEventCh:    make(chan string, 500),
+		AuditEventCh:    make(chan string, 500),
 		recordPath:      fmt.Sprintf("%s_audit_records.log", profileName),
 		recordDebugPath: fmt.Sprintf("%s_audit_records_debug.log", profileName),
 		debug:           debug,
@@ -51,8 +51,8 @@ func newAuditRecorder(profileName string, stopCh <-chan struct{}, debug bool, lo
 	return &r
 }
 
-// init create the record file to save AppArmor audit event
-func (r *AuditRecorder) init() error {
+// Init create the record file to save AppArmor audit event
+func (r *AuditRecorder) Init() error {
 	var err error
 
 	r.recordFile, err = os.Create(r.recordPath)
@@ -74,7 +74,27 @@ func (r *AuditRecorder) init() error {
 	return nil
 }
 
-func (r *AuditRecorder) stop() {
+// EventHandler save the audit event of AppArmor that comes from rsyslog
+func (r *AuditRecorder) eventHandler() {
+	for {
+		select {
+		case event := <-r.AuditEventCh:
+			r.recordFileWriter.WriteString(event + "\n")
+			if r.debug {
+				r.recordDebugFileWriter.WriteString(event + "\n")
+			}
+		case <-r.stopCh:
+			r.Close()
+			return
+		}
+	}
+}
+
+func (r *AuditRecorder) Run() {
+	go r.eventHandler()
+}
+
+func (r *AuditRecorder) Close() {
 	if r.recordFileWriter != nil {
 		r.recordFileWriter.Flush()
 	}
@@ -94,23 +114,7 @@ func (r *AuditRecorder) stop() {
 	}
 }
 
-// EventHandler save the audit event of AppArmor that comes from rsyslog
-func (r *AuditRecorder) eventHandler() {
-	for {
-		select {
-		case event := <-r.auditEventCh:
-			r.recordFileWriter.WriteString(event + "\n")
-			if r.debug {
-				r.recordDebugFileWriter.WriteString(event + "\n")
-			}
-		case <-r.stopCh:
-			r.stop()
-			return
-		}
-	}
-}
-
-func (r *AuditRecorder) cleanUp() {
+func (r *AuditRecorder) CleanUp() {
 	_, err := os.Stat(r.recordPath)
 	if err == nil {
 		os.Remove(r.recordPath)

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package behavior
+package recorder
 
 import (
 	"bufio"
@@ -28,7 +28,7 @@ import (
 type BpfRecorder struct {
 	profileName           string
 	stopCh                <-chan struct{}
-	bpfEventCh            chan bpfEvent
+	BpfEventCh            chan varmortypes.BpfTraceEvent
 	recordPath            string
 	recordDebugPath       string
 	recordFile            *os.File
@@ -40,11 +40,11 @@ type BpfRecorder struct {
 	log                   logr.Logger
 }
 
-func newBpfRecorder(profileName string, stopCh <-chan struct{}, debug bool, log logr.Logger) *BpfRecorder {
+func NewBpfRecorder(profileName string, stopCh <-chan struct{}, debug bool, log logr.Logger) *BpfRecorder {
 	r := BpfRecorder{
 		profileName:     profileName,
 		stopCh:          stopCh,
-		bpfEventCh:      make(chan bpfEvent, 500),
+		BpfEventCh:      make(chan varmortypes.BpfTraceEvent, 500),
 		recordPath:      fmt.Sprintf("%s_bpf_records.log", profileName),
 		recordDebugPath: fmt.Sprintf("%s_bpf_records_debug.log", profileName),
 		debug:           debug,
@@ -54,8 +54,8 @@ func newBpfRecorder(profileName string, stopCh <-chan struct{}, debug bool, log 
 	return &r
 }
 
-// init create the record file to save AppArmor audit event
-func (r *BpfRecorder) init() error {
+// Init create the record file to save AppArmor audit event
+func (r *BpfRecorder) Init() error {
 	var err error
 
 	r.recordFile, err = os.Create(r.recordPath)
@@ -77,7 +77,7 @@ func (r *BpfRecorder) init() error {
 	return nil
 }
 
-func (r *BpfRecorder) stop() {
+func (r *BpfRecorder) Close() {
 	if r.recordFile != nil {
 		r.recordFile.Close()
 	}
@@ -93,11 +93,20 @@ func (r *BpfRecorder) stop() {
 	}
 }
 
+func indexOfZero(array []uint8) int {
+	for i, value := range array {
+		if value == 0 {
+			return i
+		}
+	}
+	return 0
+}
+
 // EventHandler save the audit event of AppArmor that comes from rsyslog
 func (r *BpfRecorder) eventHandler() {
 	for {
 		select {
-		case event := <-r.bpfEventCh:
+		case event := <-r.BpfEventCh:
 			r.recordFileEncoder.Encode(event)
 
 			if r.debug {
@@ -127,13 +136,17 @@ func (r *BpfRecorder) eventHandler() {
 			}
 
 		case <-r.stopCh:
-			r.stop()
+			r.Close()
 			return
 		}
 	}
 }
 
-func (r *BpfRecorder) cleanUp() {
+func (r *BpfRecorder) Run() {
+	go r.eventHandler()
+}
+
+func (r *BpfRecorder) CleanUp() {
 	_, err := os.Stat(r.recordPath)
 	if err == nil {
 		os.Remove(r.recordPath)

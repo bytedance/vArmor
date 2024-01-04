@@ -19,13 +19,15 @@ import (
 
 	"github.com/go-logr/logr"
 
+	varmorrecorder "github.com/bytedance/vArmor/internal/behavior/recorder"
+	varmortracer "github.com/bytedance/vArmor/internal/behavior/tracer"
 	varmorutils "github.com/bytedance/vArmor/internal/utils"
 	varmormonitor "github.com/bytedance/vArmor/pkg/runtime"
 	utils "github.com/bytedance/vArmor/pkg/utils"
 )
 
 type BehaviorModeller struct {
-	tracer         *Tracer
+	tracer         *varmortracer.Tracer
 	monitor        *varmormonitor.RuntimeMonitor
 	nodeName       string
 	namespace      string
@@ -36,8 +38,8 @@ type BehaviorModeller struct {
 	initPIDsCh     chan uint32
 	targetPIDs     map[uint32]struct{}
 	targetMnts     map[uint32]struct{}
-	auditRecorder  *AuditRecorder
-	bpfRecorder    *BpfRecorder
+	auditRecorder  *varmorrecorder.AuditRecorder
+	bpfRecorder    *varmorrecorder.BpfRecorder
 	ModellerStopCh chan bool
 	stopCh         <-chan struct{}
 	managerIP      string
@@ -48,7 +50,7 @@ type BehaviorModeller struct {
 }
 
 func NewBehaviorModeller(
-	tracer *Tracer,
+	tracer *varmortracer.Tracer,
 	monitor *varmormonitor.RuntimeMonitor,
 	nodeName string,
 	namespace string,
@@ -86,14 +88,14 @@ func NewBehaviorModeller(
 		log:            log,
 	}
 
-	auditRecorder := newAuditRecorder(name, stopCh, debug, log.WithName("AUDIT-RECORDER"))
+	auditRecorder := varmorrecorder.NewAuditRecorder(name, stopCh, debug, log.WithName("AUDIT-RECORDER"))
 	if auditRecorder != nil {
 		modeller.auditRecorder = auditRecorder
 	} else {
 		return nil
 	}
 
-	bpfRecorder := newBpfRecorder(name, stopCh, debug, log.WithName("BPF-RECORDER"))
+	bpfRecorder := varmorrecorder.NewBpfRecorder(name, stopCh, debug, log.WithName("BPF-RECORDER"))
 	if bpfRecorder != nil {
 		modeller.bpfRecorder = bpfRecorder
 	} else {
@@ -158,15 +160,15 @@ func (modeller *BehaviorModeller) eventHandler() {
 					"target mnts", modeller.targetMnts,
 				)
 				modeller.stop()
-				modeller.auditRecorder.stop()
-				modeller.bpfRecorder.stop()
+				modeller.auditRecorder.Close()
+				modeller.bpfRecorder.Close()
 
 				// Sync data to manager after modeling completed.
 				modeller.PreprocessAndSendBehaviorData()
 				modeller.targetPIDs = make(map[uint32]struct{}, 0)
 				modeller.targetMnts = make(map[uint32]struct{}, 0)
-				modeller.auditRecorder.cleanUp()
-				modeller.bpfRecorder.cleanUp()
+				modeller.auditRecorder.CleanUp()
+				modeller.bpfRecorder.CleanUp()
 				return
 			}
 
@@ -186,10 +188,10 @@ func (modeller *BehaviorModeller) eventHandler() {
 
 		case <-modeller.ModellerStopCh:
 			modeller.stop()
-			modeller.auditRecorder.stop()
-			modeller.auditRecorder.cleanUp()
-			modeller.bpfRecorder.stop()
-			modeller.bpfRecorder.cleanUp()
+			modeller.auditRecorder.Close()
+			modeller.auditRecorder.CleanUp()
+			modeller.bpfRecorder.Close()
+			modeller.bpfRecorder.CleanUp()
 			modeller.log.Info("behavioral data collection is stopped", "profile name", modeller.name)
 			return
 		}
@@ -199,24 +201,24 @@ func (modeller *BehaviorModeller) eventHandler() {
 func (modeller *BehaviorModeller) Run() {
 	modeller.log.Info("start behavioral data collection", "profile name", modeller.name)
 
-	err := modeller.auditRecorder.init()
+	err := modeller.auditRecorder.Init()
 	if err != nil {
-		modeller.log.Error(err, "modeller.auditRecorder.init()")
+		modeller.log.Error(err, "modeller.auditRecorder.Init()")
 		return
 	}
 
-	err = modeller.bpfRecorder.init()
+	err = modeller.bpfRecorder.Init()
 	if err != nil {
-		modeller.log.Error(err, "modeller.bpfRecorder.init()")
+		modeller.log.Error(err, "modeller.bpfRecorder.Init()")
 		return
 	}
 
-	go modeller.auditRecorder.eventHandler()
-	go modeller.bpfRecorder.eventHandler()
+	modeller.auditRecorder.Run()
+	modeller.bpfRecorder.Run()
 	go modeller.eventHandler()
 
 	modeller.monitor.AddModellerChs(modeller.name, modeller.initPIDsCh)
-	modeller.tracer.AddEventCh(modeller.name, modeller.bpfRecorder.bpfEventCh, modeller.auditRecorder.auditEventCh)
+	modeller.tracer.AddEventCh(modeller.name, modeller.bpfRecorder.BpfEventCh, modeller.auditRecorder.AuditEventCh)
 
 	modeller.modeling = true
 }

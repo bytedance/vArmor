@@ -764,7 +764,7 @@ func (p *DataPreprocessor) GatherTargetPIDs() {
 	p.bpfRecordFileDecoder = gob.NewDecoder(p.bpfRecordFile)
 
 	for {
-		var event bpfEvent
+		var event varmortypes.BpfTraceEvent
 		err := p.bpfRecordFileDecoder.Decode(&event)
 		if err != nil {
 			break

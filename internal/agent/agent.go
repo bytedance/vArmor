@@ -36,6 +36,7 @@ import (
 	// listerv1 "k8s.io/client-go/listers/core/v1"
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
 	varmorbehavior "github.com/bytedance/vArmor/internal/behavior"
+	varmortracer "github.com/bytedance/vArmor/internal/behavior/tracer"
 	varmorconfig "github.com/bytedance/vArmor/internal/config"
 	varmortypes "github.com/bytedance/vArmor/internal/types"
 	varmorutils "github.com/bytedance/vArmor/internal/utils"
@@ -69,7 +70,7 @@ type Agent struct {
 	enableDefenseInDepth bool
 	enableBpfEnforcer    bool
 	unloadAllAaProfile   bool
-	tracer               *varmorbehavior.Tracer
+	tracer               *varmortracer.Tracer
 	modellers            map[string]*varmorbehavior.BehaviorModeller
 	nodeName             string
 	debug                bool
@@ -179,7 +180,7 @@ func NewAgent(
 		// [Experimental feature] Initialize the tracer for DefenseInDepth mode (It only works with AppArmor LSM for now).
 		if agent.enableDefenseInDepth {
 			log.Info("initialize the tracer for DefenseInDepth mode")
-			agent.tracer, err = varmorbehavior.NewTracer(log.WithName("TRACER"))
+			agent.tracer, err = varmortracer.NewTracer(log.WithName("TRACER"))
 			if err != nil {
 				return nil, err
 			}

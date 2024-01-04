@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package behavior
+package tracer
 
 import (
 	"bytes"
@@ -24,6 +24,7 @@ import (
 	"os"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/cilium/ebpf/link"
@@ -32,6 +33,7 @@ import (
 	"github.com/go-logr/logr"
 
 	varmorconfig "github.com/bytedance/vArmor/internal/config"
+	varmortypes "github.com/bytedance/vArmor/internal/types"
 	varmorapparmor "github.com/bytedance/vArmor/pkg/lsm/apparmor"
 )
 
@@ -46,7 +48,7 @@ type Tracer struct {
 	execLink       link.Link
 	forkLink       link.Link
 	reader         *perf.Reader
-	bpfEventChs    map[string]chan<- bpfEvent
+	bpfEventChs    map[string]chan<- varmortypes.BpfTraceEvent
 	savedRateLimit uint64
 	auditConn      *net.UnixConn
 	apparmorRegex  *regexp.Regexp
@@ -58,7 +60,7 @@ func NewTracer(log logr.Logger) (*Tracer, error) {
 	tracer := Tracer{
 		enabled:        false,
 		bpfObjs:        bpfObjects{},
-		bpfEventChs:    make(map[string]chan<- bpfEvent),
+		bpfEventChs:    make(map[string]chan<- varmortypes.BpfTraceEvent),
 		savedRateLimit: 0,
 		auditEventChs:  make(map[string]chan<- string),
 		log:            log,
@@ -100,7 +102,7 @@ func (tracer *Tracer) Close() {
 	tracer.bpfObjs.Close()
 }
 
-func (tracer *Tracer) AddEventCh(name string, bpfCh chan bpfEvent, auditCh chan string) {
+func (tracer *Tracer) AddEventCh(name string, bpfCh chan varmortypes.BpfTraceEvent, auditCh chan string) {
 	tracer.bpfEventChs[name] = bpfCh
 	tracer.auditEventChs[name] = auditCh
 
@@ -176,6 +178,24 @@ func (tracer *Tracer) stopTracing() error {
 		tracer.log.Error(err, "varmorapparmor.RemoveUnknown()", "output", output)
 	}
 
+	return err
+}
+
+func sysctl_read(path string) (string, error) {
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	return strings.Trim(string(content), "\n"), nil
+}
+
+func sysctl_write(path string, value uint64) error {
+	file, err := os.OpenFile(path, os.O_WRONLY, 0)
+	if err != nil {
+		return err
+	}
+
+	_, err = file.WriteString(fmt.Sprintf("%d", value))
 	return err
 }
 
@@ -303,7 +323,7 @@ func (tracer *Tracer) closeBpfEventsReader() {
 }
 
 func (tracer *Tracer) handleBpfEvents() {
-	var event bpfEvent
+	var event varmortypes.BpfTraceEvent
 	for {
 		record, err := tracer.reader.Read()
 		if err != nil {
