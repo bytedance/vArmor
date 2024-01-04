@@ -391,13 +391,17 @@ func (p *DataPreprocessor) trimPath(path, dmask string) string {
 
 	// Reduce the number of rules for the system dynamic library.
 	if !strings.Contains(dmask, "a") && !strings.Contains(dmask, "w") && !strings.Contains(dmask, "l") && !strings.Contains(dmask, "k") {
-		if strings.HasPrefix(path, "/lib/x86_64-linux-gnu/") {
+		if path == "/lib/x86_64-linux-gnu/" {
+			return path
+		} else if strings.HasPrefix(path, "/lib/x86_64-linux-gnu/") {
 			return "/lib/x86_64-linux-gnu/**"
-		}
-		if strings.HasPrefix(path, "/usr/lib/x86_64-linux-gnu/") {
+		} else if path == "/usr/lib/x86_64-linux-gnu/" {
+			return path
+		} else if strings.HasPrefix(path, "/usr/lib/x86_64-linux-gnu/") {
 			return "/usr/lib/x86_64-linux-gnu/**"
-		}
-		if strings.HasPrefix(path, "/usr/lib/aarch64-linux-gnu/") {
+		} else if path == "/usr/lib/aarch64-linux-gnu/" {
+			return path
+		} else if strings.HasPrefix(path, "/usr/lib/aarch64-linux-gnu/") {
 			return "/usr/lib/aarch64-linux-gnu/**"
 		}
 	}
@@ -405,7 +409,7 @@ func (p *DataPreprocessor) trimPath(path, dmask string) string {
 	// Reduce the number of rules for /tmp directory
 	// e.g. /tmp、/tmp/、/tmp/dwda.lgo、/tmp/dw/fw.log
 	if strings.HasPrefix(path, "/tmp/") {
-		if path != "/tmp" {
+		if path != "/tmp/" {
 			return "/tmp/**"
 		} else {
 			return "/tmp/"
