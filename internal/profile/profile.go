@@ -15,8 +15,11 @@
 package profile
 
 import (
+	"context"
 	"fmt"
 	"strings"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
 	varmorconfig "github.com/bytedance/vArmor/internal/config"
@@ -108,13 +111,21 @@ func GenerateProfile(policy varmor.Policy, name string, namespace string, varmor
 				profile.Mode = "complain"
 				profile.Content = apparmorprofile.GenerateBehaviorModelingProfile(name)
 			}
+		case "BPF":
+			return nil, fmt.Errorf("not supported by the BPF enforcer")
+		default:
+			return nil, fmt.Errorf("unknown enforcer")
+		}
 
-			// apm, err := varmorInterface.ArmorProfileModels(namespace).Get(context.Background(), name, metav1.GetOptions{})
-			// if err == nil {
-			// 	profile.Content = apm.Spec.Profile.Content
-			// } else {
-			// 	return nil, fmt.Errorf("fatal error: no existing model found")
-			// }
+	case varmortypes.DefenseInDepthMode:
+		switch policy.Enforcer {
+		case "AppArmor":
+			apm, err := varmorInterface.ArmorProfileModels(namespace).Get(context.Background(), name, metav1.GetOptions{})
+			if err == nil {
+				profile.Content = apm.Spec.Profile.Content
+			} else {
+				return nil, fmt.Errorf("fatal error: no existing model found")
+			}
 		case "BPF":
 			return nil, fmt.Errorf("not supported by the BPF enforcer")
 		default:

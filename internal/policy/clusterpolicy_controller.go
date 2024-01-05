@@ -365,33 +365,33 @@ func (c *ClusterPolicyController) ignoreUpdate(newVp *varmor.VarmorClusterPolicy
 	// Disallow switch mode from others to BehaviorModeling.
 	if newVp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode &&
 		oldAp.Spec.BehaviorModeling.Duration == 0 {
-		err := fmt.Errorf("disallow switch spec.policy.mode from others to DefenseInDepth")
+		err := fmt.Errorf("disallow switch spec.policy.mode from others to BehaviorModeling")
 		logger.Error(err, "update VarmorClusterPolicy/status with forbidden info")
 		err = c.updateVarmorClusterPolicyStatus(newVp, "", true, varmortypes.VarmorPolicyUnchanged, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionFalse,
 			"Forbidden",
-			"Switch the mode from others to DefenseInDepth is not allowed. You need to recreate the VarmorClusterPolicy object.")
+			"Switch the mode from others to BehaviorModeling is not allowed. You need to recreate the VarmorClusterPolicy object.")
 		return true, err
 	}
 
 	// Disallow switch mode from BehaviorModeling to others.
 	if newVp.Spec.Policy.Mode != varmortypes.BehaviorModelingMode &&
 		oldAp.Spec.BehaviorModeling.Duration != 0 {
-		err := fmt.Errorf("disallow switch spec.policy.mode from DefenseInDepth to others")
+		err := fmt.Errorf("disallow switch spec.policy.mode from BehaviorModeling to others")
 		logger.Error(err, "update VarmorClusterPolicy/status with forbidden info")
 		err = c.updateVarmorClusterPolicyStatus(newVp, "", true, varmortypes.VarmorPolicyUnchanged, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionFalse,
 			"Forbidden",
-			"Switch the mode from DefenseInDepth to others is not allowed. You need to recreate the VarmorClusterPolicy object.")
+			"Switch the mode from BehaviorModeling to others is not allowed. You need to recreate the VarmorClusterPolicy object.")
 		return true, err
 	}
 
 	// Disallow modify the VarmorClusterPolicy that run as BehaviorModeling mode and already completed.
 	if newVp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode &&
 		newVp.Status.Phase == varmortypes.VarmorPolicyCompleted {
-		err := fmt.Errorf("disallow modify the VarmorClusterPolicy that run as DefenseInDepth mode and already completed")
+		err := fmt.Errorf("disallow modify the VarmorClusterPolicy that run as BehaviorModeling mode and already completed")
 		logger.Error(err, "update VarmorClusterPolicy/status with forbidden info")
 		err = c.updateVarmorClusterPolicyStatus(newVp, "", false, varmortypes.VarmorPolicyUnchanged, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionFalse,
 			"Forbidden",
-			"Modify the VarmorClusterPolicy that run as DefenseInDepth mode and already completed is not allowed. You need to recreate the VarmorClusterPolicy object.")
+			"Modify the VarmorClusterPolicy that run as BehaviorModeling mode and already completed is not allowed. You need to recreate the VarmorClusterPolicy object.")
 		return true, err
 	}
 

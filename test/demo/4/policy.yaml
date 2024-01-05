@@ -11,6 +11,7 @@ spec:
         app: demo-4
   policy:
     enforcer: AppArmor
+    # mode: DefenseInDepth
     mode: BehaviorModeling
     modelingOptions:
       duration: 1

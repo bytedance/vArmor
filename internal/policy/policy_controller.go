@@ -387,7 +387,7 @@ func (c *PolicyController) ignoreUpdate(newVp *varmor.VarmorPolicy, oldAp *varmo
 		logger.Error(err, "update VarmorPolicy/status with forbidden info")
 		err = c.updateVarmorPolicyStatus(newVp, "", true, varmortypes.VarmorPolicyUnchanged, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionFalse,
 			"Forbidden",
-			"Switch the mode from others to DefenseInDepth is not allowed. You need to recreate the VarmorPolicy object.")
+			"Switch the mode from others to BehaviorModeling is not allowed. You need to recreate the VarmorPolicy object.")
 		return true, err
 	}
 
@@ -398,7 +398,7 @@ func (c *PolicyController) ignoreUpdate(newVp *varmor.VarmorPolicy, oldAp *varmo
 		logger.Error(err, "update VarmorPolicy/status with forbidden info")
 		err = c.updateVarmorPolicyStatus(newVp, "", true, varmortypes.VarmorPolicyUnchanged, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionFalse,
 			"Forbidden",
-			"Switch the mode from DefenseInDepth to others is not allowed. You need to recreate the VarmorPolicy object.")
+			"Switch the mode from BehaviorModeling to others is not allowed. You need to recreate the VarmorPolicy object.")
 		return true, err
 	}
 
@@ -409,7 +409,7 @@ func (c *PolicyController) ignoreUpdate(newVp *varmor.VarmorPolicy, oldAp *varmo
 		logger.Error(err, "update VarmorPolicy/status with forbidden info")
 		err = c.updateVarmorPolicyStatus(newVp, "", false, varmortypes.VarmorPolicyUnchanged, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionFalse,
 			"Forbidden",
-			"Modify the VarmorPolicy that run as DefenseInDepth mode and already completed is not allowed. You need to recreate the VarmorPolicy object.")
+			"Modify the VarmorPolicy that run as BehaviorModeling mode and already completed is not allowed. You need to recreate the VarmorPolicy object.")
 		return true, err
 	}
 
