@@ -177,9 +177,9 @@ func NewAgent(
 			varmorapparmor.RemoveUnknown()
 		}
 
-		// [Experimental feature] Initialize the tracer for DefenseInDepth mode (It only works with AppArmor LSM for now).
+		// [Experimental feature] Initialize the tracer for BehaviorModeling mode (It only works with AppArmor LSM for now).
 		if agent.enableBehaviorModeling {
-			log.Info("initialize the tracer for DefenseInDepth mode")
+			log.Info("initialize the tracer for BehaviorModeling mode")
 			agent.tracer, err = varmortracer.NewTracer(log.WithName("TRACER"))
 			if err != nil {
 				return nil, err
@@ -297,7 +297,7 @@ func (agent *Agent) selectEnforcer(ap *varmor.ArmorProfile, logger logr.Logger) 
 			return "BPF"
 		} else {
 			agent.sendStatus(ap, varmortypes.Failed, "the BPF LSM may not be supported, "+
-				"the BPF enforcer may not be enabled, or the BPF enforcer not support the DefenseInDepth mode.")
+				"the BPF enforcer may not be enabled, or the BPF enforcer not support the BehaviorModeling mode.")
 			return ""
 		}
 	default:
@@ -337,7 +337,7 @@ func (agent *Agent) handleCreateOrUpdateArmorProfile(ap *varmor.ArmorProfile, ke
 	case "AppArmor":
 		needLoadApparmor := true
 
-		// [Experimental feature] For DefenseInDepth mode (only works with AppArmor LSM for now).
+		// [Experimental feature] For BehaviorModeling mode (only works with AppArmor enforcer for now).
 		if agent.enableBehaviorModeling &&
 			agent.appArmorSupported &&
 			ap.Spec.BehaviorModeling.Enable &&

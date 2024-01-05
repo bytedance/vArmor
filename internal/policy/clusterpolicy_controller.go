@@ -271,7 +271,7 @@ func (c *ClusterPolicyController) ignoreAdd(vcp *varmor.VarmorClusterPolicy, log
 		logger.Error(err, "update VarmorClusterPolicy/status with forbidden info")
 		err = c.updateVarmorClusterPolicyStatus(vcp, "", true, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyCreated, apicorev1.ConditionFalse,
 			"Forbidden",
-			"The DefenseInDepth feature is not supported for the VarmorClusterPolicy controller.")
+			"The BehaviorModeling feature is not supported for the VarmorClusterPolicy controller.")
 		if err != nil {
 			logger.Error(err, "updateVarmorClusterPolicyStatus()")
 		}

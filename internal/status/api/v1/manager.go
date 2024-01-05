@@ -455,7 +455,7 @@ func (m *StatusManager) reconcileStatus(stopCh <-chan struct{}) {
 			logger.Info("periodically update all of the objects' statuses")
 			m.updateAllCRStatus(logger)
 
-		// Update ArmorProfile from complain mode to enforce mode for DefenseInDepth.
+		// Update ArmorProfile from complain mode to enforce mode for BehaviorModeling.
 		case statusKey := <-m.UpdateModeCh:
 			namespace, vpName, err := cache.SplitMetaNamespaceKey(statusKey)
 			if err != nil {

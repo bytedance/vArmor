@@ -285,7 +285,7 @@ func (c *PolicyController) ignoreAdd(vp *varmor.VarmorPolicy, logger logr.Logger
 		logger.Error(err, "update VarmorPolicy/status with forbidden info")
 		err = c.updateVarmorPolicyStatus(vp, "", true, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyCreated, apicorev1.ConditionFalse,
 			"Forbidden",
-			"The DefenseInDepth feature is not enabled.")
+			"The BehaviorModeling feature is not enabled.")
 		if err != nil {
 			logger.Error(err, "updateVarmorPolicyStatus()")
 		}
