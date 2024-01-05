@@ -28,6 +28,7 @@ spec:
         command: ["/varmor/vArmor", "--agent"]
         args:
         - --enableBpfEnforcer
+        - --enableBehaviorModeling
         securityContext:
           privileged: true
           runAsUser: 0

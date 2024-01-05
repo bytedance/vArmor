@@ -46,19 +46,19 @@ import (
 )
 
 type ClusterPolicyController struct {
-	podInterface          corev1.PodInterface
-	appsInterface         appsv1.AppsV1Interface
-	varmorInterface       varmorinterface.CrdV1beta1Interface
-	vcpInformer           varmorinformer.VarmorClusterPolicyInformer
-	vcpLister             varmorlister.VarmorClusterPolicyLister
-	vcpInformerSynced     cache.InformerSynced
-	queue                 workqueue.RateLimitingInterface
-	statusManager         *statusmanager.StatusManager
-	restartExistWorkloads bool
-	enableDefenseInDepth  bool
-	bpfExclusiveMode      bool
-	debug                 bool
-	log                   logr.Logger
+	podInterface           corev1.PodInterface
+	appsInterface          appsv1.AppsV1Interface
+	varmorInterface        varmorinterface.CrdV1beta1Interface
+	vcpInformer            varmorinformer.VarmorClusterPolicyInformer
+	vcpLister              varmorlister.VarmorClusterPolicyLister
+	vcpInformerSynced      cache.InformerSynced
+	queue                  workqueue.RateLimitingInterface
+	statusManager          *statusmanager.StatusManager
+	restartExistWorkloads  bool
+	enableBehaviorModeling bool
+	bpfExclusiveMode       bool
+	debug                  bool
+	log                    logr.Logger
 }
 
 // NewClusterPolicyController create a new ClusterPolicyController
@@ -69,25 +69,25 @@ func NewClusterPolicyController(
 	vcpInformer varmorinformer.VarmorClusterPolicyInformer,
 	statusManager *statusmanager.StatusManager,
 	restartExistWorkloads bool,
-	enableDefenseInDepth bool,
+	enableBehaviorModeling bool,
 	bpfExclusiveMode bool,
 	debug bool,
 	log logr.Logger) (*ClusterPolicyController, error) {
 
 	c := ClusterPolicyController{
-		podInterface:          podInterface,
-		appsInterface:         appsInterface,
-		varmorInterface:       varmorInterface,
-		vcpInformer:           vcpInformer,
-		vcpLister:             vcpInformer.Lister(),
-		vcpInformerSynced:     vcpInformer.Informer().HasSynced,
-		queue:                 workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "clusterpolicy"),
-		statusManager:         statusManager,
-		restartExistWorkloads: restartExistWorkloads,
-		enableDefenseInDepth:  enableDefenseInDepth,
-		bpfExclusiveMode:      bpfExclusiveMode,
-		debug:                 debug,
-		log:                   log,
+		podInterface:           podInterface,
+		appsInterface:          appsInterface,
+		varmorInterface:        varmorInterface,
+		vcpInformer:            vcpInformer,
+		vcpLister:              vcpInformer.Lister(),
+		vcpInformerSynced:      vcpInformer.Informer().HasSynced,
+		queue:                  workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "clusterpolicy"),
+		statusManager:          statusManager,
+		restartExistWorkloads:  restartExistWorkloads,
+		enableBehaviorModeling: enableBehaviorModeling,
+		bpfExclusiveMode:       bpfExclusiveMode,
+		debug:                  debug,
+		log:                    log,
 	}
 
 	return &c, nil

@@ -35,19 +35,19 @@ spec:
         image: "{{ .Values.image.registry }}/{{ .Values.image.namespace }}/{{ .Values.manager.image.name }}:{{ .Values.manager.image.tag | default .Chart.AppVersion }}"
         imagePullPolicy: {{ .Values.manager.image.pullPolicy }}
         command: ["/varmor/vArmor"]
-        {{- if or .Values.manager.args .Values.defenseInDepth.enabled .Values.restartExistWorkloads.enabled  }}
+        {{- if or .Values.manager.args .Values.behaviorModeling.enabled .Values.restartExistWorkloads.enabled  }}
         args:
         {{- if .Values.manager.args }}
         {{- with .Values.manager.args }}
           {{- toYaml . | nindent 8 }}
         {{- end }}
         {{- end }}
-        {{- if .Values.defenseInDepth.enabled }}
-        {{- with .Values.manager.defenseInDepth.args }}
+        {{- if .Values.behaviorModeling.enabled }}
+        {{- with .Values.manager.behaviorModeling.args }}
           {{- toYaml . | nindent 8 }}
         {{- end }}
         {{- end }}
-        {{- if or .Values.defenseInDepth.enabled .Values.restartExistWorkloads.enabled }}
+        {{- if or .Values.behaviorModeling.enabled .Values.restartExistWorkloads.enabled }}
         {{- with .Values.manager.restartExistWorkloads.args }}
           {{- toYaml . | nindent 8 }}
         {{- end }}

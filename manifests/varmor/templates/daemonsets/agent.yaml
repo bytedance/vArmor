@@ -28,15 +28,15 @@ spec:
         image: "{{ .Values.image.registry }}/{{ .Values.image.namespace }}/{{ .Values.agent.image.name }}:{{ .Values.agent.image.tag | default .Chart.AppVersion }}"
         imagePullPolicy: {{ .Values.agent.image.pullPolicy }}
         command: ["/varmor/vArmor", "--agent"]
-        {{- if or .Values.agent.args .Values.defenseInDepth.enabled .Values.bpfLsmEnforcer.enabled .Values.unloadAllAaProfile.enabled }}
+        {{- if or .Values.agent.args .Values.behaviorModeling.enabled .Values.bpfLsmEnforcer.enabled .Values.unloadAllAaProfile.enabled }}
         args:
           {{- if .Values.agent.args }}
             {{- with .Values.agent.args }}
               {{- toYaml . | nindent 8 }}
             {{- end }}
           {{- end }}
-          {{- if .Values.defenseInDepth.enabled }}
-            {{- with .Values.agent.defenseInDepth.args }}
+          {{- if .Values.behaviorModeling.enabled }}
+            {{- with .Values.agent.behaviorModeling.args }}
               {{- toYaml . | nindent 8 }}
             {{- end }}
           {{- end }}
@@ -66,21 +66,22 @@ spec:
             {{- toYaml . | nindent 8 }}
           {{- end }}
         {{- end }}
-        {{- if .Values.defenseInDepth.enabled }}
-          {{- with .Values.agent.defenseInDepth.volumeMounts }}
+        {{- if .Values.behaviorModeling.enabled }}
+          {{- with .Values.agent.behaviorModeling.volumeMounts }}
             {{- toYaml . | nindent 8 }}
           {{- end }}
         {{- end }}
-        {{- if or .Values.bpfLsmEnforcer.enabled .Values.defenseInDepth.enabled }}
+        {{- if or .Values.bpfLsmEnforcer.enabled .Values.behaviorModeling.enabled }}
           {{- with .Values.agent.lsmRelated.volumeMounts }}
             {{- toYaml . | nindent 8 }}
           {{- end }}
         {{- end }}
         resources:
-        {{- if .Values.bpfLsmEnforcer.enabled }}
+        {{- if .Values.behaviorModeling.enabled }}
+        {{- toYaml .Values.agent.behaviorModeling.resources | nindent 10 }}
+        {{- else if .Values.bpfLsmEnforcer.enabled }}
         {{- toYaml .Values.agent.bpfLsmEnforcer.resources | nindent 10 }}
-        {{- end }}
-        {{- if not .Values.bpfLsmEnforcer.enabled }}
+        {{- else }}
         {{- toYaml .Values.agent.appArmorLsmEnforcer.resources | nindent 10 }}
         {{- end }}          
       volumes:
@@ -98,12 +99,12 @@ spec:
           {{- toYaml . | nindent 6 }}
         {{- end }}
       {{- end }}
-      {{- if .Values.defenseInDepth.enabled }}
-        {{- with .Values.agent.defenseInDepth.volumes }}
+      {{- if .Values.behaviorModeling.enabled }}
+        {{- with .Values.agent.behaviorModeling.volumes }}
           {{- toYaml . | nindent 6 }}
         {{- end }}
       {{- end }}
-      {{- if or .Values.bpfLsmEnforcer.enabled .Values.defenseInDepth.enabled }}
+      {{- if or .Values.bpfLsmEnforcer.enabled .Values.behaviorModeling.enabled }}
         {{- with .Values.agent.lsmRelated.volumes }}
           {{- toYaml . | nindent 6 }}
         {{- end }}

@@ -50,19 +50,19 @@ const (
 )
 
 type PolicyController struct {
-	podInterface          corev1.PodInterface
-	appsInterface         appsv1.AppsV1Interface
-	varmorInterface       varmorinterface.CrdV1beta1Interface
-	vpInformer            varmorinformer.VarmorPolicyInformer
-	vpLister              varmorlister.VarmorPolicyLister
-	vpInformerSynced      cache.InformerSynced
-	queue                 workqueue.RateLimitingInterface
-	statusManager         *statusmanager.StatusManager
-	restartExistWorkloads bool
-	enableDefenseInDepth  bool
-	bpfExclusiveMode      bool
-	debug                 bool
-	log                   logr.Logger
+	podInterface           corev1.PodInterface
+	appsInterface          appsv1.AppsV1Interface
+	varmorInterface        varmorinterface.CrdV1beta1Interface
+	vpInformer             varmorinformer.VarmorPolicyInformer
+	vpLister               varmorlister.VarmorPolicyLister
+	vpInformerSynced       cache.InformerSynced
+	queue                  workqueue.RateLimitingInterface
+	statusManager          *statusmanager.StatusManager
+	restartExistWorkloads  bool
+	enableBehaviorModeling bool
+	bpfExclusiveMode       bool
+	debug                  bool
+	log                    logr.Logger
 }
 
 // NewPolicyController create a new PolicyController
@@ -73,25 +73,25 @@ func NewPolicyController(
 	vpInformer varmorinformer.VarmorPolicyInformer,
 	statusManager *statusmanager.StatusManager,
 	restartExistWorkloads bool,
-	enableDefenseInDepth bool,
+	enableBehaviorModeling bool,
 	bpfExclusiveMode bool,
 	debug bool,
 	log logr.Logger) (*PolicyController, error) {
 
 	c := PolicyController{
-		podInterface:          podInterface,
-		appsInterface:         appsInterface,
-		varmorInterface:       varmorInterface,
-		vpInformer:            vpInformer,
-		vpLister:              vpInformer.Lister(),
-		vpInformerSynced:      vpInformer.Informer().HasSynced,
-		queue:                 workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "policy"),
-		statusManager:         statusManager,
-		restartExistWorkloads: restartExistWorkloads,
-		enableDefenseInDepth:  enableDefenseInDepth,
-		bpfExclusiveMode:      bpfExclusiveMode,
-		debug:                 debug,
-		log:                   log,
+		podInterface:           podInterface,
+		appsInterface:          appsInterface,
+		varmorInterface:        varmorInterface,
+		vpInformer:             vpInformer,
+		vpLister:               vpInformer.Lister(),
+		vpInformerSynced:       vpInformer.Informer().HasSynced,
+		queue:                  workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "policy"),
+		statusManager:          statusManager,
+		restartExistWorkloads:  restartExistWorkloads,
+		enableBehaviorModeling: enableBehaviorModeling,
+		bpfExclusiveMode:       bpfExclusiveMode,
+		debug:                  debug,
+		log:                    log,
 	}
 
 	return &c, nil
@@ -280,7 +280,7 @@ func (c *PolicyController) ignoreAdd(vp *varmor.VarmorPolicy, logger logr.Logger
 		return true
 	}
 
-	if !c.enableDefenseInDepth && vp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode {
+	if !c.enableBehaviorModeling && vp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode {
 		err := fmt.Errorf("the BehaviorModeling mode is not enabled")
 		logger.Error(err, "update VarmorPolicy/status with forbidden info")
 		err = c.updateVarmorPolicyStatus(vp, "", true, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyCreated, apicorev1.ConditionFalse,

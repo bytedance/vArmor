@@ -54,38 +54,38 @@ const (
 )
 
 type Agent struct {
-	varmorInterface      varmorinterface.CrdV1beta1Interface
-	apInformer           varmorinformer.ArmorProfileInformer
-	apLister             varmorlister.ArmorProfileLister
-	apInformerSynced     cache.InformerSynced
-	queue                workqueue.RateLimitingInterface
-	appArmorSupported    bool
-	bpfLsmSupported      bool
-	appArmorProfileDir   string
-	bpfEnforcer          *varmorbpfenforcer.BpfEnforcer
-	runtimeMonitor       *varmorruntime.RuntimeMonitor
-	waitExistingApSync   sync.WaitGroup
-	existingApCount      int
-	processedApCount     int
-	enableDefenseInDepth bool
-	enableBpfEnforcer    bool
-	unloadAllAaProfile   bool
-	tracer               *varmortracer.Tracer
-	modellers            map[string]*varmorbehavior.BehaviorModeller
-	nodeName             string
-	debug                bool
-	managerIP            string
-	managerPort          int
-	classifierPort       int
-	stopCh               <-chan struct{}
-	log                  logr.Logger
+	varmorInterface        varmorinterface.CrdV1beta1Interface
+	apInformer             varmorinformer.ArmorProfileInformer
+	apLister               varmorlister.ArmorProfileLister
+	apInformerSynced       cache.InformerSynced
+	queue                  workqueue.RateLimitingInterface
+	appArmorSupported      bool
+	bpfLsmSupported        bool
+	appArmorProfileDir     string
+	bpfEnforcer            *varmorbpfenforcer.BpfEnforcer
+	runtimeMonitor         *varmorruntime.RuntimeMonitor
+	waitExistingApSync     sync.WaitGroup
+	existingApCount        int
+	processedApCount       int
+	enableBehaviorModeling bool
+	enableBpfEnforcer      bool
+	unloadAllAaProfile     bool
+	tracer                 *varmortracer.Tracer
+	modellers              map[string]*varmorbehavior.BehaviorModeller
+	nodeName               string
+	debug                  bool
+	managerIP              string
+	managerPort            int
+	classifierPort         int
+	stopCh                 <-chan struct{}
+	log                    logr.Logger
 }
 
 func NewAgent(
 	podInterface corev1.PodInterface,
 	varmorInterface varmorinterface.CrdV1beta1Interface,
 	apInformer varmorinformer.ArmorProfileInformer,
-	enableDefenseInDepth bool,
+	enableBehaviorModeling bool,
 	enableBpfEnforcer bool,
 	unloadAllAaProfile bool,
 	debug bool,
@@ -98,24 +98,24 @@ func NewAgent(
 	var err error
 
 	agent := Agent{
-		varmorInterface:      varmorInterface,
-		apInformer:           apInformer,
-		apLister:             apInformer.Lister(),
-		apInformerSynced:     apInformer.Informer().HasSynced,
-		queue:                workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "agent"),
-		appArmorProfileDir:   varmorconfig.AppArmorProfileDir,
-		existingApCount:      0,
-		processedApCount:     0,
-		enableDefenseInDepth: enableDefenseInDepth,
-		enableBpfEnforcer:    enableBpfEnforcer,
-		unloadAllAaProfile:   unloadAllAaProfile,
-		modellers:            make(map[string]*varmorbehavior.BehaviorModeller),
-		debug:                debug,
-		managerIP:            managerIP,
-		managerPort:          managerPort,
-		classifierPort:       classifierPort,
-		stopCh:               stopCh,
-		log:                  log,
+		varmorInterface:        varmorInterface,
+		apInformer:             apInformer,
+		apLister:               apInformer.Lister(),
+		apInformerSynced:       apInformer.Informer().HasSynced,
+		queue:                  workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "agent"),
+		appArmorProfileDir:     varmorconfig.AppArmorProfileDir,
+		existingApCount:        0,
+		processedApCount:       0,
+		enableBehaviorModeling: enableBehaviorModeling,
+		enableBpfEnforcer:      enableBpfEnforcer,
+		unloadAllAaProfile:     unloadAllAaProfile,
+		modellers:              make(map[string]*varmorbehavior.BehaviorModeller),
+		debug:                  debug,
+		managerIP:              managerIP,
+		managerPort:            managerPort,
+		classifierPort:         classifierPort,
+		stopCh:                 stopCh,
+		log:                    log,
 	}
 
 	// Pre-checks
@@ -146,7 +146,7 @@ func NewAgent(
 	log.Info("NewAgent", "nodeName", agent.nodeName)
 
 	// RuntimeMonitor initialization
-	if agent.enableDefenseInDepth || agent.bpfLsmSupported {
+	if agent.enableBehaviorModeling || agent.bpfLsmSupported {
 		log.Info("initialize the RuntimeMonitor")
 		agent.runtimeMonitor, err = varmorruntime.NewRuntimeMonitor(log.WithName("RUNTIME-MONITOR"))
 		if err != nil {
@@ -178,7 +178,7 @@ func NewAgent(
 		}
 
 		// [Experimental feature] Initialize the tracer for DefenseInDepth mode (It only works with AppArmor LSM for now).
-		if agent.enableDefenseInDepth {
+		if agent.enableBehaviorModeling {
 			log.Info("initialize the tracer for DefenseInDepth mode")
 			agent.tracer, err = varmortracer.NewTracer(log.WithName("TRACER"))
 			if err != nil {
@@ -338,7 +338,7 @@ func (agent *Agent) handleCreateOrUpdateArmorProfile(ap *varmor.ArmorProfile, ke
 		needLoadApparmor := true
 
 		// [Experimental feature] For DefenseInDepth mode (only works with AppArmor LSM for now).
-		if agent.enableDefenseInDepth &&
+		if agent.enableBehaviorModeling &&
 			agent.appArmorSupported &&
 			ap.Spec.BehaviorModeling.Enable &&
 			ap.Spec.BehaviorModeling.Duration != 0 {
@@ -565,7 +565,7 @@ func (agent *Agent) Run(workers int, stopCh <-chan struct{}) {
 		go wait.Until(agent.worker, time.Second, stopCh)
 	}
 
-	if agent.enableDefenseInDepth || agent.bpfLsmSupported {
+	if agent.enableBehaviorModeling || agent.bpfLsmSupported {
 		go agent.runtimeMonitor.Run(stopCh)
 	}
 
@@ -589,7 +589,7 @@ func (agent *Agent) CleanUp() {
 	agent.log.Info("cleaning up")
 	agent.queue.ShutDown()
 
-	if agent.appArmorSupported && agent.enableDefenseInDepth {
+	if agent.appArmorSupported && agent.enableBehaviorModeling {
 		agent.tracer.Close()
 	}
 
@@ -598,7 +598,7 @@ func (agent *Agent) CleanUp() {
 		varmorapparmor.UnloadAllAppArmorProfile(agent.appArmorProfileDir)
 	}
 
-	if agent.enableDefenseInDepth || agent.bpfLsmSupported {
+	if agent.enableBehaviorModeling || agent.bpfLsmSupported {
 		agent.runtimeMonitor.Close()
 	}
 

@@ -25,7 +25,7 @@ bpfExclusiveMode:
   enabled: false
 
 # [Experimental feature]
-defenseInDepth:
+behaviorModeling:
   enabled: false
 
 image:
@@ -74,9 +74,9 @@ manager:
 
   args: []
 
-  defenseInDepth:
+  behaviorModeling:
     args:
-    - --enableDefenseInDepth
+    - --enableBehaviorModeling
 
   restartExistWorkloads:
     args:
@@ -189,9 +189,9 @@ agent:
     args:
     - --unloadAllAaProfile
 
-  defenseInDepth:
+  behaviorModeling:
     args:
-    - --enableDefenseInDepth
+    - --enableBehaviorModeling
     volumeMounts:
     - mountPath: /var/run/varmor/audit
       name: audit-dir
@@ -200,6 +200,13 @@ agent:
         path: /var/run/varmor/audit
         type: DirectoryOrCreate
       name: audit-dir
+    resources:
+      limits:
+        cpu: 2
+        memory: 2Gi
+      requests:
+        cpu: 500m
+        memory: 500Mi
 
   lsmRelated:
     volumeMounts:

@@ -50,20 +50,20 @@ const (
 )
 
 var (
-	kubeconfig            string
-	webhookTimeout        int
-	agent                 bool
-	restartExistWorkloads bool
-	enableDefenseInDepth  bool
-	enableBpfEnforcer     bool
-	unloadAllAaProfile    bool
-	clientRateLimitQPS    float64
-	clientRateLimitBurst  int
-	managerIP             string
-	webhookMatchLabel     string
-	bpfExclusiveMode      bool
-	statusUpdateCycle     time.Duration
-	setupLog              = log.Log.WithName("SETUP")
+	kubeconfig             string
+	webhookTimeout         int
+	agent                  bool
+	restartExistWorkloads  bool
+	enableBehaviorModeling bool
+	enableBpfEnforcer      bool
+	unloadAllAaProfile     bool
+	clientRateLimitQPS     float64
+	clientRateLimitBurst   int
+	managerIP              string
+	webhookMatchLabel      string
+	bpfExclusiveMode       bool
+	statusUpdateCycle      time.Duration
+	setupLog               = log.Log.WithName("SETUP")
 )
 
 func main() {
@@ -74,7 +74,7 @@ func main() {
 	flag.IntVar(&webhookTimeout, "webhookTimeout", int(config.WebhookTimeout), "Timeout for webhook configurations.")
 	flag.BoolVar(&agent, "agent", false, "Set this flag to run vArmor agent. Run vArmor manager default if true.")
 	flag.BoolVar(&restartExistWorkloads, "restartExistWorkloads", false, "Set this flag to restart workloads that match VarmorPolicy.target")
-	flag.BoolVar(&enableDefenseInDepth, "enableDefenseInDepth", false, "Set this flag to enable DefenseInDepth feature (Note: this is an experimental feature, please do not enable it in production environment).")
+	flag.BoolVar(&enableBehaviorModeling, "enableBehaviorModeling", false, "Set this flag to enable BehaviorModeling feature (Note: this is an experimental feature, please do not enable it in production environment).")
 	flag.BoolVar(&enableBpfEnforcer, "enableBpfEnforcer", false, "Set this flag to enable BPF enforcer.")
 	flag.BoolVar(&unloadAllAaProfile, "unloadAllAaProfile", false, "Unload all AppArmor profiles when the agent exits.")
 	flag.Float64Var(&clientRateLimitQPS, "clientRateLimitQPS", 0, "Configure the maximum QPS to the master from vArmor. Uses the client default if zero.")
@@ -132,7 +132,7 @@ func main() {
 			kubeClient.CoreV1().Pods(config.Namespace),
 			varmorClient.CrdV1beta1(),
 			varmorInformer.Crd().V1beta1().ArmorProfiles(),
-			enableDefenseInDepth,
+			enableBehaviorModeling,
 			enableBpfEnforcer,
 			unloadAllAaProfile,
 			debug,
@@ -274,7 +274,7 @@ func main() {
 			varmorInformer.Crd().V1beta1().VarmorClusterPolicies(),
 			statusSvc.StatusManager,
 			restartExistWorkloads,
-			enableDefenseInDepth,
+			enableBehaviorModeling,
 			bpfExclusiveMode,
 			debug,
 			log.Log.WithName("CLUSTER-POLICY"),
@@ -291,7 +291,7 @@ func main() {
 			varmorInformer.Crd().V1beta1().VarmorPolicies(),
 			statusSvc.StatusManager,
 			restartExistWorkloads,
-			enableDefenseInDepth,
+			enableBehaviorModeling,
 			bpfExclusiveMode,
 			debug,
 			log.Log.WithName("POLICY"),

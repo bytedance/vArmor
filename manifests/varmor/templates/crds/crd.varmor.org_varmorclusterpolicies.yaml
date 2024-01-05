@@ -71,8 +71,8 @@ spec:
                 properties:
                   enforcer:
                     description: 'Enforcer is used to specify which LSM to use for
-                      mandatory access control. Available values: AppArmor, BPF, Seccomp,
-                      AppArmorSeccomp, BPFSeccomp'
+                      mandatory access control. Available values: AppArmor, BPF (WIP:
+                      Seccomp, AppArmorSeccomp, BPFSeccomp)'
                     type: string
                   enhanceProtect:
                     description: EnhanceProtect is used for building a policy for

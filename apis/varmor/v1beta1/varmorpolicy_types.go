@@ -183,7 +183,7 @@ type VarmorPolicyMode string
 
 type Policy struct {
 	// Enforcer is used to specify which LSM to use for mandatory access control.
-	// Available values: AppArmor, BPF, Seccomp, AppArmorSeccomp, BPFSeccomp
+	// Available values: AppArmor, BPF (WIP: Seccomp, AppArmorSeccomp, BPFSeccomp)
 	Enforcer string `json:"enforcer"`
 	// Available values: AlwaysAllow, RuntimeDefault, EnhanceProtect, BehaviorModeling, DefenseInDepth
 	Mode VarmorPolicyMode `json:"mode"`
