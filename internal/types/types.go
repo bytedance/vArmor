@@ -20,11 +20,11 @@ import (
 
 const (
 	// VarmorPolicy Mode
-	AlwaysAllowMode    varmor.VarmorPolicyMode = "AlwaysAllow"
-	RuntimeDefaultMode varmor.VarmorPolicyMode = "RuntimeDefault"
-	EnhanceProtectMode varmor.VarmorPolicyMode = "EnhanceProtect"
-	CustomPolicyMode   varmor.VarmorPolicyMode = "CustomPolicy"
-	DefenseInDepthMode varmor.VarmorPolicyMode = "DefenseInDepth"
+	AlwaysAllowMode      varmor.VarmorPolicyMode = "AlwaysAllow"
+	RuntimeDefaultMode   varmor.VarmorPolicyMode = "RuntimeDefault"
+	EnhanceProtectMode   varmor.VarmorPolicyMode = "EnhanceProtect"
+	BehaviorModelingMode varmor.VarmorPolicyMode = "BehaviorModeling"
+	DefenseInDepthMode   varmor.VarmorPolicyMode = "DefenseInDepth"
 
 	// VarmorPolicy Phase
 	VarmorPolicyPending    varmor.VarmorPolicyPhase = "Pending"

@@ -266,8 +266,8 @@ func (c *ClusterPolicyController) ignoreAdd(vcp *varmor.VarmorClusterPolicy, log
 		return true
 	}
 
-	if vcp.Spec.Policy.Mode == varmortypes.DefenseInDepthMode {
-		err := fmt.Errorf("the DefenseInDepth mode is not supported")
+	if vcp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode {
+		err := fmt.Errorf("the BehaviorModeling mode is not supported")
 		logger.Error(err, "update VarmorClusterPolicy/status with forbidden info")
 		err = c.updateVarmorClusterPolicyStatus(vcp, "", true, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyCreated, apicorev1.ConditionFalse,
 			"Forbidden",
@@ -362,9 +362,9 @@ func (c *ClusterPolicyController) ignoreUpdate(newVp *varmor.VarmorClusterPolicy
 		return true, err
 	}
 
-	// Disallow switch mode from others to DefenseInDepth.
-	if newVp.Spec.Policy.Mode == varmortypes.DefenseInDepthMode &&
-		oldAp.Spec.BehaviorModeling.ModelingDuration == 0 {
+	// Disallow switch mode from others to BehaviorModeling.
+	if newVp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode &&
+		oldAp.Spec.BehaviorModeling.Duration == 0 {
 		err := fmt.Errorf("disallow switch spec.policy.mode from others to DefenseInDepth")
 		logger.Error(err, "update VarmorClusterPolicy/status with forbidden info")
 		err = c.updateVarmorClusterPolicyStatus(newVp, "", true, varmortypes.VarmorPolicyUnchanged, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionFalse,
@@ -373,9 +373,9 @@ func (c *ClusterPolicyController) ignoreUpdate(newVp *varmor.VarmorClusterPolicy
 		return true, err
 	}
 
-	// Disallow switch mode from DefenseInDepth to others.
-	if newVp.Spec.Policy.Mode != varmortypes.DefenseInDepthMode &&
-		oldAp.Spec.BehaviorModeling.ModelingDuration != 0 {
+	// Disallow switch mode from BehaviorModeling to others.
+	if newVp.Spec.Policy.Mode != varmortypes.BehaviorModelingMode &&
+		oldAp.Spec.BehaviorModeling.Duration != 0 {
 		err := fmt.Errorf("disallow switch spec.policy.mode from DefenseInDepth to others")
 		logger.Error(err, "update VarmorClusterPolicy/status with forbidden info")
 		err = c.updateVarmorClusterPolicyStatus(newVp, "", true, varmortypes.VarmorPolicyUnchanged, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionFalse,
@@ -384,9 +384,9 @@ func (c *ClusterPolicyController) ignoreUpdate(newVp *varmor.VarmorClusterPolicy
 		return true, err
 	}
 
-	// Disallow modify the VarmorClusterPolicy that run as DefenseInDepth mode and already completed.
-	if newVp.Spec.Policy.Mode == varmortypes.DefenseInDepthMode &&
-		(newVp.Status.Phase == varmortypes.VarmorPolicyCompleted || newVp.Status.Phase == varmortypes.VarmorPolicyProtecting) {
+	// Disallow modify the VarmorClusterPolicy that run as BehaviorModeling mode and already completed.
+	if newVp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode &&
+		newVp.Status.Phase == varmortypes.VarmorPolicyCompleted {
 		err := fmt.Errorf("disallow modify the VarmorClusterPolicy that run as DefenseInDepth mode and already completed")
 		logger.Error(err, "update VarmorClusterPolicy/status with forbidden info")
 		err = c.updateVarmorClusterPolicyStatus(newVp, "", false, varmortypes.VarmorPolicyUnchanged, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionFalse,
@@ -396,9 +396,9 @@ func (c *ClusterPolicyController) ignoreUpdate(newVp *varmor.VarmorClusterPolicy
 	}
 
 	// Nothing need to be updated if VarmorClusterPolicy is in the modeling phase and its duration is not changed.
-	if newVp.Spec.Policy.Mode == varmortypes.DefenseInDepthMode &&
+	if newVp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode &&
 		newVp.Status.Phase == varmortypes.VarmorPolicyModeling &&
-		newVp.Spec.Policy.ModelOptions.ModelingDuration == oldAp.Spec.BehaviorModeling.ModelingDuration {
+		newVp.Spec.Policy.ModelingOptions.Duration == oldAp.Spec.BehaviorModeling.Duration {
 		logger.Info("nothing need to be updated (duration is not changed)")
 		return true, nil
 	}

@@ -39,13 +39,6 @@ type Target struct {
 	Selector *metav1.LabelSelector `json:"selector,omitempty"`
 }
 
-type Seccomp struct {
-	// Type is used to specify which type of seccomp profile to use.
-	// Available values: Unconfined, RuntimeDefault, BehaviorModel, Hybrid
-	// Default is Unconfined.
-	Type string `json:"type,omitempty"`
-}
-
 // MatchSourceType Structure
 type MatchSourceType struct {
 	Path      string `json:"path,omitempty"`
@@ -181,29 +174,23 @@ type EnhanceProtect struct {
 	BpfRawRules BpfRawRules `json:"bpfRawRules,omitempty"`
 }
 
-type ModelOptions struct {
-	// UseExistingModel indicates whether to use an existing model (the corresponding ArmorProfileModel object) for protection.
-	UseExistingModel bool `json:"useExistingModel,omitempty"`
-	// ModelingDuration is the duration in minutes to modeling
-	ModelingDuration int `json:"modelingDuration,omitempty"`
-	// AutoEnable determines whether protection is automatically activated after modeling is completed
-	AutoEnable bool `json:"autoEnable,omitempty"`
+type ModelingOptions struct {
+	// Duration is the duration in minutes to modeling
+	Duration int `json:"duration,omitempty"`
 }
 
 type VarmorPolicyMode string
 
 type Policy struct {
-	// Seccomp is used to specify the seccomp settings.
-	Seccomp Seccomp `json:"seccomp,omitempty"`
 	// Enforcer is used to specify which LSM to use for mandatory access control.
-	// Available values: AppArmor, BPF
+	// Available values: AppArmor, BPF, Seccomp, AppArmorSeccomp, BPFSeccomp
 	Enforcer string `json:"enforcer"`
-	// Available values: AlwaysAllow, RuntimeDefault, EnhanceProtect, CustomPolicy
+	// Available values: AlwaysAllow, RuntimeDefault, EnhanceProtect, BehaviorModeling, DefenseInDepth
 	Mode VarmorPolicyMode `json:"mode"`
 	// EnhanceProtect is used for building a policy for Hardening & AttackProtection & VulMitigation rules from templates.
 	EnhanceProtect EnhanceProtect `json:"enhanceProtect,omitempty"`
-	// [Experimental] ModelOptions is used for the modeling settings.
-	ModelOptions ModelOptions `json:"modelOptions,omitempty"`
+	// [Experimental] ModelingOptions is used for the modeling settings.
+	ModelingOptions ModelingOptions `json:"modelingOptions,omitempty"`
 	// Privileged is used to identify whether the policy is for the privileged container.
 	// Default is false. If set to `nil` or `false`, the EnhanceProtect mode will build enhanced protection rules
 	// on top of the RuntimeDefault mode. Otherwise, it will enhance protection on top of the AlwaysAllow mode.

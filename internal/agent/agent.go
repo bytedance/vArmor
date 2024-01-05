@@ -341,15 +341,15 @@ func (agent *Agent) handleCreateOrUpdateArmorProfile(ap *varmor.ArmorProfile, ke
 		if agent.enableDefenseInDepth &&
 			agent.appArmorSupported &&
 			ap.Spec.BehaviorModeling.Enable &&
-			ap.Spec.BehaviorModeling.ModelingDuration != 0 {
+			ap.Spec.BehaviorModeling.Duration != 0 {
 
 			createTime := ap.CreationTimestamp.Time
-			modelingDuration := time.Duration(ap.Spec.BehaviorModeling.ModelingDuration) * time.Minute
+			Duration := time.Duration(ap.Spec.BehaviorModeling.Duration) * time.Minute
 
 			if modeller, ok := agent.modellers[key]; ok {
 				needLoadApparmor = false
 				// Update a running modeller's duration.
-				modeller.UpdateDuration(modelingDuration)
+				modeller.UpdateDuration(Duration)
 				if !modeller.IsModeling() {
 					// Sync data to manager immediately.
 					modeller.PreprocessAndSendBehaviorData()
@@ -363,7 +363,7 @@ func (agent *Agent) handleCreateOrUpdateArmorProfile(ap *varmor.ArmorProfile, ke
 					ap.Namespace,
 					ap.Name,
 					createTime,
-					modelingDuration,
+					Duration,
 					agent.stopCh,
 					agent.managerIP,
 					agent.managerPort,
@@ -373,7 +373,7 @@ func (agent *Agent) handleCreateOrUpdateArmorProfile(ap *varmor.ArmorProfile, ke
 				if modeller != nil {
 					agent.modellers[key] = modeller
 
-					if time.Now().Before(createTime.Add(modelingDuration)) {
+					if time.Now().Before(createTime.Add(Duration)) {
 						// Start modeling, sync data to manager when modeling completed.
 						modeller.Run()
 					} else {

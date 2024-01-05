@@ -70,7 +70,8 @@ spec:
                 properties:
                   enforcer:
                     description: 'Enforcer is used to specify which LSM to use for
-                      mandatory access control. Available values: AppArmor, BPF'
+                      mandatory access control. Available values: AppArmor, BPF, Seccomp,
+                      AppArmorSeccomp, BPFSeccomp'
                     type: string
                   enhanceProtect:
                     description: EnhanceProtect is used for building a policy for
@@ -256,25 +257,15 @@ spec:
                     type: object
                   mode:
                     description: 'Available values: AlwaysAllow, RuntimeDefault, EnhanceProtect,
-                      CustomPolicy'
+                      BehaviorModeling, DefenseInDepth'
                     type: string
-                  modelOptions:
-                    description: '[Experimental] ModelOptions is used for the modeling
+                  modelingOptions:
+                    description: '[Experimental] ModelingOptions is used for the modeling
                       settings.'
                     properties:
-                      autoEnable:
-                        description: AutoEnable determines whether protection is automatically
-                          activated after modeling is completed
-                        type: boolean
-                      modelingDuration:
-                        description: ModelingDuration is the duration in minutes to
-                          modeling
+                      duration:
+                        description: Duration is the duration in minutes to modeling
                         type: integer
-                      useExistingModel:
-                        description: UseExistingModel indicates whether to use an
-                          existing model (the corresponding ArmorProfileModel object)
-                          for protection.
-                        type: boolean
                     type: object
                   privileged:
                     description: Privileged is used to identify whether the policy
@@ -283,15 +274,6 @@ spec:
                       protection rules on top of the RuntimeDefault mode. Otherwise,
                       it will enhance protection on top of the AlwaysAllow mode.
                     type: boolean
-                  seccomp:
-                    description: Seccomp is used to specify the seccomp settings.
-                    properties:
-                      type:
-                        description: 'Type is used to specify which type of seccomp
-                          profile to use. Available values: Unconfined, RuntimeDefault,
-                          BehaviorModel, Hybrid Default is Unconfined.'
-                        type: string
-                    type: object
                 required:
                 - enforcer
                 - mode

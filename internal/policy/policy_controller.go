@@ -280,8 +280,8 @@ func (c *PolicyController) ignoreAdd(vp *varmor.VarmorPolicy, logger logr.Logger
 		return true
 	}
 
-	if !c.enableDefenseInDepth && vp.Spec.Policy.Mode == varmortypes.DefenseInDepthMode {
-		err := fmt.Errorf("the DefenseInDepth mode is not enabled")
+	if !c.enableDefenseInDepth && vp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode {
+		err := fmt.Errorf("the BehaviorModeling mode is not enabled")
 		logger.Error(err, "update VarmorPolicy/status with forbidden info")
 		err = c.updateVarmorPolicyStatus(vp, "", true, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyCreated, apicorev1.ConditionFalse,
 			"Forbidden",
@@ -340,8 +340,7 @@ func (c *PolicyController) handleAddVarmorPolicy(vp *varmor.VarmorPolicy) error 
 		return err
 	}
 
-	if vp.Spec.Policy.Mode == varmortypes.DefenseInDepthMode &&
-		!vp.Spec.Policy.ModelOptions.UseExistingModel {
+	if vp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode {
 		c.resetArmorProfileModelStatus(ap.Namespace, ap.Name, logger)
 	}
 
@@ -381,10 +380,10 @@ func (c *PolicyController) ignoreUpdate(newVp *varmor.VarmorPolicy, oldAp *varmo
 		return true, err
 	}
 
-	// Disallow switch mode from others to DefenseInDepth.
-	if newVp.Spec.Policy.Mode == varmortypes.DefenseInDepthMode &&
-		oldAp.Spec.BehaviorModeling.ModelingDuration == 0 {
-		err := fmt.Errorf("disallow switch spec.policy.mode from others to DefenseInDepth")
+	// Disallow switch mode from others to BehaviorModeling.
+	if newVp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode &&
+		oldAp.Spec.BehaviorModeling.Duration == 0 {
+		err := fmt.Errorf("disallow switch spec.policy.mode from others to BehaviorModeling")
 		logger.Error(err, "update VarmorPolicy/status with forbidden info")
 		err = c.updateVarmorPolicyStatus(newVp, "", true, varmortypes.VarmorPolicyUnchanged, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionFalse,
 			"Forbidden",
@@ -392,10 +391,10 @@ func (c *PolicyController) ignoreUpdate(newVp *varmor.VarmorPolicy, oldAp *varmo
 		return true, err
 	}
 
-	// Disallow switch mode from DefenseInDepth to others.
-	if newVp.Spec.Policy.Mode != varmortypes.DefenseInDepthMode &&
-		oldAp.Spec.BehaviorModeling.ModelingDuration != 0 {
-		err := fmt.Errorf("disallow switch spec.policy.mode from DefenseInDepth to others")
+	// Disallow switch mode from BehaviorModeling to others.
+	if newVp.Spec.Policy.Mode != varmortypes.BehaviorModelingMode &&
+		oldAp.Spec.BehaviorModeling.Duration != 0 {
+		err := fmt.Errorf("disallow switch spec.policy.mode from BehaviorModeling to others")
 		logger.Error(err, "update VarmorPolicy/status with forbidden info")
 		err = c.updateVarmorPolicyStatus(newVp, "", true, varmortypes.VarmorPolicyUnchanged, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionFalse,
 			"Forbidden",
@@ -403,10 +402,10 @@ func (c *PolicyController) ignoreUpdate(newVp *varmor.VarmorPolicy, oldAp *varmo
 		return true, err
 	}
 
-	// Disallow modify the VarmorPolicy that run as DefenseInDepth mode and already completed.
-	if newVp.Spec.Policy.Mode == varmortypes.DefenseInDepthMode &&
-		(newVp.Status.Phase == varmortypes.VarmorPolicyCompleted || newVp.Status.Phase == varmortypes.VarmorPolicyProtecting) {
-		err := fmt.Errorf("disallow modify the VarmorPolicy that run as DefenseInDepth mode and already completed")
+	// Disallow modify the VarmorPolicy that run as BehaviorModeling mode and already completed.
+	if newVp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode &&
+		newVp.Status.Phase == varmortypes.VarmorPolicyCompleted {
+		err := fmt.Errorf("disallow modify the VarmorPolicy that run as BehaviorModeling mode and already completed")
 		logger.Error(err, "update VarmorPolicy/status with forbidden info")
 		err = c.updateVarmorPolicyStatus(newVp, "", false, varmortypes.VarmorPolicyUnchanged, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionFalse,
 			"Forbidden",
@@ -415,9 +414,9 @@ func (c *PolicyController) ignoreUpdate(newVp *varmor.VarmorPolicy, oldAp *varmo
 	}
 
 	// Nothing need to be updated if VarmorPolicy is in the modeling phase and its duration is not changed.
-	if newVp.Spec.Policy.Mode == varmortypes.DefenseInDepthMode &&
+	if newVp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode &&
 		newVp.Status.Phase == varmortypes.VarmorPolicyModeling &&
-		newVp.Spec.Policy.ModelOptions.ModelingDuration == oldAp.Spec.BehaviorModeling.ModelingDuration {
+		newVp.Spec.Policy.ModelingOptions.Duration == oldAp.Spec.BehaviorModeling.Duration {
 		logger.Info("nothing need to be updated (duration is not changed)")
 		return true, nil
 	}
@@ -470,8 +469,8 @@ func (c *PolicyController) handleUpdateVarmorPolicy(newVp *varmor.VarmorPolicy, 
 		return nil
 	}
 	newApSpec.Profile = *newProfile
-	if newVp.Spec.Policy.Mode == varmortypes.DefenseInDepthMode {
-		newApSpec.BehaviorModeling.ModelingDuration = newVp.Spec.Policy.ModelOptions.ModelingDuration
+	if newVp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode {
+		newApSpec.BehaviorModeling.Duration = newVp.Spec.Policy.ModelingOptions.Duration
 	}
 
 	// Last, do update
@@ -490,7 +489,7 @@ func (c *PolicyController) handleUpdateVarmorPolicy(newVp *varmor.VarmorPolicy, 
 			return err
 		}
 
-		if newVp.Spec.Policy.Mode == varmortypes.DefenseInDepthMode {
+		if newVp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode {
 			c.resetArmorProfileModelStatus(newVp.Namespace, oldAp.Name, logger)
 		}
 

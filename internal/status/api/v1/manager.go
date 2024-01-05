@@ -418,8 +418,7 @@ func (m *StatusManager) reconcileStatus(stopCh <-chan struct{}) {
 				logger.Info("2. update VarmorPolicy/status", "namespace", vp.Namespace, "name", vp.Name)
 				phase := varmortypes.VarmorPolicyProtecting
 				complete := false
-				if vp.Spec.Policy.Mode == varmortypes.DefenseInDepthMode &&
-					!vp.Spec.Policy.ModelOptions.UseExistingModel {
+				if vp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode {
 					phase = varmortypes.VarmorPolicyModeling
 
 					if modelingStatus, ok := m.ModelingStatuses[statusKey]; ok {
@@ -427,19 +426,15 @@ func (m *StatusManager) reconcileStatus(stopCh <-chan struct{}) {
 							complete = true
 						}
 					} else {
-						if vp.Status.Phase == varmortypes.VarmorPolicyCompleted || vp.Status.Phase == varmortypes.VarmorPolicyProtecting {
+						if vp.Status.Phase == varmortypes.VarmorPolicyCompleted {
 							createTime := ap.CreationTimestamp.Time
-							if time.Now().After(createTime.Add(time.Duration(vp.Spec.Policy.ModelOptions.ModelingDuration) * time.Minute)) {
+							if time.Now().After(createTime.Add(time.Duration(vp.Spec.Policy.ModelingOptions.Duration) * time.Minute)) {
 								complete = true
 							}
 						}
 					}
 					if complete {
-						if vp.Spec.Policy.ModelOptions.AutoEnable {
-							phase = varmortypes.VarmorPolicyProtecting
-						} else {
-							phase = varmortypes.VarmorPolicyCompleted
-						}
+						phase = varmortypes.VarmorPolicyCompleted
 					}
 				}
 				if policyStatus.FailedNumber > 0 {
@@ -479,10 +474,6 @@ func (m *StatusManager) reconcileStatus(stopCh <-chan struct{}) {
 			if err != nil {
 				logger.Error(err, "m.varmorInterface.VarmorPolicies().Get()")
 				break
-			}
-
-			if vp.Spec.Policy.ModelOptions.AutoEnable {
-				vp.Spec.Policy.ModelOptions.UseExistingModel = true
 			}
 
 			apName := varmorprofile.GenerateArmorProfileName(namespace, vpName, false)

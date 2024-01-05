@@ -15,11 +15,8 @@
 package profile
 
 import (
-	"context"
 	"fmt"
 	"strings"
-
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
 	varmorconfig "github.com/bytedance/vArmor/internal/config"
@@ -101,26 +98,23 @@ func GenerateProfile(policy varmor.Policy, name string, namespace string, varmor
 			return nil, fmt.Errorf("unknown enforcer")
 		}
 
-	case varmortypes.DefenseInDepthMode:
+	case varmortypes.BehaviorModelingMode:
 		switch policy.Enforcer {
 		case "AppArmor":
-			if policy.ModelOptions.UseExistingModel {
-				profile.Mode = "enforce"
-				apm, err := varmorInterface.ArmorProfileModels(namespace).Get(context.Background(), name, metav1.GetOptions{})
-				if err == nil {
-					profile.Content = apm.Spec.Profile.Content
-				} else {
-					return nil, fmt.Errorf("no existing model found")
-				}
+			if complete {
+				// Create profile based on the AlwaysAllow template after the behvior modeling was completed.
+				profile.Content = apparmorprofile.GenerateAlwaysAllowProfile(name)
 			} else {
-				if complete {
-					// Create profile based on the AlwaysAllow template after the behvior modeling was completed.
-					profile.Content = apparmorprofile.GenerateAlwaysAllowProfile(name)
-				} else {
-					profile.Mode = "complain"
-					profile.Content = apparmorprofile.GenerateBehaviorModelingProfile(name)
-				}
+				profile.Mode = "complain"
+				profile.Content = apparmorprofile.GenerateBehaviorModelingProfile(name)
 			}
+
+			// apm, err := varmorInterface.ArmorProfileModels(namespace).Get(context.Background(), name, metav1.GetOptions{})
+			// if err == nil {
+			// 	profile.Content = apm.Spec.Profile.Content
+			// } else {
+			// 	return nil, fmt.Errorf("fatal error: no existing model found")
+			// }
 		case "BPF":
 			return nil, fmt.Errorf("not supported by the BPF enforcer")
 		default:
@@ -167,10 +161,12 @@ func NewArmorProfile(obj interface{}, varmorInterface varmorinterface.CrdV1beta1
 		ap.Spec.Profile = *profile
 		ap.Spec.Target = *vp.Spec.Target.DeepCopy()
 
-		if vp.Spec.Policy.Mode == varmortypes.DefenseInDepthMode &&
-			!vp.Spec.Policy.ModelOptions.UseExistingModel {
+		if vp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode {
+			if vp.Spec.Policy.ModelingOptions.Duration == 0 {
+				return &ap, fmt.Errorf("invalid parameter: .Spec.Policy.ModelingOptions.Duration == 0")
+			}
 			ap.Spec.BehaviorModeling.Enable = true
-			ap.Spec.BehaviorModeling.ModelingDuration = vp.Spec.Policy.ModelOptions.ModelingDuration
+			ap.Spec.BehaviorModeling.Duration = vp.Spec.Policy.ModelingOptions.Duration
 		}
 	}
 
