@@ -19,10 +19,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/jinzhu/copier"
-	kubearmorenforcer "github.com/kubearmor/KubeArmor/KubeArmor/enforcer"
-	kubearmortype "github.com/kubearmor/KubeArmor/KubeArmor/types"
-
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
 )
 
@@ -347,116 +343,6 @@ func GenerateEnhanceProtectProfile(enhanceProtect *varmor.EnhanceProtect, profil
 		p := fmt.Sprintf(runtimeDefaultTemplate, profileName, profileName, profileName, baseRules)
 		return base64.StdEncoding.EncodeToString([]byte(p))
 	}
-}
-
-// See WatchHostSecurityPolicies in KubeArmor/core/kubeUpdate.go
-func initCustomPolicy(policy *varmor.CustomPolicy) {
-	// TODO: Add some validation here for varmor.CustomPolicy.
-
-	for i, e := range policy.Process.MatchPaths {
-		if e.Action == "" {
-			if policy.Process.Action == "" {
-				policy.Process.MatchPaths[i].Action = policy.Action
-			} else {
-				policy.Process.MatchPaths[i].Action = policy.Process.Action
-			}
-		}
-	}
-
-	for i, e := range policy.Process.MatchDirectories {
-		if e.Action == "" {
-			if policy.Process.Action == "" {
-				policy.Process.MatchDirectories[i].Action = policy.Action
-			} else {
-				policy.Process.MatchDirectories[i].Action = policy.Process.Action
-			}
-		}
-	}
-
-	for i, e := range policy.Process.MatchPatterns {
-		if e.Action == "" {
-			if policy.Process.Action == "" {
-				policy.Process.MatchPatterns[i].Action = policy.Action
-			} else {
-				policy.Process.MatchPatterns[i].Action = policy.Process.Action
-			}
-		}
-	}
-
-	for i, e := range policy.File.MatchPaths {
-		if e.Action == "" {
-			if policy.File.Action == "" {
-				policy.File.MatchPaths[i].Action = policy.Action
-			} else {
-				policy.File.MatchPaths[i].Action = policy.File.Action
-			}
-		}
-	}
-
-	for i, e := range policy.File.MatchDirectories {
-		if e.Action == "" {
-			if policy.File.Action == "" {
-				policy.File.MatchDirectories[i].Action = policy.Action
-			} else {
-				policy.File.MatchDirectories[i].Action = policy.File.Action
-			}
-		}
-	}
-
-	for i, e := range policy.File.MatchPatterns {
-		if e.Action == "" {
-			if policy.File.Action == "" {
-				policy.File.MatchPatterns[i].Action = policy.Action
-			} else {
-				policy.File.MatchPatterns[i].Action = policy.File.Action
-			}
-		}
-	}
-
-	for i, e := range policy.Network.MatchProtocols {
-		if e.Action == "" {
-			if policy.Network.Action == "" {
-				policy.Network.MatchProtocols[i].Action = policy.Action
-			} else {
-				policy.Network.MatchProtocols[i].Action = policy.Network.Action
-			}
-		}
-	}
-
-	for i, e := range policy.Capabilities.MatchCapabilities {
-		if e.Action == "" {
-			if policy.Capabilities.Action == "" {
-				policy.Capabilities.MatchCapabilities[i].Action = policy.Action
-			} else {
-				policy.Capabilities.MatchCapabilities[i].Action = policy.Capabilities.Action
-			}
-		}
-	}
-}
-
-func newKubeArmorSecurityPolicy(policy varmor.CustomPolicy) *kubearmortype.SecurityPolicy {
-	customPolicy := kubearmortype.SecurityPolicy{}
-
-	copier.CopyWithOption(&customPolicy.Spec.Process, &policy.Process, copier.Option{IgnoreEmpty: true, DeepCopy: true})
-	copier.CopyWithOption(&customPolicy.Spec.File, &policy.File, copier.Option{IgnoreEmpty: true, DeepCopy: true})
-	copier.CopyWithOption(&customPolicy.Spec.Capabilities, &policy.Network, copier.Option{IgnoreEmpty: true, DeepCopy: true})
-	copier.CopyWithOption(&customPolicy.Spec.Network, &policy.Network, copier.Option{IgnoreEmpty: true, DeepCopy: true})
-	customPolicy.Spec.Action = policy.Action
-
-	return &customPolicy
-}
-
-func GenerateCustomPolicyProfile(policy varmor.Policy, profileName string) string {
-	customPolicies := []kubearmortype.SecurityPolicy{}
-
-	initCustomPolicy(&policy.CustomPolicy)
-	p := newKubeArmorSecurityPolicy(policy.CustomPolicy)
-	customPolicies = append(customPolicies, *p)
-
-	_, rules := kubearmorenforcer.GenerateProfileBody(customPolicies)
-	c := []byte(fmt.Sprintf(customPolicyRulesTemplate, profileName, rules))
-
-	return base64.StdEncoding.EncodeToString(c)
 }
 
 func GenerateBehaviorModelingProfile(profileName string) string {

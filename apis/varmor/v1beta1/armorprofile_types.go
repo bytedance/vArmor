@@ -64,11 +64,12 @@ type BpfContent struct {
 }
 
 type Profile struct {
-	Name       string     `json:"name"`
-	Enforcer   string     `json:"enforcer,omitempty"`
-	Mode       string     `json:"mode"`
-	Content    string     `json:"content,omitempty"`
-	BpfContent BpfContent `json:"bpfContent,omitempty"`
+	Name           string     `json:"name"`
+	Enforcer       string     `json:"enforcer,omitempty"`
+	Mode           string     `json:"mode"`
+	Content        string     `json:"content,omitempty"`
+	BpfContent     BpfContent `json:"bpfContent,omitempty"`
+	SeccompContent string     `json:"SeccompContent,omitempty"`
 }
 
 type BehaviorModeling struct {

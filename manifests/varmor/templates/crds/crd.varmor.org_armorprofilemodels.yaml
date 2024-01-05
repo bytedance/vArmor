@@ -137,6 +137,8 @@ spec:
                 type: object
               profile:
                 properties:
+                  SeccompContent:
+                    type: string
                   bpfContent:
                     properties:
                       capabilities:

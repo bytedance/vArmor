@@ -101,17 +101,6 @@ func GenerateProfile(policy varmor.Policy, name string, namespace string, varmor
 			return nil, fmt.Errorf("unknown enforcer")
 		}
 
-	// [Experimental feature] Compatible with KubeArmor's SecurityPolicy
-	case varmortypes.CustomPolicyMode:
-		switch policy.Enforcer {
-		case "AppArmor":
-			profile.Content = apparmorprofile.GenerateCustomPolicyProfile(policy, name)
-		case "BPF":
-			return nil, fmt.Errorf("not supported by the BPF enforcer")
-		default:
-			return nil, fmt.Errorf("unknown enforcer")
-		}
-
 	case varmortypes.DefenseInDepthMode:
 		switch policy.Enforcer {
 		case "AppArmor":
