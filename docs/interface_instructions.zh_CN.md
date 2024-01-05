@@ -11,14 +11,13 @@
 |      |containers<br>*string array*|-|可选字段，用于指定防护目标的容器名，如果为空默认对 Workloads 中的所有容器开启沙箱防护（注：不含 initContainers, ephemeralContainers）
 |      |selector<br>*[LabelSelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.26/#labelselector-v1-meta)*|-|可选字段，用于根据标签选择器识别防护目标，并开启沙箱防护
 |policy|enforcer<br>*string*|-|指定要使用的 LSM，可用值: AppArmor, BPF
-|      |mode<br>*string*|-|用于指定防护模式，不同模式的含义详见 [内置规则](built_in_rules.zh_CN.md)<br>可用值：AlwaysAllow, RuntimeDefault, EnhanceProtect, CustomPolicy, DefenseInDepth
+|      |mode<br>*string*|-|用于指定防护模式，不同模式的含义详见 [内置规则](built_in_rules.zh_CN.md)<br>可用值：AlwaysAllow, RuntimeDefault, EnhanceProtect, BehaviorModeling, DefenseInDepth
 |      |enhanceProtect|hardeningRules<br>*string array*|可选字段，用于指定要使用的内置加固规则，详见 [内置规则](built_in_rules.zh_CN.md)
 |      ||attackProtectionRules<br>*[AttackProtectionRules](interface_instructions.zh_CN.md#attackprotectionrules) array*|可选字段，用于指定要使用的内置规则，详见 [内置规则](built_in_rules.zh_CN.md)
 |      ||vulMitigationRules<br>*string array*|可选字段，用于指定要使用的内置规则，详见 [内置规则](built_in_rules.zh_CN.md)
 |      ||appArmorRawRules<br>*string array*|可选字段，用于设置自定义的 AppArmor rules，参见 [AppArmor 语法](interface_instructions.zh_CN.md#apparmor-enforcer)
 |      ||bpfRawRules<br>*[BpfRawRules](interface_instructions.zh_CN.md#bpfrawrules) array*|可选字段，用于支持用户设置自定义的 BPF rules
-|      |defenseInDepth|ModelingDuration<br>*int*|动态建模的时间（单位：分钟）[实验功能]
-|      ||autoEnable<br>*bool*|可选字段，用于指定建模完成后是否自动开启防护（默认值：false）[实验功能]
+|      |modelingOptions|duration<br>*int*|动态建模的时间（单位：分钟）[实验功能]
 |      |privileged<br>*bool*|-|可选字段，若要对特权容器进行加固，请务必将此值设置为 true。若为空或 `false`，**EnhanceProtect** 模式将在 **RuntimeDefault** 模式的基础上进行增强防护。否则将在 **AlwaysAllow** 模式的基础上进行增强防护（默认值：false）
 |      ||PLACEHOLDER_PLACEHOLD|
 

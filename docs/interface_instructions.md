@@ -12,14 +12,13 @@ English | [简体中文](interface_instructions.zh_CN.md)
 |      |containers<br>*string array*|-|Optional. Containers are used to specify the names of the protected containers. If it is empty, sandbox protection will be enabled for all containers within the workload (excluding initContainers and ephemeralContainers).
 |      |selector<br>*[LabelSelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.26/#labelselector-v1-meta)*|-|Optional. LabelSelector is used to match workloads that meet the specified conditions. <br>*Note: the type of workloads is determined by the KIND field.*
 |policy|enforcer<br>*string*|-|Enforcer is used to specify which LSM to use for mandatory access control. <br>Available values: AppArmor, BPF
-|      |mode<br>*string*|-|Used to specify the protection mode, please refer to the [Built-in Rules](built_in_rules.md).<br>Available values: AlwaysAllow, RuntimeDefault, EnhanceProtect, CustomPolicy, DefenseInDepth
+|      |mode<br>*string*|-|Used to specify the protection mode, please refer to the [Built-in Rules](built_in_rules.md).<br>Available values: AlwaysAllow, RuntimeDefault, EnhanceProtect, BehaviorModeling, DefenseInDepth
 |      |enhanceProtect|hardeningRules<br>*string array*|Optional. HardeningRules are used to specify the built-in hardening rules, please refer to the [Built-in Rules](built_in_rules.md).
 |      ||attackProtectionRules<br>*[AttackProtectionRules](interface_instructions.md#attackprotectionrules) array*|Optional. AttackProtectionRules are used to specify the built-in attack protection rules, please refer to the [Built-in Rules](built_in_rules.md).
 |      ||vulMitigationRules<br>*string array*|Optional. VulMitigationRules are used to specify the built-in vulnerability mitigation rules, please refer to the [Built-in Rules](built_in_rules.md).
 |      ||appArmorRawRules<br>*string array*|Optional. AppArmorRawRules is used to set custom AppArmor rules, each rule must end with a comma, please refer to the [AppArmor Syntax](interface_instructions.md#apparmor-enforcer).
 |      ||bpfRawRules<br>*[BpfRawRules](interface_instructions.md#bpfrawrules) array*|Optional. BpfRawRules is used to set custom BPF rules.
-|      |defenseInDepth|ModelingDuration<br>*int*|[Experimental] ModelingDuration is the duration in minutes to modeling. 
-|      ||autoEnable<br>*bool*|[Experimental] Optional. AutoEnable decides whether or not to enable the access control after modeling is complete. (Default: false)
+|      |modelingOptions|duration<br>*int*|[Experimental] Duration is the duration in minutes to modeling. 
 |      |privileged<br>*bool*|-|Optional. Privileged is used to identify whether the policy is for the privileged container. If set to `nil` or `false`, the **EnhanceProtect** mode will build enhanced protection rules on top of the **RuntimeDefault** mode. Otherwise, it will enhance protection on top of the **AlwaysAllow** mode. (Default: false)
 |      ||PLACEHOLDER_PLACEHOD|
 

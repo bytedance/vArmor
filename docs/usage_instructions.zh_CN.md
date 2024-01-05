@@ -12,7 +12,7 @@ vArmor 支持在安装时，通过 helm 命令对它的功能进行配置。
 | `--set restartExistWorkloads.enabled=true` | 默认关闭；开启后，当创建或删除 VarmorPolicy 时，vArmor 会对符合条件的 Workloads (Deployments, DaemonSet, StatefulSet) 进行滚动重启，从而开启或关闭防护
 | `--set unloadAllAaProfile.enabled=true` | 默认关闭；开启后，Agent 退出时，将会卸载所有已加载的 AppArmor Profile
 | `--set "manager.args={--webhookMatchLabel=KEY=VALUE}"` | 默认值为：`sandbox.varmor.org/enable=true`。vArmor 只会对包含此 label 的 Workloads 开启沙箱防护。你可以使用 `--set 'manager.args={--webhookMatchLabel=}'` 关闭此特性。
-| `--set defenseInDepth.enabled=true` | 默认关闭；此为实验功能，仅 AppArmor enforcer 支持 DefenseInDepth 模式
+| `--set behaviorModeling.enabled=true` | 默认关闭；此为实验功能，仅 AppArmor enforcer 支持 BehaviorModeling 模式
 
 ## 使用说明
 ### 接口操作
@@ -20,10 +20,10 @@ vArmor 支持在安装时，通过 helm 命令对它的功能进行配置。
 * 防护目标必须具有 `sandbox.varmor.org/enable="true"` 标签，从而在创建、更新时被 webhook server 处理。若其满足某个 VarmorPolicy/VarmorClusterPolicy 对象的 `spec.target` 匹配条件，vArmor 将会对其开启沙箱防护。
 * 创建或删除 VarmorPolicy/VarmorClusterPolicy 对象时，vArmor 支持对满足匹配条件的存量工作负载进行滚动重启，从而为其开启或关闭防护。
 * 创建 VarmorPolicy/VarmorClusterPolicy 对象后，其 `spec.target` 不可更改。请通过新建 VarmorPolicy 来更改匹配目标。
-* 创建 VarmorPolicy/VarmorClusterPolicy 对象后，可通过更新 `spec.policy` 来动态切换防护模式、更新防护规则。但不支持从 DefenseInDepth 模式切换为其他模式，反之亦然（注：切换防护模式、更新防护规则时，无需触发工作负载的滚动重启）。
+* 创建 VarmorPolicy/VarmorClusterPolicy 对象后，可通过更新 `spec.policy` 来动态切换防护模式、更新防护规则。但不支持从 BehaviorModeling 模式切换为其他模式，反之亦然（注：切换防护模式、更新防护规则时，无需触发工作负载的滚动重启）。
 ### 状态管理
 * 可通过查看 VarmorPolicy/VarmorClusterPolicy 对象的 Status 获取处理阶段、错误信息、AppArmor/BPF Profile 的处理状态等。
-* 可通过查看 VarmorPolicy/VarmorClusterPolicy 对象的 Status 获取`profileName` 字段。随后可查看相同命名空间下的同名 ArmorProfile 对象，从而获取 Agent 在处理 Profile 时的状态和错误信息。例如：哪个节点处理失败及其原因等。
+* 可通过查看 VarmorPolicy/VarmorClusterPolicy 对象的 Status 获取 `profileName` 字段。随后可查看相同命名空间下的同名 ArmorProfile 对象，从而获取 Agent 在处理 Profile 时的状态和错误信息。例如：哪个节点处理失败及其原因等。
 ### 日志管理
 * 当前 vArmor 的 manager & agent 组件仅通过标准输出记录日志。
 * 可以借助日志组件采集并配置告警，例如：`\* | select count(*) as ErrCount where __content__ LIKE 'E%'`
