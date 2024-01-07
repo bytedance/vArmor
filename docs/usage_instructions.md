@@ -12,7 +12,7 @@ vArmor allows you to configure its functionality during installation using the h
 | `--set restartExistWorkloads.enabled=true` | Default: disabled. When enabled, vArmor will perform a rolling restart of existing workloads (only for Deployments, DaemonSet, and StatefulSet resources) that meet the conditions when creating or deleting a VarmorPolicy object.
 | `--set unloadAllAaProfile.enabled=true` | Default: disabled. When enabled, all AppArmor profiles loaded by vArmor will be unloaded when the Agent exits.
 | `--set "manager.args={--webhookMatchLabel=KEY=VALUE}"` | The default value is: `sandbox.varmor.org/enable=true`. vArmor will only enable sandbox protection for Workloads that contain this label. You can disable this feature by using `--set 'manager.args={--webhookMatchLabel=}'`.
-| `--set defenseInDepth.enabled=true` | Default: disabled. Experimental feature. Currently, only the AppArmor enforcer supports the DefenseInDepth mode.
+| `--set behaviorModeling.enabled=true` | Default: disabled. Experimental feature. Currently, only the AppArmor enforcer supports the BehaviorModeling mode.
 
 
 ## Usage
@@ -21,7 +21,7 @@ vArmor allows you to configure its functionality during installation using the h
 * Workloads must have the label `sandbox.varmor.org/enable="true"` to be processed by vArmor's webhook server during creation and updates. If they meet the matching conditions specified in a VarmorPolicy/VarmorClusterPolicy object's `spec.target`, vArmor will enable sandbox for them.
 * vArmor supports performing a rolling restart of existing workloads that meet the matching conditions when a VarmorPolicy/VarmorClusterPolicy object is created or deleted. This rolling restart enables or disables protection for those workloads.
 * Once a VarmorPolicy/VarmorClusterPolicy object is created, its `spec.target` cannot be changed. Please create a new VarmorPolicy/VarmorClusterPolicy with the desired target to make changes.
-* After creating a VarmorPolicy/VarmorClusterPolicy object, you can dynamically switch protection modes and update protection rules by updating `spec.policy`. However, switching from DefenseInDepth mode to other modes is not supported, and vice versa (Note: Switching protection modes and updating protection rules does not require triggering a rolling restart of workloads).
+* After creating a VarmorPolicy/VarmorClusterPolicy object, you can dynamically switch protection modes and update protection rules by updating `spec.policy`. However, switching from BehaviorModeling mode to other modes is not supported, and vice versa (Note: Switching protection modes and updating protection rules does not require triggering a rolling restart of workloads).
 ### State Management
 * You can check the status of VarmorPolicy/VarmorClusterPolicy object to get information about the processing stage, error messages, and the processing status of AppArmor/BPF Profiles.
 * You can check the `profileName` field by examining the status of VarmorPolicy/VarmorClusterPolicy object. Afterwards, you can look at the corresponding ArmorProfile object with the same name in the same namespace to obtain the status and error information when the Agent processes the Profile. For example, you can determine which node failed to process it and the reasons for the failure.

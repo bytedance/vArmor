@@ -56,23 +56,20 @@ spec:
             properties:
               behaviorModeling:
                 properties:
+                  duration:
+                    description: Duration is the duration in minutes to modeling
+                    type: integer
                   enable:
                     description: Enable is the switch for modeling
                     type: boolean
-                  modelingDuration:
-                    description: ModelingDuration is the duration in minutes to modeling
-                    type: integer
-                  uniqueID:
-                    description: UniqueID used to mark container through environment
-                      variable
-                    type: string
                 required:
+                - duration
                 - enable
-                - modelingDuration
-                - uniqueID
                 type: object
               profile:
                 properties:
+                  SeccompContent:
+                    type: string
                   bpfContent:
                     properties:
                       capabilities:

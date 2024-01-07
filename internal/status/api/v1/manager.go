@@ -418,7 +418,7 @@ func (m *StatusManager) reconcileStatus(stopCh <-chan struct{}) {
 				logger.Info("2. update VarmorPolicy/status", "namespace", vp.Namespace, "name", vp.Name)
 				phase := varmortypes.VarmorPolicyProtecting
 				complete := false
-				if vp.Spec.Policy.Mode == varmortypes.DefenseInDepthMode {
+				if vp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode {
 					phase = varmortypes.VarmorPolicyModeling
 
 					if modelingStatus, ok := m.ModelingStatuses[statusKey]; ok {
@@ -426,19 +426,15 @@ func (m *StatusManager) reconcileStatus(stopCh <-chan struct{}) {
 							complete = true
 						}
 					} else {
-						if vp.Status.Phase == varmortypes.VarmorPolicyCompleted || vp.Status.Phase == varmortypes.VarmorPolicyProtecting {
+						if vp.Status.Phase == varmortypes.VarmorPolicyCompleted {
 							createTime := ap.CreationTimestamp.Time
-							if time.Now().After(createTime.Add(time.Duration(vp.Spec.Policy.DefenseInDepth.ModelingDuration) * time.Minute)) {
+							if time.Now().After(createTime.Add(time.Duration(vp.Spec.Policy.ModelingOptions.Duration) * time.Minute)) {
 								complete = true
 							}
 						}
 					}
 					if complete {
-						if vp.Spec.Policy.DefenseInDepth.AutoEnable {
-							phase = varmortypes.VarmorPolicyProtecting
-						} else {
-							phase = varmortypes.VarmorPolicyCompleted
-						}
+						phase = varmortypes.VarmorPolicyCompleted
 					}
 				}
 				if policyStatus.FailedNumber > 0 {
@@ -452,12 +448,6 @@ func (m *StatusManager) reconcileStatus(stopCh <-chan struct{}) {
 				if err != nil {
 					logger.Error(err, "m.updateVarmorPolicyStatus()")
 				}
-
-				// Patch workload to remove the injected env and tiger a rollout restart to enable the enforce protect mode.
-				if ready && complete {
-					logger.Info("3. patch workload to remove the injected env")
-					varmorutils.UpdateWorkloadAnnotationsAndEnv(m.appsInterface, namespace, vp.Spec.Policy.Enforcer, vp.Spec.Target, apName, "", false, logger)
-				}
 			}
 
 		// Periodically update all of the objects' statuses to avoid the interference from offline nodes.
@@ -465,26 +455,11 @@ func (m *StatusManager) reconcileStatus(stopCh <-chan struct{}) {
 			logger.Info("periodically update all of the objects' statuses")
 			m.updateAllCRStatus(logger)
 
-		// Update ArmorProfile from complain mode to enforce mode for DefenseInDepth.
+		// Update ArmorProfile from complain mode to enforce mode for BehaviorModeling.
 		case statusKey := <-m.UpdateModeCh:
 			namespace, vpName, err := cache.SplitMetaNamespaceKey(statusKey)
 			if err != nil {
 				logger.Error(err, "cache.SplitMetaNamespaceKey()")
-				break
-			}
-
-			apName := varmorprofile.GenerateArmorProfileName(namespace, vpName, false)
-			logger.Info("update ArmorProfile (complain mode --> enforce mode)", "namespace", namespace, "name", apName)
-
-			vp, err := m.varmorInterface.VarmorPolicies(namespace).Get(context.Background(), vpName, metav1.GetOptions{})
-			if err != nil {
-				logger.Error(err, "m.varmorInterface.VarmorPolicies().Get()")
-				break
-			}
-
-			ap, err := m.varmorInterface.ArmorProfiles(namespace).Get(context.Background(), apName, metav1.GetOptions{})
-			if err != nil {
-				logger.Error(err, "m.varmorInterface.ArmorProfiles().Get()")
 				break
 			}
 
@@ -495,16 +470,23 @@ func (m *StatusManager) reconcileStatus(stopCh <-chan struct{}) {
 				m.PolicyStatuses[statusKey] = policyStatus
 			}
 
-			var profile *varmor.Profile
-			if vp.Spec.Policy.DefenseInDepth.AutoEnable {
-				apm, err := m.varmorInterface.ArmorProfileModels(namespace).Get(context.Background(), apName, metav1.GetOptions{})
-				if err == nil {
-					profile, _ = varmorprofile.GenerateProfile(vp.Spec.Policy, ap.Name, true, apm.Spec.Profile.Content)
-				} else {
-					profile, _ = varmorprofile.GenerateProfile(vp.Spec.Policy, ap.Name, true, "")
-				}
-			} else {
-				profile, _ = varmorprofile.GenerateProfile(vp.Spec.Policy, ap.Name, true, "")
+			vp, err := m.varmorInterface.VarmorPolicies(namespace).Get(context.Background(), vpName, metav1.GetOptions{})
+			if err != nil {
+				logger.Error(err, "m.varmorInterface.VarmorPolicies().Get()")
+				break
+			}
+
+			apName := varmorprofile.GenerateArmorProfileName(namespace, vpName, false)
+			logger.Info("update ArmorProfile (complain mode --> enforce mode)", "namespace", namespace, "name", apName)
+			ap, err := m.varmorInterface.ArmorProfiles(namespace).Get(context.Background(), apName, metav1.GetOptions{})
+			if err != nil {
+				logger.Error(err, "m.varmorInterface.ArmorProfiles().Get()")
+				break
+			}
+
+			profile, err := varmorprofile.GenerateProfile(vp.Spec.Policy, ap.Name, ap.Namespace, m.varmorInterface, true)
+			if err != nil {
+				logger.Error(err, "varmorprofile.GenerateProfile()")
 			}
 
 			ap.Spec.Profile = *profile

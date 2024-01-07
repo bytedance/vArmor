@@ -64,20 +64,19 @@ type BpfContent struct {
 }
 
 type Profile struct {
-	Name       string     `json:"name"`
-	Enforcer   string     `json:"enforcer,omitempty"`
-	Mode       string     `json:"mode"`
-	Content    string     `json:"content,omitempty"`
-	BpfContent BpfContent `json:"bpfContent,omitempty"`
+	Name           string     `json:"name"`
+	Enforcer       string     `json:"enforcer,omitempty"`
+	Mode           string     `json:"mode"`
+	Content        string     `json:"content,omitempty"`
+	BpfContent     BpfContent `json:"bpfContent,omitempty"`
+	SeccompContent string     `json:"SeccompContent,omitempty"`
 }
 
 type BehaviorModeling struct {
 	// Enable is the switch for modeling
 	Enable bool `json:"enable"`
-	// ModelingDuration is the duration in minutes to modeling
-	ModelingDuration int `json:"modelingDuration"`
-	// UniqueID used to mark container through environment variable
-	UniqueID string `json:"uniqueID"`
+	// Duration is the duration in minutes to modeling
+	Duration int `json:"duration"`
 }
 
 // ArmorProfileSpec defines the desired state of ArmorProfile

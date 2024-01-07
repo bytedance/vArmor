@@ -18,6 +18,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/containerd/containerd"
@@ -41,21 +42,16 @@ type RuntimeMonitor struct {
 	taskCreateCh     chan<- varmortypes.ContainerInfo
 	taskDeleteCh     chan<- varmortypes.ContainerInfo
 	taskDeleteSyncCh chan<- bool
+	modellerChs      map[string]chan<- uint32
 	log              logr.Logger
 }
 
-func NewRuntimeMonitor(
-	createCh chan varmortypes.ContainerInfo,
-	deleteCh chan varmortypes.ContainerInfo,
-	deleteSynCh chan bool,
-	log logr.Logger) (*RuntimeMonitor, error) {
+func NewRuntimeMonitor(log logr.Logger) (*RuntimeMonitor, error) {
 	var err error
 
 	monitor := RuntimeMonitor{
-		taskCreateCh:     createCh,
-		taskDeleteCh:     deleteCh,
-		taskDeleteSyncCh: deleteSynCh,
-		log:              log,
+		modellerChs: make(map[string]chan<- uint32),
+		log:         log,
 	}
 
 	monitor.containerdClient, err = newContainerdClient(varmortypes.RuntimeEndpoint, varmortypes.RuntimeTimeout)
@@ -76,6 +72,23 @@ func (monitor *RuntimeMonitor) Close() {
 	monitor.running = false
 	monitor.containerdClient.Close()
 	monitor.runtimeConn.Close()
+}
+
+func (monitor *RuntimeMonitor) SetTaskNotifyChs(
+	createCh chan varmortypes.ContainerInfo,
+	deleteCh chan varmortypes.ContainerInfo,
+	deleteSynCh chan bool) {
+	monitor.taskCreateCh = createCh
+	monitor.taskDeleteCh = deleteCh
+	monitor.taskDeleteSyncCh = deleteSynCh
+}
+
+func (monitor *RuntimeMonitor) AddModellerChs(profileName string, ch chan uint32) {
+	monitor.modellerChs[profileName] = ch
+}
+
+func (monitor *RuntimeMonitor) DeleteModellerChs(profileName string) {
+	delete(monitor.modellerChs, profileName)
 }
 
 func (monitor *RuntimeMonitor) retrieveContainerInfo(containerInfo *varmortypes.ContainerInfo) error {
@@ -198,7 +211,19 @@ func (monitor *RuntimeMonitor) eventHandler(stopCh <-chan struct{}) {
 
 				key := fmt.Sprintf("container.bpf.security.beta.varmor.org/%s", info.ContainerName)
 				if _, ok := info.PodAnnotations[key]; ok {
-					monitor.taskCreateCh <- info
+					if monitor.taskCreateCh != nil {
+						monitor.taskCreateCh <- info
+					}
+				}
+
+				key = fmt.Sprintf("container.apparmor.security.beta.kubernetes.io/%s", info.ContainerName)
+				if value, ok := info.PodAnnotations[key]; ok {
+					if strings.HasPrefix(value, "localhost/") {
+						profileName := value[len("localhost/"):]
+						if ch, ok := monitor.modellerChs[profileName]; ok {
+							ch <- info.PID
+						}
+					}
 				}
 
 			case "/tasks/delete":
@@ -215,7 +240,9 @@ func (monitor *RuntimeMonitor) eventHandler(stopCh <-chan struct{}) {
 				}
 
 				logger.V(3).Info("/tasks/delete event", "info", info)
-				monitor.taskDeleteCh <- info
+				if monitor.taskDeleteCh != nil {
+					monitor.taskDeleteCh <- info
+				}
 			}
 
 		case err := <-errCh:
@@ -237,9 +264,12 @@ func (monitor *RuntimeMonitor) eventHandler(stopCh <-chan struct{}) {
 				eventsCh, errCh = eventsService.Subscribe(ctx, eventsFilter...)
 				monitor.running = true
 				monitor.status = nil
-				logger.V(3).Info("notify the enforcer to handle the containers that exit or are created while the monitor is offline")
-				monitor.taskDeleteSyncCh <- true
-				monitor.CollectExistingTargetContainers()
+
+				if monitor.taskDeleteSyncCh != nil {
+					logger.V(3).Info("notify the enforcer to handle the containers that exit or are created while the monitor is offline")
+					monitor.taskDeleteSyncCh <- true
+					monitor.CollectExistingTargetContainers()
+				}
 			} else {
 				logger.Info("the containerd isn't serving")
 				return
@@ -301,7 +331,9 @@ func (monitor *RuntimeMonitor) CollectExistingTargetContainers() error {
 
 		key := fmt.Sprintf("container.bpf.security.beta.varmor.org/%s", info.ContainerName)
 		if _, ok := info.PodAnnotations[key]; ok {
-			monitor.taskCreateCh <- info
+			if monitor.taskCreateCh != nil {
+				monitor.taskCreateCh <- info
+			}
 		}
 	}
 

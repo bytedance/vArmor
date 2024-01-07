@@ -118,8 +118,8 @@ build-ebpf: ## Generate the ebpf code and lib.
 
 .PHONY: copy-ebpf
 copy-ebpf: ## Copy the ebpf code and lib.
-	cp vArmor-ebpf/pkg/behavior/bpf_bpfel.go internal/behavior
-	cp vArmor-ebpf/pkg/behavior/bpf_bpfel.o internal/behavior
+	cp vArmor-ebpf/pkg/tracer/bpf_bpfel.go internal/behavior/tracer
+	cp vArmor-ebpf/pkg/tracer/bpf_bpfel.o internal/behavior/tracer
 	cp vArmor-ebpf/pkg/bpfenforcer/bpf_bpfel.go pkg/lsm/bpfenforcer
 	cp vArmor-ebpf/pkg/bpfenforcer/bpf_bpfel.o pkg/lsm/bpfenforcer
 

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package bpfenforcer
+package utils
 
 import (
 	"os"
@@ -22,6 +22,6 @@ import (
 )
 
 func Test_retrieveMntNsID(t *testing.T) {
-	_, err := readMntNsID((uint32(os.Getpid())))
+	_, err := ReadMntNsID((uint32(os.Getpid())))
 	assert.NilError(t, err)
 }

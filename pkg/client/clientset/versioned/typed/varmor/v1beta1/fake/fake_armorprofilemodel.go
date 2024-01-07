@@ -24,7 +24,6 @@ import (
 	v1beta1 "github.com/bytedance/vArmor/apis/varmor/v1beta1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
-	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	testing "k8s.io/client-go/testing"
@@ -36,9 +35,9 @@ type FakeArmorProfileModels struct {
 	ns   string
 }
 
-var armorprofilemodelsResource = schema.GroupVersionResource{Group: "crd.varmor.org", Version: "v1beta1", Resource: "armorprofilemodels"}
+var armorprofilemodelsResource = v1beta1.SchemeGroupVersion.WithResource("armorprofilemodels")
 
-var armorprofilemodelsKind = schema.GroupVersionKind{Group: "crd.varmor.org", Version: "v1beta1", Kind: "ArmorProfileModel"}
+var armorprofilemodelsKind = v1beta1.SchemeGroupVersion.WithKind("ArmorProfileModel")
 
 // Get takes name of the armorProfileModel, and returns the corresponding armorProfileModel object, and an error if there is any.
 func (c *FakeArmorProfileModels) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1beta1.ArmorProfileModel, err error) {

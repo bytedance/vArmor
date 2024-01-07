@@ -20,11 +20,11 @@ import (
 
 const (
 	// VarmorPolicy Mode
-	AlwaysAllowMode    varmor.VarmorPolicyMode = "AlwaysAllow"
-	RuntimeDefaultMode varmor.VarmorPolicyMode = "RuntimeDefault"
-	EnhanceProtectMode varmor.VarmorPolicyMode = "EnhanceProtect"
-	CustomPolicyMode   varmor.VarmorPolicyMode = "CustomPolicy"
-	DefenseInDepthMode varmor.VarmorPolicyMode = "DefenseInDepth"
+	AlwaysAllowMode      varmor.VarmorPolicyMode = "AlwaysAllow"
+	RuntimeDefaultMode   varmor.VarmorPolicyMode = "RuntimeDefault"
+	EnhanceProtectMode   varmor.VarmorPolicyMode = "EnhanceProtect"
+	BehaviorModelingMode varmor.VarmorPolicyMode = "BehaviorModeling"
+	DefenseInDepthMode   varmor.VarmorPolicyMode = "DefenseInDepth"
 
 	// VarmorPolicy Phase
 	VarmorPolicyPending    varmor.VarmorPolicyPhase = "Pending"
@@ -50,6 +50,10 @@ const (
 
 	// AgentLabelSelector is the label selector for agents.
 	AgentLabelSelector string = "app.kubernetes.io/component=varmor-agent"
+
+	// Event type for tracing
+	SchedProcessFork uint32 = 1
+	SchedProcessExec uint32 = 2
 )
 
 type Status string
@@ -117,4 +121,16 @@ type AaLogRecord struct {
 	Path          string
 	Interface     string
 	Member        string
+}
+
+type BpfTraceEvent struct {
+	Type       uint32
+	ParentPid  uint32
+	ParentTgid uint32
+	ChildPid   uint32
+	ChildTgid  uint32
+	MntNsId    uint32
+	ParentTask [16]uint8
+	ChildTask  [16]uint8
+	Filename   [64]uint8
 }

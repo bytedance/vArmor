@@ -15,44 +15,44 @@
 package behavior
 
 import (
-	"bufio"
-	"fmt"
-	"os"
 	"time"
 
 	"github.com/go-logr/logr"
 
+	varmorrecorder "github.com/bytedance/vArmor/internal/behavior/recorder"
+	varmortracer "github.com/bytedance/vArmor/internal/behavior/tracer"
 	varmorutils "github.com/bytedance/vArmor/internal/utils"
+	varmormonitor "github.com/bytedance/vArmor/pkg/runtime"
+	utils "github.com/bytedance/vArmor/pkg/utils"
 )
 
 type BehaviorModeller struct {
-	tracer         *Tracer
+	tracer         *varmortracer.Tracer
+	monitor        *varmormonitor.RuntimeMonitor
 	nodeName       string
-	uniqueID       string
 	namespace      string
-	profileName    string
-	env            string
+	name           string
 	startTime      time.Time
 	duration       time.Duration
-	bpfEventCh     chan bpfEvent
-	file           *os.File
-	writer         *bufio.Writer
 	modeling       bool
-	targetPIDs     []uint32
-	recorder       *AuditRecorder
+	initPIDsCh     chan uint32
+	targetPIDs     map[uint32]struct{}
+	targetMnts     map[uint32]struct{}
+	auditRecorder  *varmorrecorder.AuditRecorder
+	bpfRecorder    *varmorrecorder.BpfRecorder
 	ModellerStopCh chan bool
 	stopCh         <-chan struct{}
 	managerIP      string
 	managerPort    int
-	mlPort         int
+	classifierPort int
 	debug          bool
 	log            logr.Logger
 }
 
 func NewBehaviorModeller(
-	tracer *Tracer,
+	tracer *varmortracer.Tracer,
+	monitor *varmormonitor.RuntimeMonitor,
 	nodeName string,
-	uniqueID string,
 	namespace string,
 	name string,
 	startTime time.Time,
@@ -60,37 +60,44 @@ func NewBehaviorModeller(
 	stopCh <-chan struct{},
 	managerIP string,
 	managerPort int,
-	mlPort int,
+	classifierPort int,
 	debug bool,
 	log logr.Logger) *BehaviorModeller {
 
 	log.Info("create a behavior modeller", "start time", startTime,
-		"duration", duration.String(), "unique id", uniqueID)
+		"duration", duration.String(), "profile name", name)
 
 	modeller := BehaviorModeller{
 		tracer:         tracer,
+		monitor:        monitor,
 		nodeName:       nodeName,
-		uniqueID:       uniqueID,
 		namespace:      namespace,
-		profileName:    name,
-		env:            fmt.Sprintf("VARMOR=%s", uniqueID),
+		name:           name,
 		startTime:      startTime,
 		duration:       duration,
 		modeling:       false,
-		targetPIDs:     make([]uint32, 0, 500),
-		bpfEventCh:     make(chan bpfEvent, 200),
+		initPIDsCh:     make(chan uint32, 30),
+		targetPIDs:     make(map[uint32]struct{}, 500),
+		targetMnts:     make(map[uint32]struct{}, 30),
 		ModellerStopCh: make(chan bool, 1),
 		stopCh:         stopCh,
 		managerIP:      managerIP,
 		managerPort:    managerPort,
-		mlPort:         mlPort,
+		classifierPort: classifierPort,
 		debug:          debug,
 		log:            log,
 	}
 
-	recorder := newAuditRecorder(uniqueID, stopCh, debug, log.WithName("AUDIT-RECORDER"))
-	if recorder != nil {
-		modeller.recorder = recorder
+	auditRecorder := varmorrecorder.NewAuditRecorder(name, stopCh, debug, log.WithName("AUDIT-RECORDER"))
+	if auditRecorder != nil {
+		modeller.auditRecorder = auditRecorder
+	} else {
+		return nil
+	}
+
+	bpfRecorder := varmorrecorder.NewBpfRecorder(name, stopCh, debug, log.WithName("BPF-RECORDER"))
+	if bpfRecorder != nil {
+		modeller.bpfRecorder = bpfRecorder
 	} else {
 		return nil
 	}
@@ -101,18 +108,19 @@ func NewBehaviorModeller(
 func (modeller *BehaviorModeller) PreprocessAndSendBehaviorData() {
 	preprocessor := NewDataPreprocessor(
 		modeller.nodeName,
-		modeller.uniqueID,
 		modeller.namespace,
-		modeller.profileName,
+		modeller.name,
 		modeller.targetPIDs,
+		modeller.targetMnts,
 		modeller.managerIP,
-		modeller.mlPort,
+		modeller.classifierPort,
 		modeller.debug,
 		modeller.log.WithName("DATA-PREPROCESSOR"))
 	if preprocessor == nil {
 		return
 	}
 
+	preprocessor.GatherTargetPIDs()
 	data := preprocessor.Process()
 	if data != nil {
 		modeller.log.Info("send preprocess result to manager")
@@ -128,23 +136,13 @@ func (modeller *BehaviorModeller) UpdateDuration(duration time.Duration) {
 		"start time", modeller.startTime,
 		"old duration", modeller.duration.String(),
 		"new duration", duration.String(),
-		"unique id", modeller.uniqueID)
+		"profile name", modeller.name)
 
 	modeller.duration = duration
 }
 
 func (modeller *BehaviorModeller) IsModeling() bool {
 	return modeller.modeling
-}
-
-func (modeller *BehaviorModeller) inTargetPIDs(pid uint32) bool {
-	for _, v := range modeller.targetPIDs {
-		if pid == v {
-			return true
-		}
-	}
-
-	return false
 }
 
 func (modeller *BehaviorModeller) eventHandler() {
@@ -155,144 +153,78 @@ func (modeller *BehaviorModeller) eventHandler() {
 		case <-ticker.C:
 			if time.Now().After(modeller.startTime.Add(modeller.duration)) {
 				modeller.log.Info("behavioral data collection is completed",
-					"unique id", modeller.uniqueID,
+					"profile name", modeller.name,
 					"start time", modeller.startTime,
 					"duration", modeller.duration.String(),
 					"target pids", modeller.targetPIDs,
+					"target mnts", modeller.targetMnts,
 				)
 				modeller.stop()
-				modeller.recorder.stop()
+				modeller.auditRecorder.Close()
+				modeller.bpfRecorder.Close()
+
 				// Sync data to manager after modeling completed.
 				modeller.PreprocessAndSendBehaviorData()
-				modeller.targetPIDs = make([]uint32, 0)
-				modeller.recorder.cleanUp()
-
+				modeller.targetPIDs = make(map[uint32]struct{}, 0)
+				modeller.targetMnts = make(map[uint32]struct{}, 0)
+				modeller.auditRecorder.CleanUp()
+				modeller.bpfRecorder.CleanUp()
 				return
 			}
 
-		case event := <-modeller.bpfEventCh:
-			len := indexOfZero(event.Env[:])
-			env := string(event.Env[:len])
-
-			len = indexOfZero(event.ParentTask[:])
-			parentTask := string(event.ParentTask[:len])
-
-			len = indexOfZero(event.ChildTask[:])
-			childTask := string(event.ChildTask[:len])
-
-			len = indexOfZero(event.Filename[:])
-			fileName := string(event.Filename[:len])
-
-			if modeller.debug {
-				eventType := ""
-				if event.Type == 1 {
-					eventType = "sched_process_fork"
-				} else {
-					eventType = "sched_process_exec"
-				}
-				output := fmt.Sprintf("%-24s |%-12d %-12d %-20s | %-12d %-12d %-20s | %-20s %-12d %s\n",
-					eventType,
-					event.ParentPid, event.ParentTgid, parentTask,
-					event.ChildPid, event.ChildTgid, childTask,
-					env, event.Num, fileName,
-				)
-				modeller.writer.WriteString(output)
-			}
-
-			if event.Type == 1 { /* process sched_process_fork() event */
-
-				if event.ChildTgid != event.ParentTgid { /* new process has been created */
-					// clone, fork() without following exec*()
-					if modeller.inTargetPIDs(event.ParentTgid) {
-						if !modeller.inTargetPIDs(event.ChildTgid) {
-							modeller.targetPIDs = append(modeller.targetPIDs, event.ChildTgid)
-						}
-						break
-					}
-
-					// clone, fork(), vfork() inherit the environment variable of parent process
-					if modeller.env == env {
-						if !modeller.inTargetPIDs(event.ChildTgid) {
-							modeller.targetPIDs = append(modeller.targetPIDs, event.ChildTgid)
-						}
-						if !modeller.inTargetPIDs(event.ParentTgid) {
-							modeller.targetPIDs = append(modeller.targetPIDs, event.ParentTgid)
-						}
-						break
-					}
-				} else { /* new thread has been created */
-					// clone() child_tgid == parent_tgid, so we doesn't care it.
-					break
-				}
-
-			} else { /* process sched_process_exec() event */
-
-				// The executable program in the target container has been executed.
-				if modeller.env == env {
-					if !modeller.inTargetPIDs(event.ChildTgid) {
-						modeller.targetPIDs = append(modeller.targetPIDs, event.ChildTgid)
-					}
-					break
-				}
-
-				// If the parent of this process is in the target container.
-				if modeller.inTargetPIDs(event.ParentTgid) {
-					if !modeller.inTargetPIDs(event.ChildTgid) {
-						modeller.targetPIDs = append(modeller.targetPIDs, event.ChildTgid)
-					}
-					break
-				}
+		case pid := <-modeller.initPIDsCh:
+			modeller.log.Info("the init process of the target container is created",
+				"pid", pid, "profile name", modeller.name, "profile namespace", modeller.namespace)
+			modeller.targetPIDs[pid] = struct{}{}
+			nsID, err := utils.ReadMntNsID(pid)
+			if err == nil {
+				modeller.targetMnts[nsID] = struct{}{}
 			}
 
 		case <-modeller.stopCh:
 			modeller.stop()
-			modeller.log.Info("behavioral data collection is stopped", "unique id", modeller.uniqueID)
+			modeller.log.Info("behavioral data collection is stopped", "profile name", modeller.name)
 			return
 
 		case <-modeller.ModellerStopCh:
 			modeller.stop()
-			modeller.recorder.stop()
-			modeller.recorder.cleanUp()
-			modeller.log.Info("behavioral data collection is stopped", "unique id", modeller.uniqueID)
+			modeller.auditRecorder.Close()
+			modeller.auditRecorder.CleanUp()
+			modeller.bpfRecorder.Close()
+			modeller.bpfRecorder.CleanUp()
+			modeller.log.Info("behavioral data collection is stopped", "profile name", modeller.name)
 			return
 		}
 	}
 }
 
 func (modeller *BehaviorModeller) Run() {
-	modeller.log.Info("start behavioral data collection", "unique id", modeller.uniqueID)
+	modeller.log.Info("start behavioral data collection", "profile name", modeller.name)
 
-	err := modeller.recorder.init()
+	err := modeller.auditRecorder.Init()
 	if err != nil {
-		modeller.log.Error(err, "modeller.recorder.init()")
+		modeller.log.Error(err, "modeller.auditRecorder.Init()")
 		return
 	}
 
-	go modeller.recorder.eventHandler()
-	go modeller.eventHandler()
-
-	if modeller.debug {
-		modeller.file, err = os.Create(modeller.uniqueID + ".trace_debug.log")
-		if err != nil {
-			modeller.log.Error(err, "os.Create() has failed")
-			return
-		}
-		modeller.writer = bufio.NewWriter(modeller.file)
+	err = modeller.bpfRecorder.Init()
+	if err != nil {
+		modeller.log.Error(err, "modeller.bpfRecorder.Init()")
+		return
 	}
 
-	modeller.tracer.AddEventCh(modeller.uniqueID, modeller.bpfEventCh, modeller.recorder.auditEventCh)
+	modeller.auditRecorder.Run()
+	modeller.bpfRecorder.Run()
+	go modeller.eventHandler()
+
+	modeller.monitor.AddModellerChs(modeller.name, modeller.initPIDsCh)
+	modeller.tracer.AddEventCh(modeller.name, modeller.bpfRecorder.BpfEventCh, modeller.auditRecorder.AuditEventCh)
+
 	modeller.modeling = true
 }
 
 func (modeller *BehaviorModeller) stop() {
-	modeller.tracer.DeleteEventCh(modeller.uniqueID)
-
-	if modeller.debug && modeller.writer != nil {
-		modeller.writer.Flush()
-	}
-
-	if modeller.debug && modeller.file != nil {
-		modeller.file.Close()
-	}
+	modeller.monitor.DeleteModellerChs(modeller.name)
+	modeller.tracer.DeleteEventCh(modeller.name)
 	modeller.modeling = false
 }

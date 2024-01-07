@@ -118,7 +118,6 @@ func failureResponse(uid types.UID, message string) *admissionv1.AdmissionRespon
 	}
 }
 
-// TODO: do we need to inject the VARMOR env to workload for behavior learning when process AdmissionRequest?
 func buildPatch(obj interface{}, enforcer string, target varmor.Target, profileName string, bpfExclusiveMode bool) (patch string, err error) {
 	var jsonPatch string
 

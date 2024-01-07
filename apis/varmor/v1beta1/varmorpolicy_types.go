@@ -85,131 +85,6 @@ type ProcessPatternType struct {
 	Action string `json:"action,omitempty"`
 }
 
-// ProcessType Structure
-type ProcessType struct {
-	Severity int      `json:"severity,omitempty"`
-	Tags     []string `json:"tags,omitempty"`
-	Message  string   `json:"message,omitempty"`
-
-	MatchPaths       []ProcessPathType      `json:"matchPaths,omitempty"`
-	MatchDirectories []ProcessDirectoryType `json:"matchDirectories,omitempty"`
-	MatchPatterns    []ProcessPatternType   `json:"matchPatterns,omitempty"`
-
-	Action string `json:"action,omitempty"`
-}
-
-// FilePathType Structure
-type FilePathType struct {
-	Severity int      `json:"severity,omitempty"`
-	Tags     []string `json:"tags,omitempty"`
-	Message  string   `json:"message,omitempty"`
-
-	Path       string            `json:"path"`
-	ReadOnly   bool              `json:"readOnly,omitempty"`
-	OwnerOnly  bool              `json:"ownerOnly,omitempty"`
-	FromSource []MatchSourceType `json:"fromSource,omitempty"`
-
-	Action string `json:"action,omitempty"`
-}
-
-// FileDirectoryType Structure
-type FileDirectoryType struct {
-	Severity int      `json:"severity,omitempty"`
-	Tags     []string `json:"tags,omitempty"`
-	Message  string   `json:"message,omitempty"`
-
-	Directory  string            `json:"dir"`
-	ReadOnly   bool              `json:"readOnly,omitempty"`
-	Recursive  bool              `json:"recursive,omitempty"`
-	OwnerOnly  bool              `json:"ownerOnly,omitempty"`
-	FromSource []MatchSourceType `json:"fromSource,omitempty"`
-
-	Action string `json:"action,omitempty"`
-}
-
-// FilePatternType Structure
-type FilePatternType struct {
-	Severity int      `json:"severity,omitempty"`
-	Tags     []string `json:"tags,omitempty"`
-	Message  string   `json:"message,omitempty"`
-
-	Pattern   string `json:"pattern"`
-	ReadOnly  bool   `json:"readOnly,omitempty"`
-	OwnerOnly bool   `json:"ownerOnly,omitempty"`
-
-	Action string `json:"action,omitempty"`
-}
-
-// FileType Structure
-type FileType struct {
-	Severity int      `json:"severity,omitempty"`
-	Tags     []string `json:"tags,omitempty"`
-	Message  string   `json:"message,omitempty"`
-
-	MatchPaths       []FilePathType      `json:"matchPaths,omitempty"`
-	MatchDirectories []FileDirectoryType `json:"matchDirectories,omitempty"`
-	MatchPatterns    []FilePatternType   `json:"matchPatterns,omitempty"`
-
-	Action string `json:"action,omitempty"`
-}
-
-// NetworkProtocolType Structure
-type NetworkProtocolType struct {
-	Severity int      `json:"severity,omitempty"`
-	Tags     []string `json:"tags,omitempty"`
-	Message  string   `json:"message,omitempty"`
-
-	Protocol   string            `json:"protocol"`
-	FromSource []MatchSourceType `json:"fromSource,omitempty"`
-
-	Action string `json:"action,omitempty"`
-}
-
-// NetworkType Structure
-type NetworkType struct {
-	Severity int      `json:"severity,omitempty"`
-	Tags     []string `json:"tags,omitempty"`
-	Message  string   `json:"message,omitempty"`
-
-	MatchProtocols []NetworkProtocolType `json:"matchProtocols,omitempty"`
-
-	Action string `json:"action,omitempty"`
-}
-
-// CapabilitiesCapabilityType Structure
-type CapabilitiesCapabilityType struct {
-	Severity int      `json:"severity,omitempty"`
-	Tags     []string `json:"tags,omitempty"`
-	Message  string   `json:"message,omitempty"`
-
-	Capability string            `json:"capability"`
-	FromSource []MatchSourceType `json:"fromSource,omitempty"`
-
-	Action string `json:"action,omitempty"`
-}
-
-// CapabilitiesType Structure
-type CapabilitiesType struct {
-	Severity int      `json:"severity,omitempty"`
-	Tags     []string `json:"tags,omitempty"`
-	Message  string   `json:"message,omitempty"`
-
-	MatchCapabilities []CapabilitiesCapabilityType `json:"matchCapabilities,omitempty"`
-
-	Action string `json:"action,omitempty"`
-}
-
-// See SecuritySpec in https://github.com/kubearmor/KubeArmor/blob/main/KubeArmor/types/types.go
-type CustomPolicy struct {
-	Process      ProcessType      `json:"process,omitempty"`
-	File         FileType         `json:"file,omitempty"`
-	Network      NetworkType      `json:"network,omitempty"`
-	Capabilities CapabilitiesType `json:"capabilities,omitempty"`
-	// AppArmor Profile Raw Rules
-	AppArmor string `json:"apparmor,omitempty"`
-	Action   string `json:"action"`
-}
-
 type AttackProtectionRules struct {
 	// Rules is the list of built-in attack protection rules to be used.
 	Rules []string `json:"rules"`
@@ -299,29 +174,23 @@ type EnhanceProtect struct {
 	BpfRawRules BpfRawRules `json:"bpfRawRules,omitempty"`
 }
 
-type DefenseInDepth struct {
-	// ModelingDuration is the duration in minutes to modeling
-	ModelingDuration int `json:"modelingDuration"`
-	// AutoEnable decides whether or not to enable the access control after modeling is complete
-	AutoEnable bool `json:"autoEnable,omitempty"`
+type ModelingOptions struct {
+	// Duration is the duration in minutes to modeling
+	Duration int `json:"duration,omitempty"`
 }
 
 type VarmorPolicyMode string
 
 type Policy struct {
 	// Enforcer is used to specify which LSM to use for mandatory access control.
-	// Available values: AppArmor, BPF
+	// Available values: AppArmor, BPF (WIP: Seccomp, AppArmorSeccomp, BPFSeccomp)
 	Enforcer string `json:"enforcer"`
-	// Available values: AlwaysAllow, RuntimeDefault, EnhanceProtect, CustomPolicy, DefenseInDepth
+	// Available values: AlwaysAllow, RuntimeDefault, EnhanceProtect, BehaviorModeling, DefenseInDepth
 	Mode VarmorPolicyMode `json:"mode"`
 	// EnhanceProtect is used for building a policy for Hardening & AttackProtection & VulMitigation rules from templates.
 	EnhanceProtect EnhanceProtect `json:"enhanceProtect,omitempty"`
-	// [Experimental] CustomPolicy is almost the same as KubeArmor's SecuritySpec to increase compatibility.
-	// Only worked with the AppArmor enforcer.
-	CustomPolicy CustomPolicy `json:"customPolicy,omitempty"`
-	// [Experimental] DefenseInDepth is used for the defense-in-depth sandbox features.
-	// Only worked with the AppArmor enforcer.
-	DefenseInDepth DefenseInDepth `json:"defenseInDepth,omitempty"`
+	// [Experimental] ModelingOptions is used for the modeling settings.
+	ModelingOptions ModelingOptions `json:"modelingOptions,omitempty"`
 	// Privileged is used to identify whether the policy is for the privileged container.
 	// Default is false. If set to `nil` or `false`, the EnhanceProtect mode will build enhanced protection rules
 	// on top of the RuntimeDefault mode. Otherwise, it will enhance protection on top of the AlwaysAllow mode.

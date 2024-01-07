@@ -25,7 +25,7 @@ bpfExclusiveMode:
   enabled: false
 
 # [Experimental feature]
-defenseInDepth:
+behaviorModeling:
   enabled: false
 
 image:
@@ -74,9 +74,9 @@ manager:
 
   args: []
 
-  defenseInDepth:
+  behaviorModeling:
     args:
-    - --enableDefenseInDepth
+    - --enableBehaviorModeling
 
   restartExistWorkloads:
     args:
@@ -162,21 +162,6 @@ agent:
   bpfLsmEnforcer:
     args:
     - --enableBpfEnforcer
-    volumeMounts:
-    - mountPath: /run/containerd/
-      name: containerd    
-    - mountPath: /proc
-      name: procfs
-      readOnly: true
-    volumes:
-    - hostPath:
-        path: /run/containerd/
-        type: Directory
-      name: containerd
-    - hostPath:
-        path: /proc
-        type: Directory
-      name: procfs
     resources:
       limits:
         cpu: 200m
@@ -189,9 +174,9 @@ agent:
     args:
     - --unloadAllAaProfile
 
-  defenseInDepth:
+  behaviorModeling:
     args:
-    - --enableDefenseInDepth
+    - --enableBehaviorModeling
     volumeMounts:
     - mountPath: /var/run/varmor/audit
       name: audit-dir
@@ -200,16 +185,35 @@ agent:
         path: /var/run/varmor/audit
         type: DirectoryOrCreate
       name: audit-dir
+    resources:
+      limits:
+        cpu: 2
+        memory: 2Gi
+      requests:
+        cpu: 500m
+        memory: 500Mi
 
-  lsmRelated:
+  bpfRelated:
     volumeMounts:
     - mountPath: /sys/kernel/btf/vmlinux
       name: btf
+    - mountPath: /run/containerd/
+      name: containerd    
+    - mountPath: /proc
+      name: procfs
     volumes:
     - hostPath:
         path: /sys/kernel/btf/vmlinux
         type: File
       name: btf
+    - hostPath:
+        path: /run/containerd/
+        type: Directory
+      name: containerd
+    - hostPath:
+        path: /proc
+        type: Directory
+      name: procfs
 
   nodeSelector: {}
 

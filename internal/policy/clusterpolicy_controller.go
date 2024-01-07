@@ -1,3 +1,17 @@
+// Copyright 2023 vArmor Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package policy
 
 import (
@@ -32,19 +46,19 @@ import (
 )
 
 type ClusterPolicyController struct {
-	podInterface          corev1.PodInterface
-	appsInterface         appsv1.AppsV1Interface
-	varmorInterface       varmorinterface.CrdV1beta1Interface
-	vcpInformer           varmorinformer.VarmorClusterPolicyInformer
-	vcpLister             varmorlister.VarmorClusterPolicyLister
-	vcpInformerSynced     cache.InformerSynced
-	queue                 workqueue.RateLimitingInterface
-	statusManager         *statusmanager.StatusManager
-	restartExistWorkloads bool
-	enableDefenseInDepth  bool
-	bpfExclusiveMode      bool
-	debug                 bool
-	log                   logr.Logger
+	podInterface           corev1.PodInterface
+	appsInterface          appsv1.AppsV1Interface
+	varmorInterface        varmorinterface.CrdV1beta1Interface
+	vcpInformer            varmorinformer.VarmorClusterPolicyInformer
+	vcpLister              varmorlister.VarmorClusterPolicyLister
+	vcpInformerSynced      cache.InformerSynced
+	queue                  workqueue.RateLimitingInterface
+	statusManager          *statusmanager.StatusManager
+	restartExistWorkloads  bool
+	enableBehaviorModeling bool
+	bpfExclusiveMode       bool
+	debug                  bool
+	log                    logr.Logger
 }
 
 // NewClusterPolicyController create a new ClusterPolicyController
@@ -55,25 +69,25 @@ func NewClusterPolicyController(
 	vcpInformer varmorinformer.VarmorClusterPolicyInformer,
 	statusManager *statusmanager.StatusManager,
 	restartExistWorkloads bool,
-	enableDefenseInDepth bool,
+	enableBehaviorModeling bool,
 	bpfExclusiveMode bool,
 	debug bool,
 	log logr.Logger) (*ClusterPolicyController, error) {
 
 	c := ClusterPolicyController{
-		podInterface:          podInterface,
-		appsInterface:         appsInterface,
-		varmorInterface:       varmorInterface,
-		vcpInformer:           vcpInformer,
-		vcpLister:             vcpInformer.Lister(),
-		vcpInformerSynced:     vcpInformer.Informer().HasSynced,
-		queue:                 workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "clusterpolicy"),
-		statusManager:         statusManager,
-		restartExistWorkloads: restartExistWorkloads,
-		enableDefenseInDepth:  enableDefenseInDepth,
-		bpfExclusiveMode:      bpfExclusiveMode,
-		debug:                 debug,
-		log:                   log,
+		podInterface:           podInterface,
+		appsInterface:          appsInterface,
+		varmorInterface:        varmorInterface,
+		vcpInformer:            vcpInformer,
+		vcpLister:              vcpInformer.Lister(),
+		vcpInformerSynced:      vcpInformer.Informer().HasSynced,
+		queue:                  workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "clusterpolicy"),
+		statusManager:          statusManager,
+		restartExistWorkloads:  restartExistWorkloads,
+		enableBehaviorModeling: enableBehaviorModeling,
+		bpfExclusiveMode:       bpfExclusiveMode,
+		debug:                  debug,
+		log:                    log,
 	}
 
 	return &c, nil
@@ -154,7 +168,7 @@ func (c *ClusterPolicyController) handleDeleteVarmorClusterPolicy(name string) e
 			metav1.NamespaceAll,
 			ap.Spec.Profile.Enforcer,
 			ap.Spec.Target,
-			"", "", false, logger)
+			"", false, logger)
 	}
 
 	// Cleanup the PolicyStatus and ModelingStatus of status manager for the deleted VarmorClusterPolicy/ArmorProfile object
@@ -252,12 +266,12 @@ func (c *ClusterPolicyController) ignoreAdd(vcp *varmor.VarmorClusterPolicy, log
 		return true
 	}
 
-	if vcp.Spec.Policy.Mode == varmortypes.DefenseInDepthMode {
-		err := fmt.Errorf("the DefenseInDepth mode is not supported")
+	if vcp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode {
+		err := fmt.Errorf("the BehaviorModeling mode is not supported")
 		logger.Error(err, "update VarmorClusterPolicy/status with forbidden info")
 		err = c.updateVarmorClusterPolicyStatus(vcp, "", true, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyCreated, apicorev1.ConditionFalse,
 			"Forbidden",
-			"The DefenseInDepth feature is not supported for the VarmorClusterPolicy controller.")
+			"The BehaviorModeling feature is not supported for the VarmorClusterPolicy controller.")
 		if err != nil {
 			logger.Error(err, "updateVarmorClusterPolicyStatus()")
 		}
@@ -292,7 +306,7 @@ func (c *ClusterPolicyController) handleAddVarmorClusterPolicy(vcp *varmor.Varmo
 		return nil
 	}
 
-	ap, err := varmorprofile.NewArmorProfile(vcp, true)
+	ap, err := varmorprofile.NewArmorProfile(vcp, c.varmorInterface, true)
 	if err != nil {
 		logger.Error(err, "NewArmorProfile() failed")
 		err = c.updateVarmorClusterPolicyStatus(vcp, "", true, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyCreated, apicorev1.ConditionFalse,
@@ -330,7 +344,6 @@ func (c *ClusterPolicyController) handleAddVarmorClusterPolicy(vcp *varmor.Varmo
 			vcp.Spec.Policy.Enforcer,
 			vcp.Spec.Target,
 			ap.Name,
-			ap.Spec.BehaviorModeling.UniqueID,
 			c.bpfExclusiveMode,
 			logger)
 	}
@@ -349,43 +362,43 @@ func (c *ClusterPolicyController) ignoreUpdate(newVp *varmor.VarmorClusterPolicy
 		return true, err
 	}
 
-	// Disallow switch mode from others to DefenseInDepth.
-	if newVp.Spec.Policy.Mode == varmortypes.DefenseInDepthMode &&
-		oldAp.Spec.BehaviorModeling.ModelingDuration == 0 {
-		err := fmt.Errorf("disallow switch spec.policy.mode from others to DefenseInDepth")
+	// Disallow switch mode from others to BehaviorModeling.
+	if newVp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode &&
+		oldAp.Spec.BehaviorModeling.Duration == 0 {
+		err := fmt.Errorf("disallow switch spec.policy.mode from others to BehaviorModeling")
 		logger.Error(err, "update VarmorClusterPolicy/status with forbidden info")
 		err = c.updateVarmorClusterPolicyStatus(newVp, "", true, varmortypes.VarmorPolicyUnchanged, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionFalse,
 			"Forbidden",
-			"Switch the mode from others to DefenseInDepth is not allowed. You need to recreate the VarmorClusterPolicy object.")
+			"Switch the mode from others to BehaviorModeling is not allowed. You need to recreate the VarmorClusterPolicy object.")
 		return true, err
 	}
 
-	// Disallow switch mode from DefenseInDepth to others.
-	if newVp.Spec.Policy.Mode != varmortypes.DefenseInDepthMode &&
-		oldAp.Spec.BehaviorModeling.ModelingDuration != 0 {
-		err := fmt.Errorf("disallow switch spec.policy.mode from DefenseInDepth to others")
+	// Disallow switch mode from BehaviorModeling to others.
+	if newVp.Spec.Policy.Mode != varmortypes.BehaviorModelingMode &&
+		oldAp.Spec.BehaviorModeling.Duration != 0 {
+		err := fmt.Errorf("disallow switch spec.policy.mode from BehaviorModeling to others")
 		logger.Error(err, "update VarmorClusterPolicy/status with forbidden info")
 		err = c.updateVarmorClusterPolicyStatus(newVp, "", true, varmortypes.VarmorPolicyUnchanged, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionFalse,
 			"Forbidden",
-			"Switch the mode from DefenseInDepth to others is not allowed. You need to recreate the VarmorClusterPolicy object.")
+			"Switch the mode from BehaviorModeling to others is not allowed. You need to recreate the VarmorClusterPolicy object.")
 		return true, err
 	}
 
-	// Disallow modify the VarmorClusterPolicy that run as DefenseInDepth mode and already completed.
-	if newVp.Spec.Policy.Mode == varmortypes.DefenseInDepthMode &&
-		(newVp.Status.Phase == varmortypes.VarmorPolicyCompleted || newVp.Status.Phase == varmortypes.VarmorPolicyProtecting) {
-		err := fmt.Errorf("disallow modify the VarmorClusterPolicy that run as DefenseInDepth mode and already completed")
+	// Disallow modify the VarmorClusterPolicy that run as BehaviorModeling mode and already completed.
+	if newVp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode &&
+		newVp.Status.Phase == varmortypes.VarmorPolicyCompleted {
+		err := fmt.Errorf("disallow modify the VarmorClusterPolicy that run as BehaviorModeling mode and already completed")
 		logger.Error(err, "update VarmorClusterPolicy/status with forbidden info")
 		err = c.updateVarmorClusterPolicyStatus(newVp, "", false, varmortypes.VarmorPolicyUnchanged, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionFalse,
 			"Forbidden",
-			"Modify the VarmorClusterPolicy that run as DefenseInDepth mode and already completed is not allowed. You need to recreate the VarmorClusterPolicy object.")
+			"Modify the VarmorClusterPolicy that run as BehaviorModeling mode and already completed is not allowed. You need to recreate the VarmorClusterPolicy object.")
 		return true, err
 	}
 
 	// Nothing need to be updated if VarmorClusterPolicy is in the modeling phase and its duration is not changed.
-	if newVp.Spec.Policy.Mode == varmortypes.DefenseInDepthMode &&
+	if newVp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode &&
 		newVp.Status.Phase == varmortypes.VarmorPolicyModeling &&
-		newVp.Spec.Policy.DefenseInDepth.ModelingDuration == oldAp.Spec.BehaviorModeling.ModelingDuration {
+		newVp.Spec.Policy.ModelingOptions.Duration == oldAp.Spec.BehaviorModeling.Duration {
 		logger.Info("nothing need to be updated (duration is not changed)")
 		return true, nil
 	}
@@ -425,7 +438,7 @@ func (c *ClusterPolicyController) handleUpdateVarmorClusterPolicy(newVp *varmor.
 
 	// Second, build a new ArmorProfileSpec
 	newApSpec := oldAp.Spec.DeepCopy()
-	newProfile, err := varmorprofile.GenerateProfile(newVp.Spec.Policy, oldAp.Spec.Profile.Name, false, "")
+	newProfile, err := varmorprofile.GenerateProfile(newVp.Spec.Policy, oldAp.Name, oldAp.Namespace, c.varmorInterface, false)
 	if err != nil {
 		logger.Error(err, "GenerateProfile() failed")
 		err = c.updateVarmorClusterPolicyStatus(newVp, "", true, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyCreated, apicorev1.ConditionFalse,

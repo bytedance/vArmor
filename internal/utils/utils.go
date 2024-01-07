@@ -28,7 +28,6 @@ import (
 
 	"github.com/go-logr/logr"
 	appsV1 "k8s.io/api/apps/v1"
-	coreV1 "k8s.io/api/core/v1"
 	k8errors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
@@ -65,7 +64,6 @@ func httpPostWithRetry(reqBody []byte, debug bool, service string, namespace str
 	httpReq.Header.Set("Content-Type", "application/json")
 
 	var httpRsp *http.Response
-	rand.Seed(time.Now().UnixNano())
 
 	for i := 0; i < retryTimes; i++ {
 		httpRsp, err = client.Do(httpReq)
@@ -133,7 +131,7 @@ func PostDataToStatusService(reqBody []byte, debug bool, address string, port in
 	return httpPostWithRetry(reqBody, debug, varmorconfig.StatusServiceName, varmorconfig.Namespace, address, port, varmorconfig.DataSyncPath, retryTimes)
 }
 
-func modifyDeploymentAnnotationsAndEnv(enforcer string, target varmor.Target, deploy *appsV1.Deployment, profileName, uniqueID string, bpfExclusiveMode bool) {
+func modifyDeploymentAnnotationsAndEnv(enforcer string, target varmor.Target, deploy *appsV1.Deployment, profileName string, bpfExclusiveMode bool) {
 	for key, value := range deploy.Spec.Template.Annotations {
 		switch enforcer {
 		case "BPF":
@@ -147,18 +145,6 @@ func modifyDeploymentAnnotationsAndEnv(enforcer string, target varmor.Target, de
 		}
 	}
 
-	for index, container := range deploy.Spec.Template.Spec.Containers {
-		newEnv := make([]coreV1.EnvVar, 0)
-		for _, env := range container.Env {
-			if env.Name == "VARMOR" {
-				continue
-			} else {
-				newEnv = append(newEnv, env)
-			}
-		}
-		deploy.Spec.Template.Spec.Containers[index].Env = newEnv
-	}
-
 	if deploy.Spec.Template.Annotations == nil {
 		deploy.Spec.Template.Annotations = make(map[string]string)
 	}
@@ -168,7 +154,7 @@ func modifyDeploymentAnnotationsAndEnv(enforcer string, target varmor.Target, de
 		return
 	}
 
-	for index, container := range deploy.Spec.Template.Spec.Containers {
+	for _, container := range deploy.Spec.Template.Spec.Containers {
 		if len(target.Containers) != 0 && !InStringArray(container.Name, target.Containers) {
 			continue
 		}
@@ -191,21 +177,11 @@ func modifyDeploymentAnnotationsAndEnv(enforcer string, target varmor.Target, de
 				continue
 			}
 			deploy.Spec.Template.Annotations[key] = fmt.Sprintf("localhost/%s", profileName)
-
-			if uniqueID != "" {
-				var newEnv coreV1.EnvVar
-				newEnv.Name = "VARMOR"
-				newEnv.Value = uniqueID
-				if deploy.Spec.Template.Spec.Containers[index].Env == nil {
-					deploy.Spec.Template.Spec.Containers[index].Env = make([]coreV1.EnvVar, 0)
-				}
-				deploy.Spec.Template.Spec.Containers[index].Env = append(deploy.Spec.Template.Spec.Containers[index].Env, newEnv)
-			}
 		}
 	}
 }
 
-func modifyStatefulSetAnnotationsAndEnv(enforcer string, target varmor.Target, stateful *appsV1.StatefulSet, profileName, uniqueID string, bpfExclusiveMode bool) {
+func modifyStatefulSetAnnotationsAndEnv(enforcer string, target varmor.Target, stateful *appsV1.StatefulSet, profileName string, bpfExclusiveMode bool) {
 	for key, value := range stateful.Spec.Template.Annotations {
 		switch enforcer {
 		case "BPF":
@@ -219,18 +195,6 @@ func modifyStatefulSetAnnotationsAndEnv(enforcer string, target varmor.Target, s
 		}
 	}
 
-	for index, container := range stateful.Spec.Template.Spec.Containers {
-		newEnv := make([]coreV1.EnvVar, 0)
-		for _, env := range container.Env {
-			if env.Name == "VARMOR" {
-				continue
-			} else {
-				newEnv = append(newEnv, env)
-			}
-		}
-		stateful.Spec.Template.Spec.Containers[index].Env = newEnv
-	}
-
 	if stateful.Spec.Template.Annotations == nil {
 		stateful.Spec.Template.Annotations = make(map[string]string)
 	}
@@ -240,7 +204,7 @@ func modifyStatefulSetAnnotationsAndEnv(enforcer string, target varmor.Target, s
 		return
 	}
 
-	for index, container := range stateful.Spec.Template.Spec.Containers {
+	for _, container := range stateful.Spec.Template.Spec.Containers {
 		if len(target.Containers) != 0 && !InStringArray(container.Name, target.Containers) {
 			continue
 		}
@@ -263,21 +227,11 @@ func modifyStatefulSetAnnotationsAndEnv(enforcer string, target varmor.Target, s
 				continue
 			}
 			stateful.Spec.Template.Annotations[key] = fmt.Sprintf("localhost/%s", profileName)
-
-			if uniqueID != "" {
-				var newEnv coreV1.EnvVar
-				newEnv.Name = "VARMOR"
-				newEnv.Value = uniqueID
-				if stateful.Spec.Template.Spec.Containers[index].Env == nil {
-					stateful.Spec.Template.Spec.Containers[index].Env = make([]coreV1.EnvVar, 0)
-				}
-				stateful.Spec.Template.Spec.Containers[index].Env = append(stateful.Spec.Template.Spec.Containers[index].Env, newEnv)
-			}
 		}
 	}
 }
 
-func modifyDaemonSetAnnotationsAndEnv(enforcer string, target varmor.Target, daemon *appsV1.DaemonSet, profileName, uniqueID string, bpfExclusiveMode bool) {
+func modifyDaemonSetAnnotationsAndEnv(enforcer string, target varmor.Target, daemon *appsV1.DaemonSet, profileName string, bpfExclusiveMode bool) {
 	for key, value := range daemon.Spec.Template.Annotations {
 		switch enforcer {
 		case "BPF":
@@ -291,18 +245,6 @@ func modifyDaemonSetAnnotationsAndEnv(enforcer string, target varmor.Target, dae
 		}
 	}
 
-	for index, container := range daemon.Spec.Template.Spec.Containers {
-		newEnv := make([]coreV1.EnvVar, 0)
-		for _, env := range container.Env {
-			if env.Name == "VARMOR" {
-				continue
-			} else {
-				newEnv = append(newEnv, env)
-			}
-		}
-		daemon.Spec.Template.Spec.Containers[index].Env = newEnv
-	}
-
 	if daemon.Spec.Template.Annotations == nil {
 		daemon.Spec.Template.Annotations = make(map[string]string)
 	}
@@ -312,7 +254,7 @@ func modifyDaemonSetAnnotationsAndEnv(enforcer string, target varmor.Target, dae
 		return
 	}
 
-	for index, container := range daemon.Spec.Template.Spec.Containers {
+	for _, container := range daemon.Spec.Template.Spec.Containers {
 		if len(target.Containers) != 0 && !InStringArray(container.Name, target.Containers) {
 			continue
 		}
@@ -335,16 +277,6 @@ func modifyDaemonSetAnnotationsAndEnv(enforcer string, target varmor.Target, dae
 				continue
 			}
 			daemon.Spec.Template.Annotations[key] = fmt.Sprintf("localhost/%s", profileName)
-
-			if uniqueID != "" {
-				var newEnv coreV1.EnvVar
-				newEnv.Name = "VARMOR"
-				newEnv.Value = uniqueID
-				if daemon.Spec.Template.Spec.Containers[index].Env == nil {
-					daemon.Spec.Template.Spec.Containers[index].Env = make([]coreV1.EnvVar, 0)
-				}
-				daemon.Spec.Template.Spec.Containers[index].Env = append(daemon.Spec.Template.Spec.Containers[index].Env, newEnv)
-			}
 		}
 	}
 }
@@ -355,7 +287,6 @@ func UpdateWorkloadAnnotationsAndEnv(
 	enforcer string,
 	target varmor.Target,
 	profileName string,
-	uniqueID string,
 	bpfExclusiveMode bool,
 	logger logr.Logger) {
 
@@ -412,7 +343,7 @@ func UpdateWorkloadAnnotationsAndEnv(
 				}
 
 				deployOld := deploy.DeepCopy()
-				modifyDeploymentAnnotationsAndEnv(enforcer, target, deploy, profileName, uniqueID, bpfExclusiveMode)
+				modifyDeploymentAnnotationsAndEnv(enforcer, target, deploy, profileName, bpfExclusiveMode)
 				if reflect.DeepEqual(deployOld, deploy) {
 					return nil
 				}
@@ -455,7 +386,7 @@ func UpdateWorkloadAnnotationsAndEnv(
 				}
 
 				statefulOld := stateful.DeepCopy()
-				modifyStatefulSetAnnotationsAndEnv(enforcer, target, stateful, profileName, uniqueID, bpfExclusiveMode)
+				modifyStatefulSetAnnotationsAndEnv(enforcer, target, stateful, profileName, bpfExclusiveMode)
 				if reflect.DeepEqual(statefulOld, stateful) {
 					return nil
 				}
@@ -502,7 +433,7 @@ func UpdateWorkloadAnnotationsAndEnv(
 				}
 
 				daemonOld := daemon.DeepCopy()
-				modifyDaemonSetAnnotationsAndEnv(enforcer, target, daemon, profileName, uniqueID, bpfExclusiveMode)
+				modifyDaemonSetAnnotationsAndEnv(enforcer, target, daemon, profileName, bpfExclusiveMode)
 				if reflect.DeepEqual(daemonOld, &daemon) {
 					return nil
 				}

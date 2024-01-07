@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package behavior
+package tracer
 
 import (
 	"bytes"
@@ -24,6 +24,7 @@ import (
 	"os"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/cilium/ebpf/link"
@@ -32,6 +33,7 @@ import (
 	"github.com/go-logr/logr"
 
 	varmorconfig "github.com/bytedance/vArmor/internal/config"
+	varmortypes "github.com/bytedance/vArmor/internal/types"
 	varmorapparmor "github.com/bytedance/vArmor/pkg/lsm/apparmor"
 )
 
@@ -41,37 +43,37 @@ const (
 )
 
 type Tracer struct {
-	objs           bpfObjects
+	enabled        bool
+	bpfObjs        bpfObjects
 	execLink       link.Link
 	forkLink       link.Link
 	reader         *perf.Reader
-	bpfEventChs    map[string]chan<- bpfEvent
-	auditEventChs  map[string]chan<- string
-	enabled        bool
+	bpfEventChs    map[string]chan<- varmortypes.BpfTraceEvent
 	savedRateLimit uint64
 	auditConn      *net.UnixConn
 	apparmorRegex  *regexp.Regexp
+	auditEventChs  map[string]chan<- string
 	log            logr.Logger
 }
 
-func NewBpfTracer(log logr.Logger) (*Tracer, error) {
+func NewTracer(log logr.Logger) (*Tracer, error) {
 	tracer := Tracer{
-		objs:           bpfObjects{},
-		bpfEventChs:    make(map[string]chan<- bpfEvent),
-		auditEventChs:  make(map[string]chan<- string),
 		enabled:        false,
+		bpfObjs:        bpfObjects{},
+		bpfEventChs:    make(map[string]chan<- varmortypes.BpfTraceEvent),
 		savedRateLimit: 0,
+		auditEventChs:  make(map[string]chan<- string),
 		log:            log,
 	}
 
-	err := tracer.initBPF()
+	err := tracer.init()
 	if err != nil {
 		return nil, err
 	}
 	return &tracer, nil
 }
 
-func (tracer *Tracer) initBPF() error {
+func (tracer *Tracer) init() error {
 	// Allow the current process to lock memory for eBPF resources.
 	tracer.log.Info("remove memory lock")
 	if err := rlimit.RemoveMemlock(); err != nil {
@@ -80,7 +82,7 @@ func (tracer *Tracer) initBPF() error {
 
 	// Load pre-compiled programs and maps into the kernel.
 	tracer.log.Info("load bpf program and maps into the kernel")
-	if err := loadBpfObjects(&tracer.objs, nil); err != nil {
+	if err := loadBpfObjects(&tracer.bpfObjs, nil); err != nil {
 		return fmt.Errorf("loadBpfObjects() failed: %v", err)
 	}
 
@@ -94,15 +96,15 @@ func (tracer *Tracer) initBPF() error {
 	return nil
 }
 
-func (tracer *Tracer) RemoveBPF() {
+func (tracer *Tracer) Close() {
 	tracer.log.Info("unload the bpf resources of tracer")
 	tracer.stopTracing()
-	tracer.objs.Close()
+	tracer.bpfObjs.Close()
 }
 
-func (tracer *Tracer) AddEventCh(uniqueID string, bpfCh chan bpfEvent, auditCh chan string) {
-	tracer.bpfEventChs[uniqueID] = bpfCh
-	tracer.auditEventChs[uniqueID] = auditCh
+func (tracer *Tracer) AddEventCh(name string, bpfCh chan varmortypes.BpfTraceEvent, auditCh chan string) {
+	tracer.bpfEventChs[name] = bpfCh
+	tracer.auditEventChs[name] = auditCh
 
 	if len(tracer.bpfEventChs) == 1 && !tracer.enabled {
 		err := tracer.startTracing()
@@ -112,13 +114,89 @@ func (tracer *Tracer) AddEventCh(uniqueID string, bpfCh chan bpfEvent, auditCh c
 	}
 }
 
-func (tracer *Tracer) DeleteEventCh(uniqueID string) {
-	delete(tracer.bpfEventChs, uniqueID)
-	delete(tracer.auditEventChs, uniqueID)
+func (tracer *Tracer) DeleteEventCh(name string) {
+	delete(tracer.bpfEventChs, name)
+	delete(tracer.auditEventChs, name)
 
 	if len(tracer.bpfEventChs) == 0 {
 		tracer.stopTracing()
 	}
+}
+
+func (tracer *Tracer) startTracing() error {
+	err := tracer.setRateLimit()
+	if err != nil {
+		return fmt.Errorf("setRateLimit() failed: %v", err)
+	}
+
+	err = tracer.createOmuxsockServer()
+	if err != nil {
+		return fmt.Errorf("createOmuxsockServer() failed: %v", err)
+	}
+
+	err = tracer.attachBpfToTracepoint()
+	if err != nil {
+		return fmt.Errorf("attachBpfToTracepoint() failed: %v", err)
+	}
+	err = tracer.createBpfEventsReader()
+	if err != nil {
+		return fmt.Errorf("createBpfEventsReader() failed: %v", err)
+	}
+
+	// Handle bpf trace events.
+	go tracer.handleBpfEvents()
+
+	// Handle audit events.
+	go tracer.handleAuditEvents()
+
+	tracer.enabled = true
+	tracer.log.Info("start tracing")
+
+	return nil
+}
+
+func (tracer *Tracer) stopTracing() error {
+	tracer.log.Info("stop tracing")
+
+	err := tracer.closeOmuxsockServer()
+	if err != nil {
+		tracer.log.Error(err, "tracer.closeOmuxsockServer()")
+	}
+
+	tracer.closeBpfEventsReader()
+	tracer.unattachBpfToTracepoint()
+
+	tracer.enabled = false
+
+	err = tracer.restoreRateLimit()
+	if err != nil {
+		tracer.log.Error(err, "tracer.restoreRateLimit()")
+	}
+
+	output, err := varmorapparmor.RemoveUnknown()
+	if err != nil {
+		tracer.log.Error(err, "varmorapparmor.RemoveUnknown()", "output", output)
+	}
+
+	return err
+}
+
+func sysctl_read(path string) (string, error) {
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	return strings.Trim(string(content), "\n"), nil
+}
+
+func sysctl_write(path string, value uint64) error {
+	file, err := os.OpenFile(path, os.O_WRONLY, 0)
+	if err != nil {
+		return err
+	}
+
+	_, err = file.WriteString(fmt.Sprintf("%d", value))
+	return err
 }
 
 // setRateLimit set the printk_ratelimit to 0 for recording the audit logs of AppArmor.
@@ -173,11 +251,33 @@ func (tracer *Tracer) closeOmuxsockServer() error {
 	return nil
 }
 
+func (tracer *Tracer) handleAuditEvents() {
+	var buf [4096]byte
+	for {
+		num, err := tracer.auditConn.Read(buf[:])
+		if err != nil {
+			if !errors.Is(err, io.EOF) && !errors.Is(err, net.ErrClosed) {
+				tracer.log.Error(err, "failed to read data from omuxsock")
+			}
+			return
+		}
+
+		if num > 0 {
+			event := string(buf[:num])
+			if tracer.apparmorRegex.FindString(event) != "" {
+				for _, eventCh := range tracer.auditEventChs {
+					eventCh <- event
+				}
+			}
+		}
+	}
+}
+
 // attachBpfToTracepoint link the bpf program to RawTracepoints.
 func (tracer *Tracer) attachBpfToTracepoint() error {
 	execLink, err := link.AttachRawTracepoint(link.RawTracepointOptions{
 		Name:    "sched_process_exec",
-		Program: tracer.objs.TracepointSchedSchedProcessExec,
+		Program: tracer.bpfObjs.TracepointSchedSchedProcessExec,
 	})
 	if err != nil {
 		return err
@@ -186,7 +286,7 @@ func (tracer *Tracer) attachBpfToTracepoint() error {
 
 	forkLink, err := link.AttachRawTracepoint(link.RawTracepointOptions{
 		Name:    "sched_process_fork",
-		Program: tracer.objs.TracepointSchedSchedProcessFork,
+		Program: tracer.bpfObjs.TracepointSchedSchedProcessFork,
 	})
 	if err != nil {
 		return err
@@ -208,7 +308,7 @@ func (tracer *Tracer) unattachBpfToTracepoint() {
 
 // createBpfEventsReader open a perf event reader from kernel space on the BPF_MAP_TYPE_PERF_EVENT_ARRAY map.
 func (tracer *Tracer) createBpfEventsReader() error {
-	reader, err := perf.NewReader(tracer.objs.Events, 8192*128)
+	reader, err := perf.NewReader(tracer.bpfObjs.Events, 8192*128)
 	if err != nil {
 		return err
 	}
@@ -222,66 +322,8 @@ func (tracer *Tracer) closeBpfEventsReader() {
 	}
 }
 
-func (tracer *Tracer) startTracing() error {
-	err := tracer.setRateLimit()
-	if err != nil {
-		return fmt.Errorf("setRateLimit() failed: %v", err)
-	}
-
-	err = tracer.createOmuxsockServer()
-	if err != nil {
-		return fmt.Errorf("createOmuxsockServer() failed: %v", err)
-	}
-
-	err = tracer.attachBpfToTracepoint()
-	if err != nil {
-		return fmt.Errorf("attachBpfToTracepoint() failed: %v", err)
-	}
-	err = tracer.createBpfEventsReader()
-	if err != nil {
-		return fmt.Errorf("createBpfEventsReader() failed: %v", err)
-	}
-
-	// Handle bpf trace events.
-	go tracer.handleTraceEvents()
-
-	// Handle audit events.
-	go tracer.handleAuditEvents()
-
-	tracer.enabled = true
-	tracer.log.Info("start tracing")
-
-	return nil
-}
-
-func (tracer *Tracer) stopTracing() error {
-	tracer.log.Info("stop tracing")
-
-	err := tracer.closeOmuxsockServer()
-	if err != nil {
-		tracer.log.Error(err, "tracer.closeOmuxsockServer()")
-	}
-
-	tracer.closeBpfEventsReader()
-	tracer.unattachBpfToTracepoint()
-
-	tracer.enabled = false
-
-	err = tracer.restoreRateLimit()
-	if err != nil {
-		tracer.log.Error(err, "tracer.restoreRateLimit()")
-	}
-
-	output, err := varmorapparmor.RemoveUnknown()
-	if err != nil {
-		tracer.log.Error(err, "varmorapparmor.RemoveUnknown()", "output", output)
-	}
-
-	return err
-}
-
-func (tracer *Tracer) handleTraceEvents() {
-	var event bpfEvent
+func (tracer *Tracer) handleBpfEvents() {
+	var event varmortypes.BpfTraceEvent
 	for {
 		record, err := tracer.reader.Read()
 		if err != nil {
@@ -294,7 +336,7 @@ func (tracer *Tracer) handleTraceEvents() {
 		}
 
 		if record.LostSamples != 0 {
-			tracer.log.Info("perf buffer is full, some events was dropped", "dropped count", record.LostSamples)
+			tracer.log.Error(fmt.Errorf("perf buffer is full, some events was dropped"), "dropped count", record.LostSamples)
 			continue
 		}
 
@@ -306,28 +348,6 @@ func (tracer *Tracer) handleTraceEvents() {
 
 		for _, eventCh := range tracer.bpfEventChs {
 			eventCh <- event
-		}
-	}
-}
-
-func (tracer *Tracer) handleAuditEvents() {
-	var buf [4096]byte
-	for {
-		num, err := tracer.auditConn.Read(buf[:])
-		if err != nil {
-			if !errors.Is(err, io.EOF) && !errors.Is(err, net.ErrClosed) {
-				tracer.log.Error(err, "failed to read data from omuxsock")
-			}
-			return
-		}
-
-		if num > 0 {
-			event := string(buf[:num])
-			if tracer.apparmorRegex.FindString(event) != "" {
-				for _, eventCh := range tracer.auditEventChs {
-					eventCh <- event
-				}
-			}
 		}
 	}
 }

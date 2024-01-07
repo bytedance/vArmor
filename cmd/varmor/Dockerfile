@@ -46,8 +46,8 @@ ARG TARGETPLATFORM
 ADD . /varmor
 WORKDIR /varmor
 
-COPY --from=vArmor-ebpf-builder /varmor/vArmor-ebpf/pkg/behavior/bpf_bpfel.go /varmor/internal/behavior
-COPY --from=vArmor-ebpf-builder /varmor/vArmor-ebpf/pkg/behavior/bpf_bpfel.o /varmor/internal/behavior
+COPY --from=vArmor-ebpf-builder /varmor/vArmor-ebpf/pkg/tracer/bpf_bpfel.go /varmor/internal/behavior/tracer
+COPY --from=vArmor-ebpf-builder /varmor/vArmor-ebpf/pkg/tracer/bpf_bpfel.o /varmor/internal/behavior/tracer
 COPY --from=vArmor-ebpf-builder /varmor/vArmor-ebpf/pkg/bpfenforcer/bpf_bpfel.go /varmor/pkg/lsm/bpfenforcer
 COPY --from=vArmor-ebpf-builder /varmor/vArmor-ebpf/pkg/bpfenforcer/bpf_bpfel.o /varmor/pkg/lsm/bpfenforcer
 

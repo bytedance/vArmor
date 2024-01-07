@@ -15,16 +15,18 @@
 package profile
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
-	utilrand "k8s.io/apimachinery/pkg/util/rand"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
 	varmorconfig "github.com/bytedance/vArmor/internal/config"
 	apparmorprofile "github.com/bytedance/vArmor/internal/profile/apparmor"
 	bpfprofile "github.com/bytedance/vArmor/internal/profile/bpf"
 	varmortypes "github.com/bytedance/vArmor/internal/types"
+	varmorinterface "github.com/bytedance/vArmor/pkg/client/clientset/versioned/typed/varmor/v1beta1"
 )
 
 // profileNameTemplate is the name of ArmorProfile object in k8s and AppArmor profile in host machine.
@@ -48,7 +50,7 @@ func GenerateArmorProfileName(ns string, name string, clusterScope bool) string 
 	return strings.ToLower(profileName)
 }
 
-func GenerateProfile(policy varmor.Policy, name string, complete bool, newProfile string) (*varmor.Profile, error) {
+func GenerateProfile(policy varmor.Policy, name string, namespace string, varmorInterface varmorinterface.CrdV1beta1Interface, complete bool) (*varmor.Profile, error) {
 	var err error
 
 	profile := varmor.Profile{
@@ -99,11 +101,16 @@ func GenerateProfile(policy varmor.Policy, name string, complete bool, newProfil
 			return nil, fmt.Errorf("unknown enforcer")
 		}
 
-	// [Experimental feature] Compatible with KubeArmor's SecurityPolicy
-	case varmortypes.CustomPolicyMode:
+	case varmortypes.BehaviorModelingMode:
 		switch policy.Enforcer {
 		case "AppArmor":
-			profile.Content = apparmorprofile.GenerateCustomPolicyProfile(policy, name)
+			if complete {
+				// Create profile based on the AlwaysAllow template after the behvior modeling was completed.
+				profile.Content = apparmorprofile.GenerateAlwaysAllowProfile(name)
+			} else {
+				profile.Mode = "complain"
+				profile.Content = apparmorprofile.GenerateBehaviorModelingProfile(name)
+			}
 		case "BPF":
 			return nil, fmt.Errorf("not supported by the BPF enforcer")
 		default:
@@ -113,17 +120,11 @@ func GenerateProfile(policy varmor.Policy, name string, complete bool, newProfil
 	case varmortypes.DefenseInDepthMode:
 		switch policy.Enforcer {
 		case "AppArmor":
-			if complete {
-				profile.Mode = "enforce"
-				if newProfile != "" {
-					profile.Content = newProfile
-				} else {
-					// Create profile based on the AlwaysAllow template after the behvior modeling was completed.
-					profile.Content = apparmorprofile.GenerateAlwaysAllowProfile(name)
-				}
+			apm, err := varmorInterface.ArmorProfileModels(namespace).Get(context.Background(), name, metav1.GetOptions{})
+			if err == nil {
+				profile.Content = apm.Spec.Profile.Content
 			} else {
-				profile.Mode = "complain"
-				profile.Content = apparmorprofile.GenerateBehaviorModelingProfile(name)
+				return nil, fmt.Errorf("fatal error: no existing model found")
 			}
 		case "BPF":
 			return nil, fmt.Errorf("not supported by the BPF enforcer")
@@ -138,7 +139,7 @@ func GenerateProfile(policy varmor.Policy, name string, complete bool, newProfil
 	return &profile, nil
 }
 
-func NewArmorProfile(obj interface{}, clusterScope bool) (*varmor.ArmorProfile, error) {
+func NewArmorProfile(obj interface{}, varmorInterface varmorinterface.CrdV1beta1Interface, clusterScope bool) (*varmor.ArmorProfile, error) {
 	ap := varmor.ArmorProfile{}
 
 	if clusterScope {
@@ -149,7 +150,7 @@ func NewArmorProfile(obj interface{}, clusterScope bool) (*varmor.ArmorProfile, 
 		ap.Namespace = varmorconfig.Namespace
 		ap.Labels = vcp.ObjectMeta.DeepCopy().Labels
 
-		profile, err := GenerateProfile(vcp.Spec.Policy, profileName, false, "")
+		profile, err := GenerateProfile(vcp.Spec.Policy, ap.Name, ap.Namespace, varmorInterface, false)
 		if err != nil {
 			return nil, err
 		}
@@ -164,17 +165,19 @@ func NewArmorProfile(obj interface{}, clusterScope bool) (*varmor.ArmorProfile, 
 		ap.Namespace = vp.Namespace
 		ap.Labels = vp.ObjectMeta.DeepCopy().Labels
 
-		profile, err := GenerateProfile(vp.Spec.Policy, profileName, false, "")
+		profile, err := GenerateProfile(vp.Spec.Policy, ap.Name, ap.Namespace, varmorInterface, false)
 		if err != nil {
 			return nil, err
 		}
 		ap.Spec.Profile = *profile
 		ap.Spec.Target = *vp.Spec.Target.DeepCopy()
 
-		if vp.Spec.Policy.Mode == varmortypes.DefenseInDepthMode {
+		if vp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode {
+			if vp.Spec.Policy.ModelingOptions.Duration == 0 {
+				return &ap, fmt.Errorf("invalid parameter: .Spec.Policy.ModelingOptions.Duration == 0")
+			}
 			ap.Spec.BehaviorModeling.Enable = true
-			ap.Spec.BehaviorModeling.ModelingDuration = vp.Spec.Policy.DefenseInDepth.ModelingDuration
-			ap.Spec.BehaviorModeling.UniqueID = utilrand.String(8)
+			ap.Spec.BehaviorModeling.Duration = vp.Spec.Policy.ModelingOptions.Duration
 		}
 	}
 

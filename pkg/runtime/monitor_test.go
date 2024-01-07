@@ -31,11 +31,13 @@ func Test_createRuntimeMonitor(t *testing.T) {
 	syncCh := make(chan bool, 1)
 
 	log.SetLogger(klogr.New())
-	monitor, err := NewRuntimeMonitor(createCh, deleteCh, syncCh, log.Log.WithName("TEST"))
+	monitor, err := NewRuntimeMonitor(log.Log.WithName("TEST"))
 	if err != nil {
 		return
 	}
 	defer monitor.Close()
+
+	monitor.SetTaskNotifyChs(createCh, deleteCh, syncCh)
 }
 
 func Test_watchContainerdEvents(t *testing.T) {
@@ -44,10 +46,13 @@ func Test_watchContainerdEvents(t *testing.T) {
 	syncCh := make(chan bool, 1)
 
 	log.SetLogger(klogr.New())
-	monitor, err := NewRuntimeMonitor(createCh, deleteCh, syncCh, log.Log.WithName("TEST_RUNTIME_MONITOR"))
+	monitor, err := NewRuntimeMonitor(log.Log.WithName("TEST_RUNTIME_MONITOR"))
 	if err != nil {
 		return
 	}
+	defer monitor.Close()
+
+	monitor.SetTaskNotifyChs(createCh, deleteCh, syncCh)
 
 	log.Log.Info("monitoring")
 	go monitor.Run(nil)
@@ -80,11 +85,13 @@ func Test_CollectExistingTargetContainers(t *testing.T) {
 	syncCh := make(chan bool, 1)
 
 	log.SetLogger(klogr.New())
-	monitor, err := NewRuntimeMonitor(createCh, deleteCh, syncCh, log.Log.WithName("TEST"))
+	monitor, err := NewRuntimeMonitor(log.Log.WithName("TEST"))
 	if err != nil {
 		return
 	}
 	defer monitor.Close()
+
+	monitor.SetTaskNotifyChs(createCh, deleteCh, syncCh)
 
 	go monitor.CollectExistingTargetContainers()
 
