@@ -162,21 +162,6 @@ agent:
   bpfLsmEnforcer:
     args:
     - --enableBpfEnforcer
-    volumeMounts:
-    - mountPath: /run/containerd/
-      name: containerd    
-    - mountPath: /proc
-      name: procfs
-      readOnly: true
-    volumes:
-    - hostPath:
-        path: /run/containerd/
-        type: Directory
-      name: containerd
-    - hostPath:
-        path: /proc
-        type: Directory
-      name: procfs
     resources:
       limits:
         cpu: 200m
@@ -208,15 +193,27 @@ agent:
         cpu: 500m
         memory: 500Mi
 
-  lsmRelated:
+  bpfRelated:
     volumeMounts:
     - mountPath: /sys/kernel/btf/vmlinux
       name: btf
+    - mountPath: /run/containerd/
+      name: containerd    
+    - mountPath: /proc
+      name: procfs
     volumes:
     - hostPath:
         path: /sys/kernel/btf/vmlinux
         type: File
       name: btf
+    - hostPath:
+        path: /run/containerd/
+        type: Directory
+      name: containerd
+    - hostPath:
+        path: /proc
+        type: Directory
+      name: procfs
 
   nodeSelector: {}
 

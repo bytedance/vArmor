@@ -61,18 +61,13 @@ spec:
             {{- toYaml . | nindent 8 }}
           {{- end }}
         {{- end }}
-        {{- if .Values.bpfLsmEnforcer.enabled }}
-          {{- with .Values.agent.bpfLsmEnforcer.volumeMounts }}
+        {{- if or .Values.bpfLsmEnforcer.enabled .Values.behaviorModeling.enabled }}
+          {{- with .Values.agent.bpfRelated.volumeMounts }}
             {{- toYaml . | nindent 8 }}
           {{- end }}
         {{- end }}
         {{- if .Values.behaviorModeling.enabled }}
           {{- with .Values.agent.behaviorModeling.volumeMounts }}
-            {{- toYaml . | nindent 8 }}
-          {{- end }}
-        {{- end }}
-        {{- if or .Values.bpfLsmEnforcer.enabled .Values.behaviorModeling.enabled }}
-          {{- with .Values.agent.lsmRelated.volumeMounts }}
             {{- toYaml . | nindent 8 }}
           {{- end }}
         {{- end }}
@@ -83,7 +78,7 @@ spec:
         {{- toYaml .Values.agent.bpfLsmEnforcer.resources | nindent 10 }}
         {{- else }}
         {{- toYaml .Values.agent.appArmorLsmEnforcer.resources | nindent 10 }}
-        {{- end }}          
+        {{- end }}
       volumes:
       - hostPath:
           path: /sys/kernel/security
@@ -94,18 +89,13 @@ spec:
           {{- toYaml . | nindent 6 }}
         {{- end }}
       {{- end }}
-      {{- if .Values.bpfLsmEnforcer.enabled }}
-        {{- with .Values.agent.bpfLsmEnforcer.volumes }}
+      {{- if or .Values.bpfLsmEnforcer.enabled .Values.behaviorModeling.enabled }}
+        {{- with .Values.agent.bpfRelated.volumes }}
           {{- toYaml . | nindent 6 }}
         {{- end }}
       {{- end }}
       {{- if .Values.behaviorModeling.enabled }}
         {{- with .Values.agent.behaviorModeling.volumes }}
-          {{- toYaml . | nindent 6 }}
-        {{- end }}
-      {{- end }}
-      {{- if or .Values.bpfLsmEnforcer.enabled .Values.behaviorModeling.enabled }}
-        {{- with .Values.agent.lsmRelated.volumes }}
           {{- toYaml . | nindent 6 }}
         {{- end }}
       {{- end }}
