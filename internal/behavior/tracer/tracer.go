@@ -235,6 +235,9 @@ func (tracer *Tracer) createOmuxsockServer() error {
 	if err != nil {
 		return err
 	}
+	if err := os.Chmod(varmorconfig.OmuxSocketPath, 0662); err != nil {
+		return err
+	}
 	tracer.auditConn = conn
 	return tracer.auditConn.SetDeadline(time.Time{})
 }
