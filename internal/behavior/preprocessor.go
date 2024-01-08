@@ -825,16 +825,10 @@ func (p *DataPreprocessor) Process() []byte {
 		defer p.debugFileWriter.Flush()
 	}
 
-	err = p.processAppArmorAuditRecords()
-	if err != nil {
-		p.log.Error(err, "data preprocess completed")
-		p.behaviorData.Status = varmortypes.Failed
-		p.behaviorData.Message = fmt.Sprintf("%v", err)
-	} else {
-		p.log.Info("data preprocess completed", "profile num", len(p.behaviorData.DynamicResult.Profiles))
-		p.behaviorData.Status = varmortypes.Succeeded
-		p.behaviorData.Message = ""
-	}
+	p.processAppArmorAuditRecords()
+	p.log.Info("data preprocess completed", "profile num", len(p.behaviorData.DynamicResult.Profiles))
+	p.behaviorData.Status = varmortypes.Succeeded
+	p.behaviorData.Message = ""
 
 	if p.debug {
 		p.debugFileWriter.WriteString("\n\n[+] Behavior statistics of the target container:\n")
