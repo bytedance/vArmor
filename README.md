@@ -32,7 +32,7 @@ You can leverage **vArmor** in the following scenarios to provide sandbox protec
 |Enforcer|Requirements|Recommendations|
 |------------|--------------------------------------------|--------|
 |AppArmor    |1. Linux Kernel 4.15 and above<br>2. The AppArmor LSM is enabled|GKE with Container-Optimized OS<br>AKS with Ubuntu 22.04 LTS<br>[VKE](https://www.volcengine.com/product/vke) with veLinux<br>Debian 10 and above<br>Ubuntu 18.04.0 LTS and above<br>[veLinux](https://www.volcengine.com/docs/6396/74967) etc.
-|BPF         |1. Linux Kernel 5.7 and above<br>2. containerd v1.6.0 and above<br>3. The BPF LSM is enabled|EKS with Amazon Linux 2<br>GKE with Container-Optimized OS<br>AKS with Ubuntu 22.04 LTS <sup>\*</sup><br>ACK with Alibaba Cloud Linux 3 <sup>\*</sup><br>OpenSUSE 15.4 <sup>\*</sup><br>Debian 11 <sup>\*</sup><br>Fedora 37 etc<br><br>* *Manual enabling of BPF LSM is required*
+|BPF         |1. Linux Kernel 5.10 and above (x86_64)<br>2. containerd v1.6.0 and above<br>3. The BPF LSM is enabled|EKS with Amazon Linux 2<br>GKE with Container-Optimized OS<br>AKS with Ubuntu 22.04 LTS <sup>\*</sup><br>ACK with Alibaba Cloud Linux 3 <sup>\*</sup><br>OpenSUSE 15.4 <sup>\*</sup><br>Debian 11 <sup>\*</sup><br>Fedora 37 etc<br><br>* *Manual enabling of BPF LSM is required*
 
 
 ## The Built-in Rules
