@@ -54,13 +54,13 @@ You can leverage **vArmor** in the following scenarios to provide sandbox protec
 
 ### Step 1. Fetch chart
 ```
-helm pull oci://elkeid-cn-beijing.cr.volces.com/varmor/varmor --version 0.5.4
+helm pull oci://elkeid-cn-beijing.cr.volces.com/varmor/varmor --version 0.5.5
 ```
 
 ### Step 2. Install
 *You can use the domain `elkeid-ap-southeast-1.cr.volces.com` outside of the CN region.*
 ```
-helm install varmor varmor-0.5.4.tgz \
+helm install varmor varmor-0.5.5.tgz \
     --namespace varmor --create-namespace \
     --set image.registry="elkeid-cn-beijing.cr.volces.com"
 ```
