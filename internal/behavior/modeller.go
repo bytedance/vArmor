@@ -23,7 +23,7 @@ import (
 	varmortracer "github.com/bytedance/vArmor/internal/behavior/tracer"
 	varmorutils "github.com/bytedance/vArmor/internal/utils"
 	varmormonitor "github.com/bytedance/vArmor/pkg/runtime"
-	utils "github.com/bytedance/vArmor/pkg/utils"
+	"github.com/bytedance/vArmor/pkg/utils"
 )
 
 type BehaviorModeller struct {

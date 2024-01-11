@@ -251,14 +251,15 @@ func main() {
 		go webhookServer.Run()
 
 		// The service is used for state synchronization. It only works with leader.
-		// TODO: support HTTPS
 		statusSvc, err := status.NewStatusService(
 			managerIP,
 			config.StatusServicePort,
+			tlsPair,
 			debug,
 			kubeClient.CoreV1(),
 			kubeClient.AppsV1(),
 			varmorClient.CrdV1beta1(),
+			kubeClient.AuthenticationV1(),
 			statusUpdateCycle,
 			log.Log.WithName("STATUS-SERVICE"),
 		)
