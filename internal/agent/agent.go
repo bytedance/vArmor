@@ -117,7 +117,7 @@ func NewAgent(
 		stopCh:                 stopCh,
 		log:                    log,
 	}
-
+	varmorutils.InitAndStartTokenRotation(5*time.Minute, log)
 	// Pre-checks
 	agent.appArmorSupported, err = isLSMSupported("AppArmor")
 	if err != nil {

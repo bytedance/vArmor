@@ -16,20 +16,27 @@ package status
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
+	varmortls "github.com/bytedance/vArmor/internal/tls"
+	authv1 "k8s.io/api/authentication/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-logr/logr"
 
-	appsv1 "k8s.io/client-go/kubernetes/typed/apps/v1"
-	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
-
 	varmorconfig "github.com/bytedance/vArmor/internal/config"
 	statusmanager "github.com/bytedance/vArmor/internal/status/api/v1"
 	varmorinterface "github.com/bytedance/vArmor/pkg/client/clientset/versioned/typed/varmor/v1beta1"
+	appsv1 "k8s.io/client-go/kubernetes/typed/apps/v1"
+	authclientv1 "k8s.io/client-go/kubernetes/typed/authentication/v1"
+	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 )
+
+const managerAudience = "varmor-manager"
 
 type StatusService struct {
 	StatusManager *statusmanager.StatusManager
@@ -41,6 +48,33 @@ type StatusService struct {
 	log           logr.Logger
 }
 
+func CheckAgentToken(authInterface authclientv1.AuthenticationV1Interface) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		token := c.GetHeader("Token")
+		if token == "" {
+			c.AbortWithStatus(http.StatusUnauthorized)
+			return
+		}
+		tr := &authv1.TokenReview{
+			Spec: authv1.TokenReviewSpec{
+				Token: token,
+				Audiences: []string{
+					managerAudience,
+				},
+			},
+		}
+		result, err := authInterface.TokenReviews().Create(context.Background(), tr, metav1.CreateOptions{})
+		if err != nil {
+			c.AbortWithStatus(http.StatusUnauthorized)
+			return
+		}
+		if !result.Status.Authenticated {
+			c.AbortWithStatus(http.StatusUnauthorized)
+			return
+		}
+		c.Next()
+	}
+}
 func health(c *gin.Context) {
 	c.JSON(http.StatusOK, "ok")
 }
@@ -48,10 +82,12 @@ func health(c *gin.Context) {
 func NewStatusService(
 	addr string,
 	port int,
+	tlsPair *varmortls.PemPair,
 	debug bool,
 	coreInterface corev1.CoreV1Interface,
 	appsInterface appsv1.AppsV1Interface,
 	varmorInterface varmorinterface.CrdV1beta1Interface,
+	authInterface authclientv1.AuthenticationV1Interface,
 	statusUpdateCycle time.Duration,
 	log logr.Logger) (*StatusService, error) {
 
@@ -77,23 +113,31 @@ func NewStatusService(
 	}
 	s.router.SetTrustedProxies(nil)
 
-	s.router.POST(varmorconfig.StatusSyncPath, statusManager.Status)
-	s.router.POST(varmorconfig.DataSyncPath, statusManager.Data)
+	s.router.POST(varmorconfig.StatusSyncPath, CheckAgentToken(authInterface), statusManager.Status)
+	s.router.POST(varmorconfig.DataSyncPath, CheckAgentToken(authInterface), statusManager.Data)
 	s.router.GET("/healthz", health)
 
+	cert, err := tls.X509KeyPair(tlsPair.Certificate, tlsPair.PrivateKey)
+	if err != nil {
+		log.Error(err, "load key pair failed")
+		os.Exit(1)
+	}
+	tlsConfig := &tls.Config{
+		Certificates: []tls.Certificate{cert},
+	}
 	s.srv = &http.Server{
-		Addr:    fmt.Sprintf("%s:%d", s.addr, s.port),
-		Handler: s.router,
+		Addr:      fmt.Sprintf("%s:%d", s.addr, s.port),
+		Handler:   s.router,
+		TLSConfig: tlsConfig,
 	}
 	return &s, nil
 }
-
 func (s *StatusService) Run(stopCh <-chan struct{}) {
 	s.log.Info("starting", "addr", s.srv.Addr)
 
 	go s.StatusManager.Run(stopCh)
 
-	if err := s.srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+	if err := s.srv.ListenAndServeTLS("", ""); err != nil && err != http.ErrServerClosed {
 		s.log.Error(err, "s.srv.ListenAndServe() failed")
 	}
 }
