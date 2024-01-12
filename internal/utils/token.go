@@ -24,18 +24,27 @@ import (
 const BindTokenPath = "/var/run/secrets/tokens"
 
 var (
-	token string
-	mu    sync.RWMutex
+	token      string
+	mu         sync.RWMutex
+	updateChan chan bool
 )
 
 func InitAndStartTokenRotation(interval time.Duration, logger logr.Logger) {
 	updateToken(BindTokenPath, logger)
-	go startTokenRotation(BindTokenPath, interval, logger)
+	updateChan = make(chan bool)
+	go startTokenRotation(BindTokenPath, interval, logger, updateChan)
 }
 
-func startTokenRotation(filePath string, interval time.Duration, logger logr.Logger) {
-	for range time.Tick(interval) {
-		updateToken(filePath, logger)
+func startTokenRotation(filePath string, interval time.Duration, logger logr.Logger, update chan bool) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			updateToken(filePath, logger)
+		case <-update:
+			updateToken(filePath, logger)
+		}
 	}
 }
 
@@ -43,6 +52,7 @@ func updateToken(filePath string, logger logr.Logger) {
 	newToken, err := os.ReadFile(filePath)
 	if err != nil {
 		logger.Error(err, "update agent bind token error")
+		os.Exit(1)
 	}
 
 	mu.Lock()

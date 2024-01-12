@@ -58,6 +58,9 @@ func CheckAgentToken(authInterface authclientv1.AuthenticationV1Interface) gin.H
 		tr := &authv1.TokenReview{
 			Spec: authv1.TokenReviewSpec{
 				Token: token,
+				Audiences: []string{
+					managerAudience,
+				},
 			},
 		}
 		result, err := authInterface.TokenReviews().Create(context.Background(), tr, metav1.CreateOptions{})
@@ -66,10 +69,6 @@ func CheckAgentToken(authInterface authclientv1.AuthenticationV1Interface) gin.H
 			return
 		}
 		if !result.Status.Authenticated {
-			c.AbortWithStatus(http.StatusUnauthorized)
-			return
-		}
-		if len(result.Status.Audiences) != 0 || result.Status.Audiences[0] != managerAudience {
 			c.AbortWithStatus(http.StatusUnauthorized)
 			return
 		}
