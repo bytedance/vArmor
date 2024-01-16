@@ -17,6 +17,7 @@ package utils
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"fmt"
 	"io"
 	"math/rand"
@@ -46,9 +47,50 @@ import (
 const (
 	httpTimeout    = 3 * time.Second
 	retryTimes     = 5
+	httpsServerURL = "https://%s.%s:%d%s"
+	httpsDebugURL  = "https://%s:%d%s"
 	serverURL      = "http://%s.%s:%d%s"
 	debugServerURL = "http://%s:%d%s"
 )
+
+func httpsPostWithRetryAndToken(reqBody []byte, debug bool, service string, namespace string, address string, port int, path string, retryTimes int) error {
+	var url string
+	if debug {
+		url = fmt.Sprintf(httpsDebugURL, address, port, path)
+	} else {
+		url = fmt.Sprintf(httpsServerURL, service, namespace, port, path)
+	}
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+	client := &http.Client{Timeout: httpTimeout, Transport: tr}
+	httpReq, err := http.NewRequest("POST", url, bytes.NewBuffer(reqBody))
+	if err != nil {
+		return err
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Token", GetToken())
+	var httpRsp *http.Response
+
+	for i := 0; i < retryTimes; i++ {
+		httpRsp, err = client.Do(httpReq)
+		if err == nil {
+			defer httpRsp.Body.Close()
+			if httpRsp.StatusCode == http.StatusOK {
+				return nil
+			} else if httpRsp.StatusCode == http.StatusUnauthorized {
+				// try update token
+				updateChan <- true
+			} else {
+				err = fmt.Errorf(fmt.Sprintf("http error code %d", httpRsp.StatusCode))
+			}
+		}
+		r := rand.Intn(60) + 20
+		time.Sleep(time.Duration(r) * time.Millisecond)
+	}
+
+	return err
+}
 
 func httpPostWithRetry(reqBody []byte, debug bool, service string, namespace string, address string, port int, path string, retryTimes int) error {
 	var url string
@@ -57,14 +99,12 @@ func httpPostWithRetry(reqBody []byte, debug bool, service string, namespace str
 	} else {
 		url = fmt.Sprintf(serverURL, service, namespace, port, path)
 	}
-
 	client := &http.Client{Timeout: httpTimeout}
 	httpReq, err := http.NewRequest("POST", url, bytes.NewBuffer(reqBody))
 	if err != nil {
 		return err
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
-
 	var httpRsp *http.Response
 
 	for i := 0; i < retryTimes; i++ {
@@ -91,13 +131,12 @@ func httpPostAndGetResponseWithRetry(reqBody []byte, debug bool, service string,
 	} else {
 		url = fmt.Sprintf(serverURL, service, namespace, port, path)
 	}
-
 	client := &http.Client{Timeout: httpTimeout}
 	httpReq, err := http.NewRequest("POST", url, bytes.NewBuffer(reqBody))
 	if err != nil {
 		return nil, err
 	}
-
+	httpReq.Header.Set("Content-Type", "application/json")
 	var httpRsp *http.Response
 	for i := 0; i < retryTimes; i++ {
 		httpRsp, err = client.Do(httpReq)
@@ -126,11 +165,11 @@ func RequestMLService(reqBody []byte, debug bool, address string, port int) ([]b
 }
 
 func PostStatusToStatusService(reqBody []byte, debug bool, address string, port int) error {
-	return httpPostWithRetry(reqBody, debug, varmorconfig.StatusServiceName, varmorconfig.Namespace, address, port, varmorconfig.StatusSyncPath, retryTimes)
+	return httpsPostWithRetryAndToken(reqBody, debug, varmorconfig.StatusServiceName, varmorconfig.Namespace, address, port, varmorconfig.StatusSyncPath, retryTimes)
 }
 
 func PostDataToStatusService(reqBody []byte, debug bool, address string, port int) error {
-	return httpPostWithRetry(reqBody, debug, varmorconfig.StatusServiceName, varmorconfig.Namespace, address, port, varmorconfig.DataSyncPath, retryTimes)
+	return httpsPostWithRetryAndToken(reqBody, debug, varmorconfig.StatusServiceName, varmorconfig.Namespace, address, port, varmorconfig.DataSyncPath, retryTimes)
 }
 
 func modifyDeploymentAnnotationsAndEnv(enforcer string, target varmor.Target, deploy *appsV1.Deployment, profileName string, bpfExclusiveMode bool) {

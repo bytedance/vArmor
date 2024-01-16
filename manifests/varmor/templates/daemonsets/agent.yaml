@@ -56,8 +56,13 @@ spec:
         volumeMounts:
         - mountPath: /sys/kernel/security
           name: securityfs
+<<<<<<< HEAD
         - mountPath: /var/lib/kubelet/seccomp
           name: seccomp-dir
+=======
+        - mountPath: /var/run/secrets/tokens
+          name: bound-token
+>>>>>>> main
         {{- if .Values.appArmorLsmEnforcer.enabled }}
           {{- with .Values.agent.appArmorLsmEnforcer.volumeMounts }}
             {{- toYaml . | nindent 8 }}
@@ -86,10 +91,20 @@ spec:
           path: /sys/kernel/security
           type: Directory
         name: securityfs
+<<<<<<< HEAD
       - hostPath:
           path: /var/lib/kubelet/seccomp
           type: DirectoryOrCreate
         name: seccomp-dir
+=======
+      - name: bound-token
+        projected:
+            sources:
+            - serviceAccountToken:
+              path: bound-token
+              expirationSeconds: 7200
+              audience: varmor-manager
+>>>>>>> main
       {{- if .Values.appArmorLsmEnforcer.enabled }}
         {{- with .Values.agent.appArmorLsmEnforcer.volumes }}
           {{- toYaml . | nindent 6 }}
