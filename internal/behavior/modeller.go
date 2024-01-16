@@ -19,6 +19,7 @@ import (
 
 	"github.com/go-logr/logr"
 
+	varmorpreprocessor "github.com/bytedance/vArmor/internal/behavior/preprocessor"
 	varmorrecorder "github.com/bytedance/vArmor/internal/behavior/recorder"
 	varmortracer "github.com/bytedance/vArmor/internal/behavior/tracer"
 	varmorutils "github.com/bytedance/vArmor/internal/utils"
@@ -32,6 +33,7 @@ type BehaviorModeller struct {
 	nodeName       string
 	namespace      string
 	name           string
+	enforcer       string
 	startTime      time.Time
 	duration       time.Duration
 	modeling       bool
@@ -55,6 +57,7 @@ func NewBehaviorModeller(
 	nodeName string,
 	namespace string,
 	name string,
+	enforcer string,
 	startTime time.Time,
 	duration time.Duration,
 	stopCh <-chan struct{},
@@ -73,6 +76,7 @@ func NewBehaviorModeller(
 		nodeName:       nodeName,
 		namespace:      namespace,
 		name:           name,
+		enforcer:       enforcer,
 		startTime:      startTime,
 		duration:       duration,
 		modeling:       false,
@@ -106,10 +110,11 @@ func NewBehaviorModeller(
 }
 
 func (modeller *BehaviorModeller) PreprocessAndSendBehaviorData() {
-	preprocessor := NewDataPreprocessor(
+	preprocessor := varmorpreprocessor.NewDataPreprocessor(
 		modeller.nodeName,
 		modeller.namespace,
 		modeller.name,
+		modeller.enforcer,
 		modeller.targetPIDs,
 		modeller.targetMnts,
 		modeller.managerIP,
@@ -120,7 +125,6 @@ func (modeller *BehaviorModeller) PreprocessAndSendBehaviorData() {
 		return
 	}
 
-	preprocessor.GatherTargetPIDs()
 	data := preprocessor.Process()
 	if data != nil {
 		modeller.log.Info("send preprocess result to manager")

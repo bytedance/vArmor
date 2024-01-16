@@ -48,7 +48,7 @@ type Signal struct {
 	Signals     []string `json:"signals"`
 }
 
-type DynamicResult struct {
+type AppArmor struct {
 	Profiles     []string  `json:"profiles,omitempty"`
 	Executions   []string  `json:"executions,omitempty"`
 	Files        []File    `json:"files,omitempty"`
@@ -59,14 +59,20 @@ type DynamicResult struct {
 	Unhandled    []string  `json:"unhandled,omitempty"`
 }
 
+type Seccomp struct {
+	Syscall []string `json:"syscall,omitempty"`
+}
+
+type DynamicResult struct {
+	AppArmor AppArmor `json:"apparmor,omitempty"`
+	Seccomp  Seccomp  `json:"seccomp,omitempty"`
+}
+
 type StaticResult struct {
 }
 
-// ArmorProfileModelSpec defines the desired state of ArmorProfileModel
-type ArmorProfileModelSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-
+// ArmorProfileModelData defines the behavior model and the profile
+type ArmorProfileModelData struct {
 	DynamicResult DynamicResult `json:"dynamicResult,omitempty"`
 	StaticResult  StaticResult  `json:"staticResult,omitempty"`
 	Profile       Profile       `json:"profile,omitempty"`
@@ -117,7 +123,7 @@ type ArmorProfileModel struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   ArmorProfileModelSpec   `json:"spec"`
+	Data   ArmorProfileModelData   `json:"data"`
 	Status ArmorProfileModelStatus `json:"status,omitempty"`
 }
 

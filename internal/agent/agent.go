@@ -46,6 +46,7 @@ import (
 	varmorapparmor "github.com/bytedance/vArmor/pkg/lsm/apparmor"
 	varmorbpfenforcer "github.com/bytedance/vArmor/pkg/lsm/bpfenforcer"
 	varmorruntime "github.com/bytedance/vArmor/pkg/runtime"
+	varmorseccomp "github.com/bytedance/vArmor/pkg/seccomp"
 )
 
 const (
@@ -62,6 +63,7 @@ type Agent struct {
 	appArmorSupported      bool
 	bpfLsmSupported        bool
 	appArmorProfileDir     string
+	seccompProfileDir      string
 	bpfEnforcer            *varmorbpfenforcer.BpfEnforcer
 	runtimeMonitor         *varmorruntime.RuntimeMonitor
 	waitExistingApSync     sync.WaitGroup
@@ -104,6 +106,7 @@ func NewAgent(
 		apInformerSynced:       apInformer.Informer().HasSynced,
 		queue:                  workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "agent"),
 		appArmorProfileDir:     varmorconfig.AppArmorProfileDir,
+		seccompProfileDir:      varmorconfig.SeccompProfileDir,
 		existingApCount:        0,
 		processedApCount:       0,
 		enableBehaviorModeling: enableBehaviorModeling,
@@ -300,6 +303,8 @@ func (agent *Agent) selectEnforcer(ap *varmor.ArmorProfile, logger logr.Logger) 
 				"the BPF enforcer may not be enabled, or the BPF enforcer not support the BehaviorModeling mode.")
 			return ""
 		}
+	case "Seccomp":
+		return "Seccomp"
 	default:
 		if agent.appArmorSupported {
 			return "AppArmor"
@@ -333,57 +338,56 @@ func (agent *Agent) handleCreateOrUpdateArmorProfile(ap *varmor.ArmorProfile, ke
 		return nil
 	}
 
-	switch enforcer {
-	case "AppArmor":
-		needLoadApparmor := true
+	// [Experimental feature] For BehaviorModeling mode (only works with AppArmor/Seccomp enforcer for now).
+	needLoadApparmor := true
+	if agent.enableBehaviorModeling &&
+		ap.Spec.BehaviorModeling.Enable &&
+		ap.Spec.BehaviorModeling.Duration != 0 {
 
-		// [Experimental feature] For BehaviorModeling mode (only works with AppArmor enforcer for now).
-		if agent.enableBehaviorModeling &&
-			agent.appArmorSupported &&
-			ap.Spec.BehaviorModeling.Enable &&
-			ap.Spec.BehaviorModeling.Duration != 0 {
+		createTime := ap.CreationTimestamp.Time
+		Duration := time.Duration(ap.Spec.BehaviorModeling.Duration) * time.Minute
 
-			createTime := ap.CreationTimestamp.Time
-			Duration := time.Duration(ap.Spec.BehaviorModeling.Duration) * time.Minute
+		if modeller, ok := agent.modellers[key]; ok {
+			needLoadApparmor = false
+			// Update a running modeller's duration.
+			modeller.UpdateDuration(Duration)
+			if !modeller.IsModeling() {
+				// Sync data to manager immediately.
+				modeller.PreprocessAndSendBehaviorData()
+			}
+		} else {
+			// Create a new modeller and start modeling.
+			modeller := varmorbehavior.NewBehaviorModeller(
+				agent.tracer,
+				agent.runtimeMonitor,
+				agent.nodeName,
+				ap.Namespace,
+				ap.Name,
+				ap.Spec.Profile.Enforcer,
+				createTime,
+				Duration,
+				agent.stopCh,
+				agent.managerIP,
+				agent.managerPort,
+				agent.classifierPort,
+				agent.debug,
+				agent.log.WithName("BEHAVIOR-MODELLER"))
+			if modeller != nil {
+				agent.modellers[key] = modeller
 
-			if modeller, ok := agent.modellers[key]; ok {
-				needLoadApparmor = false
-				// Update a running modeller's duration.
-				modeller.UpdateDuration(Duration)
-				if !modeller.IsModeling() {
+				if time.Now().Before(createTime.Add(Duration)) {
+					// Start modeling, sync data to manager when modeling completed.
+					modeller.Run()
+				} else {
 					// Sync data to manager immediately.
 					modeller.PreprocessAndSendBehaviorData()
 				}
-			} else {
-				// Create a new modeller and start modeling.
-				modeller := varmorbehavior.NewBehaviorModeller(
-					agent.tracer,
-					agent.runtimeMonitor,
-					agent.nodeName,
-					ap.Namespace,
-					ap.Name,
-					createTime,
-					Duration,
-					agent.stopCh,
-					agent.managerIP,
-					agent.managerPort,
-					agent.classifierPort,
-					agent.debug,
-					agent.log.WithName("BEHAVIOR-MODELLER"))
-				if modeller != nil {
-					agent.modellers[key] = modeller
-
-					if time.Now().Before(createTime.Add(Duration)) {
-						// Start modeling, sync data to manager when modeling completed.
-						modeller.Run()
-					} else {
-						// Sync data to manager immediately.
-						modeller.PreprocessAndSendBehaviorData()
-					}
-				}
 			}
 		}
+	}
 
+	switch enforcer {
+	case "AppArmor":
 		// Save and load AppArmor profile.
 		if agent.appArmorSupported && needLoadApparmor {
 			logger.Info(fmt.Sprintf("saving the AppArmor profile ('%s') to Node/%s", ap.Spec.Profile.Name, agent.nodeName))
@@ -414,12 +418,22 @@ func (agent *Agent) handleCreateOrUpdateArmorProfile(ap *varmor.ArmorProfile, ke
 		}
 
 	case "BPF":
-		// Save BPF profile
+		// Save BPF profile.
 		logger.Info(fmt.Sprintf("saving and applying the BPF profile ('%s')", ap.Spec.Profile.Name))
 		err := agent.bpfEnforcer.SaveAndApplyBpfProfile(ap.Spec.Profile.Name, ap.Spec.Profile.BpfContent)
 		if err != nil {
 			logger.Error(err, "SaveAndApplyBpfProfile()")
 			return agent.sendStatus(ap, varmortypes.Failed, "SaveBpfProfile(): "+err.Error())
+		}
+
+	case "Seccomp":
+		// Save Seccomp profile.
+		logger.Info(fmt.Sprintf("saving the Seccomp profile ('%s') to Node/%s", ap.Spec.Profile.Name, agent.nodeName))
+		profilePath := filepath.Join(agent.seccompProfileDir, ap.Spec.Profile.Name)
+		err := varmorseccomp.SaveSeccompProfile(profilePath, ap.Spec.Profile.SeccompContent)
+		if err != nil {
+			logger.Error(err, "SaveSeccompProfile()")
+			return agent.sendStatus(ap, varmortypes.Failed, "SaveSeccompProfile(): "+err.Error())
 		}
 	}
 
@@ -441,23 +455,19 @@ func (agent *Agent) handleDeleteArmorProfile(namespace, name, key string) error 
 		delete(agent.modellers, key)
 	}
 
+	// BPF enforcer
 	if agent.bpfLsmSupported && agent.bpfEnforcer.IsBpfProfileExist(name) {
 		logger.Info(fmt.Sprintf("unloading the BPF profile ('%s')", name))
 		err := agent.bpfEnforcer.DeleteBpfProfile(name)
 		if err != nil {
 			logger.Error(err, "DeleteBpfProfile()")
-			return err
 		}
-	} else if agent.appArmorSupported {
-		logger.Info(fmt.Sprintf("unloading the AppArmor profile ('%s') from Node/%s's kernel", name, agent.nodeName))
-		if yes, err := varmorapparmor.IsAppArmorProfileLoaded(name); !yes {
-			if err != nil {
-				logger.Error(err, "isAppArmorProfileLoaded()")
-				return err
-			}
-			err = fmt.Errorf("'%s' wasn't loaded in Node/%s's kernel", name, agent.nodeName)
-			logger.Error(err, "isAppArmorProfileLoaded()")
-		} else {
+	}
+
+	// AppArmor enforcer
+	if agent.appArmorSupported {
+		if loaded, _ := varmorapparmor.IsAppArmorProfileLoaded(name); loaded {
+			logger.Info(fmt.Sprintf("unloading the AppArmor profile ('%s') from Node/%s's kernel", name, agent.nodeName))
 			profilePath := filepath.Join(agent.appArmorProfileDir, name)
 			output, err := varmorapparmor.UnloadAppArmorProfile(profilePath)
 			if err != nil {
@@ -465,12 +475,23 @@ func (agent *Agent) handleDeleteArmorProfile(namespace, name, key string) error 
 				return err
 			}
 
-			logger.Info(fmt.Sprintf("removing '%s' from Node/%s", name, agent.nodeName))
+			logger.Info(fmt.Sprintf("removing the AppArmor profile ('%s') from Node/%s", name, agent.nodeName))
 			err = varmorapparmor.RemoveAppArmorProfile(profilePath)
 			if err != nil {
 				logger.Error(err, "removeAppArmorProfile()")
 				return err
 			}
+		}
+	}
+
+	// Seccomp enforcer
+	profilePath := filepath.Join(agent.seccompProfileDir, name)
+	if varmorseccomp.SeccompProfileExist(profilePath) {
+		logger.Info(fmt.Sprintf("removing the Seccomp profile ('%s') from Node/%s", name, agent.nodeName))
+		err := varmorseccomp.RemoveSeccompProfile(profilePath)
+		if err != nil {
+			logger.Error(err, "RemoveSeccompProfile()")
+			return err
 		}
 	}
 

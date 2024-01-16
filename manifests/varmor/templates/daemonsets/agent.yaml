@@ -56,6 +56,8 @@ spec:
         volumeMounts:
         - mountPath: /sys/kernel/security
           name: securityfs
+        - mountPath: /var/lib/kubelet/seccomp
+          name: seccomp-dir
         {{- if .Values.appArmorLsmEnforcer.enabled }}
           {{- with .Values.agent.appArmorLsmEnforcer.volumeMounts }}
             {{- toYaml . | nindent 8 }}
@@ -84,6 +86,10 @@ spec:
           path: /sys/kernel/security
           type: Directory
         name: securityfs
+      - hostPath:
+          path: /var/lib/kubelet/seccomp
+          type: DirectoryOrCreate
+        name: seccomp-dir
       {{- if .Values.appArmorLsmEnforcer.enabled }}
         {{- with .Values.agent.appArmorLsmEnforcer.volumes }}
           {{- toYaml . | nindent 6 }}

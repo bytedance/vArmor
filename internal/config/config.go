@@ -105,6 +105,9 @@ var (
 	// AppArmorProfileDir is the path of AppArmor profiles for agent
 	AppArmorProfileDir = "/etc/apparmor.d"
 
+	// SeccompProfileDir is the path of Seccomp profiles in the host
+	SeccompProfileDir = "/var/lib/kubelet/seccomp"
+
 	// WebhookSelectorLabel is used for matching the admission requests
 	WebhookSelectorLabel = map[string]string{}
 

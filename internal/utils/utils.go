@@ -27,7 +27,9 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+
 	appsV1 "k8s.io/api/apps/v1"
+	coreV1 "k8s.io/api/core/v1"
 	k8errors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
@@ -132,6 +134,7 @@ func PostDataToStatusService(reqBody []byte, debug bool, address string, port in
 }
 
 func modifyDeploymentAnnotationsAndEnv(enforcer string, target varmor.Target, deploy *appsV1.Deployment, profileName string, bpfExclusiveMode bool) {
+	// Clean up the annotations
 	for key, value := range deploy.Spec.Template.Annotations {
 		switch enforcer {
 		case "BPF":
@@ -142,9 +145,22 @@ func modifyDeploymentAnnotationsAndEnv(enforcer string, target varmor.Target, de
 			if strings.HasPrefix(key, "container.apparmor.security.beta.kubernetes.io/") && value != "unconfined" {
 				delete(deploy.Spec.Template.Annotations, key)
 			}
+		case "Seccomp":
+			if strings.HasPrefix(key, "container.seccomp.security.beta.varmor.org/") && value != "unconfined" {
+				delete(deploy.Spec.Template.Annotations, key)
+			}
 		}
 	}
 
+	// Clean up the seccomp settings
+	for index, container := range deploy.Spec.Template.Spec.Containers {
+		if container.SecurityContext != nil && container.SecurityContext.SeccompProfile != nil &&
+			strings.HasPrefix(*container.SecurityContext.SeccompProfile.LocalhostProfile, "varmor-") {
+			deploy.Spec.Template.Spec.Containers[index].SecurityContext.SeccompProfile = nil
+		}
+	}
+
+	// Add the modification time to annotation
 	if deploy.Spec.Template.Annotations == nil {
 		deploy.Spec.Template.Annotations = make(map[string]string)
 	}
@@ -154,7 +170,8 @@ func modifyDeploymentAnnotationsAndEnv(enforcer string, target varmor.Target, de
 		return
 	}
 
-	for _, container := range deploy.Spec.Template.Spec.Containers {
+	// Setting new annotations and seccomp context
+	for index, container := range deploy.Spec.Template.Spec.Containers {
 		if len(target.Containers) != 0 && !InStringArray(container.Name, target.Containers) {
 			continue
 		}
@@ -177,11 +194,27 @@ func modifyDeploymentAnnotationsAndEnv(enforcer string, target varmor.Target, de
 				continue
 			}
 			deploy.Spec.Template.Annotations[key] = fmt.Sprintf("localhost/%s", profileName)
+		case "Seccomp":
+			if (container.SecurityContext != nil && container.SecurityContext.SeccompProfile != nil) ||
+				(container.SecurityContext != nil && container.SecurityContext.Privileged != nil && *container.SecurityContext.Privileged) ||
+				(deploy.Spec.Template.Spec.SecurityContext != nil && deploy.Spec.Template.Spec.SecurityContext.SeccompProfile != nil) {
+				continue
+			}
+			key := fmt.Sprintf("container.seccomp.security.beta.varmor.org/%s", container.Name)
+			deploy.Spec.Template.Annotations[key] = fmt.Sprintf("localhost/%s", profileName)
+			if deploy.Spec.Template.Spec.Containers[index].SecurityContext == nil {
+				deploy.Spec.Template.Spec.Containers[index].SecurityContext = &coreV1.SecurityContext{}
+			}
+			deploy.Spec.Template.Spec.Containers[index].SecurityContext.SeccompProfile = &coreV1.SeccompProfile{
+				Type:             "Localhost",
+				LocalhostProfile: &profileName,
+			}
 		}
 	}
 }
 
 func modifyStatefulSetAnnotationsAndEnv(enforcer string, target varmor.Target, stateful *appsV1.StatefulSet, profileName string, bpfExclusiveMode bool) {
+	// Clean up the annotations
 	for key, value := range stateful.Spec.Template.Annotations {
 		switch enforcer {
 		case "BPF":
@@ -192,9 +225,22 @@ func modifyStatefulSetAnnotationsAndEnv(enforcer string, target varmor.Target, s
 			if strings.HasPrefix(key, "container.apparmor.security.beta.kubernetes.io/") && value != "unconfined" {
 				delete(stateful.Spec.Template.Annotations, key)
 			}
+		case "Seccomp":
+			if strings.HasPrefix(key, "container.seccomp.security.beta.varmor.org/") && value != "unconfined" {
+				delete(stateful.Spec.Template.Annotations, key)
+			}
 		}
 	}
 
+	// Clean up the seccomp settings
+	for index, container := range stateful.Spec.Template.Spec.Containers {
+		if container.SecurityContext != nil && container.SecurityContext.SeccompProfile != nil &&
+			strings.HasPrefix(*container.SecurityContext.SeccompProfile.LocalhostProfile, "varmor-") {
+			stateful.Spec.Template.Spec.Containers[index].SecurityContext.SeccompProfile = nil
+		}
+	}
+
+	// Add the modification time to annotation
 	if stateful.Spec.Template.Annotations == nil {
 		stateful.Spec.Template.Annotations = make(map[string]string)
 	}
@@ -204,7 +250,8 @@ func modifyStatefulSetAnnotationsAndEnv(enforcer string, target varmor.Target, s
 		return
 	}
 
-	for _, container := range stateful.Spec.Template.Spec.Containers {
+	// Setting new annotations and seccomp context
+	for index, container := range stateful.Spec.Template.Spec.Containers {
 		if len(target.Containers) != 0 && !InStringArray(container.Name, target.Containers) {
 			continue
 		}
@@ -227,11 +274,27 @@ func modifyStatefulSetAnnotationsAndEnv(enforcer string, target varmor.Target, s
 				continue
 			}
 			stateful.Spec.Template.Annotations[key] = fmt.Sprintf("localhost/%s", profileName)
+		case "Seccomp":
+			if (container.SecurityContext != nil && container.SecurityContext.SeccompProfile != nil) ||
+				(container.SecurityContext != nil && container.SecurityContext.Privileged != nil && *container.SecurityContext.Privileged) ||
+				(stateful.Spec.Template.Spec.SecurityContext != nil && stateful.Spec.Template.Spec.SecurityContext.SeccompProfile != nil) {
+				continue
+			}
+			key := fmt.Sprintf("container.seccomp.security.beta.varmor.org/%s", container.Name)
+			stateful.Spec.Template.Annotations[key] = fmt.Sprintf("localhost/%s", profileName)
+			if stateful.Spec.Template.Spec.Containers[index].SecurityContext == nil {
+				stateful.Spec.Template.Spec.Containers[index].SecurityContext = &coreV1.SecurityContext{}
+			}
+			stateful.Spec.Template.Spec.Containers[index].SecurityContext.SeccompProfile = &coreV1.SeccompProfile{
+				Type:             "Localhost",
+				LocalhostProfile: &profileName,
+			}
 		}
 	}
 }
 
 func modifyDaemonSetAnnotationsAndEnv(enforcer string, target varmor.Target, daemon *appsV1.DaemonSet, profileName string, bpfExclusiveMode bool) {
+	// Clean up the annotations
 	for key, value := range daemon.Spec.Template.Annotations {
 		switch enforcer {
 		case "BPF":
@@ -242,9 +305,22 @@ func modifyDaemonSetAnnotationsAndEnv(enforcer string, target varmor.Target, dae
 			if strings.HasPrefix(key, "container.apparmor.security.beta.kubernetes.io/") && value != "unconfined" {
 				delete(daemon.Spec.Template.Annotations, key)
 			}
+		case "Seccomp":
+			if strings.HasPrefix(key, "container.seccomp.security.beta.varmor.org/") && value != "unconfined" {
+				delete(daemon.Spec.Template.Annotations, key)
+			}
 		}
 	}
 
+	// Clean up the seccomp settings
+	for index, container := range daemon.Spec.Template.Spec.Containers {
+		if container.SecurityContext != nil && container.SecurityContext.SeccompProfile != nil &&
+			strings.HasPrefix(*container.SecurityContext.SeccompProfile.LocalhostProfile, "varmor-") {
+			daemon.Spec.Template.Spec.Containers[index].SecurityContext.SeccompProfile = nil
+		}
+	}
+
+	// Add the modification time to annotation
 	if daemon.Spec.Template.Annotations == nil {
 		daemon.Spec.Template.Annotations = make(map[string]string)
 	}
@@ -254,7 +330,8 @@ func modifyDaemonSetAnnotationsAndEnv(enforcer string, target varmor.Target, dae
 		return
 	}
 
-	for _, container := range daemon.Spec.Template.Spec.Containers {
+	// Setting new annotations and seccomp context
+	for index, container := range daemon.Spec.Template.Spec.Containers {
 		if len(target.Containers) != 0 && !InStringArray(container.Name, target.Containers) {
 			continue
 		}
@@ -277,6 +354,21 @@ func modifyDaemonSetAnnotationsAndEnv(enforcer string, target varmor.Target, dae
 				continue
 			}
 			daemon.Spec.Template.Annotations[key] = fmt.Sprintf("localhost/%s", profileName)
+		case "Seccomp":
+			if (container.SecurityContext != nil && container.SecurityContext.SeccompProfile != nil) ||
+				(container.SecurityContext != nil && container.SecurityContext.Privileged != nil && *container.SecurityContext.Privileged) ||
+				(daemon.Spec.Template.Spec.SecurityContext != nil && daemon.Spec.Template.Spec.SecurityContext.SeccompProfile != nil) {
+				continue
+			}
+			key := fmt.Sprintf("container.seccomp.security.beta.varmor.org/%s", container.Name)
+			daemon.Spec.Template.Annotations[key] = fmt.Sprintf("localhost/%s", profileName)
+			if daemon.Spec.Template.Spec.Containers[index].SecurityContext == nil {
+				daemon.Spec.Template.Spec.Containers[index].SecurityContext = &coreV1.SecurityContext{}
+			}
+			daemon.Spec.Template.Spec.Containers[index].SecurityContext.SeccompProfile = &coreV1.SeccompProfile{
+				Type:             "Localhost",
+				LocalhostProfile: &profileName,
+			}
 		}
 	}
 }

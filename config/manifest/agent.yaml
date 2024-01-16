@@ -48,6 +48,8 @@ spec:
           name: audit-dir
         - mountPath: /sys/kernel/btf/vmlinux
           name: btf
+        - mountPath: /var/lib/kubelet/seccomp
+          name: seccomp-dir
       volumes:
       - hostPath:
           path: /sys/kernel/security
@@ -77,6 +79,10 @@ spec:
           path: /sys/kernel/btf/vmlinux
           type: File
         name: btf
+      - hostPath:
+          path: /var/lib/kubelet/seccomp
+          type: DirectoryOrCreate
+        name: seccomp-dir
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:

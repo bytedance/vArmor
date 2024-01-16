@@ -38,8 +38,8 @@ import (
 )
 
 const (
-	ratelimitSysctl        = "/proc/sys/kernel/printk_ratelimit"
-	regexAppArmorAuditType = "apparmor=|operation=|type=AVC"
+	ratelimitSysctl = "/proc/sys/kernel/printk_ratelimit"
+	regexAuditType  = "type=AVC|type=1400|type=SECCOMP|type=1326"
 )
 
 type Tracer struct {
@@ -51,7 +51,7 @@ type Tracer struct {
 	bpfEventChs    map[string]chan<- varmortypes.BpfTraceEvent
 	savedRateLimit uint64
 	auditConn      *net.UnixConn
-	apparmorRegex  *regexp.Regexp
+	auditRegex     *regexp.Regexp
 	auditEventChs  map[string]chan<- string
 	log            logr.Logger
 }
@@ -86,12 +86,12 @@ func (tracer *Tracer) init() error {
 		return fmt.Errorf("loadBpfObjects() failed: %v", err)
 	}
 
-	// Compile the regex for matching AppArmor audit event.
-	regex, err := regexp.Compile(regexAppArmorAuditType)
+	// Compile the regex for matching AppArmor or Seccomp audit event.
+	regex, err := regexp.Compile(regexAuditType)
 	if err != nil {
 		return fmt.Errorf("regexp.Compile() failed: %v", err)
 	}
-	tracer.apparmorRegex = regex
+	tracer.auditRegex = regex
 
 	return nil
 }
@@ -267,7 +267,7 @@ func (tracer *Tracer) handleAuditEvents() {
 
 		if num > 0 {
 			event := string(buf[:num])
-			if tracer.apparmorRegex.FindString(event) != "" {
+			if tracer.auditRegex.FindString(event) != "" {
 				for _, eventCh := range tracer.auditEventChs {
 					eventCh <- event
 				}

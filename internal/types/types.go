@@ -123,6 +123,14 @@ type AaLogRecord struct {
 	Member        string
 }
 
+type SeccompLogRecord struct {
+	Time    int64
+	Pid     uint64
+	Exe     string
+	Comm    string
+	Syscall string
+}
+
 type BpfTraceEvent struct {
 	Type       uint32
 	ParentPid  uint32
@@ -133,4 +141,14 @@ type BpfTraceEvent struct {
 	ParentTask [16]uint8
 	ChildTask  [16]uint8
 	Filename   [64]uint8
+}
+
+type Syscall struct {
+	Names  []string `json:"names"`
+	Action string   `json:"action"`
+}
+
+type SeccompProfile struct {
+	DefaultAction string    `json:"defaultAction"`
+	Syscalls      []Syscall `json:"syscalls"`
 }
