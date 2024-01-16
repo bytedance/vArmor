@@ -15,10 +15,11 @@
 package utils
 
 import (
-	"github.com/go-logr/logr"
 	"os"
 	"sync"
 	"time"
+
+	"github.com/go-logr/logr"
 )
 
 const BindTokenPath = "/var/run/secrets/tokens"
@@ -49,11 +50,7 @@ func startTokenRotation(filePath string, interval time.Duration, logger logr.Log
 }
 
 func updateToken(filePath string, logger logr.Logger) {
-	newToken, err := os.ReadFile(filePath)
-	if err != nil {
-		logger.Error(err, "update agent bind token error")
-		os.Exit(1)
-	}
+	newToken, _ := os.ReadFile(filePath)
 
 	mu.Lock()
 	token = string(newToken)
