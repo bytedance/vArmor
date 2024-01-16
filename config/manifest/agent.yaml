@@ -50,6 +50,8 @@ spec:
           name: btf
         - mountPath: /var/lib/kubelet/seccomp
           name: seccomp-dir
+        - mountPath: /var/run/secrets/tokens
+          name: bound-token
       volumes:
       - hostPath:
           path: /sys/kernel/security
@@ -83,6 +85,13 @@ spec:
           path: /var/lib/kubelet/seccomp
           type: DirectoryOrCreate
         name: seccomp-dir
+      - projected:
+          sources:
+          - serviceAccountToken:
+            path: bound-token
+            expirationSeconds: 7200
+            audience: varmor-manager
+        name: bound-token
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
