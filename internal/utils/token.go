@@ -50,7 +50,11 @@ func startTokenRotation(filePath string, interval time.Duration, logger logr.Log
 }
 
 func updateToken(filePath string, logger logr.Logger) {
-	newToken, _ := os.ReadFile(filePath)
+	newToken, err := os.ReadFile(filePath)
+	if err != nil {
+		logger.Error(err, "fatal error: update agent bind token error")
+		os.Exit(1)
+	}
 
 	mu.Lock()
 	token = string(newToken)
