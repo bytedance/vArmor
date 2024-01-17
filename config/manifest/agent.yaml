@@ -88,9 +88,9 @@ spec:
       - projected:
           sources:
           - serviceAccountToken:
-            path: bound-token
-            expirationSeconds: 7200
-            audience: varmor-manager
+              path: bound-token
+              expirationSeconds: 7200
+              audience: varmor-manager
         name: bound-token
       affinity:
         nodeAffinity:
