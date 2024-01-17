@@ -18,22 +18,22 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	varmortls "github.com/bytedance/vArmor/internal/tls"
-	authv1 "k8s.io/api/authentication/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"net/http"
 	"os"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-logr/logr"
-
-	varmorconfig "github.com/bytedance/vArmor/internal/config"
-	statusmanager "github.com/bytedance/vArmor/internal/status/api/v1"
-	varmorinterface "github.com/bytedance/vArmor/pkg/client/clientset/versioned/typed/varmor/v1beta1"
+	authv1 "k8s.io/api/authentication/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	appsv1 "k8s.io/client-go/kubernetes/typed/apps/v1"
 	authclientv1 "k8s.io/client-go/kubernetes/typed/authentication/v1"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
+
+	varmorconfig "github.com/bytedance/vArmor/internal/config"
+	statusmanager "github.com/bytedance/vArmor/internal/status/api/v1"
+	varmortls "github.com/bytedance/vArmor/internal/tls"
+	varmorinterface "github.com/bytedance/vArmor/pkg/client/clientset/versioned/typed/varmor/v1beta1"
 )
 
 const managerAudience = "varmor-manager"
@@ -48,7 +48,13 @@ type StatusService struct {
 	log           logr.Logger
 }
 
-func CheckAgentToken(authInterface authclientv1.AuthenticationV1Interface) gin.HandlerFunc {
+func CheckAgentToken(authInterface authclientv1.AuthenticationV1Interface, debug bool) gin.HandlerFunc {
+	if debug {
+		return func(c *gin.Context) {
+			c.Next()
+		}
+	}
+
 	return func(c *gin.Context) {
 		token := c.GetHeader("Token")
 		if token == "" {
@@ -113,8 +119,8 @@ func NewStatusService(
 	}
 	s.router.SetTrustedProxies(nil)
 
-	s.router.POST(varmorconfig.StatusSyncPath, CheckAgentToken(authInterface), statusManager.Status)
-	s.router.POST(varmorconfig.DataSyncPath, CheckAgentToken(authInterface), statusManager.Data)
+	s.router.POST(varmorconfig.StatusSyncPath, CheckAgentToken(authInterface, debug), statusManager.Status)
+	s.router.POST(varmorconfig.DataSyncPath, CheckAgentToken(authInterface, debug), statusManager.Data)
 	s.router.GET("/healthz", health)
 
 	cert, err := tls.X509KeyPair(tlsPair.Certificate, tlsPair.PrivateKey)

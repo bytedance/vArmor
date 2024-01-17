@@ -15,10 +15,11 @@
 package utils
 
 import (
-	"github.com/go-logr/logr"
 	"os"
 	"sync"
 	"time"
+
+	"github.com/go-logr/logr"
 )
 
 const BindTokenPath = "/var/run/secrets/tokens"
