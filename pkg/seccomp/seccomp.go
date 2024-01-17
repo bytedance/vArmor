@@ -3,6 +3,8 @@ package seccomp
 import (
 	"encoding/base64"
 	"os"
+	"path/filepath"
+	"strings"
 )
 
 func SaveSeccompProfile(fileName string, content string) error {
@@ -28,4 +30,20 @@ func SeccompProfileExist(profilePath string) bool {
 
 func RemoveSeccompProfile(profilePath string) error {
 	return os.Remove(profilePath)
+}
+
+func RemoveAllSeccompProfiles(profileDir string) {
+	prefix := filepath.Join(profileDir, "varmor-")
+
+	filepath.WalkDir(profileDir, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if !d.IsDir() {
+			if strings.HasPrefix(path, prefix) {
+				RemoveSeccompProfile(path)
+			}
+		}
+		return nil
+	})
 }

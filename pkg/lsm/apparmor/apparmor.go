@@ -148,7 +148,7 @@ func RemoveUnknown() (string, error) {
 	return string(out), nil
 }
 
-func UnloadAllAppArmorProfile(profileDir string) {
+func UnloadAllAppArmorProfiles(profileDir string) {
 	prefix := filepath.Join(profileDir, "varmor-")
 
 	filepath.WalkDir(profileDir, func(path string, d os.DirEntry, err error) error {

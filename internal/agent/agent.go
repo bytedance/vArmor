@@ -55,32 +55,33 @@ const (
 )
 
 type Agent struct {
-	varmorInterface        varmorinterface.CrdV1beta1Interface
-	apInformer             varmorinformer.ArmorProfileInformer
-	apLister               varmorlister.ArmorProfileLister
-	apInformerSynced       cache.InformerSynced
-	queue                  workqueue.RateLimitingInterface
-	appArmorSupported      bool
-	bpfLsmSupported        bool
-	appArmorProfileDir     string
-	seccompProfileDir      string
-	bpfEnforcer            *varmorbpfenforcer.BpfEnforcer
-	runtimeMonitor         *varmorruntime.RuntimeMonitor
-	waitExistingApSync     sync.WaitGroup
-	existingApCount        int
-	processedApCount       int
-	enableBehaviorModeling bool
-	enableBpfEnforcer      bool
-	unloadAllAaProfile     bool
-	tracer                 *varmortracer.Tracer
-	modellers              map[string]*varmorbehavior.BehaviorModeller
-	nodeName               string
-	debug                  bool
-	managerIP              string
-	managerPort            int
-	classifierPort         int
-	stopCh                 <-chan struct{}
-	log                    logr.Logger
+	varmorInterface          varmorinterface.CrdV1beta1Interface
+	apInformer               varmorinformer.ArmorProfileInformer
+	apLister                 varmorlister.ArmorProfileLister
+	apInformerSynced         cache.InformerSynced
+	queue                    workqueue.RateLimitingInterface
+	appArmorSupported        bool
+	bpfLsmSupported          bool
+	appArmorProfileDir       string
+	seccompProfileDir        string
+	bpfEnforcer              *varmorbpfenforcer.BpfEnforcer
+	runtimeMonitor           *varmorruntime.RuntimeMonitor
+	waitExistingApSync       sync.WaitGroup
+	existingApCount          int
+	processedApCount         int
+	enableBehaviorModeling   bool
+	enableBpfEnforcer        bool
+	unloadAllAaProfiles      bool
+	removeAllSeccompProfiles bool
+	tracer                   *varmortracer.Tracer
+	modellers                map[string]*varmorbehavior.BehaviorModeller
+	nodeName                 string
+	debug                    bool
+	managerIP                string
+	managerPort              int
+	classifierPort           int
+	stopCh                   <-chan struct{}
+	log                      logr.Logger
 }
 
 func NewAgent(
@@ -89,7 +90,8 @@ func NewAgent(
 	apInformer varmorinformer.ArmorProfileInformer,
 	enableBehaviorModeling bool,
 	enableBpfEnforcer bool,
-	unloadAllAaProfile bool,
+	unloadAllAaProfiles bool,
+	removeAllSeccompProfiles bool,
 	debug bool,
 	managerIP string,
 	managerPort int,
@@ -100,25 +102,26 @@ func NewAgent(
 	var err error
 
 	agent := Agent{
-		varmorInterface:        varmorInterface,
-		apInformer:             apInformer,
-		apLister:               apInformer.Lister(),
-		apInformerSynced:       apInformer.Informer().HasSynced,
-		queue:                  workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "agent"),
-		appArmorProfileDir:     varmorconfig.AppArmorProfileDir,
-		seccompProfileDir:      varmorconfig.SeccompProfileDir,
-		existingApCount:        0,
-		processedApCount:       0,
-		enableBehaviorModeling: enableBehaviorModeling,
-		enableBpfEnforcer:      enableBpfEnforcer,
-		unloadAllAaProfile:     unloadAllAaProfile,
-		modellers:              make(map[string]*varmorbehavior.BehaviorModeller),
-		debug:                  debug,
-		managerIP:              managerIP,
-		managerPort:            managerPort,
-		classifierPort:         classifierPort,
-		stopCh:                 stopCh,
-		log:                    log,
+		varmorInterface:          varmorInterface,
+		apInformer:               apInformer,
+		apLister:                 apInformer.Lister(),
+		apInformerSynced:         apInformer.Informer().HasSynced,
+		queue:                    workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "agent"),
+		appArmorProfileDir:       varmorconfig.AppArmorProfileDir,
+		seccompProfileDir:        varmorconfig.SeccompProfileDir,
+		existingApCount:          0,
+		processedApCount:         0,
+		enableBehaviorModeling:   enableBehaviorModeling,
+		enableBpfEnforcer:        enableBpfEnforcer,
+		unloadAllAaProfiles:      unloadAllAaProfiles,
+		removeAllSeccompProfiles: removeAllSeccompProfiles,
+		modellers:                make(map[string]*varmorbehavior.BehaviorModeller),
+		debug:                    debug,
+		managerIP:                managerIP,
+		managerPort:              managerPort,
+		classifierPort:           classifierPort,
+		stopCh:                   stopCh,
+		log:                      log,
 	}
 
 	if !debug {
@@ -618,9 +621,14 @@ func (agent *Agent) CleanUp() {
 		agent.tracer.Close()
 	}
 
-	if agent.appArmorSupported && agent.unloadAllAaProfile {
-		agent.log.WithName("APPARMOR-ENFORCER").Info("unload the AppArmor profiles")
-		varmorapparmor.UnloadAllAppArmorProfile(agent.appArmorProfileDir)
+	if agent.appArmorSupported && agent.unloadAllAaProfiles {
+		agent.log.WithName("APPARMOR-ENFORCER").Info("unload all AppArmor profiles")
+		varmorapparmor.UnloadAllAppArmorProfiles(agent.appArmorProfileDir)
+	}
+
+	if agent.removeAllSeccompProfiles {
+		agent.log.WithName("APPARMOR-ENFORCER").Info("remove all Seccomp profiles")
+		varmorseccomp.RemoveAllSeccompProfiles(agent.seccompProfileDir)
 	}
 
 	if agent.enableBehaviorModeling || agent.bpfLsmSupported {

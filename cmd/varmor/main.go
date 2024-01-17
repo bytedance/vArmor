@@ -50,20 +50,21 @@ const (
 )
 
 var (
-	kubeconfig             string
-	webhookTimeout         int
-	agent                  bool
-	restartExistWorkloads  bool
-	enableBehaviorModeling bool
-	enableBpfEnforcer      bool
-	unloadAllAaProfile     bool
-	clientRateLimitQPS     float64
-	clientRateLimitBurst   int
-	managerIP              string
-	webhookMatchLabel      string
-	bpfExclusiveMode       bool
-	statusUpdateCycle      time.Duration
-	setupLog               = log.Log.WithName("SETUP")
+	kubeconfig               string
+	webhookTimeout           int
+	agent                    bool
+	restartExistWorkloads    bool
+	enableBehaviorModeling   bool
+	enableBpfEnforcer        bool
+	unloadAllAaProfiles      bool
+	removeAllSeccompProfiles bool
+	clientRateLimitQPS       float64
+	clientRateLimitBurst     int
+	managerIP                string
+	webhookMatchLabel        string
+	bpfExclusiveMode         bool
+	statusUpdateCycle        time.Duration
+	setupLog                 = log.Log.WithName("SETUP")
 )
 
 func main() {
@@ -76,7 +77,8 @@ func main() {
 	flag.BoolVar(&restartExistWorkloads, "restartExistWorkloads", false, "Set this flag to restart workloads that match VarmorPolicy.target")
 	flag.BoolVar(&enableBehaviorModeling, "enableBehaviorModeling", false, "Set this flag to enable BehaviorModeling feature (Note: this is an experimental feature, please do not enable it in production environment).")
 	flag.BoolVar(&enableBpfEnforcer, "enableBpfEnforcer", false, "Set this flag to enable BPF enforcer.")
-	flag.BoolVar(&unloadAllAaProfile, "unloadAllAaProfile", false, "Unload all AppArmor profiles when the agent exits.")
+	flag.BoolVar(&unloadAllAaProfiles, "unloadAllAaProfiles", false, "Unload all AppArmor profiles when the agent exits.")
+	flag.BoolVar(&removeAllSeccompProfiles, "removeAllSeccompProfiles", false, "Remove all Seccomp profiles when the agent exits.")
 	flag.Float64Var(&clientRateLimitQPS, "clientRateLimitQPS", 0, "Configure the maximum QPS to the master from vArmor. Uses the client default if zero.")
 	flag.IntVar(&clientRateLimitBurst, "clientRateLimitBurst", 0, "Configure the maximum burst for throttle. Uses the client default if zero.")
 	flag.StringVar(&managerIP, "managerIP", "0.0.0.0", "Configure the IP address of manager.")
@@ -134,7 +136,8 @@ func main() {
 			varmorInformer.Crd().V1beta1().ArmorProfiles(),
 			enableBehaviorModeling,
 			enableBpfEnforcer,
-			unloadAllAaProfile,
+			unloadAllAaProfiles,
+			removeAllSeccompProfiles,
 			debug,
 			managerIP,
 			config.StatusServicePort,
