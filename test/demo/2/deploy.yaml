@@ -19,6 +19,7 @@ spec:
       annotations:
         container.bpf.security.beta.varmor.org/c0: unconfined
     spec:
+      shareProcessNamespace: true
       containers:
       - name: c0
         image: debian:10
