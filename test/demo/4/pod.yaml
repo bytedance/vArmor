@@ -11,3 +11,4 @@ spec:
   - name: test
     image: debian:10
     command: ["/bin/sh", "-c", "sleep infinity"]
+    imagePullPolicy: IfNotPresent

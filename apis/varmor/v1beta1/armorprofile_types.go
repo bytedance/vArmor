@@ -69,7 +69,7 @@ type Profile struct {
 	Mode           string     `json:"mode"`
 	Content        string     `json:"content,omitempty"`
 	BpfContent     BpfContent `json:"bpfContent,omitempty"`
-	SeccompContent string     `json:"SeccompContent,omitempty"`
+	SeccompContent string     `json:"seccompContent,omitempty"`
 }
 
 type BehaviorModeling struct {

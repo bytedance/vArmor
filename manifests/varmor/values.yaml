@@ -18,7 +18,10 @@ bpfLsmEnforcer:
 restartExistWorkloads:
   enabled: false
 
-unloadAllAaProfile:
+unloadAllAaProfiles:
+  enabled: false
+
+removeAllSeccompProfiles:
   enabled: false
 
 bpfExclusiveMode:
@@ -170,9 +173,13 @@ agent:
         cpu: 100m
         memory: 100Mi
 
-  unloadAllAaProfile:
+  unloadAllAaProfiles:
     args:
-    - --unloadAllAaProfile
+    - --unloadAllAaProfiles
+
+  removeAllSeccompProfiles:
+    args:
+    - --removeAllSeccompProfiles
 
   behaviorModeling:
     args:

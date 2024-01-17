@@ -68,8 +68,6 @@ spec:
                 type: object
               profile:
                 properties:
-                  SeccompContent:
-                    type: string
                   bpfContent:
                     properties:
                       capabilities:
@@ -185,6 +183,8 @@ spec:
                   mode:
                     type: string
                   name:
+                    type: string
+                  seccompContent:
                     type: string
                 required:
                 - mode
