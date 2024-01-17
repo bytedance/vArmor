@@ -39,52 +39,6 @@ type Target struct {
 	Selector *metav1.LabelSelector `json:"selector,omitempty"`
 }
 
-// MatchSourceType Structure
-type MatchSourceType struct {
-	Path      string `json:"path,omitempty"`
-	Directory string `json:"dir,omitempty"`
-	Recursive bool   `json:"recursive,omitempty"`
-}
-
-// ProcessPathType Structure
-type ProcessPathType struct {
-	Severity int      `json:"severity,omitempty"`
-	Tags     []string `json:"tags,omitempty"`
-	Message  string   `json:"message,omitempty"`
-
-	Path       string            `json:"path"`
-	OwnerOnly  bool              `json:"ownerOnly,omitempty"`
-	FromSource []MatchSourceType `json:"fromSource,omitempty"`
-
-	Action string `json:"action,omitempty"`
-}
-
-// ProcessDirectoryType Structure
-type ProcessDirectoryType struct {
-	Severity int      `json:"severity,omitempty"`
-	Tags     []string `json:"tags,omitempty"`
-	Message  string   `json:"message,omitempty"`
-
-	Directory  string            `json:"dir"`
-	Recursive  bool              `json:"recursive,omitempty"`
-	OwnerOnly  bool              `json:"ownerOnly,omitempty"`
-	FromSource []MatchSourceType `json:"fromSource,omitempty"`
-
-	Action string `json:"action,omitempty"`
-}
-
-// ProcessPatternType Structure
-type ProcessPatternType struct {
-	Severity int      `json:"severity,omitempty"`
-	Tags     []string `json:"tags,omitempty"`
-	Message  string   `json:"message,omitempty"`
-
-	Pattern   string `json:"pattern"`
-	OwnerOnly bool   `json:"ownerOnly,omitempty"`
-
-	Action string `json:"action,omitempty"`
-}
-
 type AttackProtectionRules struct {
 	// Rules is the list of built-in attack protection rules to be used.
 	Rules []string `json:"rules"`
@@ -176,7 +130,7 @@ type EnhanceProtect struct {
 
 type ModelingOptions struct {
 	// Duration is the duration in minutes to modeling
-	Duration int `json:"duration,omitempty"`
+	Duration int `json:"duration"`
 }
 
 type VarmorPolicyMode string

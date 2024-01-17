@@ -427,7 +427,7 @@ func (agent *Agent) handleCreateOrUpdateArmorProfile(ap *varmor.ArmorProfile, ke
 	case "BPF":
 		// Save BPF profile.
 		logger.Info(fmt.Sprintf("saving and applying the BPF profile ('%s')", ap.Spec.Profile.Name))
-		err := agent.bpfEnforcer.SaveAndApplyBpfProfile(ap.Spec.Profile.Name, ap.Spec.Profile.BpfContent)
+		err := agent.bpfEnforcer.SaveAndApplyBpfProfile(ap.Spec.Profile.Name, *ap.Spec.Profile.BpfContent)
 		if err != nil {
 			logger.Error(err, "SaveAndApplyBpfProfile()")
 			return agent.sendStatus(ap, varmortypes.Failed, "SaveBpfProfile(): "+err.Error())

@@ -290,9 +290,11 @@ func (enforcer *BpfEnforcer) applyProfile(nsID uint32, bpfContent varmor.BpfCont
 		return err
 	}
 
-	err = enforcer.applyPtraceRule(nsID, bpfContent.Ptrace)
-	if err != nil {
-		return err
+	if bpfContent.Ptrace != nil {
+		err = enforcer.applyPtraceRule(nsID, *bpfContent.Ptrace)
+		if err != nil {
+			return err
+		}
 	}
 
 	err = enforcer.applyMountRules(nsID, bpfContent.Mounts)
