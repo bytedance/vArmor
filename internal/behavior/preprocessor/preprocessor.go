@@ -122,6 +122,7 @@ func (p *DataPreprocessor) gatherTargetPIDs() {
 	file, err := os.Open(p.bpfRecordPath)
 	if err != nil {
 		p.log.Error(err, "os.Open() failed")
+		return
 	}
 	defer file.Close()
 	decoder := gob.NewDecoder(file)
