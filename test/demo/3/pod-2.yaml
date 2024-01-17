@@ -30,3 +30,4 @@ spec:
           capabilities:
             add:
             - SYS_ADMIN
+        imagePullPolicy: IfNotPresent
