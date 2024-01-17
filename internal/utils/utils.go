@@ -80,10 +80,15 @@ func httpsPostWithRetryAndToken(reqBody []byte, debug bool, service string, name
 			case http.StatusOK:
 				return nil
 			case http.StatusUnauthorized:
+<<<<<<< HEAD
 				if !debug {
 					// try update token
 					updateChan <- true
 				}
+=======
+				// try update token
+				updateChan <- true
+>>>>>>> ea944f035db9a621bad648edd3213509a352f0ca
 			default:
 				err = fmt.Errorf(fmt.Sprintf("http error code %d", httpRsp.StatusCode))
 			}
