@@ -133,32 +133,38 @@ func buildPatch(obj interface{}, enforcer string, target varmor.Target, profileN
 			jsonPatch += `{"op": "add", "path": "/spec/template/metadata/annotations", "value": {}},`
 		}
 
-		var containers []string
-		for _, c := range deploy.Spec.Template.Spec.Containers {
-			containers = append(containers, c.Name)
-		}
-
-		for _, container := range containers {
-			if len(target.Containers) != 0 && !varmorutils.InStringArray(container, target.Containers) {
+		for index, container := range deploy.Spec.Template.Spec.Containers {
+			if len(target.Containers) != 0 && !varmorutils.InStringArray(container.Name, target.Containers) {
 				continue
 			}
 
 			switch enforcer {
 			case "BPF":
-				key := fmt.Sprintf("container.bpf.security.beta.varmor.org/%s", container)
+				key := fmt.Sprintf("container.bpf.security.beta.varmor.org/%s", container.Name)
 				if value, ok := deploy.Spec.Template.Annotations[key]; ok && value == "unconfined" {
 					continue
 				}
-				jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/template/metadata/annotations/container.bpf.security.beta.varmor.org~1%s", "value": "localhost/%s"},`, container, profileName)
+				jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/template/metadata/annotations/container.bpf.security.beta.varmor.org~1%s", "value": "localhost/%s"},`, container.Name, profileName)
 				if bpfExclusiveMode {
-					jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/template/metadata/annotations/container.apparmor.security.beta.kubernetes.io~1%s", "value": "unconfined"},`, container)
+					jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/template/metadata/annotations/container.apparmor.security.beta.kubernetes.io~1%s", "value": "unconfined"},`, container.Name)
 				}
 			case "AppArmor":
-				key := fmt.Sprintf("container.apparmor.security.beta.kubernetes.io/%s", container)
+				key := fmt.Sprintf("container.apparmor.security.beta.kubernetes.io/%s", container.Name)
 				if value, ok := deploy.Spec.Template.Annotations[key]; ok && value == "unconfined" {
 					continue
 				}
-				jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/template/metadata/annotations/container.apparmor.security.beta.kubernetes.io~1%s", "value": "localhost/%s"},`, container, profileName)
+				jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/template/metadata/annotations/container.apparmor.security.beta.kubernetes.io~1%s", "value": "localhost/%s"},`, container.Name, profileName)
+			case "Seccomp":
+				if (container.SecurityContext != nil && container.SecurityContext.SeccompProfile != nil) ||
+					(container.SecurityContext != nil && container.SecurityContext.Privileged != nil && *container.SecurityContext.Privileged) ||
+					(deploy.Spec.Template.Spec.SecurityContext != nil && deploy.Spec.Template.Spec.SecurityContext.SeccompProfile != nil) {
+					continue
+				}
+				jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/template/metadata/annotations/container.seccomp.security.beta.varmor.org~1%s", "value": "localhost/%s"},`, container.Name, profileName)
+				if container.SecurityContext == nil {
+					jsonPatch += fmt.Sprintf(`{"op": "add", "path": "/spec/template/spec/containers/%d/securityContext", "value": {}},`, index)
+				}
+				jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/containers/%d/securityContext/seccompProfile", "value": {"type": "Localhost", "localhostProfile": "%s"}},`, index, profileName)
 			}
 		}
 	case "StatefulSet":
@@ -172,32 +178,38 @@ func buildPatch(obj interface{}, enforcer string, target varmor.Target, profileN
 			jsonPatch += `{"op": "add", "path": "/spec/template/metadata/annotations", "value": {}},`
 		}
 
-		var containers []string
-		for _, c := range statefulSet.Spec.Template.Spec.Containers {
-			containers = append(containers, c.Name)
-		}
-
-		for _, container := range containers {
-			if len(target.Containers) != 0 && !varmorutils.InStringArray(container, target.Containers) {
+		for index, container := range statefulSet.Spec.Template.Spec.Containers {
+			if len(target.Containers) != 0 && !varmorutils.InStringArray(container.Name, target.Containers) {
 				continue
 			}
 
 			switch enforcer {
 			case "BPF":
-				key := fmt.Sprintf("container.bpf.security.beta.varmor.org/%s", container)
+				key := fmt.Sprintf("container.bpf.security.beta.varmor.org/%s", container.Name)
 				if value, ok := statefulSet.Spec.Template.Annotations[key]; ok && value == "unconfined" {
 					continue
 				}
-				jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/template/metadata/annotations/container.bpf.security.beta.varmor.org~1%s", "value": "localhost/%s"},`, container, profileName)
+				jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/template/metadata/annotations/container.bpf.security.beta.varmor.org~1%s", "value": "localhost/%s"},`, container.Name, profileName)
 				if bpfExclusiveMode {
-					jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/template/metadata/annotations/container.apparmor.security.beta.kubernetes.io~1%s", "value": "unconfined"},`, container)
+					jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/template/metadata/annotations/container.apparmor.security.beta.kubernetes.io~1%s", "value": "unconfined"},`, container.Name)
 				}
 			case "AppArmor":
-				key := fmt.Sprintf("container.apparmor.security.beta.kubernetes.io/%s", container)
+				key := fmt.Sprintf("container.apparmor.security.beta.kubernetes.io/%s", container.Name)
 				if value, ok := statefulSet.Spec.Template.Annotations[key]; ok && value == "unconfined" {
 					continue
 				}
-				jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/template/metadata/annotations/container.apparmor.security.beta.kubernetes.io~1%s", "value": "localhost/%s"},`, container, profileName)
+				jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/template/metadata/annotations/container.apparmor.security.beta.kubernetes.io~1%s", "value": "localhost/%s"},`, container.Name, profileName)
+			case "Seccomp":
+				if (container.SecurityContext != nil && container.SecurityContext.SeccompProfile != nil) ||
+					(container.SecurityContext != nil && container.SecurityContext.Privileged != nil && *container.SecurityContext.Privileged) ||
+					(statefulSet.Spec.Template.Spec.SecurityContext != nil && statefulSet.Spec.Template.Spec.SecurityContext.SeccompProfile != nil) {
+					continue
+				}
+				jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/template/metadata/annotations/container.seccomp.security.beta.varmor.org~1%s", "value": "localhost/%s"},`, container.Name, profileName)
+				if container.SecurityContext == nil {
+					jsonPatch += fmt.Sprintf(`{"op": "add", "path": "/spec/template/spec/containers/%d/securityContext", "value": {}},`, index)
+				}
+				jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/containers/%d/securityContext/seccompProfile", "value": {"type": "Localhost", "localhostProfile": "%s"}},`, index, profileName)
 			}
 		}
 	case "DaemonSet":
@@ -211,32 +223,38 @@ func buildPatch(obj interface{}, enforcer string, target varmor.Target, profileN
 			jsonPatch += `{"op": "add", "path": "/spec/template/metadata/annotations", "value": {}},`
 		}
 
-		var containers []string
-		for _, c := range daemonSet.Spec.Template.Spec.Containers {
-			containers = append(containers, c.Name)
-		}
-
-		for _, container := range containers {
-			if len(target.Containers) != 0 && !varmorutils.InStringArray(container, target.Containers) {
+		for index, container := range daemonSet.Spec.Template.Spec.Containers {
+			if len(target.Containers) != 0 && !varmorutils.InStringArray(container.Name, target.Containers) {
 				continue
 			}
 
 			switch enforcer {
 			case "BPF":
-				key := fmt.Sprintf("container.bpf.security.beta.varmor.org/%s", container)
+				key := fmt.Sprintf("container.bpf.security.beta.varmor.org/%s", container.Name)
 				if value, ok := daemonSet.Spec.Template.Annotations[key]; ok && value == "unconfined" {
 					continue
 				}
-				jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/template/metadata/annotations/container.bpf.security.beta.varmor.org~1%s", "value": "localhost/%s"},`, container, profileName)
+				jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/template/metadata/annotations/container.bpf.security.beta.varmor.org~1%s", "value": "localhost/%s"},`, container.Name, profileName)
 				if bpfExclusiveMode {
-					jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/template/metadata/annotations/container.apparmor.security.beta.kubernetes.io~1%s", "value": "unconfined"},`, container)
+					jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/template/metadata/annotations/container.apparmor.security.beta.kubernetes.io~1%s", "value": "unconfined"},`, container.Name)
 				}
 			case "AppArmor":
-				key := fmt.Sprintf("container.apparmor.security.beta.kubernetes.io/%s", container)
+				key := fmt.Sprintf("container.apparmor.security.beta.kubernetes.io/%s", container.Name)
 				if value, ok := daemonSet.Spec.Template.Annotations[key]; ok && value == "unconfined" {
 					continue
 				}
-				jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/template/metadata/annotations/container.apparmor.security.beta.kubernetes.io~1%s", "value": "localhost/%s"},`, container, profileName)
+				jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/template/metadata/annotations/container.apparmor.security.beta.kubernetes.io~1%s", "value": "localhost/%s"},`, container.Name, profileName)
+			case "Seccomp":
+				if (container.SecurityContext != nil && container.SecurityContext.SeccompProfile != nil) ||
+					(container.SecurityContext != nil && container.SecurityContext.Privileged != nil && *container.SecurityContext.Privileged) ||
+					(daemonSet.Spec.Template.Spec.SecurityContext != nil && daemonSet.Spec.Template.Spec.SecurityContext.SeccompProfile != nil) {
+					continue
+				}
+				jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/template/metadata/annotations/container.seccomp.security.beta.varmor.org~1%s", "value": "localhost/%s"},`, container.Name, profileName)
+				if container.SecurityContext == nil {
+					jsonPatch += fmt.Sprintf(`{"op": "add", "path": "/spec/template/spec/containers/%d/securityContext", "value": {}},`, index)
+				}
+				jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/containers/%d/securityContext/seccompProfile", "value": {"type": "Localhost", "localhostProfile": "%s"}},`, index, profileName)
 			}
 		}
 	case "Pod":
@@ -246,32 +264,38 @@ func buildPatch(obj interface{}, enforcer string, target varmor.Target, profileN
 			jsonPatch += `{"op": "add", "path": "/metadata/annotations", "value": {}},`
 		}
 
-		var containers []string
-		for _, c := range pod.Spec.Containers {
-			containers = append(containers, c.Name)
-		}
-
-		for _, container := range containers {
-			if len(target.Containers) != 0 && !varmorutils.InStringArray(container, target.Containers) {
+		for index, container := range pod.Spec.Containers {
+			if len(target.Containers) != 0 && !varmorutils.InStringArray(container.Name, target.Containers) {
 				continue
 			}
 
 			switch enforcer {
 			case "BPF":
-				key := fmt.Sprintf("container.bpf.security.beta.varmor.org/%s", container)
+				key := fmt.Sprintf("container.bpf.security.beta.varmor.org/%s", container.Name)
 				if value, ok := pod.Annotations[key]; ok && value == "unconfined" {
 					continue
 				}
-				jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/metadata/annotations/container.bpf.security.beta.varmor.org~1%s", "value": "localhost/%s"},`, container, profileName)
+				jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/metadata/annotations/container.bpf.security.beta.varmor.org~1%s", "value": "localhost/%s"},`, container.Name, profileName)
 				if bpfExclusiveMode {
-					jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/metadata/annotations/container.apparmor.security.beta.kubernetes.io~1%s", "value": "unconfined"},`, container)
+					jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/metadata/annotations/container.apparmor.security.beta.kubernetes.io~1%s", "value": "unconfined"},`, container.Name)
 				}
 			case "AppArmor":
-				key := fmt.Sprintf("container.apparmor.security.beta.kubernetes.io/%s", container)
+				key := fmt.Sprintf("container.apparmor.security.beta.kubernetes.io/%s", container.Name)
 				if value, ok := pod.Annotations[key]; ok && value == "unconfined" {
 					continue
 				}
-				jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/metadata/annotations/container.apparmor.security.beta.kubernetes.io~1%s", "value": "localhost/%s"},`, container, profileName)
+				jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/metadata/annotations/container.apparmor.security.beta.kubernetes.io~1%s", "value": "localhost/%s"},`, container.Name, profileName)
+			case "Seccomp":
+				if (container.SecurityContext != nil && container.SecurityContext.SeccompProfile != nil) ||
+					(container.SecurityContext != nil && container.SecurityContext.Privileged != nil && *container.SecurityContext.Privileged) ||
+					(pod.Spec.SecurityContext != nil && pod.Spec.SecurityContext.SeccompProfile != nil) {
+					continue
+				}
+				jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/metadata/annotations/container.seccomp.security.beta.varmor.org~1%s", "value": "localhost/%s"},`, container.Name, profileName)
+				if container.SecurityContext == nil {
+					jsonPatch += fmt.Sprintf(`{"op": "add", "path": "/spec/containers/%d/securityContext", "value": {}},`, index)
+				}
+				jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/containers/%d/securityContext/seccompProfile", "value": {"type": "Localhost", "localhostProfile": "%s"}},`, index, profileName)
 			}
 		}
 	}

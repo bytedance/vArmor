@@ -226,6 +226,16 @@ func (monitor *RuntimeMonitor) eventHandler(stopCh <-chan struct{}) {
 					}
 				}
 
+				key = fmt.Sprintf("container.seccomp.security.beta.varmor.org/%s", info.ContainerName)
+				if value, ok := info.PodAnnotations[key]; ok {
+					if strings.HasPrefix(value, "localhost/") {
+						profileName := value[len("localhost/"):]
+						if ch, ok := monitor.modellerChs[profileName]; ok {
+							ch <- info.PID
+						}
+					}
+				}
+
 			case "/tasks/delete":
 				var deleteEvent events.TaskDelete
 				err := typeurl.UnmarshalTo(e.Event, &deleteEvent)

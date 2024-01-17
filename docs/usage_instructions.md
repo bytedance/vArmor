@@ -10,7 +10,8 @@ vArmor allows you to configure its functionality during installation using the h
 | `--set bpfLsmEnforcer.enabled=true` | Default: disabled. The BPF enforcer can be enabled when the system supports BPF LSM.
 | `--set bpfExclusiveMode.enabled=true` | Default: disabled. When enabled, AppArmor protection for the target workload will be disabled when a VarmorPolicy object uses the BPF enforcer.
 | `--set restartExistWorkloads.enabled=true` | Default: disabled. When enabled, vArmor will perform a rolling restart of existing workloads (only for Deployments, DaemonSet, and StatefulSet resources) that meet the conditions when creating or deleting a VarmorPolicy object.
-| `--set unloadAllAaProfile.enabled=true` | Default: disabled. When enabled, all AppArmor profiles loaded by vArmor will be unloaded when the Agent exits.
+| `--set unloadAllAaProfiles.enabled=true` | Default: disabled. When enabled, all AppArmor profiles loaded by vArmor will be unloaded when the Agent exits.
+| `--set removeAllSeccompProfiles.enabled=true` | Default: disabled. When enabled, all Seccomp profiles created by vArmor will be unloaded when the Agent exits.
 | `--set "manager.args={--webhookMatchLabel=KEY=VALUE}"` | The default value is: `sandbox.varmor.org/enable=true`. vArmor will only enable sandbox protection for Workloads that contain this label. You can disable this feature by using `--set 'manager.args={--webhookMatchLabel=}'`.
 | `--set behaviorModeling.enabled=true` | Default: disabled. Experimental feature. Currently, only the AppArmor enforcer supports the BehaviorModeling mode.
 

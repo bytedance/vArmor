@@ -382,9 +382,153 @@ func Test_buildPatch(t *testing.T) {
               command: ["/bin/sh", "-c", "sleep infinity"]
       `),
 		},
+		{
+			name:             "patchPodAllContainersSeccomp",
+			kind:             "Pod",
+			enforcer:         "Seccomp",
+			bpfExclusiveMode: false,
+			expectedResult:   `[{"op": "replace", "path": "/metadata/annotations/container.seccomp.security.beta.varmor.org~1test", "value": "localhost/varmor-testns-test"},{"op": "replace", "path": "/spec/containers/0/securityContext/seccompProfile", "value": {"type": "Localhost", "localhostProfile": "varmor-testns-test"}},{"op": "replace", "path": "/metadata/annotations/container.seccomp.security.beta.varmor.org~1test1", "value": "localhost/varmor-testns-test"},{"op": "add", "path": "/spec/containers/1/securityContext", "value": {}},{"op": "replace", "path": "/spec/containers/1/securityContext/seccompProfile", "value": {"type": "Localhost", "localhostProfile": "varmor-testns-test"}},{"op": "replace", "path": "/metadata/annotations/webhook.varmor.org~1mutatedAt", "value": "TIME_STRING"}]`,
+			rawTarget: []byte(`
+    kind: Pod
+    name: 4.1-test`),
+			rawResource: []byte(`
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: 4.1-test
+        namespace: test
+        labels:
+          varmor: enable
+          varmor-policy: demo-v0.3.0
+        annotations:
+          b: v
+      spec:
+        containers:
+        - name: test
+          image: debian:10
+          command: ["/bin/sh", "-c", "sleep infinity", "1"]
+          securityContext:
+            runAsUser: 1001
+        - name: test1
+          image: debian:10
+          command: ["/bin/sh", "-c", "sleep infinity", "1"]
+      `),
+		},
+		{
+			name:             "patchPodOneContainerSeccomp",
+			kind:             "Pod",
+			enforcer:         "Seccomp",
+			bpfExclusiveMode: false,
+			expectedResult:   `[{"op": "replace", "path": "/metadata/annotations/container.seccomp.security.beta.varmor.org~1test1", "value": "localhost/varmor-testns-test"},{"op": "replace", "path": "/spec/containers/1/securityContext/seccompProfile", "value": {"type": "Localhost", "localhostProfile": "varmor-testns-test"}},{"op": "replace", "path": "/metadata/annotations/webhook.varmor.org~1mutatedAt", "value": "TIME_STRING"}]`,
+			rawTarget: []byte(`
+    kind: Pod
+    name: 4.1-test`),
+			rawResource: []byte(`
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: 4.1-test
+        namespace: test
+        labels:
+          varmor: enable
+          varmor-policy: demo-v0.3.0
+        annotations:
+          b: v
+      spec:
+        containers:
+        - name: test
+          image: debian:10
+          command: ["/bin/sh", "-c", "sleep infinity", "1"]
+          securityContext:
+            runAsUser: 1001
+            seccompProfile:
+              type: RuntimeDefault
+        - name: test1
+          image: debian:10
+          command: ["/bin/sh", "-c", "sleep infinity", "1"]
+          securityContext:
+            runAsUser: 1001
+      `),
+		},
+		{
+			name:             "notPatchPrivilegedContainerSeccomp",
+			kind:             "Pod",
+			enforcer:         "Seccomp",
+			bpfExclusiveMode: false,
+			expectedResult:   `[{"op": "replace", "path": "/metadata/annotations/container.seccomp.security.beta.varmor.org~1test1", "value": "localhost/varmor-testns-test"},{"op": "replace", "path": "/spec/containers/1/securityContext/seccompProfile", "value": {"type": "Localhost", "localhostProfile": "varmor-testns-test"}},{"op": "replace", "path": "/metadata/annotations/webhook.varmor.org~1mutatedAt", "value": "TIME_STRING"}]`,
+			rawTarget: []byte(`
+    kind: Pod
+    name: 4.1-test`),
+			rawResource: []byte(`
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: 4.1-test
+        namespace: test
+        labels:
+          varmor: enable
+          varmor-policy: demo-v0.3.0
+        annotations:
+          b: v
+      spec:
+        containers:
+        - name: test
+          image: debian:10
+          command: ["/bin/sh", "-c", "sleep infinity", "1"]
+          securityContext:
+            privileged: true
+        - name: test1
+          image: debian:10
+          command: ["/bin/sh", "-c", "sleep infinity", "1"]
+          securityContext:
+            runAsUser: 1001
+      `),
+		},
+		{
+			name:             "patchDeploymentOneContainerSeccomp",
+			kind:             "Deployment",
+			enforcer:         "Seccomp",
+			bpfExclusiveMode: false,
+			expectedResult:   `[{"op": "add", "path": "/metadata/annotations", "value": {}},{"op": "replace", "path": "/spec/template/metadata/annotations/container.seccomp.security.beta.varmor.org~1test1", "value": "localhost/varmor-testns-test"},{"op": "replace", "path": "/spec/template/spec/containers/1/securityContext/seccompProfile", "value": {"type": "Localhost", "localhostProfile": "varmor-testns-test"}},{"op": "replace", "path": "/metadata/annotations/webhook.varmor.org~1mutatedAt", "value": "TIME_STRING"}]`,
+			rawTarget: []byte(`
+    kind: Deployment
+    name: 4.1-test`),
+			rawResource: []byte(`
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: 4.1-test
+        namespace: test
+      spec:
+        replicas: 1
+        selector:
+          matchLabels:
+            app: demo
+        template:
+          metadata:
+            labels:
+              app: demo
+            annotations:
+              b: v
+          spec:
+            containers:
+            - name: test
+              image: debian:10
+              command: ["/bin/sh", "-c", "sleep infinity", "1"]
+              securityContext:
+                runAsUser: 1001
+                seccompProfile:
+                  type: RuntimeDefault
+            - name: test1
+              image: debian:10
+              command: ["/bin/sh", "-c", "sleep infinity", "1"]
+              securityContext:
+                runAsUser: 1001
+      `),
+		},
 	}
 
-	apparmorName := "varmor-testns-test"
+	profileName := "varmor-testns-test"
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -399,7 +543,7 @@ func Test_buildPatch(t *testing.T) {
 				assert.NilError(t, err)
 
 				deploy := obj.(*appsv1.Deployment)
-				patch, err := buildPatch(deploy, tc.enforcer, target, apparmorName, tc.bpfExclusiveMode)
+				patch, err := buildPatch(deploy, tc.enforcer, target, profileName, tc.bpfExclusiveMode)
 				if err != nil {
 					assert.Assert(t, err != nil)
 				}
@@ -415,7 +559,7 @@ func Test_buildPatch(t *testing.T) {
 				assert.NilError(t, err)
 
 				pod := obj.(*corev1.Pod)
-				patch, err := buildPatch(pod, tc.enforcer, target, apparmorName, tc.bpfExclusiveMode)
+				patch, err := buildPatch(pod, tc.enforcer, target, profileName, tc.bpfExclusiveMode)
 				if err != nil {
 					assert.Assert(t, err != nil)
 				}

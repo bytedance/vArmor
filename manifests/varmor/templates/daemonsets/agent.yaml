@@ -28,7 +28,7 @@ spec:
         image: "{{ .Values.image.registry }}/{{ .Values.image.namespace }}/{{ .Values.agent.image.name }}:{{ .Values.agent.image.tag | default .Chart.AppVersion }}"
         imagePullPolicy: {{ .Values.agent.image.pullPolicy }}
         command: ["/varmor/vArmor", "--agent"]
-        {{- if or .Values.agent.args .Values.behaviorModeling.enabled .Values.bpfLsmEnforcer.enabled .Values.unloadAllAaProfile.enabled }}
+        {{- if or .Values.agent.args .Values.behaviorModeling.enabled .Values.bpfLsmEnforcer.enabled .Values.unloadAllAaProfiles.enabled .Values.removeAllSeccompProfiles.enabled }}
         args:
           {{- if .Values.agent.args }}
             {{- with .Values.agent.args }}
@@ -45,8 +45,13 @@ spec:
               {{- toYaml . | nindent 8 }}
             {{- end }}
           {{- end }}
-          {{- if .Values.unloadAllAaProfile.enabled }}
-            {{- with .Values.agent.unloadAllAaProfile.args }}
+          {{- if .Values.unloadAllAaProfiles.enabled }}
+            {{- with .Values.agent.unloadAllAaProfiles.args }}
+              {{- toYaml . | nindent 8 }}
+            {{- end }}
+          {{- end }}
+          {{- if .Values.removeAllSeccompProfiles.enabled }}
+            {{- with .Values.agent.removeAllSeccompProfiles.args }}
               {{- toYaml . | nindent 8 }}
             {{- end }}
           {{- end }}
@@ -56,6 +61,8 @@ spec:
         volumeMounts:
         - mountPath: /sys/kernel/security
           name: securityfs
+        - mountPath: /var/lib/kubelet/seccomp
+          name: seccomp-dir
         - mountPath: /var/run/secrets/tokens
           name: bound-token
         {{- if .Values.appArmorLsmEnforcer.enabled }}
@@ -93,6 +100,17 @@ spec:
                 path: bound-token
                 expirationSeconds: 7200
                 audience: varmor-manager
+      - hostPath:
+          path: /var/lib/kubelet/seccomp
+          type: DirectoryOrCreate
+        name: seccomp-dir
+      - projected:
+          sources:
+          - serviceAccountToken:
+              path: bound-token
+              expirationSeconds: 7200
+              audience: varmor-manager
+        name: bound-token
       {{- if .Values.appArmorLsmEnforcer.enabled }}
         {{- with .Values.agent.appArmorLsmEnforcer.volumes }}
           {{- toYaml . | nindent 6 }}

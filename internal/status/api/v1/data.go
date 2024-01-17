@@ -30,6 +30,7 @@ import (
 
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
 	apparmorprofile "github.com/bytedance/vArmor/internal/profile/apparmor"
+	seccompprofile "github.com/bytedance/vArmor/internal/profile/seccomp"
 	varmortypes "github.com/bytedance/vArmor/internal/types"
 )
 
@@ -71,50 +72,50 @@ func (m *StatusManager) retrieveArmorProfileModel(namespace, name string) (*varm
 	return apm, nil
 }
 
-func (m *StatusManager) mergeDynamicResult(apm *varmor.ArmorProfileModel, data *varmortypes.BehaviorData) {
-	if apm.Spec.DynamicResult.Profiles == nil && len(data.DynamicResult.Profiles) != 0 {
-		apm.Spec.DynamicResult.Profiles = make([]string, 0)
-		apm.Spec.DynamicResult.Profiles = append(apm.Spec.DynamicResult.Profiles, data.DynamicResult.Profiles...)
+func mergeAppArmorResult(apm *varmor.ArmorProfileModel, data *varmortypes.BehaviorData) {
+	if apm.Data.DynamicResult.AppArmor.Profiles == nil && len(data.DynamicResult.AppArmor.Profiles) != 0 {
+		apm.Data.DynamicResult.AppArmor.Profiles = make([]string, 0)
+		apm.Data.DynamicResult.AppArmor.Profiles = append(apm.Data.DynamicResult.AppArmor.Profiles, data.DynamicResult.AppArmor.Profiles...)
 	} else {
-		for _, newProfile := range data.DynamicResult.Profiles {
+		for _, newProfile := range data.DynamicResult.AppArmor.Profiles {
 			find := false
-			for _, profile := range apm.Spec.DynamicResult.Profiles {
+			for _, profile := range apm.Data.DynamicResult.AppArmor.Profiles {
 				if newProfile == profile {
 					find = true
 					break
 				}
 			}
 			if !find {
-				apm.Spec.DynamicResult.Profiles = append(apm.Spec.DynamicResult.Profiles, newProfile)
+				apm.Data.DynamicResult.AppArmor.Profiles = append(apm.Data.DynamicResult.AppArmor.Profiles, newProfile)
 			}
 		}
 	}
 
-	if apm.Spec.DynamicResult.Executions == nil && len(data.DynamicResult.Executions) != 0 {
-		apm.Spec.DynamicResult.Executions = make([]string, 0)
-		apm.Spec.DynamicResult.Executions = append(apm.Spec.DynamicResult.Executions, data.DynamicResult.Executions...)
+	if apm.Data.DynamicResult.AppArmor.Executions == nil && len(data.DynamicResult.AppArmor.Executions) != 0 {
+		apm.Data.DynamicResult.AppArmor.Executions = make([]string, 0)
+		apm.Data.DynamicResult.AppArmor.Executions = append(apm.Data.DynamicResult.AppArmor.Executions, data.DynamicResult.AppArmor.Executions...)
 	} else {
-		for _, newExe := range data.DynamicResult.Executions {
+		for _, newExe := range data.DynamicResult.AppArmor.Executions {
 			find := false
-			for _, execution := range apm.Spec.DynamicResult.Executions {
+			for _, execution := range apm.Data.DynamicResult.AppArmor.Executions {
 				if newExe == execution {
 					find = true
 					break
 				}
 			}
 			if !find {
-				apm.Spec.DynamicResult.Executions = append(apm.Spec.DynamicResult.Executions, newExe)
+				apm.Data.DynamicResult.AppArmor.Executions = append(apm.Data.DynamicResult.AppArmor.Executions, newExe)
 			}
 		}
 	}
 
-	if apm.Spec.DynamicResult.Files == nil && len(data.DynamicResult.Files) != 0 {
-		apm.Spec.DynamicResult.Files = make([]varmor.File, 0)
-		apm.Spec.DynamicResult.Files = append(apm.Spec.DynamicResult.Files, data.DynamicResult.Files...)
+	if apm.Data.DynamicResult.AppArmor.Files == nil && len(data.DynamicResult.AppArmor.Files) != 0 {
+		apm.Data.DynamicResult.AppArmor.Files = make([]varmor.File, 0)
+		apm.Data.DynamicResult.AppArmor.Files = append(apm.Data.DynamicResult.AppArmor.Files, data.DynamicResult.AppArmor.Files...)
 	} else {
-		for _, newFile := range data.DynamicResult.Files {
+		for _, newFile := range data.DynamicResult.AppArmor.Files {
 			findFile := false
-			for index, file := range apm.Spec.DynamicResult.Files {
+			for index, file := range apm.Data.DynamicResult.AppArmor.Files {
 				if newFile.Path == file.Path && newFile.Owner == file.Owner {
 					findFile = true
 
@@ -127,65 +128,65 @@ func (m *StatusManager) mergeDynamicResult(apm *varmor.ArmorProfileModel, data *
 							}
 						}
 						if !findPerm {
-							apm.Spec.DynamicResult.Files[index].Permissions = append(apm.Spec.DynamicResult.Files[index].Permissions, newPerm)
+							apm.Data.DynamicResult.AppArmor.Files[index].Permissions = append(apm.Data.DynamicResult.AppArmor.Files[index].Permissions, newPerm)
 						}
 					}
 
 					if file.OldPath == "" && newFile.OldPath != "" {
-						apm.Spec.DynamicResult.Files[index].OldPath = newFile.OldPath
+						apm.Data.DynamicResult.AppArmor.Files[index].OldPath = newFile.OldPath
 					}
 					break
 				}
 			}
 			if !findFile {
-				apm.Spec.DynamicResult.Files = append(apm.Spec.DynamicResult.Files, newFile)
+				apm.Data.DynamicResult.AppArmor.Files = append(apm.Data.DynamicResult.AppArmor.Files, newFile)
 			}
 		}
 	}
 
-	if apm.Spec.DynamicResult.Capabilities == nil && len(data.DynamicResult.Capabilities) != 0 {
-		apm.Spec.DynamicResult.Capabilities = make([]string, 0)
-		apm.Spec.DynamicResult.Capabilities = append(apm.Spec.DynamicResult.Capabilities, data.DynamicResult.Capabilities...)
+	if apm.Data.DynamicResult.AppArmor.Capabilities == nil && len(data.DynamicResult.AppArmor.Capabilities) != 0 {
+		apm.Data.DynamicResult.AppArmor.Capabilities = make([]string, 0)
+		apm.Data.DynamicResult.AppArmor.Capabilities = append(apm.Data.DynamicResult.AppArmor.Capabilities, data.DynamicResult.AppArmor.Capabilities...)
 	} else {
-		for _, newCap := range data.DynamicResult.Capabilities {
+		for _, newCap := range data.DynamicResult.AppArmor.Capabilities {
 			find := false
-			for _, cap := range apm.Spec.DynamicResult.Capabilities {
+			for _, cap := range apm.Data.DynamicResult.AppArmor.Capabilities {
 				if newCap == cap {
 					find = true
 					break
 				}
 			}
 			if !find {
-				apm.Spec.DynamicResult.Capabilities = append(apm.Spec.DynamicResult.Capabilities, newCap)
+				apm.Data.DynamicResult.AppArmor.Capabilities = append(apm.Data.DynamicResult.AppArmor.Capabilities, newCap)
 			}
 		}
 	}
 
-	if apm.Spec.DynamicResult.Networks == nil && len(data.DynamicResult.Networks) != 0 {
-		apm.Spec.DynamicResult.Networks = make([]varmor.Network, 0)
-		apm.Spec.DynamicResult.Networks = append(apm.Spec.DynamicResult.Networks, data.DynamicResult.Networks...)
+	if apm.Data.DynamicResult.AppArmor.Networks == nil && len(data.DynamicResult.AppArmor.Networks) != 0 {
+		apm.Data.DynamicResult.AppArmor.Networks = make([]varmor.Network, 0)
+		apm.Data.DynamicResult.AppArmor.Networks = append(apm.Data.DynamicResult.AppArmor.Networks, data.DynamicResult.AppArmor.Networks...)
 	} else {
-		for _, newNet := range data.DynamicResult.Networks {
+		for _, newNet := range data.DynamicResult.AppArmor.Networks {
 			find := false
-			for _, net := range apm.Spec.DynamicResult.Networks {
+			for _, net := range apm.Data.DynamicResult.AppArmor.Networks {
 				if reflect.DeepEqual(newNet, net) {
 					find = true
 					break
 				}
 			}
 			if !find {
-				apm.Spec.DynamicResult.Networks = append(apm.Spec.DynamicResult.Networks, newNet)
+				apm.Data.DynamicResult.AppArmor.Networks = append(apm.Data.DynamicResult.AppArmor.Networks, newNet)
 			}
 		}
 	}
 
-	if apm.Spec.DynamicResult.Ptraces == nil && len(data.DynamicResult.Ptraces) != 0 {
-		apm.Spec.DynamicResult.Ptraces = make([]varmor.Ptrace, 0)
-		apm.Spec.DynamicResult.Ptraces = append(apm.Spec.DynamicResult.Ptraces, data.DynamicResult.Ptraces...)
+	if apm.Data.DynamicResult.AppArmor.Ptraces == nil && len(data.DynamicResult.AppArmor.Ptraces) != 0 {
+		apm.Data.DynamicResult.AppArmor.Ptraces = make([]varmor.Ptrace, 0)
+		apm.Data.DynamicResult.AppArmor.Ptraces = append(apm.Data.DynamicResult.AppArmor.Ptraces, data.DynamicResult.AppArmor.Ptraces...)
 	} else {
-		for _, newPtrace := range data.DynamicResult.Ptraces {
+		for _, newPtrace := range data.DynamicResult.AppArmor.Ptraces {
 			find := false
-			for index, ptrace := range apm.Spec.DynamicResult.Ptraces {
+			for index, ptrace := range apm.Data.DynamicResult.AppArmor.Ptraces {
 				if newPtrace.Peer == ptrace.Peer {
 					find = true
 
@@ -198,7 +199,7 @@ func (m *StatusManager) mergeDynamicResult(apm *varmor.ArmorProfileModel, data *
 							}
 						}
 						if !findPerm {
-							apm.Spec.DynamicResult.Ptraces[index].Permissions = append(apm.Spec.DynamicResult.Ptraces[index].Permissions, newPerm)
+							apm.Data.DynamicResult.AppArmor.Ptraces[index].Permissions = append(apm.Data.DynamicResult.AppArmor.Ptraces[index].Permissions, newPerm)
 						}
 					}
 
@@ -206,18 +207,18 @@ func (m *StatusManager) mergeDynamicResult(apm *varmor.ArmorProfileModel, data *
 				}
 			}
 			if !find {
-				apm.Spec.DynamicResult.Ptraces = append(apm.Spec.DynamicResult.Ptraces, newPtrace)
+				apm.Data.DynamicResult.AppArmor.Ptraces = append(apm.Data.DynamicResult.AppArmor.Ptraces, newPtrace)
 			}
 		}
 	}
 
-	if apm.Spec.DynamicResult.Signals == nil && len(data.DynamicResult.Signals) != 0 {
-		apm.Spec.DynamicResult.Signals = make([]varmor.Signal, 0)
-		apm.Spec.DynamicResult.Signals = append(apm.Spec.DynamicResult.Signals, data.DynamicResult.Signals...)
+	if apm.Data.DynamicResult.AppArmor.Signals == nil && len(data.DynamicResult.AppArmor.Signals) != 0 {
+		apm.Data.DynamicResult.AppArmor.Signals = make([]varmor.Signal, 0)
+		apm.Data.DynamicResult.AppArmor.Signals = append(apm.Data.DynamicResult.AppArmor.Signals, data.DynamicResult.AppArmor.Signals...)
 	} else {
-		for _, newSignal := range data.DynamicResult.Signals {
+		for _, newSignal := range data.DynamicResult.AppArmor.Signals {
 			find := false
-			for index, signal := range apm.Spec.DynamicResult.Signals {
+			for index, signal := range apm.Data.DynamicResult.AppArmor.Signals {
 				if newSignal.Peer == signal.Peer {
 					find = true
 
@@ -230,7 +231,7 @@ func (m *StatusManager) mergeDynamicResult(apm *varmor.ArmorProfileModel, data *
 							}
 						}
 						if !findPerm {
-							apm.Spec.DynamicResult.Signals[index].Permissions = append(apm.Spec.DynamicResult.Signals[index].Permissions, newPerm)
+							apm.Data.DynamicResult.AppArmor.Signals[index].Permissions = append(apm.Data.DynamicResult.AppArmor.Signals[index].Permissions, newPerm)
 						}
 					}
 
@@ -243,7 +244,7 @@ func (m *StatusManager) mergeDynamicResult(apm *varmor.ArmorProfileModel, data *
 							}
 						}
 						if !findSig {
-							apm.Spec.DynamicResult.Signals[index].Signals = append(apm.Spec.DynamicResult.Signals[index].Signals, newSig)
+							apm.Data.DynamicResult.AppArmor.Signals[index].Signals = append(apm.Data.DynamicResult.AppArmor.Signals[index].Signals, newSig)
 						}
 					}
 
@@ -251,25 +252,45 @@ func (m *StatusManager) mergeDynamicResult(apm *varmor.ArmorProfileModel, data *
 				}
 			}
 			if !find {
-				apm.Spec.DynamicResult.Signals = append(apm.Spec.DynamicResult.Signals, newSignal)
+				apm.Data.DynamicResult.AppArmor.Signals = append(apm.Data.DynamicResult.AppArmor.Signals, newSignal)
 			}
 		}
 	}
 
-	if apm.Spec.DynamicResult.Unhandled == nil && len(data.DynamicResult.Unhandled) != 0 {
-		apm.Spec.DynamicResult.Unhandled = make([]string, 0)
-		apm.Spec.DynamicResult.Unhandled = append(apm.Spec.DynamicResult.Unhandled, data.DynamicResult.Unhandled...)
+	if apm.Data.DynamicResult.AppArmor.Unhandled == nil && len(data.DynamicResult.AppArmor.Unhandled) != 0 {
+		apm.Data.DynamicResult.AppArmor.Unhandled = make([]string, 0)
+		apm.Data.DynamicResult.AppArmor.Unhandled = append(apm.Data.DynamicResult.AppArmor.Unhandled, data.DynamicResult.AppArmor.Unhandled...)
 	} else {
-		for _, newUnhandled := range data.DynamicResult.Unhandled {
+		for _, newUnhandled := range data.DynamicResult.AppArmor.Unhandled {
 			find := false
-			for _, unhandled := range apm.Spec.DynamicResult.Unhandled {
+			for _, unhandled := range apm.Data.DynamicResult.AppArmor.Unhandled {
 				if newUnhandled == unhandled {
 					find = true
 					break
 				}
 			}
 			if !find {
-				apm.Spec.DynamicResult.Unhandled = append(apm.Spec.DynamicResult.Unhandled, newUnhandled)
+				apm.Data.DynamicResult.AppArmor.Unhandled = append(apm.Data.DynamicResult.AppArmor.Unhandled, newUnhandled)
+			}
+		}
+	}
+}
+
+func mergeSeccompResult(apm *varmor.ArmorProfileModel, data *varmortypes.BehaviorData) {
+	if apm.Data.DynamicResult.Seccomp.Syscall == nil && len(apm.Data.DynamicResult.Seccomp.Syscall) != 0 {
+		apm.Data.DynamicResult.Seccomp.Syscall = make([]string, 0)
+		apm.Data.DynamicResult.Seccomp.Syscall = append(apm.Data.DynamicResult.Seccomp.Syscall, data.DynamicResult.Seccomp.Syscall...)
+	} else {
+		for _, newSyscall := range data.DynamicResult.Seccomp.Syscall {
+			find := false
+			for _, syscall := range apm.Data.DynamicResult.Seccomp.Syscall {
+				if newSyscall == syscall {
+					find = true
+					break
+				}
+			}
+			if !find {
+				apm.Data.DynamicResult.Seccomp.Syscall = append(apm.Data.DynamicResult.Seccomp.Syscall, newSyscall)
 			}
 		}
 	}
@@ -364,9 +385,10 @@ func (m *StatusManager) syncData(data string) error {
 		logger.Error(err, "m.retrieveArmorProfileModel()")
 		return err
 	}
-	oldDynamicResult := apm.Spec.DynamicResult.DeepCopy()
-	m.mergeDynamicResult(apm, &behaviorData)
-	needUpdateAPM := !reflect.DeepEqual(oldDynamicResult, &apm.Spec.DynamicResult)
+	oldDynamicResult := apm.Data.DynamicResult.DeepCopy()
+	mergeAppArmorResult(apm, &behaviorData)
+	mergeSeccompResult(apm, &behaviorData)
+	needUpdateAPM := !reflect.DeepEqual(oldDynamicResult, &apm.Data.DynamicResult)
 	if !needUpdateAPM {
 		logger.Info("2. no new behavior data to update to ArmorProfileModel", "profile", behaviorData.ProfileName, "node", behaviorData.NodeName)
 	} else {
@@ -402,26 +424,33 @@ func (m *StatusManager) syncData(data string) error {
 
 		if needUpdateAPM {
 			// Build the final AppArmor Profile
-			logger.Info("3.1.1 start building AppArmor profile", "profile", behaviorData.ProfileName)
-			builder := apparmorprofile.NewProfileBuilder(&apm.Spec.DynamicResult, m.debug)
-			profile, err := builder.Build()
+			logger.Info("3.1.1 build AppArmor profile with behavior model")
+			apparmorProfile, err := apparmorprofile.GenerateProfileWithBehaviorModel(&apm.Data.DynamicResult, m.debug)
 			if err != nil {
-				logger.Error(err, "varmorprofile.NewProfileBuilder()")
-				return err
-			} else {
-				// Update ArmorProfileModel
-				logger.Info("3.1.2 update AppArmor profile to ArmorProfileModel", "namespace", behaviorData.Namespace, "name", behaviorData.ProfileName)
-				apm.Spec.Profile.Content = profile
-				apm.Spec.Profile.Name = behaviorData.ProfileName
-				apm.Spec.Profile.Mode = "enforce"
-				apm, err = m.updateArmorProfileModel(apm)
-				if err != nil {
-					logger.Error(err, "m.updateArmorProfileModel()")
-					return err
-				}
+				logger.Info("3.1.1 no AppArmor profile built", "info", err)
 			}
+
+			// Build the final Seccomp Profile
+			logger.Info("3.1.2 build AppArmor profile with behavior model")
+			seccompProfile, err := seccompprofile.GenerateProfileWithBehaviorModel(&apm.Data.DynamicResult)
+			if err != nil {
+				logger.Info("3.1.2 no Seccomp profile built", "info", err)
+			}
+
+			// Update ArmorProfileModel
+			logger.Info("3.2 update profile to ArmorProfileModel", "namespace", behaviorData.Namespace, "name", behaviorData.ProfileName)
+			apm.Data.Profile.Content = apparmorProfile
+			apm.Data.Profile.SeccompContent = seccompProfile
+			apm.Data.Profile.Name = behaviorData.ProfileName
+			apm.Data.Profile.Mode = "enforce"
+			apm, err = m.updateArmorProfileModel(apm)
+			if err != nil {
+				logger.Error(err, "m.updateArmorProfileModel()")
+				return err
+			}
+
 		}
-		logger.Info("3.2 send signal to UpdateModeCh", "status key", statusKey)
+		logger.Info("3.3 send signal to UpdateModeCh", "status key", statusKey)
 		m.UpdateModeCh <- statusKey
 	}
 

@@ -15,7 +15,8 @@ require (
 	github.com/kyverno/kyverno v1.7.4
 	github.com/opencontainers/runtime-spec v1.1.0-rc.1
 	github.com/pkg/errors v0.9.1
-	golang.org/x/sys v0.15.0
+	github.com/seccomp/libseccomp-golang v0.10.0
+	golang.org/x/sys v0.16.0
 	google.golang.org/grpc v1.56.3
 	gopkg.in/yaml.v3 v3.0.1
 	gotest.tools v2.2.0+incompatible

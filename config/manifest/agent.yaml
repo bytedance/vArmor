@@ -48,6 +48,10 @@ spec:
           name: audit-dir
         - mountPath: /sys/kernel/btf/vmlinux
           name: btf
+        - mountPath: /var/lib/kubelet/seccomp
+          name: seccomp-dir
+        - mountPath: /var/run/secrets/tokens
+          name: bound-token
       volumes:
       - hostPath:
           path: /sys/kernel/security
@@ -77,6 +81,17 @@ spec:
           path: /sys/kernel/btf/vmlinux
           type: File
         name: btf
+      - hostPath:
+          path: /var/lib/kubelet/seccomp
+          type: DirectoryOrCreate
+        name: seccomp-dir
+      - projected:
+          sources:
+          - serviceAccountToken:
+              path: bound-token
+              expirationSeconds: 7200
+              audience: varmor-manager
+        name: bound-token
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:

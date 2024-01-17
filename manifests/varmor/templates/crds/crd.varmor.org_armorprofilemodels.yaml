@@ -38,107 +38,109 @@ spec:
               of an object. Servers should convert recognized schemas to the latest
               internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
             type: string
-          kind:
-            description: 'Kind is a string value representing the REST resource this
-              object represents. Servers may infer this from the endpoint the client
-              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
-            type: string
-          metadata:
-            type: object
-          spec:
-            description: ArmorProfileModelSpec defines the desired state of ArmorProfileModel
+          data:
+            description: ArmorProfileModelData defines the behavior model and the
+              profile
             properties:
               dynamicResult:
                 properties:
-                  capabilities:
-                    items:
-                      type: string
-                    type: array
-                  executions:
-                    items:
-                      type: string
-                    type: array
-                  files:
-                    items:
-                      properties:
-                        oldPath:
+                  apparmor:
+                    properties:
+                      capabilities:
+                        items:
                           type: string
-                        owner:
-                          type: boolean
-                        path:
+                        type: array
+                      executions:
+                        items:
                           type: string
-                        permissions:
-                          items:
-                            type: string
-                          type: array
-                      required:
-                      - oldPath
-                      - owner
-                      - path
-                      - permissions
-                      type: object
-                    type: array
-                  networks:
-                    items:
-                      properties:
-                        family:
+                        type: array
+                      files:
+                        items:
+                          properties:
+                            oldPath:
+                              type: string
+                            owner:
+                              type: boolean
+                            path:
+                              type: string
+                            permissions:
+                              items:
+                                type: string
+                              type: array
+                          required:
+                          - oldPath
+                          - owner
+                          - path
+                          - permissions
+                          type: object
+                        type: array
+                      networks:
+                        items:
+                          properties:
+                            family:
+                              type: string
+                            protocol:
+                              type: string
+                            sockType:
+                              type: string
+                          required:
+                          - family
+                          - protocol
+                          - sockType
+                          type: object
+                        type: array
+                      profiles:
+                        items:
                           type: string
-                        protocol:
+                        type: array
+                      ptraces:
+                        items:
+                          properties:
+                            peer:
+                              type: string
+                            permissions:
+                              items:
+                                type: string
+                              type: array
+                          required:
+                          - peer
+                          - permissions
+                          type: object
+                        type: array
+                      signals:
+                        items:
+                          properties:
+                            peer:
+                              type: string
+                            permissions:
+                              items:
+                                type: string
+                              type: array
+                            signals:
+                              items:
+                                type: string
+                              type: array
+                          required:
+                          - peer
+                          - permissions
+                          - signals
+                          type: object
+                        type: array
+                      unhandled:
+                        items:
                           type: string
-                        sockType:
+                        type: array
+                    type: object
+                  seccomp:
+                    properties:
+                      syscall:
+                        items:
                           type: string
-                      required:
-                      - family
-                      - protocol
-                      - sockType
-                      type: object
-                    type: array
-                  profiles:
-                    items:
-                      type: string
-                    type: array
-                  ptraces:
-                    items:
-                      properties:
-                        peer:
-                          type: string
-                        permissions:
-                          items:
-                            type: string
-                          type: array
-                      required:
-                      - peer
-                      - permissions
-                      type: object
-                    type: array
-                  signals:
-                    items:
-                      properties:
-                        peer:
-                          type: string
-                        permissions:
-                          items:
-                            type: string
-                          type: array
-                        signals:
-                          items:
-                            type: string
-                          type: array
-                      required:
-                      - peer
-                      - permissions
-                      - signals
-                      type: object
-                    type: array
-                  unhandled:
-                    items:
-                      type: string
-                    type: array
+                        type: array
+                    type: object
                 type: object
               profile:
                 properties:
-                  SeccompContent:
-                    type: string
                   bpfContent:
                     properties:
                       capabilities:
@@ -255,12 +257,21 @@ spec:
                     type: string
                   name:
                     type: string
+                  seccompContent:
+                    type: string
                 required:
                 - mode
                 - name
                 type: object
               staticResult:
                 type: object
+            type: object
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
             type: object
           status:
             description: ArmorProfileModelStatus defines the observed state of ArmorProfileModel
@@ -306,7 +317,7 @@ spec:
             - ready
             type: object
         required:
-        - spec
+        - data
         type: object
     served: true
     storage: true

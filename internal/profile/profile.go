@@ -25,6 +25,7 @@ import (
 	varmorconfig "github.com/bytedance/vArmor/internal/config"
 	apparmorprofile "github.com/bytedance/vArmor/internal/profile/apparmor"
 	bpfprofile "github.com/bytedance/vArmor/internal/profile/bpf"
+	seccompprofile "github.com/bytedance/vArmor/internal/profile/seccomp"
 	varmortypes "github.com/bytedance/vArmor/internal/types"
 	varmorinterface "github.com/bytedance/vArmor/pkg/client/clientset/versioned/typed/varmor/v1beta1"
 )
@@ -113,6 +114,9 @@ func GenerateProfile(policy varmor.Policy, name string, namespace string, varmor
 			}
 		case "BPF":
 			return nil, fmt.Errorf("not supported by the BPF enforcer")
+		case "Seccomp":
+			profile.Mode = "complain"
+			profile.SeccompContent = seccompprofile.GenerateBehaviorModelingProfile()
 		default:
 			return nil, fmt.Errorf("unknown enforcer")
 		}
@@ -122,12 +126,19 @@ func GenerateProfile(policy varmor.Policy, name string, namespace string, varmor
 		case "AppArmor":
 			apm, err := varmorInterface.ArmorProfileModels(namespace).Get(context.Background(), name, metav1.GetOptions{})
 			if err == nil {
-				profile.Content = apm.Spec.Profile.Content
+				profile.Content = apm.Data.Profile.Content
 			} else {
 				return nil, fmt.Errorf("fatal error: no existing model found")
 			}
 		case "BPF":
 			return nil, fmt.Errorf("not supported by the BPF enforcer")
+		case "Seccomp":
+			apm, err := varmorInterface.ArmorProfileModels(namespace).Get(context.Background(), name, metav1.GetOptions{})
+			if err == nil {
+				profile.SeccompContent = apm.Data.Profile.SeccompContent
+			} else {
+				return nil, fmt.Errorf("fatal error: no existing model found")
+			}
 		default:
 			return nil, fmt.Errorf("unknown enforcer")
 		}

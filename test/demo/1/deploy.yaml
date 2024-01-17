@@ -23,6 +23,8 @@ spec:
       - name: c0
         image: debian:10
         command: ["/bin/sh", "-c", "sleep infinity"]
+        imagePullPolicy: IfNotPresent
       - name: c1
         image: debian:10
         command: ["/bin/sh", "-c", "sleep infinity"]
+        imagePullPolicy: IfNotPresent

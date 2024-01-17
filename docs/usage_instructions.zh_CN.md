@@ -10,7 +10,8 @@ vArmor 支持在安装时，通过 helm 命令对它的功能进行配置。
 | `--set bpfLsmEnforcer.enabled=true` | 默认关闭；当系统支持 BPF LSM 时可通过此参数开启
 | `--set bpfExclusiveMode.enabled=true` | 默认关闭；开启后当 VarmorPolicy 使用 BPF enforcer 时，将禁用目标工作负载的 AppArmor 防护
 | `--set restartExistWorkloads.enabled=true` | 默认关闭；开启后，当创建或删除 VarmorPolicy 时，vArmor 会对符合条件的 Workloads (Deployments, DaemonSet, StatefulSet) 进行滚动重启，从而开启或关闭防护
-| `--set unloadAllAaProfile.enabled=true` | 默认关闭；开启后，Agent 退出时，将会卸载所有已加载的 AppArmor Profile
+| `--set unloadAllAaProfiles.enabled=true` | 默认关闭；开启后，Agent 退出时，将会卸载所有由 vArmor 加载的 AppArmor Profile
+| `--set removeAllSeccompProfiles.enabled=true` | 默认关闭；开启后，Agent 退出时，将会删除所有由 vArmor 创建的 Seccomp Profile
 | `--set "manager.args={--webhookMatchLabel=KEY=VALUE}"` | 默认值为：`sandbox.varmor.org/enable=true`。vArmor 只会对包含此 label 的 Workloads 开启沙箱防护。你可以使用 `--set 'manager.args={--webhookMatchLabel=}'` 关闭此特性。
 | `--set behaviorModeling.enabled=true` | 默认关闭；此为实验功能，仅 AppArmor enforcer 支持 BehaviorModeling 模式
 
