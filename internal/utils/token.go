@@ -21,7 +21,7 @@ import (
 	"time"
 )
 
-const BindTokenPath = "/var/run/secrets/tokens"
+const BindTokenPath = "/var/run/secrets/tokens/bound-token"
 
 var (
 	token      string

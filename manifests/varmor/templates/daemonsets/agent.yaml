@@ -90,9 +90,9 @@ spec:
         projected:
             sources:
             - serviceAccountToken:
-              path: bound-token
-              expirationSeconds: 7200
-              audience: varmor-manager
+                path: bound-token
+                expirationSeconds: 7200
+                audience: varmor-manager
       {{- if .Values.appArmorLsmEnforcer.enabled }}
         {{- with .Values.agent.appArmorLsmEnforcer.volumes }}
           {{- toYaml . | nindent 6 }}
