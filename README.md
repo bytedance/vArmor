@@ -67,8 +67,10 @@ helm install varmor varmor-0.5.5.tgz \
 
 ### Step 3. Try with this example
 ```
+# Create demo namespace
+kubectl create namespace demo
 # Create a VarmorPolicy object to enable the AlwaysAllow mode sandbox for Deployments that match the .spec.target.selector
-kubectl create -f test/demo/disable-shell/policy-init.yaml
+kubectl create -f test/demo/1/policy-init.yaml
 
 # View the status of VarmorPolicy & ArmorProfile object
 kubectl get VarmorPolicy -n demo
@@ -90,8 +92,8 @@ kubectl apply -f test/demo/1/policy.yaml
 kubectl exec -n demo $POD_NAME -c c1 -- cat /run/secrets/kubernetes.io/serviceaccount/token
 
 # Delete the VarmorPolicy and Deployment objects
-kubectl delete -f test/demo/disable-shell/policy-init.yaml
-kubectl create -f test/demo/1/deploy.yaml
+kubectl delete -f test/demo/1/policy-init.yaml
+kubectl delete -f test/demo/1/deploy.yaml
 ```
 
 ### Step 4. Uninstall
