@@ -62,8 +62,10 @@ helm install varmor varmor-0.5.5.tgz \
 
 ### Step 3. 示例
 ```
+# 创建名为 demo 的命名空间
+kubectl create namespace demo
 # 创建 VarmorPolicy，对符合 .spec.target.selector 的 Deployment 开启 AlwaysAllow 模式沙箱
-kubectl create -f test/demo/disable-shell/policy-init.yaml
+kubectl create -f test/demo/1/policy-init.yaml
 
 # 查看 VarmorPolicy & ArmorProfile 状态
 kubectl get VarmorPolicy -n demo
@@ -85,8 +87,8 @@ kubectl apply -f test/demo/1/policy.yaml
 kubectl exec -n demo $POD_NAME -c c1 -- cat /run/secrets/kubernetes.io/serviceaccount/token
 
 # 删除 VarmorPolicy 和 Deployment
-kubectl delete -f test/demo/disable-shell/policy-init.yaml
-kubectl create -f test/demo/1/deploy.yaml
+kubectl delete -f test/demo/1/policy-init.yaml
+kubectl delete -f test/demo/1/deploy.yaml
 ```
 
 ### Step 4. 卸载
