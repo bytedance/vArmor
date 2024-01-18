@@ -19,6 +19,7 @@ spec:
     enhanceProtect:
       hardeningRules:
       - disable-cap-net-raw
+      - disallow-access-procfs-root
       attackProtectionRules:
       - rules:
         - disable-write-etc

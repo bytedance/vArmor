@@ -59,17 +59,17 @@ type BpfContent struct {
 	Files        []FileContent    `json:"files,omitempty"`
 	Processes    []FileContent    `json:"processes,omitempty"`
 	Networks     []NetworkContent `json:"networks,omitempty"`
-	Ptrace       PtraceContent    `json:"ptrace,omitempty"`
+	Ptrace       *PtraceContent   `json:"ptrace,omitempty"`
 	Mounts       []MountContent   `json:"mounts,omitempty"`
 }
 
 type Profile struct {
-	Name           string     `json:"name"`
-	Enforcer       string     `json:"enforcer,omitempty"`
-	Mode           string     `json:"mode"`
-	Content        string     `json:"content,omitempty"`
-	BpfContent     BpfContent `json:"bpfContent,omitempty"`
-	SeccompContent string     `json:"seccompContent,omitempty"`
+	Name           string      `json:"name"`
+	Enforcer       string      `json:"enforcer"`
+	Mode           string      `json:"mode"`
+	Content        string      `json:"content,omitempty"`
+	BpfContent     *BpfContent `json:"bpfContent,omitempty"`
+	SeccompContent string      `json:"seccompContent,omitempty"`
 }
 
 type BehaviorModeling struct {
@@ -86,7 +86,7 @@ type ArmorProfileSpec struct {
 
 	Target           Target           `json:"target,omitempty"`
 	Profile          Profile          `json:"profile"`
-	BehaviorModeling BehaviorModeling `json:"behaviorModeling,omitempty"`
+	BehaviorModeling BehaviorModeling `json:"behaviorModeling"`
 }
 
 type ArmorProfileConditionType string

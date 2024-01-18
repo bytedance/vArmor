@@ -67,7 +67,7 @@ func GenerateProfile(policy varmor.Policy, name string, namespace string, varmor
 			profile.Content = apparmorprofile.GenerateAlwaysAllowProfile(name)
 		case "BPF":
 			var bpfContent varmor.BpfContent
-			profile.BpfContent = bpfContent
+			profile.BpfContent = &bpfContent
 		default:
 			return nil, fmt.Errorf("unknown enforcer")
 		}
@@ -82,7 +82,7 @@ func GenerateProfile(policy varmor.Policy, name string, namespace string, varmor
 			if err != nil {
 				return nil, err
 			}
-			profile.BpfContent = bpfContent
+			profile.BpfContent = &bpfContent
 		default:
 			return nil, fmt.Errorf("unknown enforcer")
 		}
@@ -97,7 +97,7 @@ func GenerateProfile(policy varmor.Policy, name string, namespace string, varmor
 			if err != nil {
 				return nil, err
 			}
-			profile.BpfContent = bpfContent
+			profile.BpfContent = &bpfContent
 		default:
 			return nil, fmt.Errorf("unknown enforcer")
 		}
