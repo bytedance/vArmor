@@ -112,6 +112,9 @@ func GenerateRuntimeDefaultProfile(bpfContent *varmor.BpfContent) error {
 	}
 	bpfContent.Mounts = append(bpfContent.Mounts, *mountContent)
 
+	if bpfContent.Ptrace == nil {
+		bpfContent.Ptrace = &varmor.PtraceContent{}
+	}
 	bpfContent.Ptrace.Permissions = AaPtraceTrace | AaPtraceRead
 	bpfContent.Ptrace.Flags = PreciseMatch
 
@@ -421,6 +424,9 @@ func generateHardeningRules(rule string, content *varmor.BpfContent, privileged 
 		content.Capabilities |= (1 << unix.CAP_SYS_ADMIN) | (1 << unix.CAP_BPF)
 	// disallow access to the root of the task through procfs
 	case "disallow-access-procfs-root":
+		if content.Ptrace == nil {
+			content.Ptrace = &varmor.PtraceContent{}
+		}
 		content.Ptrace.Permissions |= AaPtraceRead
 		content.Ptrace.Flags |= PreciseMatch
 
@@ -793,6 +799,10 @@ func generateRawPtraceRule(rule varmor.PtraceRule, bpfContent *varmor.BpfContent
 	}
 
 	if permissions != 0 {
+		if bpfContent.Ptrace == nil {
+			bpfContent.Ptrace = &varmor.PtraceContent{}
+		}
+
 		bpfContent.Ptrace.Permissions = permissions
 		if rule.StrictMode {
 			bpfContent.Ptrace.Flags = GreedyMatch

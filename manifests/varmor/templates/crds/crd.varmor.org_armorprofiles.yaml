@@ -187,6 +187,7 @@ spec:
                   seccompContent:
                     type: string
                 required:
+                - enforcer
                 - mode
                 - name
                 type: object
@@ -261,6 +262,7 @@ spec:
                 - kind
                 type: object
             required:
+            - behaviorModeling
             - profile
             type: object
           status:

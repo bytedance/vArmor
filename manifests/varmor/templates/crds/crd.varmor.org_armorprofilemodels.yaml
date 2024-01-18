@@ -260,6 +260,7 @@ spec:
                   seccompContent:
                     type: string
                 required:
+                - enforcer
                 - mode
                 - name
                 type: object
