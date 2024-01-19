@@ -1,0 +1,17 @@
+apiVersion: crd.varmor.org/v1beta1
+kind: VarmorPolicy
+metadata:
+  name: demo-5
+  namespace: demo
+spec:
+  target:
+    kind: Deployment
+    selector:
+      matchLabels:
+        app: demo-5
+  policy:
+    enforcer: Seccomp
+    # mode: DefenseInDepth
+    mode: BehaviorModeling
+    modelingOptions:
+      duration: 3
