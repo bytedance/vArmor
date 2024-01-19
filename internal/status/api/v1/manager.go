@@ -188,7 +188,10 @@ func (m *StatusManager) rebuildPolicyStatuses() error {
 	return nil
 }
 
-func (m *StatusManager) updateArmorProfileStatus(ap *varmor.ArmorProfile, policyStatus *varmortypes.PolicyStatus) error {
+func (m *StatusManager) updateArmorProfileStatus(
+	ap *varmor.ArmorProfile,
+	policyStatus *varmortypes.PolicyStatus) (*varmor.ArmorProfile, error) {
+
 	var conditions []varmor.ArmorProfileCondition
 	for nodeName, message := range policyStatus.NodeMessages {
 		if message != string(varmortypes.ArmorProfileReady) {
@@ -197,62 +200,96 @@ func (m *StatusManager) updateArmorProfileStatus(ap *varmor.ArmorProfile, policy
 		}
 	}
 
-	// Nothing needs to be updated.
-	if reflect.DeepEqual(ap.Status.Conditions, conditions) &&
-		ap.Status.CurrentNumberLoaded == policyStatus.SuccessedNumber &&
-		ap.Status.DesiredNumberLoaded == m.desiredNumber {
-		return nil
-	}
-
-	ap.Status.DesiredNumberLoaded = m.desiredNumber
-	ap.Status.CurrentNumberLoaded = policyStatus.SuccessedNumber
-	if len(conditions) > 0 {
-		ap.Status.Conditions = conditions
-	} else {
-		ap.Status.Conditions = nil
-	}
-
-	update := func() error {
-		_, err := m.varmorInterface.ArmorProfiles(ap.Namespace).UpdateStatus(context.Background(), ap, metav1.UpdateOptions{})
+	regain := false
+	update := func() (err error) {
+		if regain {
+			ap, err = m.varmorInterface.ArmorProfiles(ap.Namespace).Get(context.Background(), ap.Name, metav1.GetOptions{})
+			if err != nil {
+				return err
+			}
+		}
+		// Nothing needs to be updated.
+		if reflect.DeepEqual(ap.Status.Conditions, conditions) &&
+			ap.Status.CurrentNumberLoaded == policyStatus.SuccessedNumber &&
+			ap.Status.DesiredNumberLoaded == m.desiredNumber {
+			return nil
+		}
+		ap.Status.DesiredNumberLoaded = m.desiredNumber
+		ap.Status.CurrentNumberLoaded = policyStatus.SuccessedNumber
+		if len(conditions) > 0 {
+			ap.Status.Conditions = conditions
+		} else {
+			ap.Status.Conditions = nil
+		}
+		ap, err = m.varmorInterface.ArmorProfiles(ap.Namespace).UpdateStatus(context.Background(), ap, metav1.UpdateOptions{})
+		if err != nil {
+			regain = true
+		}
 		return err
 	}
-	return retry.RetryOnConflict(retry.DefaultRetry, update)
+	return ap, retry.RetryOnConflict(retry.DefaultRetry, update)
 }
 
-func (m *StatusManager) updateVarmorPolicyStatus(vp *varmor.VarmorPolicy, ready bool, phase varmor.VarmorPolicyPhase) error {
+func (m *StatusManager) updateVarmorPolicyStatus(
+	vp *varmor.VarmorPolicy,
+	ready bool,
+	phase varmor.VarmorPolicyPhase) (*varmor.VarmorPolicy, error) {
+
 	// Nothing need to be updated.
 	if vp.Status.Ready == ready && vp.Status.Phase == phase {
-		return nil
+		return vp, nil
 	}
 
-	vp.Status.Ready = ready
-	if phase != varmortypes.VarmorPolicyUnchanged {
-		vp.Status.Phase = phase
-	}
-
-	update := func() error {
-		_, err := m.varmorInterface.VarmorPolicies(vp.Namespace).UpdateStatus(context.Background(), vp, metav1.UpdateOptions{})
+	regain := false
+	update := func() (err error) {
+		if regain {
+			vp, err = m.varmorInterface.VarmorPolicies(vp.Namespace).Get(context.Background(), vp.Name, metav1.GetOptions{})
+			if err != nil {
+				return err
+			}
+		}
+		vp.Status.Ready = ready
+		if phase != varmortypes.VarmorPolicyUnchanged {
+			vp.Status.Phase = phase
+		}
+		vp, err = m.varmorInterface.VarmorPolicies(vp.Namespace).UpdateStatus(context.Background(), vp, metav1.UpdateOptions{})
+		if err != nil {
+			regain = true
+		}
 		return err
 	}
-	return retry.RetryOnConflict(retry.DefaultRetry, update)
+	return vp, retry.RetryOnConflict(retry.DefaultRetry, update)
 }
 
-func (m *StatusManager) updateVarmorClusterPolicyStatus(vcp *varmor.VarmorClusterPolicy, ready bool, phase varmor.VarmorPolicyPhase) error {
+func (m *StatusManager) updateVarmorClusterPolicyStatus(
+	vcp *varmor.VarmorClusterPolicy,
+	ready bool,
+	phase varmor.VarmorPolicyPhase) (*varmor.VarmorClusterPolicy, error) {
+
 	// Nothing need to be updated.
 	if vcp.Status.Ready == ready && vcp.Status.Phase == phase {
-		return nil
+		return vcp, nil
 	}
 
-	vcp.Status.Ready = ready
-	if phase != varmortypes.VarmorPolicyUnchanged {
-		vcp.Status.Phase = phase
-	}
-
-	update := func() error {
-		_, err := m.varmorInterface.VarmorClusterPolicies().UpdateStatus(context.Background(), vcp, metav1.UpdateOptions{})
+	regain := false
+	update := func() (err error) {
+		if regain {
+			vcp, err = m.varmorInterface.VarmorClusterPolicies().Get(context.Background(), vcp.Name, metav1.GetOptions{})
+			if err != nil {
+				return err
+			}
+		}
+		vcp.Status.Ready = ready
+		if phase != varmortypes.VarmorPolicyUnchanged {
+			vcp.Status.Phase = phase
+		}
+		vcp, err = m.varmorInterface.VarmorClusterPolicies().UpdateStatus(context.Background(), vcp, metav1.UpdateOptions{})
+		if err != nil {
+			regain = true
+		}
 		return err
 	}
-	return retry.RetryOnConflict(retry.DefaultRetry, update)
+	return vcp, retry.RetryOnConflict(retry.DefaultRetry, update)
 }
 
 func (m *StatusManager) updateAllCRStatus(logger logr.Logger) {
@@ -361,13 +398,13 @@ func (m *StatusManager) reconcileStatus(stopCh <-chan struct{}) {
 
 			// Update ArmorProfile/status
 			apName := varmorprofile.GenerateArmorProfileName(namespace, vpName, clusterScope)
+			logger.Info("1. update ArmorProfile/status", "namespace", namespace, "name", apName)
 			ap, err := m.varmorInterface.ArmorProfiles(namespace).Get(context.Background(), apName, metav1.GetOptions{})
 			if err != nil {
 				logger.Error(err, "m.varmorInterface.ArmorProfiles().Get()")
 				break
 			}
-			logger.Info("1. update ArmorProfile/status", "namespace", namespace, "name", apName)
-			err = m.updateArmorProfileStatus(ap, &policyStatus)
+			ap, err = m.updateArmorProfileStatus(ap, &policyStatus)
 			if err != nil {
 				logger.Error(err, "m.updateArmorProfileStatus()")
 				break
@@ -427,14 +464,14 @@ func (m *StatusManager) reconcileStatus(stopCh <-chan struct{}) {
 			if clusterScope {
 				vcp := v.(*varmor.VarmorClusterPolicy)
 				logger.Info("2. update VarmorClusterPolicy/status", "name", vcp.Name)
-				err = m.updateVarmorClusterPolicyStatus(vcp, ready, phase)
+				_, err = m.updateVarmorClusterPolicyStatus(vcp, ready, phase)
 				if err != nil {
 					logger.Error(err, "m.updateVarmorClusterPolicyStatus()")
 				}
 			} else {
 				vp := v.(*varmor.VarmorPolicy)
 				logger.Info("2. update VarmorPolicy/status", "namespace", vp.Namespace, "name", vp.Name)
-				err = m.updateVarmorPolicyStatus(vp, ready, phase)
+				_, err = m.updateVarmorPolicyStatus(vp, ready, phase)
 				if err != nil {
 					logger.Error(err, "m.updateVarmorPolicyStatus()")
 				}
@@ -493,20 +530,19 @@ func (m *StatusManager) reconcileStatus(stopCh <-chan struct{}) {
 			}
 
 			logger.Info("update ArmorProfile (complain mode --> enforce mode)", "namespace", namespace, "name", apName)
-
-			update := func() error {
-				ap, err := m.varmorInterface.ArmorProfiles(namespace).Get(context.Background(), apName, metav1.GetOptions{})
-				if err != nil {
+			err = retry.RetryOnConflict(retry.DefaultRetry,
+				func() error {
+					ap, err := m.varmorInterface.ArmorProfiles(namespace).Get(context.Background(), apName, metav1.GetOptions{})
+					if err != nil {
+						return err
+					}
+					ap.Spec.Profile = *profile
+					ap.Spec.BehaviorModeling.Enable = false
+					_, err = m.varmorInterface.ArmorProfiles(ap.Namespace).Update(context.Background(), ap, metav1.UpdateOptions{})
 					return err
-				}
-				ap.Spec.Profile = *profile
-				ap.Spec.BehaviorModeling.Enable = false
-				_, err = m.varmorInterface.ArmorProfiles(ap.Namespace).Update(context.Background(), ap, metav1.UpdateOptions{})
-				return err
-			}
-			err = retry.RetryOnConflict(retry.DefaultRetry, update)
+				})
 			if err != nil {
-				logger.Error(err, "retry.RetryOnConflict()")
+				logger.Error(err, "update ArmorProfile failed")
 			}
 
 		// Break out the status reconcile loop.

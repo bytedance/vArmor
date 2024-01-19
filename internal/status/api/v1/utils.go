@@ -93,7 +93,7 @@ func generateModelingStatusKey(behaviorData *varmortypes.BehaviorData) (string, 
 		policyName := behaviorData.ProfileName[len(profileNamePrefix):]
 		return behaviorData.Namespace + "/" + policyName, nil
 	} else {
-		return "", fmt.Errorf("behaviorData.ProfileName (%s) is illegal")
+		return "", fmt.Errorf("behaviorData.ProfileName is illegal")
 	}
 }
 
