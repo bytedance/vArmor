@@ -33,7 +33,7 @@ type DataPreprocessor struct {
 	nodeName        string
 	namespace       string
 	profileName     string
-	enforcer        string
+	enforcer        varmortypes.Enforcer
 	targetPIDs      map[uint32]struct{}
 	targetMnts      map[uint32]struct{}
 	auditRecordPath string
@@ -65,7 +65,7 @@ func NewDataPreprocessor(
 		nodeName:        nodeName,
 		namespace:       namespace,
 		profileName:     name,
-		enforcer:        enforcer,
+		enforcer:        varmortypes.GetEnforcerType(enforcer),
 		targetPIDs:      targetPIDs,
 		targetMnts:      targetMnts,
 		auditRecordPath: fmt.Sprintf("%s_audit_records.log", name),
@@ -174,7 +174,7 @@ func (p *DataPreprocessor) processAuditRecords() error {
 
 		isAaEvent := strings.Contains(line, "type=1400") || strings.Contains(line, "type=AVC")
 
-		if strings.Contains(p.enforcer, "AppArmor") && isAaEvent {
+		if (p.enforcer&varmortypes.AppArmor != 0) && isAaEvent {
 			// process AppArmor event
 			event, err := parseAppArmorEvent(line)
 			if err != nil {
@@ -207,7 +207,7 @@ func (p *DataPreprocessor) processAuditRecords() error {
 			}
 		}
 
-		if strings.Contains(p.enforcer, "Seccomp") && !isAaEvent {
+		if (p.enforcer&varmortypes.Seccomp != 0) && !isAaEvent {
 			// process Seccomp event
 			event, err := parseSeccompEvent(line)
 			if err != nil {

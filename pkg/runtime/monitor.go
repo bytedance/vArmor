@@ -222,6 +222,7 @@ func (monitor *RuntimeMonitor) eventHandler(stopCh <-chan struct{}) {
 						profileName := value[len("localhost/"):]
 						if ch, ok := monitor.modellerChs[profileName]; ok {
 							ch <- info.PID
+							continue // Seccomp and AppArmor share a common channel.
 						}
 					}
 				}

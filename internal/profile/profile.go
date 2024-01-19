@@ -60,51 +60,71 @@ func GenerateProfile(policy varmor.Policy, name string, namespace string, varmor
 		Mode:     "enforce",
 	}
 
+	e := varmortypes.GetEnforcerType(policy.Enforcer)
+
 	switch policy.Mode {
 	case varmortypes.AlwaysAllowMode:
-		switch policy.Enforcer {
-		case "AppArmor":
+		if e == varmortypes.Unknown {
+			return nil, fmt.Errorf("unknown enforcer")
+		}
+		// AppArmor
+		if (e & varmortypes.AppArmor) != 0 {
 			profile.Content = apparmorprofile.GenerateAlwaysAllowProfile(name)
-		case "BPF":
+		}
+		// BPF
+		if (e & varmortypes.BPF) != 0 {
 			var bpfContent varmor.BpfContent
 			profile.BpfContent = &bpfContent
-		default:
-			return nil, fmt.Errorf("unknown enforcer")
 		}
 
 	case varmortypes.RuntimeDefaultMode:
-		switch policy.Enforcer {
-		case "AppArmor":
+		if e == varmortypes.Unknown {
+			return nil, fmt.Errorf("unknown enforcer")
+		}
+		// AppArmor
+		if (e & varmortypes.AppArmor) != 0 {
 			profile.Content = apparmorprofile.GenerateRuntimeDefaultProfile(name)
-		case "BPF":
+		}
+		// BPF
+		if (e & varmortypes.BPF) != 0 {
 			var bpfContent varmor.BpfContent
 			err = bpfprofile.GenerateRuntimeDefaultProfile(&bpfContent)
 			if err != nil {
 				return nil, err
 			}
 			profile.BpfContent = &bpfContent
-		default:
-			return nil, fmt.Errorf("unknown enforcer")
 		}
+		// Seccomp. TODO: RuntimeDefault profile
 
 	case varmortypes.EnhanceProtectMode:
-		switch policy.Enforcer {
-		case "AppArmor":
+		if e == varmortypes.Unknown {
+			return nil, fmt.Errorf("unknown enforcer")
+		}
+		// AppArmor
+		if (e & varmortypes.AppArmor) != 0 {
 			profile.Content = apparmorprofile.GenerateEnhanceProtectProfile(&policy.EnhanceProtect, name, policy.Privileged)
-		case "BPF":
+		}
+		// BPF
+		if (e & varmortypes.BPF) != 0 {
 			var bpfContent varmor.BpfContent
 			err = bpfprofile.GenerateEnhanceProtectProfile(&policy.EnhanceProtect, &bpfContent, policy.Privileged)
 			if err != nil {
 				return nil, err
 			}
 			profile.BpfContent = &bpfContent
-		default:
-			return nil, fmt.Errorf("unknown enforcer")
 		}
+		// Seccomp. TODO: RuntimeDefault profile + Behavior Model + built-in rules
 
 	case varmortypes.BehaviorModelingMode:
-		switch policy.Enforcer {
-		case "AppArmor":
+		if e == varmortypes.Unknown {
+			return nil, fmt.Errorf("unknown enforcer")
+		}
+		// BPF
+		if (e & varmortypes.BPF) != 0 {
+			return nil, fmt.Errorf("fatal error: not supported by the enforcer")
+		}
+		// AppArmor
+		if (e & varmortypes.AppArmor) != 0 {
 			if complete {
 				// Create profile based on the AlwaysAllow template after the behvior modeling was completed.
 				profile.Content = apparmorprofile.GenerateAlwaysAllowProfile(name)
@@ -112,35 +132,38 @@ func GenerateProfile(policy varmor.Policy, name string, namespace string, varmor
 				profile.Mode = "complain"
 				profile.Content = apparmorprofile.GenerateBehaviorModelingProfile(name)
 			}
-		case "BPF":
-			return nil, fmt.Errorf("not supported by the BPF enforcer")
-		case "Seccomp":
+		}
+		// Seccomp
+		if (e & varmortypes.Seccomp) != 0 {
 			profile.Mode = "complain"
 			profile.SeccompContent = seccompprofile.GenerateBehaviorModelingProfile()
-		default:
-			return nil, fmt.Errorf("unknown enforcer")
 		}
 
 	case varmortypes.DefenseInDepthMode:
-		switch policy.Enforcer {
-		case "AppArmor":
+		if e == varmortypes.Unknown {
+			return nil, fmt.Errorf("unknown enforcer")
+		}
+		// BPF
+		if (e & varmortypes.BPF) != 0 {
+			return nil, fmt.Errorf("fatal error: not supported by the enforcer")
+		}
+		// AppArmor
+		if (e & varmortypes.AppArmor) != 0 {
 			apm, err := varmorInterface.ArmorProfileModels(namespace).Get(context.Background(), name, metav1.GetOptions{})
-			if err == nil {
+			if err == nil && apm.Data.Profile.Content != "" {
 				profile.Content = apm.Data.Profile.Content
 			} else {
-				return nil, fmt.Errorf("fatal error: no existing model found")
+				return nil, fmt.Errorf("fatal error: no existing AppArmor model found")
 			}
-		case "BPF":
-			return nil, fmt.Errorf("not supported by the BPF enforcer")
-		case "Seccomp":
+		}
+		// Seccomp
+		if (e & varmortypes.Seccomp) != 0 {
 			apm, err := varmorInterface.ArmorProfileModels(namespace).Get(context.Background(), name, metav1.GetOptions{})
-			if err == nil {
+			if err == nil && apm.Data.Profile.SeccompContent != "" {
 				profile.SeccompContent = apm.Data.Profile.SeccompContent
 			} else {
-				return nil, fmt.Errorf("fatal error: no existing model found")
+				return nil, fmt.Errorf("fatal error: no existing Seccomp model found")
 			}
-		default:
-			return nil, fmt.Errorf("unknown enforcer")
 		}
 
 	default:

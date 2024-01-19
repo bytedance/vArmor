@@ -18,7 +18,15 @@ import (
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
 )
 
+type Enforcer int
+
 const (
+	// VarmorPolicy Enforcer
+	AppArmor Enforcer = 0x00000001
+	BPF      Enforcer = 0x00000002
+	Seccomp  Enforcer = 0x00000004
+	Unknown  Enforcer = 0x00000008
+
 	// VarmorPolicy Mode
 	AlwaysAllowMode      varmor.VarmorPolicyMode = "AlwaysAllow"
 	RuntimeDefaultMode   varmor.VarmorPolicyMode = "RuntimeDefault"
@@ -51,7 +59,7 @@ const (
 	// AgentLabelSelector is the label selector for agents.
 	AgentLabelSelector string = "app.kubernetes.io/component=varmor-agent"
 
-	// Event type for tracing
+	// Event type for the bpf tracer
 	SchedProcessFork uint32 = 1
 	SchedProcessExec uint32 = 2
 )
@@ -151,4 +159,21 @@ type Syscall struct {
 type SeccompProfile struct {
 	DefaultAction string    `json:"defaultAction"`
 	Syscalls      []Syscall `json:"syscalls"`
+}
+
+var enforcerMap = map[string]Enforcer{
+	"AppArmor":           AppArmor,
+	"BPF":                BPF,
+	"Seccomp":            Seccomp,
+	"AppArmorBPF":        AppArmor | BPF,
+	"AppArmorSeccomp":    AppArmor | Seccomp,
+	"BPFSeccomp":         BPF | Seccomp,
+	"AppArmorBPFSeccomp": AppArmor | BPF | Seccomp,
+}
+
+func GetEnforcerType(enforcer string) Enforcer {
+	if t, ok := enforcerMap[enforcer]; ok {
+		return t
+	}
+	return Unknown
 }

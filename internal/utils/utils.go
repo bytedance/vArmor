@@ -42,6 +42,7 @@ import (
 
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
 	varmorconfig "github.com/bytedance/vArmor/internal/config"
+	varmortypes "github.com/bytedance/vArmor/internal/types"
 )
 
 const (
@@ -176,18 +177,24 @@ func PostDataToStatusService(reqBody []byte, debug bool, address string, port in
 }
 
 func modifyDeploymentAnnotationsAndEnv(enforcer string, target varmor.Target, deploy *appsV1.Deployment, profileName string, bpfExclusiveMode bool) {
+	e := varmortypes.GetEnforcerType(enforcer)
+
 	// Clean up the annotations
 	for key, value := range deploy.Spec.Template.Annotations {
-		switch enforcer {
-		case "BPF":
+		// BPF, BPFSeccomp
+		if (e & varmortypes.BPF) != 0 {
 			if strings.HasPrefix(key, "container.bpf.security.beta.varmor.org/") && value != "unconfined" {
 				delete(deploy.Spec.Template.Annotations, key)
 			}
-		case "AppArmor":
+		}
+		// AppArmor, AppArmorSeccomp
+		if (e & varmortypes.AppArmor) != 0 {
 			if strings.HasPrefix(key, "container.apparmor.security.beta.kubernetes.io/") && value != "unconfined" {
 				delete(deploy.Spec.Template.Annotations, key)
 			}
-		case "Seccomp":
+		}
+		// Seccomp, BPFSeccomp, AppArmorSeccomp
+		if (e & varmortypes.Seccomp) != 0 {
 			if strings.HasPrefix(key, "container.seccomp.security.beta.varmor.org/") && value != "unconfined" {
 				delete(deploy.Spec.Template.Annotations, key)
 			}
@@ -218,8 +225,8 @@ func modifyDeploymentAnnotationsAndEnv(enforcer string, target varmor.Target, de
 			continue
 		}
 
-		switch enforcer {
-		case "BPF":
+		// BPF, BPFSeccomp
+		if (e & varmortypes.BPF) != 0 {
 			key := fmt.Sprintf("container.bpf.security.beta.varmor.org/%s", container.Name)
 			if value, ok := deploy.Spec.Template.Annotations[key]; ok && value == "unconfined" {
 				continue
@@ -230,13 +237,17 @@ func modifyDeploymentAnnotationsAndEnv(enforcer string, target varmor.Target, de
 				key = fmt.Sprintf("container.apparmor.security.beta.kubernetes.io/%s", container.Name)
 				deploy.Spec.Template.Annotations[key] = "unconfined"
 			}
-		case "AppArmor":
+		}
+		// AppArmor, AppArmorSeccomp
+		if (e & varmortypes.AppArmor) != 0 {
 			key := fmt.Sprintf("container.apparmor.security.beta.kubernetes.io/%s", container.Name)
 			if value, ok := deploy.Spec.Template.Annotations[key]; ok && value == "unconfined" {
 				continue
 			}
 			deploy.Spec.Template.Annotations[key] = fmt.Sprintf("localhost/%s", profileName)
-		case "Seccomp":
+		}
+		// Seccomp, BPFSeccomp, AppArmorSeccomp
+		if (e & varmortypes.Seccomp) != 0 {
 			if (container.SecurityContext != nil && container.SecurityContext.SeccompProfile != nil) ||
 				(container.SecurityContext != nil && container.SecurityContext.Privileged != nil && *container.SecurityContext.Privileged) ||
 				(deploy.Spec.Template.Spec.SecurityContext != nil && deploy.Spec.Template.Spec.SecurityContext.SeccompProfile != nil) {
@@ -256,18 +267,24 @@ func modifyDeploymentAnnotationsAndEnv(enforcer string, target varmor.Target, de
 }
 
 func modifyStatefulSetAnnotationsAndEnv(enforcer string, target varmor.Target, stateful *appsV1.StatefulSet, profileName string, bpfExclusiveMode bool) {
+	e := varmortypes.GetEnforcerType(enforcer)
+
 	// Clean up the annotations
 	for key, value := range stateful.Spec.Template.Annotations {
-		switch enforcer {
-		case "BPF":
+		// BPF, BPFSeccomp
+		if (e & varmortypes.BPF) != 0 {
 			if strings.HasPrefix(key, "container.bpf.security.beta.varmor.org/") && value != "unconfined" {
 				delete(stateful.Spec.Template.Annotations, key)
 			}
-		case "AppArmor":
+		}
+		// AppArmor, AppArmorSeccomp
+		if (e & varmortypes.AppArmor) != 0 {
 			if strings.HasPrefix(key, "container.apparmor.security.beta.kubernetes.io/") && value != "unconfined" {
 				delete(stateful.Spec.Template.Annotations, key)
 			}
-		case "Seccomp":
+		}
+		// Seccomp, BPFSeccomp, AppArmorSeccomp
+		if (e & varmortypes.Seccomp) != 0 {
 			if strings.HasPrefix(key, "container.seccomp.security.beta.varmor.org/") && value != "unconfined" {
 				delete(stateful.Spec.Template.Annotations, key)
 			}
@@ -298,8 +315,8 @@ func modifyStatefulSetAnnotationsAndEnv(enforcer string, target varmor.Target, s
 			continue
 		}
 
-		switch enforcer {
-		case "BPF":
+		// BPF
+		if (e & varmortypes.BPF) != 0 {
 			key := fmt.Sprintf("container.bpf.security.beta.varmor.org/%s", container.Name)
 			if value, ok := stateful.Spec.Template.Annotations[key]; ok && value == "unconfined" {
 				continue
@@ -310,13 +327,17 @@ func modifyStatefulSetAnnotationsAndEnv(enforcer string, target varmor.Target, s
 				key = fmt.Sprintf("container.apparmor.security.beta.kubernetes.io/%s", container.Name)
 				stateful.Spec.Template.Annotations[key] = "unconfined"
 			}
-		case "AppArmor":
+		}
+		// AppArmor
+		if (e & varmortypes.AppArmor) != 0 {
 			key := fmt.Sprintf("container.apparmor.security.beta.kubernetes.io/%s", container.Name)
 			if value, ok := stateful.Spec.Template.Annotations[key]; ok && value == "unconfined" {
 				continue
 			}
 			stateful.Spec.Template.Annotations[key] = fmt.Sprintf("localhost/%s", profileName)
-		case "Seccomp":
+		}
+		// Seccomp
+		if (e & varmortypes.Seccomp) != 0 {
 			if (container.SecurityContext != nil && container.SecurityContext.SeccompProfile != nil) ||
 				(container.SecurityContext != nil && container.SecurityContext.Privileged != nil && *container.SecurityContext.Privileged) ||
 				(stateful.Spec.Template.Spec.SecurityContext != nil && stateful.Spec.Template.Spec.SecurityContext.SeccompProfile != nil) {
@@ -336,18 +357,24 @@ func modifyStatefulSetAnnotationsAndEnv(enforcer string, target varmor.Target, s
 }
 
 func modifyDaemonSetAnnotationsAndEnv(enforcer string, target varmor.Target, daemon *appsV1.DaemonSet, profileName string, bpfExclusiveMode bool) {
+	e := varmortypes.GetEnforcerType(enforcer)
+
 	// Clean up the annotations
 	for key, value := range daemon.Spec.Template.Annotations {
-		switch enforcer {
-		case "BPF":
+		// BPF
+		if (e & varmortypes.BPF) != 0 {
 			if strings.HasPrefix(key, "container.bpf.security.beta.varmor.org/") && value != "unconfined" {
 				delete(daemon.Spec.Template.Annotations, key)
 			}
-		case "AppArmor":
+		}
+		// AppArmor
+		if (e & varmortypes.AppArmor) != 0 {
 			if strings.HasPrefix(key, "container.apparmor.security.beta.kubernetes.io/") && value != "unconfined" {
 				delete(daemon.Spec.Template.Annotations, key)
 			}
-		case "Seccomp":
+		}
+		// Seccomp
+		if (e & varmortypes.Seccomp) != 0 {
 			if strings.HasPrefix(key, "container.seccomp.security.beta.varmor.org/") && value != "unconfined" {
 				delete(daemon.Spec.Template.Annotations, key)
 			}
@@ -378,8 +405,8 @@ func modifyDaemonSetAnnotationsAndEnv(enforcer string, target varmor.Target, dae
 			continue
 		}
 
-		switch enforcer {
-		case "BPF":
+		// BPF
+		if (e & varmortypes.BPF) != 0 {
 			key := fmt.Sprintf("container.bpf.security.beta.varmor.org/%s", container.Name)
 			if value, ok := daemon.Spec.Template.Annotations[key]; ok && value == "unconfined" {
 				continue
@@ -390,13 +417,17 @@ func modifyDaemonSetAnnotationsAndEnv(enforcer string, target varmor.Target, dae
 				key = fmt.Sprintf("container.apparmor.security.beta.kubernetes.io/%s", container.Name)
 				daemon.Spec.Template.Annotations[key] = "unconfined"
 			}
-		case "AppArmor":
+		}
+		// AppArmor
+		if (e & varmortypes.AppArmor) != 0 {
 			key := fmt.Sprintf("container.apparmor.security.beta.kubernetes.io/%s", container.Name)
 			if value, ok := daemon.Spec.Template.Annotations[key]; ok && value == "unconfined" {
 				continue
 			}
 			daemon.Spec.Template.Annotations[key] = fmt.Sprintf("localhost/%s", profileName)
-		case "Seccomp":
+		}
+		// Seccomp
+		if (e & varmortypes.Seccomp) != 0 {
 			if (container.SecurityContext != nil && container.SecurityContext.SeccompProfile != nil) ||
 				(container.SecurityContext != nil && container.SecurityContext.Privileged != nil && *container.SecurityContext.Privileged) ||
 				(daemon.Spec.Template.Spec.SecurityContext != nil && daemon.Spec.Template.Spec.SecurityContext.SeccompProfile != nil) {
