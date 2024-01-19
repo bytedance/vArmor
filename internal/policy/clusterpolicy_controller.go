@@ -137,10 +137,10 @@ func (c *ClusterPolicyController) updateVarmorClusterPolicy(oldObj, newObj inter
 }
 
 func (c *ClusterPolicyController) handleDeleteVarmorClusterPolicy(name string) error {
-
 	logger := c.log.WithName("handleDeleteVarmorPolicy()")
 
 	logger.Info("VarmorClusterPolicy", "name", name)
+
 	apName := varmorprofile.GenerateArmorProfileName("", name, true)
 
 	logger.Info("retrieve ArmorProfile")
@@ -266,12 +266,12 @@ func (c *ClusterPolicyController) ignoreAdd(vcp *varmor.VarmorClusterPolicy, log
 		return true
 	}
 
-	if vcp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode {
-		err := fmt.Errorf("the BehaviorModeling mode is not supported")
+	if !c.enableBehaviorModeling && vcp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode {
+		err := fmt.Errorf("the BehaviorModeling mode is not enabled")
 		logger.Error(err, "update VarmorClusterPolicy/status with forbidden info")
 		err = c.updateVarmorClusterPolicyStatus(vcp, "", true, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyCreated, apicorev1.ConditionFalse,
 			"Forbidden",
-			"The BehaviorModeling feature is not supported for the VarmorClusterPolicy controller.")
+			"The BehaviorModeling feature is not enabled.")
 		if err != nil {
 			logger.Error(err, "updateVarmorClusterPolicyStatus()")
 		}
@@ -324,6 +324,10 @@ func (c *ClusterPolicyController) handleAddVarmorClusterPolicy(vcp *varmor.Varmo
 	if err != nil {
 		logger.Error(err, "updateVarmorClusterPolicyStatus()")
 		return err
+	}
+
+	if vcp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode {
+		resetArmorProfileModelStatus(c.varmorInterface, ap.Namespace, ap.Name, logger)
 	}
 
 	c.statusManager.UpdateDesiredNumber = true
@@ -451,6 +455,9 @@ func (c *ClusterPolicyController) handleUpdateVarmorClusterPolicy(newVp *varmor.
 		return nil
 	}
 	newApSpec.Profile = *newProfile
+	if newVp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode {
+		newApSpec.BehaviorModeling.Duration = newVp.Spec.Policy.ModelingOptions.Duration
+	}
 
 	// Last, do update
 	statusKey := newVp.Name
@@ -466,6 +473,10 @@ func (c *ClusterPolicyController) handleUpdateVarmorClusterPolicy(newVp *varmor.
 		if err != nil {
 			logger.Error(err, "ArmorProfile().UpdateStatus()")
 			return err
+		}
+
+		if newVp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode {
+			resetArmorProfileModelStatus(c.varmorInterface, newVp.Namespace, oldAp.Name, logger)
 		}
 
 		logger.Info("2.2. reset the status cache", "status key", statusKey)

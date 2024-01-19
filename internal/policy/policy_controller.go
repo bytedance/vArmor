@@ -183,8 +183,14 @@ func (c *PolicyController) handleDeleteVarmorPolicy(namespace, name string) erro
 	return nil
 }
 
-func (c *PolicyController) updateVarmorPolicyStatus(vp *varmor.VarmorPolicy, profileName string, resetReady bool, phase varmor.VarmorPolicyPhase, condType varmor.VarmorPolicyConditionType,
-	status apicorev1.ConditionStatus, reason, message string) error {
+func (c *PolicyController) updateVarmorPolicyStatus(
+	vp *varmor.VarmorPolicy,
+	profileName string,
+	resetReady bool,
+	phase varmor.VarmorPolicyPhase,
+	condType varmor.VarmorPolicyConditionType,
+	status apicorev1.ConditionStatus,
+	reason, message string) error {
 
 	var exist bool = false
 
@@ -226,21 +232,6 @@ func (c *PolicyController) updateVarmorPolicyStatus(vp *varmor.VarmorPolicy, pro
 	_, err := c.varmorInterface.VarmorPolicies(vp.Namespace).UpdateStatus(context.Background(), vp, metav1.UpdateOptions{})
 
 	return err
-}
-
-func (c *PolicyController) resetArmorProfileModelStatus(namespace, name string, logger logr.Logger) error {
-	apm, err := c.varmorInterface.ArmorProfileModels(namespace).Get(context.Background(), name, metav1.GetOptions{})
-	if err == nil {
-		apm.Status.CompletedNumber = 0
-		apm.Status.Conditions = nil
-		apm.Status.Ready = false
-		_, err = c.varmorInterface.ArmorProfileModels(namespace).UpdateStatus(context.Background(), apm, metav1.UpdateOptions{})
-		if err != nil {
-			logger.Error(err, "resetArmorProfileModelStatus()")
-		}
-		return err
-	}
-	return nil
 }
 
 func (c *PolicyController) ignoreAdd(vp *varmor.VarmorPolicy, logger logr.Logger) bool {
@@ -311,6 +302,21 @@ func (c *PolicyController) ignoreAdd(vp *varmor.VarmorPolicy, logger logr.Logger
 	return false
 }
 
+func resetArmorProfileModelStatus(varmorInterface varmorinterface.CrdV1beta1Interface, namespace, name string, logger logr.Logger) error {
+	apm, err := varmorInterface.ArmorProfileModels(namespace).Get(context.Background(), name, metav1.GetOptions{})
+	if err == nil {
+		apm.Status.CompletedNumber = 0
+		apm.Status.Conditions = nil
+		apm.Status.Ready = false
+		_, err = varmorInterface.ArmorProfileModels(namespace).UpdateStatus(context.Background(), apm, metav1.UpdateOptions{})
+		if err != nil {
+			logger.Error(err, "resetArmorProfileModelStatus()")
+		}
+		return err
+	}
+	return nil
+}
+
 func (c *PolicyController) handleAddVarmorPolicy(vp *varmor.VarmorPolicy) error {
 	logger := c.log.WithName("handleAddVarmorPolicy()")
 
@@ -341,7 +347,7 @@ func (c *PolicyController) handleAddVarmorPolicy(vp *varmor.VarmorPolicy) error 
 	}
 
 	if vp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode {
-		c.resetArmorProfileModelStatus(ap.Namespace, ap.Name, logger)
+		resetArmorProfileModelStatus(c.varmorInterface, ap.Namespace, ap.Name, logger)
 	}
 
 	c.statusManager.UpdateDesiredNumber = true
@@ -490,7 +496,7 @@ func (c *PolicyController) handleUpdateVarmorPolicy(newVp *varmor.VarmorPolicy, 
 		}
 
 		if newVp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode {
-			c.resetArmorProfileModelStatus(newVp.Namespace, oldAp.Name, logger)
+			resetArmorProfileModelStatus(c.varmorInterface, newVp.Namespace, oldAp.Name, logger)
 		}
 
 		logger.Info("2.2. reset the status cache", "status key", statusKey)

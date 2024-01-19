@@ -79,14 +79,21 @@ func generatePolicyStatusKeyWithArmorProfile(ap *varmor.ArmorProfile) (string, e
 
 // generateModelingStatusKey build the key of StatusManager.ModelingStatuses from BehaviorData.
 //
-// Its format is "namespace/VarmorPolicyName".
+// Its format is "namespace/VarmorPolicyName" or "VarmorClusterPolicyName".
 func generateModelingStatusKey(behaviorData *varmortypes.BehaviorData) (string, error) {
+	clusterProfileNamePrefix := fmt.Sprintf(varmorprofile.ClusterProfileNameTemplate, behaviorData.Namespace, "")
 	profileNamePrefix := fmt.Sprintf(varmorprofile.ProfileNameTemplate, behaviorData.Namespace, "")
-	if strings.HasPrefix(behaviorData.ProfileName, profileNamePrefix) {
+
+	if strings.HasPrefix(behaviorData.ProfileName, clusterProfileNamePrefix) {
+		// cluster-scope profile
+		policyName := behaviorData.ProfileName[len(clusterProfileNamePrefix):]
+		return policyName, nil
+	} else if strings.HasPrefix(behaviorData.ProfileName, profileNamePrefix) {
+		// namespace-scope profile
 		policyName := behaviorData.ProfileName[len(profileNamePrefix):]
 		return behaviorData.Namespace + "/" + policyName, nil
 	} else {
-		return "", fmt.Errorf("behaviorData.ProfileName is illegal")
+		return "", fmt.Errorf("behaviorData.ProfileName (%s) is illegal")
 	}
 }
 

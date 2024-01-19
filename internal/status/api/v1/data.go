@@ -404,7 +404,7 @@ func (m *StatusManager) syncData(data string) error {
 	// Update the modeling status cache
 	statusKey, err := generateModelingStatusKey(&behaviorData)
 	if err != nil {
-		logger.Error(err, "generatemodelingStatusKey()")
+		logger.Error(err, "generatemodelingStatusKey()", "behavior data", behaviorData)
 		return nil
 	}
 	err = m.updateModelingStatus(statusKey, &behaviorData)
@@ -417,6 +417,7 @@ func (m *StatusManager) syncData(data string) error {
 	modelingStatus := m.ModelingStatuses[statusKey]
 	complete := false
 
+	// Build profiles and Update ArmorProfile for the BehaviorModeling mode.
 	if modelingStatus.CompletedNumber >= m.desiredNumber {
 		complete = true
 
@@ -437,7 +438,7 @@ func (m *StatusManager) syncData(data string) error {
 				logger.Info("3.1.2 no Seccomp profile built", "info", err)
 			}
 
-			// Update ArmorProfileModel
+			// Update ArmorProfileModel object
 			logger.Info("3.2 update profile to ArmorProfileModel", "namespace", behaviorData.Namespace, "name", behaviorData.ProfileName)
 			apm.Data.Profile.Content = apparmorProfile
 			apm.Data.Profile.SeccompContent = seccompProfile

@@ -191,6 +191,14 @@ func NewArmorProfile(obj interface{}, varmorInterface varmorinterface.CrdV1beta1
 		ap.Spec.Profile = *profile
 		ap.Spec.Target = *vcp.Spec.Target.DeepCopy()
 
+		if vcp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode {
+			if vcp.Spec.Policy.ModelingOptions.Duration == 0 {
+				return &ap, fmt.Errorf("invalid parameter: .Spec.Policy.ModelingOptions.Duration == 0")
+			}
+			ap.Spec.BehaviorModeling.Enable = true
+			ap.Spec.BehaviorModeling.Duration = vcp.Spec.Policy.ModelingOptions.Duration
+		}
+
 	} else {
 		vp := obj.(*varmor.VarmorPolicy)
 		profileName := GenerateArmorProfileName(vp.Namespace, vp.Name, clusterScope)
