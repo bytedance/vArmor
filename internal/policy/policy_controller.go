@@ -38,7 +38,6 @@ import (
 	varmorprofile "github.com/bytedance/vArmor/internal/profile"
 	statusmanager "github.com/bytedance/vArmor/internal/status/api/v1"
 	varmortypes "github.com/bytedance/vArmor/internal/types"
-	varmorutils "github.com/bytedance/vArmor/internal/utils"
 	varmorinterface "github.com/bytedance/vArmor/pkg/client/clientset/versioned/typed/varmor/v1beta1"
 	varmorinformer "github.com/bytedance/vArmor/pkg/client/informers/externalversions/varmor/v1beta1"
 	varmorlister "github.com/bytedance/vArmor/pkg/client/listers/varmor/v1beta1"
@@ -167,7 +166,7 @@ func (c *PolicyController) handleDeleteVarmorPolicy(namespace, name string) erro
 	if c.restartExistWorkloads {
 		// This will trigger the rolling upgrade of the target workload
 		logger.Info("delete annotations of target workloads asynchronously")
-		go varmorutils.UpdateWorkloadAnnotationsAndEnv(
+		go updateWorkloadAnnotationsAndEnv(
 			c.appsInterface,
 			namespace,
 			ap.Spec.Profile.Enforcer,
@@ -183,8 +182,14 @@ func (c *PolicyController) handleDeleteVarmorPolicy(namespace, name string) erro
 	return nil
 }
 
-func (c *PolicyController) updateVarmorPolicyStatus(vp *varmor.VarmorPolicy, profileName string, resetReady bool, phase varmor.VarmorPolicyPhase, condType varmor.VarmorPolicyConditionType,
-	status apicorev1.ConditionStatus, reason, message string) error {
+func (c *PolicyController) updateVarmorPolicyStatus(
+	vp *varmor.VarmorPolicy,
+	profileName string,
+	resetReady bool,
+	phase varmor.VarmorPolicyPhase,
+	condType varmor.VarmorPolicyConditionType,
+	status apicorev1.ConditionStatus,
+	reason, message string) error {
 
 	var exist bool = false
 
@@ -226,21 +231,6 @@ func (c *PolicyController) updateVarmorPolicyStatus(vp *varmor.VarmorPolicy, pro
 	_, err := c.varmorInterface.VarmorPolicies(vp.Namespace).UpdateStatus(context.Background(), vp, metav1.UpdateOptions{})
 
 	return err
-}
-
-func (c *PolicyController) resetArmorProfileModelStatus(namespace, name string, logger logr.Logger) error {
-	apm, err := c.varmorInterface.ArmorProfileModels(namespace).Get(context.Background(), name, metav1.GetOptions{})
-	if err == nil {
-		apm.Status.CompletedNumber = 0
-		apm.Status.Conditions = nil
-		apm.Status.Ready = false
-		_, err = c.varmorInterface.ArmorProfileModels(namespace).UpdateStatus(context.Background(), apm, metav1.UpdateOptions{})
-		if err != nil {
-			logger.Error(err, "resetArmorProfileModelStatus()")
-		}
-		return err
-	}
-	return nil
 }
 
 func (c *PolicyController) ignoreAdd(vp *varmor.VarmorPolicy, logger logr.Logger) bool {
@@ -311,6 +301,21 @@ func (c *PolicyController) ignoreAdd(vp *varmor.VarmorPolicy, logger logr.Logger
 	return false
 }
 
+func resetArmorProfileModelStatus(varmorInterface varmorinterface.CrdV1beta1Interface, namespace, name string, logger logr.Logger) error {
+	apm, err := varmorInterface.ArmorProfileModels(namespace).Get(context.Background(), name, metav1.GetOptions{})
+	if err == nil {
+		apm.Status.CompletedNumber = 0
+		apm.Status.Conditions = nil
+		apm.Status.Ready = false
+		_, err = varmorInterface.ArmorProfileModels(namespace).UpdateStatus(context.Background(), apm, metav1.UpdateOptions{})
+		if err != nil {
+			logger.Error(err, "resetArmorProfileModelStatus()")
+		}
+		return err
+	}
+	return nil
+}
+
 func (c *PolicyController) handleAddVarmorPolicy(vp *varmor.VarmorPolicy) error {
 	logger := c.log.WithName("handleAddVarmorPolicy()")
 
@@ -341,7 +346,7 @@ func (c *PolicyController) handleAddVarmorPolicy(vp *varmor.VarmorPolicy) error 
 	}
 
 	if vp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode {
-		c.resetArmorProfileModelStatus(ap.Namespace, ap.Name, logger)
+		resetArmorProfileModelStatus(c.varmorInterface, ap.Namespace, ap.Name, logger)
 	}
 
 	c.statusManager.UpdateDesiredNumber = true
@@ -356,7 +361,7 @@ func (c *PolicyController) handleAddVarmorPolicy(vp *varmor.VarmorPolicy) error 
 	if c.restartExistWorkloads {
 		// This will trigger the rolling upgrade of the target workload.
 		logger.Info("add annotations to target workload asynchronously")
-		go varmorutils.UpdateWorkloadAnnotationsAndEnv(
+		go updateWorkloadAnnotationsAndEnv(
 			c.appsInterface,
 			vp.Namespace,
 			vp.Spec.Policy.Enforcer,
@@ -490,7 +495,7 @@ func (c *PolicyController) handleUpdateVarmorPolicy(newVp *varmor.VarmorPolicy, 
 		}
 
 		if newVp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode {
-			c.resetArmorProfileModelStatus(newVp.Namespace, oldAp.Name, logger)
+			resetArmorProfileModelStatus(c.varmorInterface, newVp.Namespace, oldAp.Name, logger)
 		}
 
 		logger.Info("2.2. reset the status cache", "status key", statusKey)

@@ -71,12 +71,12 @@ spec:
                 properties:
                   enforcer:
                     description: 'Enforcer is used to specify which LSM to use for
-                      mandatory access control. Available values: AppArmor, BPF, Seccomp
-                      (WIP: AppArmorSeccomp, BPFSeccomp)'
+                      mandatory access control. Available values: AppArmor, BPF, Seccomp,
+                      AppArmorBPF, AppArmorSeccomp, BPFSeccomp, AppArmorBPFSeccomp'
                     type: string
                   enhanceProtect:
-                    description: EnhanceProtect is used for building a policy for
-                      Hardening & AttackProtection & VulMitigation rules from templates.
+                    description: EnhanceProtect is used to specify which built-in
+                      or custom rules are employed to protect the target workloads.
                     properties:
                       appArmorRawRules:
                         description: AppArmorRawRules is used to set native AppArmor
@@ -258,11 +258,12 @@ spec:
                     type: object
                   mode:
                     description: 'Available values: AlwaysAllow, RuntimeDefault, EnhanceProtect,
-                      BehaviorModeling, DefenseInDepth'
+                      BehaviorModeling, DefenseInDepth Note: BehaviorModeling and
+                      DefenseInDepth modes are experimental features and currently
+                      only work with AppArmor/Seccomp/AppArmorSeccomp enforcers.'
                     type: string
                   modelingOptions:
-                    description: '[Experimental] ModelingOptions is used for the modeling
-                      settings.'
+                    description: ModelingOptions is used for the modeling settings.
                     properties:
                       duration:
                         description: Duration is the duration in minutes to modeling

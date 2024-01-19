@@ -36,17 +36,17 @@ var (
 	// AgentName is the daemonset name of vArmor agent
 	AgentName = "varmor-agent"
 
-	// MLName is the deployment name of vArmor classifier
-	MLName = "varmor-classifier"
+	// ClassifierName is the deployment name of vArmor classifier
+	ClassifierName = "varmor-classifier"
 
-	// StatusServiceName is the name of ML classification service
-	MLServiceName = "varmor-classifier-svc"
+	// ClassifierServiceName is the name of classification service
+	ClassifierServiceName = "varmor-classifier-svc"
 
-	// MLServicePort is the port of ML classification service
-	MLServicePort = 5000
+	// ClassifierServicePort is the port of classification service
+	ClassifierServicePort = 5000
 
-	// MLPathClassifyPath is the path for classifing path
-	MLPathClassifyPath = "/api/v1/path"
+	// ClassifierPathClassifyPath is the path for classifing path
+	ClassifierPathClassifyPath = "/api/v1/path"
 
 	// StatusServiceName is the name of status service
 	StatusServiceName = "varmor-status-svc"

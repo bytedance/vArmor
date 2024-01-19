@@ -39,7 +39,6 @@ import (
 	varmorprofile "github.com/bytedance/vArmor/internal/profile"
 	statusmanager "github.com/bytedance/vArmor/internal/status/api/v1"
 	varmortypes "github.com/bytedance/vArmor/internal/types"
-	varmorutils "github.com/bytedance/vArmor/internal/utils"
 	varmorinterface "github.com/bytedance/vArmor/pkg/client/clientset/versioned/typed/varmor/v1beta1"
 	varmorinformer "github.com/bytedance/vArmor/pkg/client/informers/externalversions/varmor/v1beta1"
 	varmorlister "github.com/bytedance/vArmor/pkg/client/listers/varmor/v1beta1"
@@ -137,10 +136,10 @@ func (c *ClusterPolicyController) updateVarmorClusterPolicy(oldObj, newObj inter
 }
 
 func (c *ClusterPolicyController) handleDeleteVarmorClusterPolicy(name string) error {
-
 	logger := c.log.WithName("handleDeleteVarmorPolicy()")
 
 	logger.Info("VarmorClusterPolicy", "name", name)
+
 	apName := varmorprofile.GenerateArmorProfileName("", name, true)
 
 	logger.Info("retrieve ArmorProfile")
@@ -163,7 +162,7 @@ func (c *ClusterPolicyController) handleDeleteVarmorClusterPolicy(name string) e
 	if c.restartExistWorkloads {
 		// This will trigger the rolling upgrade of the target workloads
 		logger.Info("delete annotations of target workloads asynchronously")
-		go varmorutils.UpdateWorkloadAnnotationsAndEnv(
+		go updateWorkloadAnnotationsAndEnv(
 			c.appsInterface,
 			metav1.NamespaceAll,
 			ap.Spec.Profile.Enforcer,
@@ -266,12 +265,12 @@ func (c *ClusterPolicyController) ignoreAdd(vcp *varmor.VarmorClusterPolicy, log
 		return true
 	}
 
-	if vcp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode {
-		err := fmt.Errorf("the BehaviorModeling mode is not supported")
+	if !c.enableBehaviorModeling && vcp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode {
+		err := fmt.Errorf("the BehaviorModeling mode is not enabled")
 		logger.Error(err, "update VarmorClusterPolicy/status with forbidden info")
 		err = c.updateVarmorClusterPolicyStatus(vcp, "", true, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyCreated, apicorev1.ConditionFalse,
 			"Forbidden",
-			"The BehaviorModeling feature is not supported for the VarmorClusterPolicy controller.")
+			"The BehaviorModeling feature is not enabled.")
 		if err != nil {
 			logger.Error(err, "updateVarmorClusterPolicyStatus()")
 		}
@@ -326,6 +325,10 @@ func (c *ClusterPolicyController) handleAddVarmorClusterPolicy(vcp *varmor.Varmo
 		return err
 	}
 
+	if vcp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode {
+		resetArmorProfileModelStatus(c.varmorInterface, ap.Namespace, ap.Name, logger)
+	}
+
 	c.statusManager.UpdateDesiredNumber = true
 
 	logger.Info("create ArmorProfile")
@@ -338,7 +341,7 @@ func (c *ClusterPolicyController) handleAddVarmorClusterPolicy(vcp *varmor.Varmo
 	if c.restartExistWorkloads {
 		// This will trigger the rolling upgrade of the target workloads
 		logger.Info("add annotations to target workload asynchronously")
-		go varmorutils.UpdateWorkloadAnnotationsAndEnv(
+		go updateWorkloadAnnotationsAndEnv(
 			c.appsInterface,
 			metav1.NamespaceAll,
 			vcp.Spec.Policy.Enforcer,
@@ -451,6 +454,9 @@ func (c *ClusterPolicyController) handleUpdateVarmorClusterPolicy(newVp *varmor.
 		return nil
 	}
 	newApSpec.Profile = *newProfile
+	if newVp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode {
+		newApSpec.BehaviorModeling.Duration = newVp.Spec.Policy.ModelingOptions.Duration
+	}
 
 	// Last, do update
 	statusKey := newVp.Name
@@ -466,6 +472,10 @@ func (c *ClusterPolicyController) handleUpdateVarmorClusterPolicy(newVp *varmor.
 		if err != nil {
 			logger.Error(err, "ArmorProfile().UpdateStatus()")
 			return err
+		}
+
+		if newVp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode {
+			resetArmorProfileModelStatus(c.varmorInterface, newVp.Namespace, oldAp.Name, logger)
 		}
 
 		logger.Info("2.2. reset the status cache", "status key", statusKey)

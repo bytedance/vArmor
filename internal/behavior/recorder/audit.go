@@ -74,7 +74,7 @@ func (r *AuditRecorder) Init() error {
 	return nil
 }
 
-// EventHandler save the audit event of AppArmor that comes from rsyslog
+// EventHandler records the audit event of AppArmor & Seccomp that comes from the audit system.
 func (r *AuditRecorder) eventHandler() {
 	for {
 		select {

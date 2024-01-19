@@ -1,5 +1,5 @@
 apiVersion: crd.varmor.org/v1beta1
-kind: VarmorPolicy
+kind: VarmorClusterPolicy
 metadata:
   name: demo-5
   namespace: demo
@@ -10,8 +10,8 @@ spec:
       matchLabels:
         app: demo-5
   policy:
-    enforcer: Seccomp
+    enforcer: AppArmorSeccomp
     # mode: DefenseInDepth
     mode: BehaviorModeling
     modelingOptions:
-      duration: 1
+      duration: 3

@@ -137,13 +137,16 @@ type VarmorPolicyMode string
 
 type Policy struct {
 	// Enforcer is used to specify which LSM to use for mandatory access control.
-	// Available values: AppArmor, BPF, Seccomp (WIP: AppArmorSeccomp, BPFSeccomp)
+	// Available values: AppArmor, BPF, Seccomp, AppArmorBPF, AppArmorSeccomp, BPFSeccomp, AppArmorBPFSeccomp
 	Enforcer string `json:"enforcer"`
 	// Available values: AlwaysAllow, RuntimeDefault, EnhanceProtect, BehaviorModeling, DefenseInDepth
+	// Note:
+	//    BehaviorModeling and DefenseInDepth modes are experimental features and currently only work
+	//    with AppArmor/Seccomp/AppArmorSeccomp enforcers.
 	Mode VarmorPolicyMode `json:"mode"`
-	// EnhanceProtect is used for building a policy for Hardening & AttackProtection & VulMitigation rules from templates.
+	// EnhanceProtect is used to specify which built-in or custom rules are employed to protect the target workloads.
 	EnhanceProtect EnhanceProtect `json:"enhanceProtect,omitempty"`
-	// [Experimental] ModelingOptions is used for the modeling settings.
+	// ModelingOptions is used for the modeling settings.
 	ModelingOptions ModelingOptions `json:"modelingOptions,omitempty"`
 	// Privileged is used to identify whether the policy is for the privileged container.
 	// Default is false. If set to `nil` or `false`, the EnhanceProtect mode will build enhanced protection rules

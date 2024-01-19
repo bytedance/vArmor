@@ -65,7 +65,7 @@ type Agent struct {
 	appArmorProfileDir       string
 	seccompProfileDir        string
 	bpfEnforcer              *varmorbpfenforcer.BpfEnforcer
-	runtimeMonitor           *varmorruntime.RuntimeMonitor
+	monitor                  *varmorruntime.RuntimeMonitor
 	waitExistingApSync       sync.WaitGroup
 	existingApCount          int
 	processedApCount         int
@@ -155,10 +155,20 @@ func NewAgent(
 	}
 	log.Info("NewAgent", "nodeName", agent.nodeName)
 
-	// RuntimeMonitor initialization
+	// Initialize the runtime monitor for BehaviorModeling mode or BPF enforcer.
 	if agent.enableBehaviorModeling || agent.bpfLsmSupported {
 		log.Info("initialize the RuntimeMonitor")
-		agent.runtimeMonitor, err = varmorruntime.NewRuntimeMonitor(log.WithName("RUNTIME-MONITOR"))
+		agent.monitor, err = varmorruntime.NewRuntimeMonitor(log.WithName("RUNTIME-MONITOR"))
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// [Experimental feature] Initialize the tracer for BehaviorModeling mode.
+	// It only works with AppArmor LSM and Seccomp for now.
+	if agent.enableBehaviorModeling {
+		log.Info("initialize the tracer for BehaviorModeling mode")
+		agent.tracer, err = varmortracer.NewTracer(log.WithName("TRACER"))
 		if err != nil {
 			return nil, err
 		}
@@ -186,15 +196,6 @@ func NewAgent(
 		} else {
 			varmorapparmor.RemoveUnknown()
 		}
-
-		// [Experimental feature] Initialize the tracer for BehaviorModeling mode (It only works with AppArmor LSM for now).
-		if agent.enableBehaviorModeling {
-			log.Info("initialize the tracer for BehaviorModeling mode")
-			agent.tracer, err = varmortracer.NewTracer(log.WithName("TRACER"))
-			if err != nil {
-				return nil, err
-			}
-		}
 	}
 
 	// BPF LSM initialization
@@ -205,7 +206,7 @@ func NewAgent(
 			return nil, err
 		}
 
-		agent.runtimeMonitor.SetTaskNotifyChs(
+		agent.monitor.SetTaskNotifyChs(
 			agent.bpfEnforcer.TaskCreateCh,
 			agent.bpfEnforcer.TaskDeleteCh,
 			agent.bpfEnforcer.TaskDeleteSyncCh)
@@ -293,33 +294,27 @@ func (agent *Agent) sendStatus(ap *varmor.ArmorProfile, status varmortypes.Statu
 	return varmorutils.PostStatusToStatusService(reqBody, agent.debug, agent.managerIP, agent.managerPort)
 }
 
-func (agent *Agent) selectEnforcer(ap *varmor.ArmorProfile, logger logr.Logger) string {
-	switch ap.Spec.Profile.Enforcer {
-	case "AppArmor":
-		if agent.appArmorSupported {
-			return "AppArmor"
-		} else {
-			agent.sendStatus(ap, varmortypes.Failed, "the AppArmor LSM is not supported")
-			return ""
-		}
-	case "BPF":
-		if !ap.Spec.BehaviorModeling.Enable && agent.bpfLsmSupported {
-			return "BPF"
-		} else {
-			agent.sendStatus(ap, varmortypes.Failed, "the BPF LSM may not be supported, "+
-				"the BPF enforcer may not be enabled, or the BPF enforcer not support the BehaviorModeling mode.")
-			return ""
-		}
-	case "Seccomp":
-		return "Seccomp"
-	default:
-		if agent.appArmorSupported {
-			return "AppArmor"
-		} else {
-			agent.sendStatus(ap, varmortypes.Failed, "the AppArmor LSM is not supported")
-			return ""
-		}
+func (agent *Agent) selectEnforcer(ap *varmor.ArmorProfile, logger logr.Logger) varmortypes.Enforcer {
+	e := varmortypes.GetEnforcerType(ap.Spec.Profile.Enforcer)
+
+	if (e&varmortypes.AppArmor != 0) && !agent.appArmorSupported {
+		agent.sendStatus(ap, varmortypes.Failed, "the AppArmor LSM is not supported")
+		return e
 	}
+
+	if ((e&varmortypes.BPF != 0) && !agent.bpfLsmSupported) ||
+		((e&varmortypes.BPF != 0) && agent.bpfLsmSupported && ap.Spec.BehaviorModeling.Enable) {
+		agent.sendStatus(ap, varmortypes.Failed, "the BPF LSM may not be supported, "+
+			"the BPF enforcer may not be enabled, or the BPF enforcer not support the BehaviorModeling mode.")
+		return e
+	}
+
+	if e&varmortypes.Unknown != 0 {
+		agent.sendStatus(ap, varmortypes.Failed, "unknown enforcer")
+		return e
+	}
+
+	return e
 }
 
 // handleCreateOrUpdateArmorProfile load or reload AppArmor Profile for containers.
@@ -340,12 +335,13 @@ func (agent *Agent) handleCreateOrUpdateArmorProfile(ap *varmor.ArmorProfile, ke
 	}()
 
 	enforcer := agent.selectEnforcer(ap, logger)
-	if enforcer == "" {
+	if enforcer == varmortypes.Unknown {
 		logger.Info("the enforcer is not supported")
 		return nil
 	}
 
-	// [Experimental feature] For BehaviorModeling mode (only works with AppArmor/Seccomp enforcer for now).
+	// [Experimental feature] For BehaviorModeling mode,
+	// only works with AppArmor/Seccomp/AppArmorSeccomp enforcer for now.
 	needLoadApparmor := true
 	if agent.enableBehaviorModeling &&
 		ap.Spec.BehaviorModeling.Enable &&
@@ -366,7 +362,7 @@ func (agent *Agent) handleCreateOrUpdateArmorProfile(ap *varmor.ArmorProfile, ke
 			// Create a new modeller and start modeling.
 			modeller := varmorbehavior.NewBehaviorModeller(
 				agent.tracer,
-				agent.runtimeMonitor,
+				agent.monitor,
 				agent.nodeName,
 				ap.Namespace,
 				ap.Name,
@@ -393,8 +389,8 @@ func (agent *Agent) handleCreateOrUpdateArmorProfile(ap *varmor.ArmorProfile, ke
 		}
 	}
 
-	switch enforcer {
-	case "AppArmor":
+	// AppArmor
+	if (enforcer & varmortypes.AppArmor) != 0 {
 		// Save and load AppArmor profile.
 		if agent.appArmorSupported && needLoadApparmor {
 			logger.Info(fmt.Sprintf("saving the AppArmor profile ('%s') to Node/%s", ap.Spec.Profile.Name, agent.nodeName))
@@ -423,8 +419,10 @@ func (agent *Agent) handleCreateOrUpdateArmorProfile(ap *varmor.ArmorProfile, ke
 				}
 			}
 		}
+	}
 
-	case "BPF":
+	// BPF
+	if (enforcer & varmortypes.BPF) != 0 {
 		// Save BPF profile.
 		logger.Info(fmt.Sprintf("saving and applying the BPF profile ('%s')", ap.Spec.Profile.Name))
 		err := agent.bpfEnforcer.SaveAndApplyBpfProfile(ap.Spec.Profile.Name, *ap.Spec.Profile.BpfContent)
@@ -432,8 +430,10 @@ func (agent *Agent) handleCreateOrUpdateArmorProfile(ap *varmor.ArmorProfile, ke
 			logger.Error(err, "SaveAndApplyBpfProfile()")
 			return agent.sendStatus(ap, varmortypes.Failed, "SaveBpfProfile(): "+err.Error())
 		}
+	}
 
-	case "Seccomp":
+	// Seccomp
+	if (enforcer & varmortypes.Seccomp) != 0 {
 		// Save Seccomp profile.
 		logger.Info(fmt.Sprintf("saving the Seccomp profile ('%s') to Node/%s", ap.Spec.Profile.Name, agent.nodeName))
 		profilePath := filepath.Join(agent.seccompProfileDir, ap.Spec.Profile.Name)
@@ -462,7 +462,7 @@ func (agent *Agent) handleDeleteArmorProfile(namespace, name, key string) error 
 		delete(agent.modellers, key)
 	}
 
-	// BPF enforcer
+	// BPF
 	if agent.bpfLsmSupported && agent.bpfEnforcer.IsBpfProfileExist(name) {
 		logger.Info(fmt.Sprintf("unloading the BPF profile ('%s')", name))
 		err := agent.bpfEnforcer.DeleteBpfProfile(name)
@@ -471,7 +471,7 @@ func (agent *Agent) handleDeleteArmorProfile(namespace, name, key string) error 
 		}
 	}
 
-	// AppArmor enforcer
+	// AppArmor
 	if agent.appArmorSupported {
 		if loaded, _ := varmorapparmor.IsAppArmorProfileLoaded(name); loaded {
 			logger.Info(fmt.Sprintf("unloading the AppArmor profile ('%s') from Node/%s's kernel", name, agent.nodeName))
@@ -491,7 +491,7 @@ func (agent *Agent) handleDeleteArmorProfile(namespace, name, key string) error 
 		}
 	}
 
-	// Seccomp enforcer
+	// Seccomp
 	profilePath := filepath.Join(agent.seccompProfileDir, name)
 	if varmorseccomp.SeccompProfileExist(profilePath) {
 		logger.Info(fmt.Sprintf("removing the Seccomp profile ('%s') from Node/%s", name, agent.nodeName))
@@ -594,7 +594,7 @@ func (agent *Agent) Run(workers int, stopCh <-chan struct{}) {
 	}
 
 	if agent.enableBehaviorModeling || agent.bpfLsmSupported {
-		go agent.runtimeMonitor.Run(stopCh)
+		go agent.monitor.Run(stopCh)
 	}
 
 	if agent.bpfLsmSupported {
@@ -603,7 +603,7 @@ func (agent *Agent) Run(workers int, stopCh <-chan struct{}) {
 		// Wait for all existing ArmorProfile objects have been processed.
 		if agent.existingApCount > 0 {
 			agent.waitExistingApSync.Wait()
-			err := agent.runtimeMonitor.CollectExistingTargetContainers()
+			err := agent.monitor.CollectExistingTargetContainers()
 			if err != nil {
 				logger.Error(err, "CollectExistingTargetContainers() failed")
 			}
@@ -632,7 +632,7 @@ func (agent *Agent) CleanUp() {
 	}
 
 	if agent.enableBehaviorModeling || agent.bpfLsmSupported {
-		agent.runtimeMonitor.Close()
+		agent.monitor.Close()
 	}
 
 	if agent.bpfLsmSupported {

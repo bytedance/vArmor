@@ -102,7 +102,7 @@ func indexOfZero(array []uint8) int {
 	return 0
 }
 
-// EventHandler save the audit event of AppArmor that comes from rsyslog
+// EventHandler records the bpf event that comes from the BPF tracer
 func (r *BpfRecorder) eventHandler() {
 	for {
 		select {
