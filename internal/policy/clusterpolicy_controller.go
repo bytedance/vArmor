@@ -39,7 +39,6 @@ import (
 	varmorprofile "github.com/bytedance/vArmor/internal/profile"
 	statusmanager "github.com/bytedance/vArmor/internal/status/api/v1"
 	varmortypes "github.com/bytedance/vArmor/internal/types"
-	varmorutils "github.com/bytedance/vArmor/internal/utils"
 	varmorinterface "github.com/bytedance/vArmor/pkg/client/clientset/versioned/typed/varmor/v1beta1"
 	varmorinformer "github.com/bytedance/vArmor/pkg/client/informers/externalversions/varmor/v1beta1"
 	varmorlister "github.com/bytedance/vArmor/pkg/client/listers/varmor/v1beta1"
@@ -163,7 +162,7 @@ func (c *ClusterPolicyController) handleDeleteVarmorClusterPolicy(name string) e
 	if c.restartExistWorkloads {
 		// This will trigger the rolling upgrade of the target workloads
 		logger.Info("delete annotations of target workloads asynchronously")
-		go varmorutils.UpdateWorkloadAnnotationsAndEnv(
+		go updateWorkloadAnnotationsAndEnv(
 			c.appsInterface,
 			metav1.NamespaceAll,
 			ap.Spec.Profile.Enforcer,
@@ -342,7 +341,7 @@ func (c *ClusterPolicyController) handleAddVarmorClusterPolicy(vcp *varmor.Varmo
 	if c.restartExistWorkloads {
 		// This will trigger the rolling upgrade of the target workloads
 		logger.Info("add annotations to target workload asynchronously")
-		go varmorutils.UpdateWorkloadAnnotationsAndEnv(
+		go updateWorkloadAnnotationsAndEnv(
 			c.appsInterface,
 			metav1.NamespaceAll,
 			vcp.Spec.Policy.Enforcer,

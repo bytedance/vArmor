@@ -38,7 +38,6 @@ import (
 	varmorprofile "github.com/bytedance/vArmor/internal/profile"
 	statusmanager "github.com/bytedance/vArmor/internal/status/api/v1"
 	varmortypes "github.com/bytedance/vArmor/internal/types"
-	varmorutils "github.com/bytedance/vArmor/internal/utils"
 	varmorinterface "github.com/bytedance/vArmor/pkg/client/clientset/versioned/typed/varmor/v1beta1"
 	varmorinformer "github.com/bytedance/vArmor/pkg/client/informers/externalversions/varmor/v1beta1"
 	varmorlister "github.com/bytedance/vArmor/pkg/client/listers/varmor/v1beta1"
@@ -167,7 +166,7 @@ func (c *PolicyController) handleDeleteVarmorPolicy(namespace, name string) erro
 	if c.restartExistWorkloads {
 		// This will trigger the rolling upgrade of the target workload
 		logger.Info("delete annotations of target workloads asynchronously")
-		go varmorutils.UpdateWorkloadAnnotationsAndEnv(
+		go updateWorkloadAnnotationsAndEnv(
 			c.appsInterface,
 			namespace,
 			ap.Spec.Profile.Enforcer,
@@ -362,7 +361,7 @@ func (c *PolicyController) handleAddVarmorPolicy(vp *varmor.VarmorPolicy) error 
 	if c.restartExistWorkloads {
 		// This will trigger the rolling upgrade of the target workload.
 		logger.Info("add annotations to target workload asynchronously")
-		go varmorutils.UpdateWorkloadAnnotationsAndEnv(
+		go updateWorkloadAnnotationsAndEnv(
 			c.appsInterface,
 			vp.Namespace,
 			vp.Spec.Policy.Enforcer,

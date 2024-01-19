@@ -141,7 +141,7 @@ func main() {
 			debug,
 			managerIP,
 			config.StatusServicePort,
-			config.MLServicePort,
+			config.ClassifierServicePort,
 			stopCh,
 			log.Log.WithName("AGENT"),
 		)

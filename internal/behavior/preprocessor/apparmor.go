@@ -255,17 +255,17 @@ func (p *DataPreprocessor) trimPath(path, dmask string) string {
 		return path
 	}
 
-	// Exclude some sensitive directories before replacing the random pattern of path with the ML classifier.
+	// Exclude some sensitive directories before replacing the random pattern of path with the classifier.
 	for _, excludePath := range randomExclusions {
 		if strings.HasPrefix(path, excludePath) {
 			return path
 		}
 	}
 
-	// Replace the random pattern of path with the ML classifier.
-	output, err := varmorutils.RequestMLService([]byte(path), p.debug, p.mlIP, p.mlPort)
+	// Replace the random pattern of path with the classifier.
+	output, err := varmorutils.RequestClassifierService([]byte(path), p.debug, p.mlIP, p.mlPort)
 	if err != nil {
-		p.log.Error(err, "varmorutils.RequestMLService() failed")
+		p.log.Error(err, "varmorutils.RequestClassifierService() failed")
 		return path
 	}
 
