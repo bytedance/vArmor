@@ -16,7 +16,7 @@ bpfLsmEnforcer:
   enabled: false
 
 restartExistWorkloads:
-  enabled: false
+  enabled: true
 
 unloadAllAaProfiles:
   enabled: false
