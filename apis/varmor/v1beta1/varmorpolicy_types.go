@@ -147,7 +147,7 @@ type EnhanceProtect struct {
 	// BpfRawRules is used to set native BPF rules
 	// +optional
 	BpfRawRules BpfRawRules `json:"bpfRawRules,omitempty"`
-	// SyscallRawRules is used to set the syscalls rules on top of the AlwaysAllow mode
+	// SyscallRawRules is used to set the syscalls blocklist rules with Seccomp enforcer.
 	// +optional
 	SyscallRawRules []specs.LinuxSyscall `json:"syscallRawRules,omitempty"`
 	// Privileged is used to identify whether the policy is for the privileged container.

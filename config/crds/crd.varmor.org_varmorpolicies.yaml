@@ -258,8 +258,8 @@ spec:
                           not build Seccomp profile for the target workloads."
                         type: boolean
                       syscallRawRules:
-                        description: SyscallRawRules is used to set the syscalls rules
-                          on top of the AlwaysAllow mode
+                        description: SyscallRawRules is used to set the syscalls blocklist
+                          rules with Seccomp enforcer.
                         items:
                           description: LinuxSyscall is used to match a syscall in
                             Seccomp
