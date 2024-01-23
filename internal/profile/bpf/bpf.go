@@ -923,11 +923,11 @@ func generateRawMountRule(rule varmor.MountRule, bpfContent *varmor.BpfContent) 
 	return nil
 }
 
-func GenerateEnhanceProtectProfile(enhanceProtect *varmor.EnhanceProtect, bpfContent *varmor.BpfContent, privileged bool) error {
+func GenerateEnhanceProtectProfile(enhanceProtect *varmor.EnhanceProtect, bpfContent *varmor.BpfContent) error {
 	var err error
 
 	// Add default rules for unprivileged containers based on the rules of the RuntimeDefault mode
-	if !privileged {
+	if !enhanceProtect.Privileged {
 		err = GenerateRuntimeDefaultProfile(bpfContent)
 		if err != nil {
 			return err
@@ -936,7 +936,7 @@ func GenerateEnhanceProtectProfile(enhanceProtect *varmor.EnhanceProtect, bpfCon
 
 	// Hardening
 	for _, rule := range enhanceProtect.HardeningRules {
-		err = generateHardeningRules(rule, bpfContent, privileged)
+		err = generateHardeningRules(rule, bpfContent, enhanceProtect.Privileged)
 		if err != nil {
 			return err
 		}
@@ -1001,7 +1001,7 @@ func GenerateEnhanceProtectProfile(enhanceProtect *varmor.EnhanceProtect, bpfCon
 		}
 	}
 
-	if privileged {
+	if enhanceProtect.Privileged {
 		for _, rule := range enhanceProtect.BpfRawRules.Mounts {
 			err := generateRawMountRule(rule, bpfContent)
 			if err != nil {

@@ -151,16 +151,6 @@ type BpfTraceEvent struct {
 	Filename   [64]uint8
 }
 
-type Syscall struct {
-	Names  []string `json:"names"`
-	Action string   `json:"action"`
-}
-
-type SeccompProfile struct {
-	DefaultAction string    `json:"defaultAction"`
-	Syscalls      []Syscall `json:"syscalls"`
-}
-
 var enforcerMap = map[string]Enforcer{
 	"AppArmor":           AppArmor,
 	"BPF":                BPF,

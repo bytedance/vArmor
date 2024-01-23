@@ -94,7 +94,6 @@ func GenerateProfile(policy varmor.Policy, name string, namespace string, varmor
 			}
 			profile.BpfContent = &bpfContent
 		}
-		// Seccomp. TODO: RuntimeDefault profile
 
 	case varmortypes.EnhanceProtectMode:
 		if e == varmortypes.Unknown {
@@ -102,18 +101,24 @@ func GenerateProfile(policy varmor.Policy, name string, namespace string, varmor
 		}
 		// AppArmor
 		if (e & varmortypes.AppArmor) != 0 {
-			profile.Content = apparmorprofile.GenerateEnhanceProtectProfile(&policy.EnhanceProtect, name, policy.Privileged)
+			profile.Content = apparmorprofile.GenerateEnhanceProtectProfile(&policy.EnhanceProtect, name)
 		}
 		// BPF
 		if (e & varmortypes.BPF) != 0 {
 			var bpfContent varmor.BpfContent
-			err = bpfprofile.GenerateEnhanceProtectProfile(&policy.EnhanceProtect, &bpfContent, policy.Privileged)
+			err = bpfprofile.GenerateEnhanceProtectProfile(&policy.EnhanceProtect, &bpfContent)
 			if err != nil {
 				return nil, err
 			}
 			profile.BpfContent = &bpfContent
 		}
-		// Seccomp. TODO: RuntimeDefault profile + Behavior Model + built-in rules
+		// Seccomp
+		if (e & varmortypes.Seccomp) != 0 {
+			profile.SeccompContent, err = seccompprofile.GenerateEnhanceProtectProfile(&policy.EnhanceProtect, name)
+			if err != nil {
+				return nil, err
+			}
+		}
 
 	case varmortypes.BehaviorModelingMode:
 		if e == varmortypes.Unknown {

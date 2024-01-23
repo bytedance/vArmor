@@ -248,6 +248,60 @@ spec:
                         items:
                           type: string
                         type: array
+                      privileged:
+                        description: 'Privileged is used to identify whether the policy
+                          is for the privileged container. Default is false. If set
+                          to `nil` or `false`, the EnhanceProtect mode will build
+                          AppArmor or BPF profile on top of the RuntimeDefault mode.
+                          Otherwise, it will build AppArmor or BPF profile on top
+                          of the AlwaysAllow mode. Note: If set to `true`, vArmor
+                          will not build Seccomp profile for the target workloads.'
+                        type: boolean
+                      syscallRawRules:
+                        description: SyscallRawRules is used to set the syscalls rules
+                          on top of the AlwaysAllow mode
+                        items:
+                          description: LinuxSyscall is used to match a syscall in
+                            Seccomp
+                          properties:
+                            action:
+                              description: LinuxSeccompAction taken upon Seccomp rule
+                                match
+                              type: string
+                            args:
+                              items:
+                                description: LinuxSeccompArg used for matching specific
+                                  syscall arguments in Seccomp
+                                properties:
+                                  index:
+                                    type: integer
+                                  op:
+                                    description: LinuxSeccompOperator used to match
+                                      syscall arguments in Seccomp
+                                    type: string
+                                  value:
+                                    format: int64
+                                    type: integer
+                                  valueTwo:
+                                    format: int64
+                                    type: integer
+                                required:
+                                - index
+                                - op
+                                - value
+                                type: object
+                              type: array
+                            errnoRet:
+                              type: integer
+                            names:
+                              items:
+                                type: string
+                              type: array
+                          required:
+                          - action
+                          - names
+                          type: object
+                        type: array
                       vulMitigationRules:
                         description: VulMitigationRules are used to specify the built-in
                           vulnerability mitigation rules
@@ -270,13 +324,6 @@ spec:
                     required:
                     - duration
                     type: object
-                  privileged:
-                    description: Privileged is used to identify whether the policy
-                      is for the privileged container. Default is false. If set to
-                      `nil` or `false`, the EnhanceProtect mode will build enhanced
-                      protection rules on top of the RuntimeDefault mode. Otherwise,
-                      it will enhance protection on top of the AlwaysAllow mode.
-                    type: boolean
                 required:
                 - enforcer
                 - mode

@@ -17,6 +17,7 @@ limitations under the License.
 package v1beta1
 
 import (
+	"github.com/opencontainers/runtime-spec/specs-go"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -126,6 +127,13 @@ type EnhanceProtect struct {
 	AppArmorRawRules []string `json:"appArmorRawRules,omitempty"`
 	// BpfRawRules is used to set native BPF rules
 	BpfRawRules BpfRawRules `json:"bpfRawRules,omitempty"`
+	// SyscallRawRules is used to set the syscalls rules on top of the AlwaysAllow mode
+	SyscallRawRules []specs.LinuxSyscall `json:"syscallRawRules,omitempty"`
+	// Privileged is used to identify whether the policy is for the privileged container.
+	// Default is false. If set to `nil` or `false`, the EnhanceProtect mode will build AppArmor or BPF profile on
+	// top of the RuntimeDefault mode. Otherwise, it will build AppArmor or BPF profile on top of the AlwaysAllow mode.
+	// Note: If set to `true`, vArmor will not build Seccomp profile for the target workloads.
+	Privileged bool `json:"privileged,omitempty"`
 }
 
 type ModelingOptions struct {
@@ -148,10 +156,6 @@ type Policy struct {
 	EnhanceProtect EnhanceProtect `json:"enhanceProtect,omitempty"`
 	// ModelingOptions is used for the modeling settings.
 	ModelingOptions ModelingOptions `json:"modelingOptions,omitempty"`
-	// Privileged is used to identify whether the policy is for the privileged container.
-	// Default is false. If set to `nil` or `false`, the EnhanceProtect mode will build enhanced protection rules
-	// on top of the RuntimeDefault mode. Otherwise, it will enhance protection on top of the AlwaysAllow mode.
-	Privileged bool `json:"privileged,omitempty"`
 }
 
 // VarmorPolicySpec defines the desired state of VarmorPolicy or VarmorClusterPolicy
