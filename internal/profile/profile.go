@@ -195,6 +195,7 @@ func NewArmorProfile(obj interface{}, varmorInterface varmorinterface.CrdV1beta1
 		}
 		ap.Spec.Profile = *profile
 		ap.Spec.Target = *vcp.Spec.Target.DeepCopy()
+		ap.Spec.UpdateExistingWorkloads = vcp.Spec.UpdateExistingWorkloads
 
 		if vcp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode {
 			if vcp.Spec.Policy.ModelingOptions.Duration == 0 {
@@ -218,6 +219,7 @@ func NewArmorProfile(obj interface{}, varmorInterface varmorinterface.CrdV1beta1
 		}
 		ap.Spec.Profile = *profile
 		ap.Spec.Target = *vp.Spec.Target.DeepCopy()
+		ap.Spec.UpdateExistingWorkloads = vp.Spec.UpdateExistingWorkloads
 
 		if vp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode {
 			if vp.Spec.Policy.ModelingOptions.Duration == 0 {

@@ -74,7 +74,6 @@ func modifyDeploymentAnnotationsAndEnv(enforcer string, target varmor.Target, de
 	if deploy.Spec.Template.Annotations == nil {
 		deploy.Spec.Template.Annotations = make(map[string]string)
 	}
-	deploy.Spec.Template.Annotations["controller.varmor.org/restartedAt"] = time.Now().Format(time.RFC3339)
 
 	if profileName == "" {
 		return
@@ -164,7 +163,6 @@ func modifyStatefulSetAnnotationsAndEnv(enforcer string, target varmor.Target, s
 	if stateful.Spec.Template.Annotations == nil {
 		stateful.Spec.Template.Annotations = make(map[string]string)
 	}
-	stateful.Spec.Template.Annotations["controller.varmor.org/restartedAt"] = time.Now().Format(time.RFC3339)
 
 	if profileName == "" {
 		return
@@ -254,7 +252,6 @@ func modifyDaemonSetAnnotationsAndEnv(enforcer string, target varmor.Target, dae
 	if daemon.Spec.Template.Annotations == nil {
 		daemon.Spec.Template.Annotations = make(map[string]string)
 	}
-	daemon.Spec.Template.Annotations["controller.varmor.org/restartedAt"] = time.Now().Format(time.RFC3339)
 
 	if profileName == "" {
 		return
@@ -373,6 +370,7 @@ func updateWorkloadAnnotationsAndEnv(
 				if reflect.DeepEqual(deployOld, deploy) {
 					return nil
 				}
+				deploy.Spec.Template.Annotations["controller.varmor.org/restartedAt"] = time.Now().Format(time.RFC3339)
 				deploy, err = appsInterface.Deployments(deploy.Namespace).Update(context.Background(), deploy, metav1.UpdateOptions{})
 				if err == nil {
 					logger.Info("the target workload has been updated", "Kind", "Deployments", "namespace", deploy.Namespace, "name", deploy.Name)
@@ -416,6 +414,7 @@ func updateWorkloadAnnotationsAndEnv(
 				if reflect.DeepEqual(statefulOld, stateful) {
 					return nil
 				}
+				stateful.Spec.Template.Annotations["controller.varmor.org/restartedAt"] = time.Now().Format(time.RFC3339)
 				stateful, err = appsInterface.StatefulSets(stateful.Namespace).Update(context.Background(), stateful, metav1.UpdateOptions{})
 				if err == nil {
 					logger.Info("the target workload has been updated", "Kind", "StatefulSets", "namespace", stateful.Namespace, "name", stateful.Name)
@@ -463,6 +462,7 @@ func updateWorkloadAnnotationsAndEnv(
 				if reflect.DeepEqual(daemonOld, &daemon) {
 					return nil
 				}
+				daemon.Spec.Template.Annotations["controller.varmor.org/restartedAt"] = time.Now().Format(time.RFC3339)
 				daemon, err = appsInterface.DaemonSets(daemon.Namespace).Update(context.Background(), daemon, metav1.UpdateOptions{})
 				if err == nil {
 					logger.Info("the target workload has been updated", "Kind", "DaemonSets", "namespace", daemon.Namespace, "name", daemon.Name)

@@ -30,13 +30,18 @@ type Target struct {
 	// Kind is used to specify the type of workloads for the protection targets.
 	// Available values: Deployment, StatefulSet, DaemonSet, Pod.
 	Kind string `json:"kind"`
-	// Name is used to specify a specific workload name. The name field and selector field are mutually exclusive.
+	// Name is used to specify a specific workload name. Note that the name field and selector field are mutually exclusive.
+	// +optional
 	Name string `json:"name,omitempty"`
 	// Containers are used to specify the names of the protected containers. If it is empty, sandbox protection
 	// will be enabled for all containers within the workload (excluding initContainers and ephemeralContainers).
+	// +optional
 	Containers []string `json:"containers,omitempty"`
-	// LabelSelector is used to match workloads that meet the specified conditions (Note: the type of workloads
-	// is determined by the KIND field)
+	// LabelSelector is used to match workloads that meet the specified conditions
+	//
+	// Note:
+	// The type of workloads is determined by the KIND field.
+	// +optional
 	Selector *metav1.LabelSelector `json:"selector,omitempty"`
 }
 
@@ -45,6 +50,7 @@ type AttackProtectionRules struct {
 	Rules []string `json:"rules"`
 	// Targets are used to specify the workloads to which the policy applies. They must be specified as full paths to executable files,
 	// and this feature is only effective when using AppArmor as the enforcer.
+	// +optional
 	Targets []string `json:"targets,omitempty"`
 }
 
@@ -57,10 +63,13 @@ type FileRule struct {
 
 type NetworkEgressRule struct {
 	// IPBlock defines policy on a particular IPBlock with CIDR. If this field is set then neither of the IP field can be.
+	// +optional
 	IPBlock string `json:"ipBlock,omitempty"`
 	// IP defines policy on a particular IP. If this field is set then neither of the IPBlock field can be.
+	// +optional
 	IP string `json:"ip,omitempty"`
 	// Port defines policy on a particular port. If this field is zero or missing, this rule matches all ports.
+	// +optional
 	Port int `json:"port,omitempty"`
 }
 
@@ -74,14 +83,18 @@ type PtraceRule struct {
 	// Default is false.
 	// If set to false, it restricts ptrace-related permissions only for processes in other containers.
 	// If set to true, it restricts ptrace-related permissions for all processes, except those within the init mnt namespace.
+	// +optional
 	StrictMode bool `json:"strictMode,omitempty"`
 	// Permissions are used to indicate which ptrace-related permissions of the target container should be restricted.
 	// Available values: trace, traceby, read, readby.
 	//
 	// trace, traceby
+	//
 	//    For "write" operations, or other operations that are more dangerous, such as: ptrace attaching (PTRACE_ATTACH) to
 	//    another process or calling process_vm_writev(2).
+	//
 	// read, readby
+	//
 	//    For "read" operations or other operations that are less dangerous, such as: get_robust_list(2); kcmp(2); reading
 	//    /proc/pid/auxv, /proc/pid/environ, or /proc/pid/stat; or readlink(2) of a /proc/pid/ns/* file.
 	//
@@ -100,9 +113,11 @@ type MountRule struct {
 	//       All Flags: all
 	//   Command Flags: ro(r, read-only), rw(w), suid, nosuid, dev, nodev, exec, noexec,
 	//                  sync, async, mand, nomand, dirsync, atime, noatime, diratime, nodiratime,
-	//                  silent, loud, relatime, norelatime, iversion, noiversion, strictatime, nostrictatime
-	//   Generic Flags: remount, bind(B), move(M), rbind(R), make-unbindable, make-private(private), make-slave(slave),
-	//                  make-shared(shared), make-runbindable, make-rprivate, make-rslave, make-rshared
+	//                  silent, loud, relatime, norelatime, iversion, noiversion, strictatime,
+	//                  nostrictatime
+	//   Generic Flags: remount, bind(B), move(M), rbind(R), make-unbindable, make-private(private),
+	//                  make-slave(slave), make-shared(shared), make-runbindable, make-rprivate,
+	//                  make-rslave, make-rshared
 	//     Other Flags: umount
 	//
 	Flags []string `json:"flags"`
@@ -118,21 +133,31 @@ type BpfRawRules struct {
 
 type EnhanceProtect struct {
 	// HardeningRules are used to specify the built-in hardening rules
+	// +optional
 	HardeningRules []string `json:"hardeningRules,omitempty"`
 	// AttackProtectionRules are used to specify the built-in attack protection rules
+	// +optional
 	AttackProtectionRules []AttackProtectionRules `json:"attackProtectionRules,omitempty"`
 	// VulMitigationRules are used to specify the built-in vulnerability mitigation rules
+	// +optional
 	VulMitigationRules []string `json:"vulMitigationRules,omitempty"`
 	// AppArmorRawRules is used to set native AppArmor rules, each rule must end with a comma
+	// +optional
 	AppArmorRawRules []string `json:"appArmorRawRules,omitempty"`
 	// BpfRawRules is used to set native BPF rules
+	// +optional
 	BpfRawRules BpfRawRules `json:"bpfRawRules,omitempty"`
 	// SyscallRawRules is used to set the syscalls rules on top of the AlwaysAllow mode
+	// +optional
 	SyscallRawRules []specs.LinuxSyscall `json:"syscallRawRules,omitempty"`
 	// Privileged is used to identify whether the policy is for the privileged container.
-	// Default is false. If set to `nil` or `false`, the EnhanceProtect mode will build AppArmor or BPF profile on
+	// If set to `nil` or `false`, the EnhanceProtect mode will build AppArmor or BPF profile on
 	// top of the RuntimeDefault mode. Otherwise, it will build AppArmor or BPF profile on top of the AlwaysAllow mode.
-	// Note: If set to `true`, vArmor will not build Seccomp profile for the target workloads.
+	// Default is false.
+	//
+	// Note:
+	// If set to `true`, vArmor will not build Seccomp profile for the target workloads.
+	// +optional
 	Privileged bool `json:"privileged,omitempty"`
 }
 
@@ -148,13 +173,16 @@ type Policy struct {
 	// Available values: AppArmor, BPF, Seccomp, AppArmorBPF, AppArmorSeccomp, BPFSeccomp, AppArmorBPFSeccomp
 	Enforcer string `json:"enforcer"`
 	// Available values: AlwaysAllow, RuntimeDefault, EnhanceProtect, BehaviorModeling, DefenseInDepth
+	//
 	// Note:
-	//    BehaviorModeling and DefenseInDepth modes are experimental features and currently only work
-	//    with AppArmor/Seccomp/AppArmorSeccomp enforcers.
+	// BehaviorModeling and DefenseInDepth modes are experimental features and currently only work
+	// with AppArmor/Seccomp/AppArmorSeccomp enforcers.
 	Mode VarmorPolicyMode `json:"mode"`
 	// EnhanceProtect is used to specify which built-in or custom rules are employed to protect the target workloads.
+	// +optional
 	EnhanceProtect EnhanceProtect `json:"enhanceProtect,omitempty"`
 	// ModelingOptions is used for the modeling settings.
+	// +optional
 	ModelingOptions ModelingOptions `json:"modelingOptions,omitempty"`
 }
 
@@ -168,6 +196,15 @@ type VarmorPolicySpec struct {
 	// It must match the VarmorPolicy's labels.
 	Target Target `json:"target"`
 	Policy Policy `json:"policy"`
+	// UpdateExistingWorkloads is used to indicate whether to perform a rolling update on target existing workloads,
+	// thus enabling or disabling the protection of the target workloads when policies are created or deleted.
+	// Default is false.
+	//
+	// Note:
+	// vArmor only performs a rolling update on Deployment, StatefulSet, or DaemonSet type workloads.
+	// If `.spec.target.kind` is Pod, you need to rebuild the Pod yourself to enable or disable protection.
+	// +optional
+	UpdateExistingWorkloads bool `json:"updateExistingWorkloads,omitempty"`
 }
 
 type VarmorPolicyConditionType string
@@ -202,7 +239,10 @@ type VarmorPolicyStatus struct {
 	Ready bool `json:"ready"`
 	// Phase is used to indicate the processing phase of the policy.
 	// Possible values: Pending, Modeling, Completed, Protecting, Error.
-	// (Note: You can find out which varmor-agent has an error by reading the ArmorProfile/status corresponding to the current VarmorPolicy)
+	//
+	// Note:
+	// You can find out which varmor-agent has an error by reading the
+	// ArmorProfile/status corresponding to the current VarmorPolicy
 	Phase VarmorPolicyPhase `json:"phase,omitempty"`
 }
 
@@ -226,7 +266,7 @@ type VarmorPolicy struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   VarmorPolicySpec   `json:"spec,omitempty"`
+	Spec   VarmorPolicySpec   `json:"spec"`
 	Status VarmorPolicyStatus `json:"status,omitempty"`
 }
 

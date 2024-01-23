@@ -44,7 +44,7 @@ type VarmorClusterPolicy struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   VarmorPolicySpec   `json:"spec,omitempty"`
+	Spec   VarmorPolicySpec   `json:"spec"`
 	Status VarmorPolicyStatus `json:"status,omitempty"`
 }
 

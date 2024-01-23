@@ -4,6 +4,7 @@ metadata:
   name: demo-5
   namespace: demo
 spec:
+  updateExistingWorkloads: true
   target:
     kind: Deployment
     selector:
