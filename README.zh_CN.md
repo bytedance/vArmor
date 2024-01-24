@@ -28,6 +28,8 @@
 
 
 ## 前置条件
+您可以通过策略对象（[VarmorPolicy](usage_instructions.zh_CN.md#varmorpolicy)/[VarmorClusterPolicy](usage_instructions.zh_CN.md#varmorclusterpolicy)）的 `spec.policy.enforcer` 字段来指定 enforcer。另外，您还可以单独、组合使用不同的 enforcer，例如：AppArmorBPF, AppArmorSeccomp, AppArmorBPFSeccomp。不同 enforcers 所需要的前置条件如下表所示。
+
 |强制访问控制器|要求|推荐|
 |------------|--------------------------------------------|--------|
 |AppArmor    |1. Linux Kernel 4.15 及以上版本<br>2. 系统需开启 AppArmor LSM|GKE with Container-Optimized OS<br>AKS with Ubuntu 22.04 LTS<br>[VKE](https://www.volcengine.com/product/vke) with veLinux<br>Debian 10 及以上版本<br>Ubuntu 18.04.0 LTS 及以上版本<br>[veLinux 1.0](https://www.volcengine.com/docs/6396/74967) 等

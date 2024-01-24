@@ -28,6 +28,8 @@ English | [简体中文](README.zh_CN.md)
 
 
 ## Prerequisites
+You can specify the enforcer through the spec.policy.enforcer field of policy objects ([VarmorPolicy](usage_instructions.zh_CN.md#varmorpolicy)/[VarmorClusterPolicy](usage_instructions.zh_CN.md#varmorclusterpolicy)). In addition, you can also use different enforcers individually or in combination, such as: AppArmorBPF, AppArmorSeccomp, AppArmorBPFSeccomp etc. The prerequisites required by different enforcers are as shown in the following table.
+
 |Enforcer|Requirements|Recommendations|
 |------------|--------------------------------------------|--------|
 |AppArmor    |1. Linux Kernel 4.15 and above<br>2. The AppArmor LSM is enabled|GKE with Container-Optimized OS<br>AKS with Ubuntu 22.04 LTS<br>[VKE](https://www.volcengine.com/product/vke) with veLinux<br>Debian 10 and above<br>Ubuntu 18.04.0 LTS and above<br>[veLinux 1.0](https://www.volcengine.com/docs/6396/74967) etc.
