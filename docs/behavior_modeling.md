@@ -22,6 +22,12 @@ Subsequently, you can create a policy with the **DefenseInDepth** mode to harden
     systemctl restart rsyslog.service
     ```
 * Enable the **BehaviorModeling** feature with `--set behaviorModeling.enabled=true`
+    ```
+    helm upgrade varmor varmor-0.5.5.tgz \
+        --namespace varmor --create-namespace \
+        --set image.registry="elkeid-cn-beijing.cr.volces.com" \
+        --set behaviorModeling.enabled=true
+    ```
     
     *Note: The BehaviorModeling feature in vArmor agent requires additional resources.*
     ```
