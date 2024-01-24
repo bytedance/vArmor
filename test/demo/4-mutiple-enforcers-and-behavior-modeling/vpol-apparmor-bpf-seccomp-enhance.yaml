@@ -1,7 +1,7 @@
 apiVersion: crd.varmor.org/v1beta1
 kind: VarmorPolicy
 metadata:
-  name: demo-5
+  name: demo-4
   namespace: demo
 spec:
   # Perform a rolling update on existing workloads.
@@ -10,7 +10,7 @@ spec:
     kind: Deployment
     selector:
       matchLabels:
-        app: demo-5
+        app: demo-4
   policy:
     enforcer: AppArmorBPFSeccomp
     mode: EnhanceProtect

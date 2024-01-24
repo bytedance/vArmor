@@ -1,23 +1,28 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: demo-5
-  namespace: default
+  name: demo-4
+  namespace: demo
   labels:
-    app: demo-5
+    app: demo-4
     sandbox.varmor.org/enable: "true"
 spec:
   replicas: 2
   selector:
     matchLabels:
-      app: demo-5
+      app: demo-4
   template:
     metadata:
       labels:
-        app: demo-5
+        app: demo-4
     spec:
+      shareProcessNamespace: true
       containers:
       - name: c0
-        image: curlimages/curl:7.87.0
+        image: debian:10
+        command: ["/bin/sh", "-c", "sleep infinity"]
+        imagePullPolicy: IfNotPresent
+      - name: c1
+        image: debian:10
         command: ["/bin/sh", "-c", "sleep infinity"]
         imagePullPolicy: IfNotPresent

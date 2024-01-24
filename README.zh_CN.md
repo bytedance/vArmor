@@ -64,15 +64,16 @@ helm install varmor varmor-0.5.5.tgz \
 ```
 # 创建名为 demo 的命名空间
 kubectl create namespace demo
+
 # 创建 VarmorPolicy，对符合 .spec.target.selector 的 Deployment 开启 AlwaysAllow 模式沙箱
-kubectl create -f test/demo/1/policy-init.yaml
+kubectl create -f test/demo/1-apparmor/vpol-apparmor-alwaysallow.yaml
 
 # 查看 VarmorPolicy & ArmorProfile 状态
 kubectl get VarmorPolicy -n demo
 kubectl get ArmorProfile -n demo
 
 # 创建 Deployment
-kubectl create -f test/demo/1/deploy.yaml
+kubectl create -f test/demo/1-apparmor/deploy.yaml
 
 # 获取 Pod name
 POD_NAME=$(kubectl get Pods -n demo -l app=demo-1 -o name)
@@ -81,14 +82,14 @@ POD_NAME=$(kubectl get Pods -n demo -l app=demo-1 -o name)
 kubectl exec -n demo $POD_NAME -c c1 -- cat /run/secrets/kubernetes.io/serviceaccount/token
 
 # 更新 VarmorPolicy 策略，禁止 Deployment 读取 secret token
-kubectl apply -f test/demo/1/policy.yaml
+kubectl apply -f test/demo/1-apparmor/vpol-apparmor-enhance.yaml
 
 # 在 c1 容器中执行命令，读取 secret token，验证读取行为被禁止
 kubectl exec -n demo $POD_NAME -c c1 -- cat /run/secrets/kubernetes.io/serviceaccount/token
 
 # 删除 VarmorPolicy 和 Deployment
-kubectl delete -f test/demo/1/policy-init.yaml
-kubectl delete -f test/demo/1/deploy.yaml
+kubectl delete -f test/demo/1-apparmor/vpol-apparmor-alwaysallow.yaml
+kubectl delete -f test/demo/1-apparmor/deploy.yaml
 ```
 
 ### Step 4. 卸载

@@ -67,15 +67,16 @@ helm install varmor varmor-0.5.5.tgz \
 ```
 # Create demo namespace
 kubectl create namespace demo
+
 # Create a VarmorPolicy object to enable the AlwaysAllow mode sandbox for Deployments that match the .spec.target.selector
-kubectl create -f test/demo/1/policy-init.yaml
+kubectl create -f test/demo/1-apparmor/vpol-apparmor-alwaysallow.yaml
 
 # View the status of VarmorPolicy & ArmorProfile object
 kubectl get VarmorPolicy -n demo
 kubectl get ArmorProfile -n demo
 
 # Create the target Deployment object
-kubectl create -f test/demo/1/deploy.yaml
+kubectl create -f test/demo/1-apparmor/deploy.yaml
 
 # Retrieve the Pod name of the target Deployment object
 POD_NAME=$(kubectl get Pods -n demo -l app=demo-1 -o name)
@@ -84,14 +85,14 @@ POD_NAME=$(kubectl get Pods -n demo -l app=demo-1 -o name)
 kubectl exec -n demo $POD_NAME -c c1 -- cat /run/secrets/kubernetes.io/serviceaccount/token
 
 # Update the VarmorPolicy object to prohibit the container c1 from reading the secret token.
-kubectl apply -f test/demo/1/policy.yaml
+kubectl apply -f test/demo/1-apparmor/vpol-apparmor-enhance.yaml
 
 # Execute a command in container c1 to read the secret token and verify that the reading behavior is prohibited.
 kubectl exec -n demo $POD_NAME -c c1 -- cat /run/secrets/kubernetes.io/serviceaccount/token
 
 # Delete the VarmorPolicy and Deployment objects
-kubectl delete -f test/demo/1/policy-init.yaml
-kubectl delete -f test/demo/1/deploy.yaml
+kubectl delete -f test/demo/1-apparmor/vpol-apparmor-alwaysallow.yaml
+kubectl delete -f test/demo/1-apparmor/deploy.yaml
 ```
 
 ### Step 4. Uninstall
