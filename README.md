@@ -37,7 +37,7 @@ English | [简体中文](README.zh_CN.md)
 
 ## The Policy Modes and Built-in Rules
 
-The **vArmor** policy object can operate in five modes: **AlwaysAllow, RuntimeDefault, EnhanceProtect, BehaviorModeling and DefenseInDepth**. When the policy is running in EnhanceProtect mode, built-in rules and custom interfaces can be used to harden the container.
+The vArmor policy can operate in five modes: **AlwaysAllow, RuntimeDefault, EnhanceProtect, BehaviorModeling and DefenseInDepth**. When the policy is running in **EnhanceProtect** mode, built-in rules and custom interfaces can be used to harden the container.
 
 For more information, please refer to [Policy Modes and Built-in Rules](docs/built_in_rules.md).
 

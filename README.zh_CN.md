@@ -36,7 +36,7 @@
 
 
 ## 策略模式与内置规则
-**vArmor** 的策略支持 5 种运行模式：AlwaysAllow、RuntimeDefault、EnhanceProtect、BehaviorModeling、 DefenseInDepth。当沙箱策略运行在 EnhanceProtect 模式时，可使用内置规则和自定义接口对容器进行加固。
+vArmor 的策略支持 5 种运行模式：**AlwaysAllow、RuntimeDefault、EnhanceProtect、BehaviorModeling、 DefenseInDepth**。当策略运行在 **EnhanceProtect** 模式时，可使用内置规则和自定义接口对容器进行加固。
 
 更多说明请参见 [策略模式与内置规则](docs/built_in_rules.zh_CN.md)。
 
