@@ -28,6 +28,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	appsv1 "k8s.io/client-go/kubernetes/typed/apps/v1"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
+	"k8s.io/client-go/util/retry"
 
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
@@ -301,19 +302,22 @@ func (c *PolicyController) ignoreAdd(vp *varmor.VarmorPolicy, logger logr.Logger
 	return false
 }
 
-func resetArmorProfileModelStatus(varmorInterface varmorinterface.CrdV1beta1Interface, namespace, name string, logger logr.Logger) error {
-	apm, err := varmorInterface.ArmorProfileModels(namespace).Get(context.Background(), name, metav1.GetOptions{})
-	if err == nil {
-		apm.Status.CompletedNumber = 0
-		apm.Status.Conditions = nil
-		apm.Status.Ready = false
-		_, err = varmorInterface.ArmorProfileModels(namespace).UpdateStatus(context.Background(), apm, metav1.UpdateOptions{})
-		if err != nil {
-			logger.Error(err, "resetArmorProfileModelStatus()")
-		}
-		return err
-	}
-	return nil
+func resetArmorProfileModelStatus(varmorInterface varmorinterface.CrdV1beta1Interface, namespace, name string) error {
+	return retry.RetryOnConflict(retry.DefaultRetry,
+		func() error {
+			apm, err := varmorInterface.ArmorProfileModels(namespace).Get(context.Background(), name, metav1.GetOptions{})
+			if err != nil {
+				if k8errors.IsNotFound(err) {
+					return nil
+				}
+				return err
+			}
+			apm.Status.CompletedNumber = 0
+			apm.Status.Conditions = nil
+			apm.Status.Ready = false
+			_, err = varmorInterface.ArmorProfileModels(namespace).UpdateStatus(context.Background(), apm, metav1.UpdateOptions{})
+			return err
+		})
 }
 
 func (c *PolicyController) handleAddVarmorPolicy(vp *varmor.VarmorPolicy) error {
@@ -346,7 +350,10 @@ func (c *PolicyController) handleAddVarmorPolicy(vp *varmor.VarmorPolicy) error 
 	}
 
 	if vp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode {
-		resetArmorProfileModelStatus(c.varmorInterface, ap.Namespace, ap.Name, logger)
+		err = resetArmorProfileModelStatus(c.varmorInterface, ap.Namespace, ap.Name)
+		if err != nil {
+			logger.Error(err, "resetArmorProfileModelStatus()")
+		}
 	}
 
 	c.statusManager.UpdateDesiredNumber = true
@@ -496,7 +503,10 @@ func (c *PolicyController) handleUpdateVarmorPolicy(newVp *varmor.VarmorPolicy, 
 		}
 
 		if newVp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode {
-			resetArmorProfileModelStatus(c.varmorInterface, newVp.Namespace, oldAp.Name, logger)
+			err = resetArmorProfileModelStatus(c.varmorInterface, newVp.Namespace, oldAp.Name)
+			if err != nil {
+				logger.Error(err, "resetArmorProfileModelStatus()")
+			}
 		}
 
 		logger.Info("2.2. reset the status cache", "status key", statusKey)

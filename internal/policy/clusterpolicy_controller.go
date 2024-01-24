@@ -326,7 +326,10 @@ func (c *ClusterPolicyController) handleAddVarmorClusterPolicy(vcp *varmor.Varmo
 	}
 
 	if vcp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode {
-		resetArmorProfileModelStatus(c.varmorInterface, ap.Namespace, ap.Name, logger)
+		err = resetArmorProfileModelStatus(c.varmorInterface, ap.Namespace, ap.Name)
+		if err != nil {
+			logger.Error(err, "resetArmorProfileModelStatus()")
+		}
 	}
 
 	c.statusManager.UpdateDesiredNumber = true
@@ -476,7 +479,10 @@ func (c *ClusterPolicyController) handleUpdateVarmorClusterPolicy(newVp *varmor.
 		}
 
 		if newVp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode {
-			resetArmorProfileModelStatus(c.varmorInterface, newVp.Namespace, oldAp.Name, logger)
+			err = resetArmorProfileModelStatus(c.varmorInterface, newVp.Namespace, oldAp.Name)
+			if err != nil {
+				logger.Error(err, "resetArmorProfileModelStatus()")
+			}
 		}
 
 		logger.Info("2.2. reset the status cache", "status key", statusKey)
