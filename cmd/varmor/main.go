@@ -74,7 +74,7 @@ func main() {
 	flag.StringVar(&kubeconfig, "kubeconfig", "", "Path to a kubeconfig. Only required if out-of-cluster.")
 	flag.IntVar(&webhookTimeout, "webhookTimeout", int(config.WebhookTimeout), "Timeout for webhook configurations.")
 	flag.BoolVar(&agent, "agent", false, "Set this flag to run vArmor agent. Run vArmor manager default if true.")
-	flag.BoolVar(&restartExistWorkloads, "restartExistWorkloads", false, "Set this flag to restart workloads that match VarmorPolicy.target")
+	flag.BoolVar(&restartExistWorkloads, "restartExistWorkloads", false, "Set this flag to allow users control whether or not to restart existing workloads with the .spec.updateExistingWorkloads feild.")
 	flag.BoolVar(&enableBehaviorModeling, "enableBehaviorModeling", false, "Set this flag to enable BehaviorModeling feature (Note: this is an experimental feature, please do not enable it in production environment).")
 	flag.BoolVar(&enableBpfEnforcer, "enableBpfEnforcer", false, "Set this flag to enable BPF enforcer.")
 	flag.BoolVar(&unloadAllAaProfiles, "unloadAllAaProfiles", false, "Unload all AppArmor profiles when the agent exits.")

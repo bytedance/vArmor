@@ -99,25 +99,32 @@ help: ## Display this help.
 ##@ Development
 .PHONY: generate-apparmor-abi
 generate-apparmor-abi: ## Generate the AppArmor feature ABI of development environment. All policy must be developed and tested under this ABI.
+	@echo "[+] Generate the AppArmor feature ABI of development environment."
 	rm -rf config/apparmor.d/abi/*
 	aa-features-abi -x -w config/apparmor.d/abi/$(APPARMOR_ABI_NAME)
 	cp config/apparmor.d/abi/$(APPARMOR_ABI_NAME) config/apparmor.d/abi/varmor
 
 .PHONY: manifests
 manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
+	@echo "[+] Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects"
 	$(CONTROLLER_GEN) crd paths="./apis/varmor/..." output:crd:artifacts:config=config/crds
 	cp config/crds/* manifests/varmor/templates/crds/
 
 .PHONY: generate
 generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
+	@echo "[+] Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations."
 	$(CONTROLLER_GEN) object:headerFile="scripts/boilerplate.go.txt" paths="./..."
+	@echo "[+] Patch zz_generated.deepcopy.go to add custom deepcopy for SyscallRawRules"
+	sed -i '/\tif in.SyscallRawRules != nil {/,/\t}/c\\tif in.SyscallRawRules != nil {\n\t\tin, out := &in.SyscallRawRules, &out.SyscallRawRules\n\t\t*out = make([]specs_go.LinuxSyscall, len(*in))\n\t\tlinuxSyscallDeepCopyInto(in, out)' apis/varmor/v1beta1/zz_generated.deepcopy.go
 
 .PHONY: build-ebpf
 build-ebpf: ## Generate the ebpf code and lib.
+	@echo "[+] Generate the ebpf code and lib."
 	make -C ./vArmor-ebpf generate-ebpf
 
 .PHONY: copy-ebpf
 copy-ebpf: ## Copy the ebpf code and lib.
+	@echo "[+] Copy the ebpf code and lib."
 	cp vArmor-ebpf/pkg/tracer/bpf_bpfel.go internal/behavior/tracer
 	cp vArmor-ebpf/pkg/tracer/bpf_bpfel.o internal/behavior/tracer
 	cp vArmor-ebpf/pkg/bpfenforcer/bpf_bpfel.go pkg/lsm/bpfenforcer
@@ -136,15 +143,17 @@ endif
 
 .PHONY: fmt
 fmt: ## Run go fmt against code.
+	@echo "[+] Run go fmt against code."
 	go fmt ./... && $(GO_IMPORTS) -w ./
 
 .PHONY: vet
 vet: ## Run go vet against code.
+	@echo "[+] Run go vet against code."
 	go vet ./...
 
 .PHONY: test-unit
 test-unit: ## Run unit tests.
-	@echo "	running unit tests"
+	@echo "[+] Running unit tests."
 	go test ./... -coverprofile coverage.out
 
 .PHONY: test
@@ -154,6 +163,7 @@ test: manifests generate fmt vet test-unit ## Run tests.
 ##@ Build
 .PHONY: local
 local: ## Build local binary.
+	@echo "[+] Build local binary."
 	go build -o bin/vArmor $(PWD)/$(VARMOR_PATH)
 
 .PHONY: build
@@ -166,27 +176,35 @@ docker-build: docker-build-varmor-amd64 docker-build-varmor-arm64 docker-build-c
 docker-build-dev: docker-build-varmor-amd64-dev docker-build-varmor-arm64-dev docker-build-classifier-amd64-dev docker-build-classifier-arm64-dev ## Build container images without check, only for development.
 
 docker-build-varmor-amd64:
+	@echo "[+] Build varmor-amd64 image for release version"
 	@docker buildx build --file $(PWD)/$(VARMOR_PATH)/Dockerfile --tag $(VARMOR_IMAGE)-amd64 --platform linux/amd64 --build-arg TARGETPLATFORM="linux/amd64" --build-arg MAKECHECK="check" .
 
 docker-build-varmor-arm64:
+	@echo "[+] Build varmor-arm64 image for the release version"
 	@docker buildx build --file $(PWD)/$(VARMOR_PATH)/Dockerfile --tag $(VARMOR_IMAGE)-arm64 --platform linux/arm64 --build-arg TARGETPLATFORM="linux/arm64" --build-arg MAKECHECK="check" .
 
 docker-build-classifier-amd64:
+	@echo "[+] Build classifier-amd64 image for the release version"
 	@docker buildx build --file $(PWD)/$(CLASSIFIER_PATH)/Dockerfile --tag $(CLASSIFIER_IMAGE)-amd64 --platform linux/amd64 .
 
 docker-build-classifier-arm64:
+	@echo "[+] Build classifier-arm64 image for the release version"
 	@docker buildx build --file $(PWD)/$(CLASSIFIER_PATH)/Dockerfile --tag $(CLASSIFIER_IMAGE)-arm64 --platform linux/arm64 .
 
 docker-build-varmor-amd64-dev:
+	@echo "[+] Build varmor-amd64 image for the development version"
 	@docker buildx build --file $(PWD)/$(VARMOR_PATH)/Dockerfile --tag $(VARMOR_IMAGE_DEV)-amd64 --platform linux/amd64 --build-arg TARGETPLATFORM="linux/amd64" .
 
 docker-build-varmor-arm64-dev:
+	@echo "[+] Build varmor-arm64 image for the development version"
 	@docker buildx build --file $(PWD)/$(VARMOR_PATH)/Dockerfile --tag $(VARMOR_IMAGE_DEV)-arm64 --platform linux/arm64 --build-arg TARGETPLATFORM="linux/arm64" . 
 
 docker-build-classifier-amd64-dev:
+	@echo "[+] Build classifier-amd64 image for the development version"
 	@docker buildx build --file $(PWD)/$(CLASSIFIER_PATH)/Dockerfile --tag $(CLASSIFIER_IMAGE_DEV)-amd64 --platform linux/amd64 .
 
 docker-build-classifier-arm64-dev:
+	@echo "[+] Build classifier-arm64 image for the development version"
 	@docker buildx build --file $(PWD)/$(CLASSIFIER_PATH)/Dockerfile --tag $(CLASSIFIER_IMAGE_DEV)-arm64 --platform linux/arm64 .
 
 

@@ -4,19 +4,18 @@ English | [简体中文](README.zh_CN.md)
 
 ## Introduction
 
-**vArmor** is a cloud-native container sandbox system that enhances container security with Linux's LSM technology. It utilizes either AppArmor or BPF LSM as enforcers. It can be used to strengthen container isolation, reduce the kernel attack surface, and increase the difficulty and cost of container escape or lateral movement attacks. **vArmor** follows the Kubernetes Operator design pattern, allowing users to harden specific workloads by manipulating the CRD API. This approach enables sandboxing of containerized microservices from a perspective closely aligned with business needs. Particularly, **vArmor** includes multiple built-in rules that are ready to use out of the box.
-
-You can leverage **vArmor** in the following scenarios to provide sandbox protection for containers within a Kubernetes cluster:
+**vArmor** is a cloud-native container sandbox system. It leverages Linux's [AppArmor LSM](https://en.wikipedia.org/wiki/AppArmor), [BPF LSM](https://docs.kernel.org/bpf/prog_lsm.html) and [Seccomp](https://en.wikipedia.org/wiki/Seccomp) technologies to implement enforcers. It can be used to strengthen container isolation, reduce the kernel attack surface, and increase the difficulty and cost of container escape or lateral movement attacks. You can leverage **vArmor** in the following scenarios to provide sandbox protection for containers within a Kubernetes cluster:
 * In multi-tenant environments, hardware-virtualized container solutions cannot be employed due to factors such as cost and technical conditions.
 * When there is a need to enhance the security of critical business containers, making it more difficult for attackers to escalate privileges, escape, or laterally move.
 * When high-risk vulnerabilities are present, but immediate remediation is not possible due to the difficulty or lengthy process of patching. **vArmor** can be used to mitigate the risks (depending on the vulnerability type or exploitation vector) to block or increase the difficulty of exploitation.
 
 
-**vArmor** achieves cloud-native container sandboxing through the following technologies:
-* Leveraging Linux's AppArmor or BPF LSM to enforce mandatory access controls on container processes (files, programs, network egress, etc.).
-* To minimize performance impact and increase usability, **vArmor** follows an Allow by Default security model, where only explicitly declared behaviors are blocked.
-* You can enhance the security of containers in specific workloads by manipulating the CRD API ([Custom Resources](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/)) using built-in and custom rules.
-* The built-in rules include common strategies for hardening containers.
+**vArmor** features:
+* Cloud-native. **vArmor** follows the Kubernetes Operator design pattern, allowing users to harden specific workloads by manipulating the [CRD API](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/). This approach enables sandboxing of containerized microservices from a perspective closely aligned with business needs.
+* Supports the use of AppArmor/BPF/Seccomp enforcer individually or concurrently, enforcing mandatory access control on container file access, process execution, network outbound, syscall, and more.
+* Supports the Allow by Default security model, in which only behaviors explicitly declared will be blocked, thus minimize performance impact and enhancing usability.
+* Supports behavior modeling, and provides protection based on behavior models, meaning only behaviors explicitly declared are permitted.
+* Ready to use out of the box. **vArmor** includes multiple built-in reinforcement rules for direct use.
 
 **vArmor** was created by the **Elkeid Team** of the endpoint security department at ByteDance. And the project is still in active development.
 
@@ -29,23 +28,20 @@ You can leverage **vArmor** in the following scenarios to provide sandbox protec
 
 
 ## Prerequisites
+You can specify the enforcer through the spec.policy.enforcer field of policy objects ([VarmorPolicy](usage_instructions.zh_CN.md#varmorpolicy)/[VarmorClusterPolicy](usage_instructions.zh_CN.md#varmorclusterpolicy)). In addition, you can also use different enforcers individually or in combination, such as: AppArmorBPF, AppArmorSeccomp, AppArmorBPFSeccomp etc. The prerequisites required by different enforcers are as shown in the following table.
+
 |Enforcer|Requirements|Recommendations|
 |------------|--------------------------------------------|--------|
 |AppArmor    |1. Linux Kernel 4.15 and above<br>2. The AppArmor LSM is enabled|GKE with Container-Optimized OS<br>AKS with Ubuntu 22.04 LTS<br>[VKE](https://www.volcengine.com/product/vke) with veLinux<br>Debian 10 and above<br>Ubuntu 18.04.0 LTS and above<br>[veLinux 1.0](https://www.volcengine.com/docs/6396/74967) etc.
 |BPF         |1. Linux Kernel 5.10 and above (x86_64)<br>2. containerd v1.6.0 and above<br>3. The BPF LSM is enabled|EKS with Amazon Linux 2<br>GKE with Container-Optimized OS<br>AKS with Ubuntu 22.04 LTS <sup>\*</sup><br>ACK with Alibaba Cloud Linux 3 <sup>\*</sup><br>OpenSUSE 15.4 <sup>\*</sup><br>Debian 11 <sup>\*</sup><br>Fedora 37 <br>[veLinux 1.0 with 5.10](https://www.volcengine.com/docs/6396/74967) etc.<br><br>* *Manual enabling of BPF LSM is required*
+|Seccomp     |1. Linux Kernel 4.15 and above<br>2. containerd v1.6.0 and above<br>3. Kubernetes v1.19 and above
 
 
-## The Built-in Rules
+## The Policy Modes and Built-in Rules
 
-**vArmor** offers 5 types of [built-in rules](docs/built_in_rules.md#built-in-rules) and custom interfaces to meet various protection requirements.
+The vArmor policy can operate in five modes: **AlwaysAllow, RuntimeDefault, EnhanceProtect, BehaviorModeling and DefenseInDepth**. When the policy is running in **EnhanceProtect** mode, built-in rules and custom interfaces can be used to harden the container.
 
-| Type                      | Description              |
-|---------------------------|--------------------------|
-| Always Allow              | No restrictions are imposed on the container during startup, and the policy settings can be changed later, allowing dynamic adjustment of protection policies without the need to restart the workload.|
-| Runtime Default           | Basic protection is provided using the default policies that are the same as the container runtime components, but the level of protection is relatively weak. (For example, [cri-containerd.apparmor.d](https://github.com/containerd/containerd/blob/main/contrib/apparmor/template.go) in the containerd)|
-| Hardening                 | The hardening rules for containers aims to reduce the attack surface and includes the following measures:<br>* Blocking common escape vectors for privileged containers<br>* Disabling specified capabilities<br>* Blocking exploitation vectors for certain kernel vulnerabilities.|
-| Attack Protection         | The rules aims to protect against hacker penetration techniques, thereby increasing the difficulty and cost of attacks and enabling a defense-in-depth approach. It includes:<br>* Mitigating information leakage within containers<br>* Prohibiting the execution of sensitive actions<br>* Applying sandbox restrictions to specific executable files (AppArmor enforcer only)|
-| Vulnerability Mitigation  | The rules is aimed at providing protection against vulnerabilities caused by insecure configurations, specific zero-day vulnerabilities, and security vulnerabilities caused by software features. It aims to block or increase the difficulty of vulnerability exploitation until the vulnerabilities are fixed.<br><br>(Note: This depends on the specific vulnerability type or exploit vector.)|
+For more information, please refer to [Policy Modes and Built-in Rules](docs/built_in_rules.md).
 
 
 ## Quick start

@@ -268,7 +268,7 @@ func generateVulMitigationRules(rule string) (rules string) {
 	return rules
 }
 
-func GenerateEnhanceProtectProfile(enhanceProtect *varmor.EnhanceProtect, profileName string, privileged bool) string {
+func GenerateEnhanceProtectProfile(enhanceProtect *varmor.EnhanceProtect, profileName string) string {
 	var baseRules string
 
 	// Hardening
@@ -319,7 +319,7 @@ func GenerateEnhanceProtectProfile(enhanceProtect *varmor.EnhanceProtect, profil
 	}
 
 	for childName, childRules := range childRulesMap {
-		if privileged {
+		if enhanceProtect.Privileged {
 			// Create the child profile for privileged container based on the AlwaysAllow child template
 			baseRules += fmt.Sprintf(alwaysAllowChildTemplate, childName, childName, childName, childRules)
 		} else {
@@ -334,7 +334,7 @@ func GenerateEnhanceProtectProfile(enhanceProtect *varmor.EnhanceProtect, profil
 		}
 	}
 
-	if privileged {
+	if enhanceProtect.Privileged {
 		// Create profile for privileged container based on the AlwaysAllow template
 		p := fmt.Sprintf(alwaysAllowTemplate, profileName, baseRules)
 		return base64.StdEncoding.EncodeToString([]byte(p))

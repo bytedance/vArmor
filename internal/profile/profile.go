@@ -94,7 +94,6 @@ func GenerateProfile(policy varmor.Policy, name string, namespace string, varmor
 			}
 			profile.BpfContent = &bpfContent
 		}
-		// Seccomp. TODO: RuntimeDefault profile
 
 	case varmortypes.EnhanceProtectMode:
 		if e == varmortypes.Unknown {
@@ -102,18 +101,24 @@ func GenerateProfile(policy varmor.Policy, name string, namespace string, varmor
 		}
 		// AppArmor
 		if (e & varmortypes.AppArmor) != 0 {
-			profile.Content = apparmorprofile.GenerateEnhanceProtectProfile(&policy.EnhanceProtect, name, policy.Privileged)
+			profile.Content = apparmorprofile.GenerateEnhanceProtectProfile(&policy.EnhanceProtect, name)
 		}
 		// BPF
 		if (e & varmortypes.BPF) != 0 {
 			var bpfContent varmor.BpfContent
-			err = bpfprofile.GenerateEnhanceProtectProfile(&policy.EnhanceProtect, &bpfContent, policy.Privileged)
+			err = bpfprofile.GenerateEnhanceProtectProfile(&policy.EnhanceProtect, &bpfContent)
 			if err != nil {
 				return nil, err
 			}
 			profile.BpfContent = &bpfContent
 		}
-		// Seccomp. TODO: RuntimeDefault profile + Behavior Model + built-in rules
+		// Seccomp
+		if (e & varmortypes.Seccomp) != 0 {
+			profile.SeccompContent, err = seccompprofile.GenerateEnhanceProtectProfile(&policy.EnhanceProtect, name)
+			if err != nil {
+				return nil, err
+			}
+		}
 
 	case varmortypes.BehaviorModelingMode:
 		if e == varmortypes.Unknown {
@@ -190,6 +195,7 @@ func NewArmorProfile(obj interface{}, varmorInterface varmorinterface.CrdV1beta1
 		}
 		ap.Spec.Profile = *profile
 		ap.Spec.Target = *vcp.Spec.Target.DeepCopy()
+		ap.Spec.UpdateExistingWorkloads = vcp.Spec.UpdateExistingWorkloads
 
 		if vcp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode {
 			if vcp.Spec.Policy.ModelingOptions.Duration == 0 {
@@ -213,6 +219,7 @@ func NewArmorProfile(obj interface{}, varmorInterface varmorinterface.CrdV1beta1
 		}
 		ap.Spec.Profile = *profile
 		ap.Spec.Target = *vp.Spec.Target.DeepCopy()
+		ap.Spec.UpdateExistingWorkloads = vp.Spec.UpdateExistingWorkloads
 
 		if vp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode {
 			if vp.Spec.Policy.ModelingOptions.Duration == 0 {

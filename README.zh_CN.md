@@ -4,18 +4,19 @@
 
 ## 简介
 
-**vArmor** 是一个云原生容器沙箱系统，它借助 Linux 的 LSM 技术（AppArmor & BPF）实现强制访问控制器（即 enforcer），从而对容器进行安全加固。它可以用于增强容器隔离性、减少内核攻击面、增加容器逃逸或横行移动攻击的难度与成本。**vArmor** 遵循 Kubernetes Operator 设计模式，用户可通过操作 CRD API 对特定的 Workload 进行加固。从而以更贴近业务的视角，实现对容器化微服务的沙箱加固。此外 **vArmor** 还包含多种内置加固规则，具备开箱即用的特性。
+**vArmor** 是一个云原生容器沙箱系统，它借助 Linux 的 [AppArmor LSM](https://en.wikipedia.org/wiki/AppArmor), [BPF LSM](https://docs.kernel.org/bpf/prog_lsm.html) 和 [Seccomp](https://en.wikipedia.org/wiki/Seccomp) 技术实现强制访问控制器（即 enforcer），从而对容器进行安全加固。它可以用于增强容器隔离性、减少内核攻击面、增加容器逃逸或横行移动攻击的难度与成本。
 
 你可以借助 **vArmor** 在以下场景对 Kubernetes 集群中的容器进行沙箱防护
 * 业务场景存在多租户（多租户共享同一个集群），由于成本、技术条件等原因无法使用硬件虚拟化容器（如 Kata Container）
 * 需要对关键的业务进行安全加固，增加攻击者权限提升、容器逃逸、横向渗透的难度与成本
 * 当出现高危漏洞，但由于修复难度大、周期长等原因无法立即修复时，可以借助 **vArmor** 实施漏洞利用缓解（具体取决于漏洞类型或漏洞利用向量。缓解代表阻断利用向量、增加利用难度）
 
-**vArmor** 通过以下技术实现云原生容器沙箱
-* 借助 Linux 的 AppArmor 或 BPF LSM，在内核中对容器进程进行强制访问控制（文件、程序、网络外联等）
-* 为减少性能损失和增加易用性，**vArmor** 的安全模型为 Allow by Default，即只有显式声明的行为会被阻断
-* 用户通过操作自定义对象（参见 [Custom Resources](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/)）实现对指定 Workloads 中的容器进行沙箱加固
-* 用户可以通过选择和配置沙箱规则（内置规则、自定义规则）来对容器进行强制访问控制。内置规则包含一些常见的提权阻断、渗透入侵防御策略。
+**vArmor** 的特色
+* 云原生。**vArmor** 遵循 Kubernetes Operator 设计模式，用户可通过操作 [CRD API](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/) 对特定的 Workloads 进行加固。从而以更贴近业务的视角，实现对容器化微服务的沙箱加固
+* 支持单独、同时使用 AppArmor/BPF/Seccomp enforcer，对容器的文件访问、进程执行、网络外联、系统调用等进行强制访问控制
+* 支持 Allow by Default 安全模型，即只有显式声明的行为会被阻断，从而减少性能损失和增加易用性
+* 支持行为建模，并基于行为模型进行安全防护，即只有显式声明的行为会被允许
+* 开箱即用。**vArmor** 包含多种内置加固规则供直接使用
 
 **vArmor** 由字节跳动终端安全团队的 **Elkeid Team** 研发，目前该项目仍在积极迭代中。
 
@@ -27,22 +28,19 @@
 
 
 ## 前置条件
+您可以通过策略对象（[VarmorPolicy](usage_instructions.zh_CN.md#varmorpolicy)/[VarmorClusterPolicy](usage_instructions.zh_CN.md#varmorclusterpolicy)）的 `spec.policy.enforcer` 字段来指定 enforcer。另外，您还可以单独、组合使用不同的 enforcer，例如：AppArmorBPF, AppArmorSeccomp, AppArmorBPFSeccomp。不同 enforcers 所需要的前置条件如下表所示。
+
 |强制访问控制器|要求|推荐|
 |------------|--------------------------------------------|--------|
 |AppArmor    |1. Linux Kernel 4.15 及以上版本<br>2. 系统需开启 AppArmor LSM|GKE with Container-Optimized OS<br>AKS with Ubuntu 22.04 LTS<br>[VKE](https://www.volcengine.com/product/vke) with veLinux<br>Debian 10 及以上版本<br>Ubuntu 18.04.0 LTS 及以上版本<br>[veLinux 1.0](https://www.volcengine.com/docs/6396/74967) 等
 |BPF         |1. Linux Kernel 5.10 及以上版本 (x86_64)<br>2. containerd v1.6.0 及以上版本<br>3. 系统需开启 BPF LSM|EKS with Amazon Linux 2<br>GKE with Container-Optimized OS<br>AKS with Ubuntu 22.04 LTS <sup>\*</sup><br>ACK with Alibaba Cloud Linux 3 <sup>\*</sup><br>OpenSUSE 15.4  <sup>\*</sup><br>Debian 11 <sup>\*</sup><br>Fedora 37<br>[veLinux 1.0 with 5.10](https://www.volcengine.com/docs/6396/74967) 等<br><br>* *需手动启用节点的 BPF LSM*
+|Seccomp     |1. Linux Kernel 4.15 and above<br>2. containerd v1.6.0 and above<br>3. Kubernetes v1.19 and above
 
 
-## 内置规则
-**vArmor** 提供 5 种类型的[内置规则](docs/built_in_rules.zh_CN.md#内置规则)和自定义接口，以满足不同的防护需求。
+## 策略模式与内置规则
+vArmor 的策略支持 5 种运行模式：**AlwaysAllow、RuntimeDefault、EnhanceProtect、BehaviorModeling、 DefenseInDepth**。当策略运行在 **EnhanceProtect** 模式时，可使用内置规则和自定义接口对容器进行加固。
 
-|类型|说明|
-|-------------------------|----------------------------------------------------------------------------------|
-| Always Allow            | 在容器启动时不对其施加任何限制，可在稍后变更配置，从而在无需重启工作负载的情况下动态调整防护策略。|
-| Runtime Default         | 使用与容器运行时组件相同的默认规则进行基础防护，防护强度较弱。（如 containerd 的 [cri-containerd.apparmor.d](https://github.com/containerd/containerd/blob/main/contrib/apparmor/template.go)）|
-| Hardening               | 对容器进行加固，减少攻击面的规则。包括：<br>* 阻断特权容器的常见逃逸向量<br>* 禁用 capabilities<br>* 阻断部分内核漏洞利用向量|
-| Attack Protection       | 针对黑客渗透入侵手法进行防护的规则。从而增加攻击的难度和成本，进行纵深防御。包括：<br>* 容器信息泄露缓解<br>* 禁止执行敏感行为<br>* 对特定可执行文件进行沙箱限制（仅限 AppArmor enforcer）|
-| Vulnerability Mitigation| 针对由不安全配置导致的漏洞、特定 0day 漏洞、由软件 feature 导致的安全漏洞，在漏洞被修复前提供防护，阻断或增加漏洞利用的难度<br>（注：取决于漏洞类型或漏洞利用向量）。|
+更多说明请参见 [策略模式与内置规则](docs/built_in_rules.zh_CN.md)。
 
 
 ## 快速上手

@@ -19,12 +19,12 @@ import (
 	"encoding/json"
 
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
-	varmortypes "github.com/bytedance/vArmor/internal/types"
+	"github.com/opencontainers/runtime-spec/specs-go"
 )
 
 var (
-	defaultSyscall = varmortypes.Syscall{
-		Action: "SCMP_ACT_ALLOW",
+	defaultSyscall = specs.LinuxSyscall{
+		Action: specs.ActAllow,
 		Names: []string{
 			"open",
 			"openat",
@@ -37,9 +37,9 @@ var (
 )
 
 func GenerateBehaviorModelingProfile() string {
-	profile := varmortypes.SeccompProfile{
-		DefaultAction: "SCMP_ACT_LOG",
-		Syscalls:      []varmortypes.Syscall{defaultSyscall},
+	profile := specs.LinuxSeccomp{
+		DefaultAction: specs.ActLog,
+		Syscalls:      []specs.LinuxSyscall{defaultSyscall},
 	}
 
 	p, _ := json.Marshal(profile)
@@ -51,15 +51,35 @@ func GenerateProfileWithBehaviorModel(dynamicResult *varmor.DynamicResult) (stri
 		return "", nil
 	}
 
-	syscall := varmortypes.Syscall{
-		Action: "SCMP_ACT_ALLOW",
+	syscall := specs.LinuxSyscall{
+		Action: specs.ActAllow,
 		Names:  dynamicResult.Seccomp.Syscall,
 	}
 
-	profile := varmortypes.SeccompProfile{
-		DefaultAction: "SCMP_ACT_ERRNO",
-		Syscalls:      []varmortypes.Syscall{defaultSyscall, syscall},
+	profile := specs.LinuxSeccomp{
+		DefaultAction: specs.ActErrno,
+		Syscalls:      []specs.LinuxSyscall{defaultSyscall, syscall},
 	}
+
+	p, err := json.Marshal(profile)
+	if err != nil {
+		return "", err
+	}
+	return base64.StdEncoding.EncodeToString(p), nil
+}
+
+func GenerateEnhanceProtectProfile(enhanceProtect *varmor.EnhanceProtect, profileName string) (string, error) {
+	if enhanceProtect.Privileged {
+		return "", nil
+	}
+
+	profile := specs.LinuxSeccomp{
+		DefaultAction: specs.ActAllow,
+		Syscalls:      []specs.LinuxSyscall{},
+	}
+
+	// Custom
+	profile.Syscalls = append(profile.Syscalls, enhanceProtect.SyscallRawRules...)
 
 	p, err := json.Marshal(profile)
 	if err != nil {

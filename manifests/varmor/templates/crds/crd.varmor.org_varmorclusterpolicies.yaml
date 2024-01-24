@@ -217,12 +217,12 @@ spec:
                                 description: "Permissions are used to indicate which
                                   ptrace-related permissions of the target container
                                   should be restricted. Available values: trace, traceby,
-                                  read, readby. \n trace, traceby For \"write\" operations,
-                                  or other operations that are more dangerous, such
-                                  as: ptrace attaching (PTRACE_ATTACH) to another
-                                  process or calling process_vm_writev(2). read, readby
-                                  For \"read\" operations or other operations that
-                                  are less dangerous, such as: get_robust_list(2);
+                                  read, readby. \n trace, traceby \n For \"write\"
+                                  operations, or other operations that are more dangerous,
+                                  such as: ptrace attaching (PTRACE_ATTACH) to another
+                                  process or calling process_vm_writev(2). \n read,
+                                  readby \n For \"read\" operations or other operations
+                                  that are less dangerous, such as: get_robust_list(2);
                                   kcmp(2); reading /proc/pid/auxv, /proc/pid/environ,
                                   or /proc/pid/stat; or readlink(2) of a /proc/pid/ns/*
                                   file."
@@ -249,6 +249,60 @@ spec:
                         items:
                           type: string
                         type: array
+                      privileged:
+                        description: "Privileged is used to identify whether the policy
+                          is for the privileged container. If set to `nil` or `false`,
+                          the EnhanceProtect mode will build AppArmor or BPF profile
+                          on top of the RuntimeDefault mode. Otherwise, it will build
+                          AppArmor or BPF profile on top of the AlwaysAllow mode.
+                          Default is false. \n Note: If set to `true`, vArmor will
+                          not build Seccomp profile for the target workloads."
+                        type: boolean
+                      syscallRawRules:
+                        description: SyscallRawRules is used to set the syscalls blocklist
+                          rules with Seccomp enforcer.
+                        items:
+                          description: LinuxSyscall is used to match a syscall in
+                            Seccomp
+                          properties:
+                            action:
+                              description: LinuxSeccompAction taken upon Seccomp rule
+                                match
+                              type: string
+                            args:
+                              items:
+                                description: LinuxSeccompArg used for matching specific
+                                  syscall arguments in Seccomp
+                                properties:
+                                  index:
+                                    type: integer
+                                  op:
+                                    description: LinuxSeccompOperator used to match
+                                      syscall arguments in Seccomp
+                                    type: string
+                                  value:
+                                    format: int64
+                                    type: integer
+                                  valueTwo:
+                                    format: int64
+                                    type: integer
+                                required:
+                                - index
+                                - op
+                                - value
+                                type: object
+                              type: array
+                            errnoRet:
+                              type: integer
+                            names:
+                              items:
+                                type: string
+                              type: array
+                          required:
+                          - action
+                          - names
+                          type: object
+                        type: array
                       vulMitigationRules:
                         description: VulMitigationRules are used to specify the built-in
                           vulnerability mitigation rules
@@ -257,10 +311,10 @@ spec:
                         type: array
                     type: object
                   mode:
-                    description: 'Available values: AlwaysAllow, RuntimeDefault, EnhanceProtect,
-                      BehaviorModeling, DefenseInDepth Note: BehaviorModeling and
+                    description: "Available values: AlwaysAllow, RuntimeDefault, EnhanceProtect,
+                      BehaviorModeling, DefenseInDepth \n Note: BehaviorModeling and
                       DefenseInDepth modes are experimental features and currently
-                      only work with AppArmor/Seccomp/AppArmorSeccomp enforcers.'
+                      only work with AppArmor/Seccomp/AppArmorSeccomp enforcers."
                     type: string
                   modelingOptions:
                     description: ModelingOptions is used for the modeling settings.
@@ -271,13 +325,6 @@ spec:
                     required:
                     - duration
                     type: object
-                  privileged:
-                    description: Privileged is used to identify whether the policy
-                      is for the privileged container. Default is false. If set to
-                      `nil` or `false`, the EnhanceProtect mode will build enhanced
-                      protection rules on top of the RuntimeDefault mode. Otherwise,
-                      it will enhance protection on top of the AlwaysAllow mode.
-                    type: boolean
                 required:
                 - enforcer
                 - mode
@@ -302,12 +349,12 @@ spec:
                     type: string
                   name:
                     description: Name is used to specify a specific workload name.
-                      The name field and selector field are mutually exclusive.
+                      Note that the name field and selector field are mutually exclusive.
                     type: string
                   selector:
-                    description: 'LabelSelector is used to match workloads that meet
-                      the specified conditions (Note: the type of workloads is determined
-                      by the KIND field)'
+                    description: "LabelSelector is used to match workloads that meet
+                      the specified conditions \n Note: The type of workloads is determined
+                      by the KIND field."
                     properties:
                       matchExpressions:
                         description: matchExpressions is a list of label selector
@@ -354,6 +401,15 @@ spec:
                 required:
                 - kind
                 type: object
+              updateExistingWorkloads:
+                description: "UpdateExistingWorkloads is used to indicate whether
+                  to perform a rolling update on target existing workloads, thus enabling
+                  or disabling the protection of the target workloads when policies
+                  are created or deleted. Default is false. \n Note: vArmor only performs
+                  a rolling update on Deployment, StatefulSet, or DaemonSet type workloads.
+                  If `.spec.target.kind` is Pod, you need to rebuild the Pod yourself
+                  to enable or disable protection."
+                type: boolean
             required:
             - policy
             - target
@@ -390,10 +446,11 @@ spec:
                   type: object
                 type: array
               phase:
-                description: 'Phase is used to indicate the processing phase of the
+                description: "Phase is used to indicate the processing phase of the
                   policy. Possible values: Pending, Modeling, Completed, Protecting,
-                  Error. (Note: You can find out which varmor-agent has an error by
-                  reading the ArmorProfile/status corresponding to the current VarmorPolicy)'
+                  Error. \n Note: You can find out which varmor-agent has an error
+                  by reading the ArmorProfile/status corresponding to the current
+                  VarmorPolicy"
                 type: string
               profileName:
                 type: string
@@ -405,6 +462,8 @@ spec:
             - profileName
             - ready
             type: object
+        required:
+        - spec
         type: object
     served: true
     storage: true

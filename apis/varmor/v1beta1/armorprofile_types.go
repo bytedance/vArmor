@@ -84,9 +84,10 @@ type ArmorProfileSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	Target           Target           `json:"target,omitempty"`
-	Profile          Profile          `json:"profile"`
-	BehaviorModeling BehaviorModeling `json:"behaviorModeling"`
+	Target                  Target           `json:"target,omitempty"`
+	Profile                 Profile          `json:"profile"`
+	BehaviorModeling        BehaviorModeling `json:"behaviorModeling"`
+	UpdateExistingWorkloads bool             `json:"updateExistingWorkloads"`
 }
 
 type ArmorProfileConditionType string

@@ -159,9 +159,9 @@ func (c *ClusterPolicyController) handleDeleteVarmorClusterPolicy(name string) e
 		return err
 	}
 
-	if c.restartExistWorkloads {
+	if c.restartExistWorkloads && ap.Spec.UpdateExistingWorkloads {
 		// This will trigger the rolling upgrade of the target workloads
-		logger.Info("delete annotations of target workloads asynchronously")
+		logger.Info("delete annotations of target workloads to trigger a rolling upgrade asynchronously")
 		go updateWorkloadAnnotationsAndEnv(
 			c.appsInterface,
 			metav1.NamespaceAll,
@@ -338,9 +338,9 @@ func (c *ClusterPolicyController) handleAddVarmorClusterPolicy(vcp *varmor.Varmo
 		return err
 	}
 
-	if c.restartExistWorkloads {
+	if c.restartExistWorkloads && vcp.Spec.UpdateExistingWorkloads {
 		// This will trigger the rolling upgrade of the target workloads
-		logger.Info("add annotations to target workload asynchronously")
+		logger.Info("add annotations to target workloads to trigger a rolling upgrade asynchronously")
 		go updateWorkloadAnnotationsAndEnv(
 			c.appsInterface,
 			metav1.NamespaceAll,
@@ -454,6 +454,7 @@ func (c *ClusterPolicyController) handleUpdateVarmorClusterPolicy(newVp *varmor.
 		return nil
 	}
 	newApSpec.Profile = *newProfile
+	newApSpec.UpdateExistingWorkloads = newVp.Spec.UpdateExistingWorkloads
 	if newVp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode {
 		newApSpec.BehaviorModeling.Duration = newVp.Spec.Policy.ModelingOptions.Duration
 	}

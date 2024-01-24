@@ -4,13 +4,14 @@ metadata:
   name: demo-5
   namespace: demo
 spec:
+  updateExistingWorkloads: true
   target:
     kind: Deployment
     selector:
       matchLabels:
         app: demo-5
   policy:
-    enforcer: AppArmorSeccomp # It expects to use the Seccomp profile from an existing model.
+    enforcer: AppArmorBPFSeccomp
     mode: EnhanceProtect
     enhanceProtect:
       hardeningRules:
@@ -20,3 +21,16 @@ spec:
       - rules:
         - disable-write-etc
         - mitigate-sa-leak
+      bpfRawRules:
+        network:
+          egresses:
+          - port: 443
+      syscallRawRules:
+      - names:
+        - unshare
+        action: SCMP_ACT_ERRNO
+        args:
+        - index: 0
+          value: 0x10000000     # CLONE_NEWUSER
+          valueTwo: 0x10000000  # CLONE_NEWUSER
+          op: SCMP_CMP_MASKED_EQ
