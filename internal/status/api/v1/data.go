@@ -443,13 +443,13 @@ func (m *StatusManager) syncData(data string) error {
 			apm.Data.Profile.Content = apparmorProfile
 			apm.Data.Profile.SeccompContent = seccompProfile
 			apm.Data.Profile.Name = behaviorData.ProfileName
-			apm.Data.Profile.Mode = "enforce"
+			apm.Data.Profile.Enforcer = ""
+			apm.Data.Profile.Mode = ""
 			apm, err = m.updateArmorProfileModel(apm)
 			if err != nil {
 				logger.Error(err, "m.updateArmorProfileModel()")
 				return err
 			}
-
 		}
 		logger.Info("3.3 send signal to UpdateModeCh", "status key", statusKey)
 		m.UpdateModeCh <- statusKey
