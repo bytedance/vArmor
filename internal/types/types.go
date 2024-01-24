@@ -15,6 +15,8 @@
 package types
 
 import (
+	"strings"
+
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
 )
 
@@ -152,16 +154,25 @@ type BpfTraceEvent struct {
 }
 
 var enforcerMap = map[string]Enforcer{
-	"AppArmor":           AppArmor,
-	"BPF":                BPF,
-	"Seccomp":            Seccomp,
-	"AppArmorBPF":        AppArmor | BPF,
-	"AppArmorSeccomp":    AppArmor | Seccomp,
-	"BPFSeccomp":         BPF | Seccomp,
-	"AppArmorBPFSeccomp": AppArmor | BPF | Seccomp,
+	"apparmor":           AppArmor,
+	"bpf":                BPF,
+	"seccomp":            Seccomp,
+	"apparmorbpf":        AppArmor | BPF,
+	"bpfapparmor":        AppArmor | BPF,
+	"apparmorseccomp":    AppArmor | Seccomp,
+	"seccompapparmor":    AppArmor | Seccomp,
+	"bpfseccomp":         BPF | Seccomp,
+	"seccompbpf":         BPF | Seccomp,
+	"apparmorbpfseccomp": AppArmor | BPF | Seccomp,
+	"apparmorseccompbpf": AppArmor | BPF | Seccomp,
+	"bpfapparmorseccomp": AppArmor | BPF | Seccomp,
+	"bpfseccompapparmor": AppArmor | BPF | Seccomp,
+	"seccompbpfapparmor": AppArmor | BPF | Seccomp,
+	"seccompapparmorbpf": AppArmor | BPF | Seccomp,
 }
 
 func GetEnforcerType(enforcer string) Enforcer {
+	enforcer = strings.ToLower(enforcer)
 	if t, ok := enforcerMap[enforcer]; ok {
 		return t
 	}
