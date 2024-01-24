@@ -28,13 +28,15 @@ vArmor was created by the **Elkeid Team** of the endpoint security department at
 
 
 ## Prerequisites
-You can specify the enforcer through the `spec.policy.enforcer` field of policy objects ([VarmorPolicy](docs/usage_instructions.zh_CN.md#varmorpolicy)/[VarmorClusterPolicy](docs/usage_instructions.zh_CN.md#varmorclusterpolicy)). In addition, you can also use different enforcers individually or in combination, such as: AppArmorBPF, AppArmorSeccomp, AppArmorBPFSeccomp etc. The prerequisites required by different enforcers are as shown in the following table.
+You can specify the enforcer through the `spec.policy.enforcer` field of policy objects ([VarmorPolicy](docs/usage_instructions.zh_CN.md#varmorpolicy)/[VarmorClusterPolicy](docs/usage_instructions.zh_CN.md#varmorclusterpolicy)). In addition, you can also use different enforcers individually or in combination, such as: AppArmorBPF, AppArmorSeccomp, AppArmorBPFSeccomp etc.
+
+The prerequisites required by different enforcers are as shown in the following table.
 
 |Enforcer|Requirements|Recommendations|
 |------------|--------------------------------------------|--------|
 |AppArmor    |1. Linux Kernel 4.15 and above<br>2. The AppArmor LSM is enabled|GKE with Container-Optimized OS<br>AKS with Ubuntu 22.04 LTS<br>[VKE](https://www.volcengine.com/product/vke) with veLinux<br>Debian 10 and above<br>Ubuntu 18.04.0 LTS and above<br>[veLinux 1.0](https://www.volcengine.com/docs/6396/74967) etc.
 |BPF         |1. Linux Kernel 5.10 and above (x86_64)<br>2. containerd v1.6.0 and above<br>3. The BPF LSM is enabled|EKS with Amazon Linux 2<br>GKE with Container-Optimized OS<br>AKS with Ubuntu 22.04 LTS <sup>\*</sup><br>ACK with Alibaba Cloud Linux 3 <sup>\*</sup><br>OpenSUSE 15.4 <sup>\*</sup><br>Debian 11 <sup>\*</sup><br>Fedora 37 <br>[veLinux 1.0 with 5.10](https://www.volcengine.com/docs/6396/74967) etc.<br><br>* *Manual enabling of BPF LSM is required*
-|Seccomp     |1. Linux Kernel 4.15 and above<br>2. containerd v1.6.0 and above<br>3. Kubernetes v1.19 and above
+|Seccomp     |1. containerd v1.6.0 and above<br>2. Kubernetes v1.19 and above
 
 
 ## The Policy Modes and Built-in Rules
