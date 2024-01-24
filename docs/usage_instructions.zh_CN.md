@@ -38,8 +38,8 @@ vArmor 支持在安装时，通过 helm 命令对它的功能进行配置。
 * 逐个处理 VarmorPolicy/VarmorClusterPolicy 和对应的工作负载
   * 删除 VarmorPolicy/VarmorClusterPolicy 对象
   * 当防护目标的类型为 Deployment, StatusfulSet, DaemonSet 时
-    * 若开启了 --restartExistWorkloads，那么你无需其他额外工作
-    * 若未开启 --restartExistWorkloads，你需要手动删除对应工作负载中 key 为 container.apparmor.security.beta.kubernetes.io/[CONTAINER_NAME] 的 annotation
+    * 若 `.spec.updateExistingWorkloads` 为 `true`，那么你无需其他额外工作
+    * 若 `.spec.updateExistingWorkloads` 为 `false`，你需要手动删除对应工作负载中 key 为 container.apparmor.security.beta.kubernetes.io/[CONTAINER_NAME] 的 annotation
   * 当防护目标的类型为 Pod 时，需要重新创建 Pod（确保 Pod 的 annotations 中不存在名为 container.apparmor.security.beta.kubernetes.io/[CONTAINER_NAME] 的 key）
 * 通过 helm 卸载 vArmor
 

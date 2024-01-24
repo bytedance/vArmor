@@ -20,7 +20,7 @@
 |      ||syscallRawRules<br>*[LinuxSyscall](https://pkg.go.dev/github.com/opencontainers/runtime-spec@v1.1.0/specs-go#LinuxSyscall) array*|可选字段，用于支持用户使用 Seccomp enforcer 设置自定义的 Syscall 黑名单规则
 |      ||privileged<br>*bool*|可选字段，若要对特权容器进行加固，请务必将此值设置为 true。若为 `false`，将在 **RuntimeDefault** 模式的基础上构造 AppArmor/BPF Profiles。若为 `ture`，则在 **AlwaysAllow** 模式的基础上构造 AppArmor/BPF Profiles。<br><br>注意：当为 `true` 时，vArmor 不会为目标构造 Seccomp Profiles（默认值：false）
 |      |modelingOptions|duration<br>*int*|动态建模的时间（单位：分钟）[实验功能]
-|updateExistingWorkloads<br>*bool*|-|-|可选字段，用于指定是否对符合条件的工作负载进行滚动更新，从而在 Policy 创建或删除时，对目标工作负载开启或关闭防护（默认值：false）
+|updateExistingWorkloads<br>*bool*|-|-|可选字段，用于指定是否对符合条件的工作负载进行滚动更新，从而在 Policy 创建或删除时，对目标工作负载开启或关闭防护（默认值：false）<br><br>注意：vArmor 只会对 Deployment, StatefulSet, or DaemonSet 类型的工作负载进行滚动更新，如果 `.spec.target.kind` 为 Pod，需要您自行重建 Pod 来开启或关闭防护。
 |      ||PLACEHOLDER_PLACEHOLD|
 
 ### AttackProtectionRules
