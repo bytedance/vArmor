@@ -503,7 +503,7 @@ func (c *PolicyController) handleUpdateVarmorPolicy(newVp *varmor.VarmorPolicy, 
 		}
 
 		if newVp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode {
-			err = resetArmorProfileModelStatus(c.varmorInterface, newVp.Namespace, oldAp.Name)
+			err = resetArmorProfileModelStatus(c.varmorInterface, oldAp.Namespace, oldAp.Name)
 			if err != nil {
 				logger.Error(err, "resetArmorProfileModelStatus()")
 			}
