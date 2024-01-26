@@ -41,6 +41,10 @@ func generateHardeningRules(rule string) (rules string) {
 	// disallow write core_pattern
 	case "disallow-write-core-pattern":
 		rules += "  deny /proc/sys/kernel/core_pattern w,\n"
+	// disallow mount securityfs
+	case "disallow-mount-securityfs":
+		// mount new
+		rules += "  deny mount fstype=securityfs,\n"
 	// disallow mount procfs
 	case "disallow-mount-procfs":
 		// mount new

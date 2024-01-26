@@ -335,6 +335,19 @@ func generateHardeningRules(rule string, content *varmor.BpfContent, privileged 
 			return err
 		}
 		content.Files = append(content.Files, *fileContent)
+	// disallow mount securityfs
+	case "disallow-mount-securityfs":
+		if !privileged {
+			break
+		}
+		// mount new
+		flags := 0xFFFFFFFF &^ unix.MS_REMOUNT &^ unix.MS_BIND &^ unix.MS_SHARED &^
+			unix.MS_PRIVATE &^ unix.MS_SLAVE &^ unix.MS_UNBINDABLE &^ unix.MS_MOVE &^ AaMayUmount
+		mountContent, err := newBpfMountRule("**", "securityfs", uint32(flags), 0xFFFFFFFF)
+		if err != nil {
+			return err
+		}
+		content.Mounts = append(content.Mounts, *mountContent)
 	// disallow mount procfs
 	case "disallow-mount-procfs":
 		if !privileged {
