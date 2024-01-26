@@ -18,6 +18,7 @@ spec:
       hardeningRules:
       - disable-cap-net-raw
       - disallow-access-procfs-root
+      - disallow-create-user-ns
       attackProtectionRules:
       - rules:
         - disable-write-etc
@@ -27,11 +28,20 @@ spec:
           egresses:
           - port: 443
       syscallRawRules:
+      # disallow chmod +x XXX, chmod 111 XXX, chmod 001 XXX, chmod 010 XXX...
       - names:
-        - unshare
+        - fchmodat
         action: SCMP_ACT_ERRNO
         args:
-        - index: 0
-          value: 0x10000000     # CLONE_NEWUSER
-          valueTwo: 0x10000000  # CLONE_NEWUSER
+        - index: 2
+          value: 0x40     # S_IXUSR
+          valueTwo: 0x40
+          op: SCMP_CMP_MASKED_EQ
+        - index: 2
+          value: 0x8      # S_IXGRP
+          valueTwo: 0x8
+          op: SCMP_CMP_MASKED_EQ
+        - index: 2
+          value: 1        # S_IXOTH
+          valueTwo: 1
           op: SCMP_CMP_MASKED_EQ
