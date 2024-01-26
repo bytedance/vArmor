@@ -50,12 +50,12 @@ vArmor 的策略支持 5 种运行模式：**AlwaysAllow、RuntimeDefault、Enha
 
 ### Step 1. 拉取 chart 包
 ```
-helm pull oci://elkeid-cn-beijing.cr.volces.com/varmor/varmor --version 0.5.5
+helm pull oci://elkeid-cn-beijing.cr.volces.com/varmor/varmor --version 0.5.6-rc
 ```
 
 ### Step 2. 安装
 ```
-helm install varmor varmor-0.5.5.tgz \
+helm install varmor varmor-0.5.6-rc.tgz \
     --namespace varmor --create-namespace \
     --set image.registry="elkeid-cn-beijing.cr.volces.com"
 ```
