@@ -17,6 +17,9 @@ package seccomp
 import (
 	"encoding/base64"
 	"encoding/json"
+	"strings"
+
+	"golang.org/x/sys/unix"
 
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
 	"github.com/opencontainers/runtime-spec/specs-go"
@@ -76,6 +79,29 @@ func GenerateEnhanceProtectProfile(enhanceProtect *varmor.EnhanceProtect, profil
 	profile := specs.LinuxSeccomp{
 		DefaultAction: specs.ActAllow,
 		Syscalls:      []specs.LinuxSyscall{},
+	}
+
+	// Hardening
+	for _, rule := range enhanceProtect.HardeningRules {
+		rule = strings.ToLower(rule)
+		rule = strings.ReplaceAll(rule, "_", "-")
+
+		switch rule {
+		case "disallow-create-user-ns":
+			syscall := specs.LinuxSyscall{
+				Names:  []string{"unshare"},
+				Action: specs.ActErrno,
+				Args: []specs.LinuxSeccompArg{
+					{
+						Index:    0,
+						Value:    unix.CLONE_NEWUSER,
+						ValueTwo: unix.CLONE_NEWUSER,
+						Op:       specs.OpMaskedEqual,
+					},
+				},
+			}
+			profile.Syscalls = append(profile.Syscalls, syscall)
+		}
 	}
 
 	// Custom
