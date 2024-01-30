@@ -44,7 +44,7 @@ profile cri-containerd.apparmor.d flags=(attach_disconnected,mediate_deleted) {
 `
 
 	minKernelVersionForAppArmorLSM = "4.15"
-	minKernelVersionForBPFLSM      = "5.7"
+	minKernelVersionForBPFLSM      = "5.10"
 	regexVersion                   = "^\\d+\\.?\\d*\\.?\\d*" // ^\d+\.?\d*\.?\d*
 )
 
@@ -88,7 +88,7 @@ func versionGreaterThanOrEqual(current, minimum string) (bool, error) {
 	if currentVersion.GreaterThanOrEqual(minVersion) {
 		return true, nil
 	}
-	return false, fmt.Errorf(fmt.Sprintf("the current version (%s) < the minimum testd version (%s)", current, minimum))
+	return false, fmt.Errorf(fmt.Sprintf("the current version (%s) < the minimum version (%s)", current, minimum))
 }
 
 func isLSMSupported(lsm string) (bool, error) {
@@ -100,12 +100,12 @@ func isLSMSupported(lsm string) (bool, error) {
 	switch lsm {
 	case "AppArmor":
 		if !isAppArmorEnabled() {
-			return false, fmt.Errorf("the AppArmor LSM is disabled")
+			return false, fmt.Errorf("the AppArmor LSM is not enabled")
 		}
 		return versionGreaterThanOrEqual(string(ret), minKernelVersionForAppArmorLSM)
 	case "BPF":
 		if !isBpfLsmEnabled() {
-			return false, fmt.Errorf("the BPF LSM is disabled")
+			return false, fmt.Errorf("the BPF LSM is not enabled")
 		}
 		return versionGreaterThanOrEqual(string(ret), minKernelVersionForBPFLSM)
 	default:

@@ -298,8 +298,8 @@ func (agent *Agent) selectEnforcer(ap *varmor.ArmorProfile, logger logr.Logger) 
 	e := varmortypes.GetEnforcerType(ap.Spec.Profile.Enforcer)
 
 	if (e&varmortypes.AppArmor != 0) && !agent.appArmorSupported {
-		agent.sendStatus(ap, varmortypes.Failed, "the AppArmor LSM feature is not supported by the host, or the BPF enforcer has been disabled in vArmor.")
-		return e, fmt.Errorf("the AppArmor LSM feature is not supported by the host, or the BPF enforcer has been disabled in vArmor")
+		agent.sendStatus(ap, varmortypes.Failed, "the AppArmor LSM feature is not supported by the host, or the AppArmor enforcer has been disabled in vArmor.")
+		return e, fmt.Errorf("the AppArmor LSM feature is not supported by the host, or the AppArmor enforcer has been disabled in vArmor")
 	}
 
 	if (e&varmortypes.BPF != 0) && !agent.bpfLsmSupported {
