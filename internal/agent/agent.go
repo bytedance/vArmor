@@ -294,27 +294,30 @@ func (agent *Agent) sendStatus(ap *varmor.ArmorProfile, status varmortypes.Statu
 	return varmorutils.PostStatusToStatusService(reqBody, agent.debug, agent.managerIP, agent.managerPort)
 }
 
-func (agent *Agent) selectEnforcer(ap *varmor.ArmorProfile, logger logr.Logger) varmortypes.Enforcer {
+func (agent *Agent) selectEnforcer(ap *varmor.ArmorProfile, logger logr.Logger) (varmortypes.Enforcer, error) {
 	e := varmortypes.GetEnforcerType(ap.Spec.Profile.Enforcer)
 
 	if (e&varmortypes.AppArmor != 0) && !agent.appArmorSupported {
-		agent.sendStatus(ap, varmortypes.Failed, "the AppArmor LSM is not supported")
-		return e
+		agent.sendStatus(ap, varmortypes.Failed, "the AppArmor LSM feature is not supported by the host, or the BPF enforcer has been disabled in vArmor.")
+		return e, fmt.Errorf("the AppArmor LSM feature is not supported by the host, or the BPF enforcer has been disabled in vArmor")
 	}
 
-	if ((e&varmortypes.BPF != 0) && !agent.bpfLsmSupported) ||
-		((e&varmortypes.BPF != 0) && agent.bpfLsmSupported && ap.Spec.BehaviorModeling.Enable) {
-		agent.sendStatus(ap, varmortypes.Failed, "the BPF LSM may not be supported, "+
-			"the BPF enforcer may not be enabled, or the BPF enforcer not support the BehaviorModeling mode.")
-		return e
+	if (e&varmortypes.BPF != 0) && !agent.bpfLsmSupported {
+		agent.sendStatus(ap, varmortypes.Failed, "The BPF LSM feature is not supported by the host, or the BPF enforcer has not been enabled in vArmor.")
+		return e, fmt.Errorf("the BPF LSM feature is not supported by the host, or the BPF enforcer has not been enabled in vArmor")
+	}
+
+	if (e&varmortypes.BPF != 0) && ap.Spec.BehaviorModeling.Enable {
+		agent.sendStatus(ap, varmortypes.Failed, "the BPF enforcer does not support the BehaviorModeling mode.")
+		return e, fmt.Errorf("the BPF enforcer does not support the BehaviorModeling mode")
 	}
 
 	if e&varmortypes.Unknown != 0 {
-		agent.sendStatus(ap, varmortypes.Failed, "unknown enforcer")
-		return e
+		agent.sendStatus(ap, varmortypes.Failed, "Unknown enforcer.")
+		return e, fmt.Errorf("unknown enforcer")
 	}
 
-	return e
+	return e, nil
 }
 
 // handleCreateOrUpdateArmorProfile load or reload AppArmor Profile for containers.
@@ -334,9 +337,8 @@ func (agent *Agent) handleCreateOrUpdateArmorProfile(ap *varmor.ArmorProfile, ke
 		}
 	}()
 
-	enforcer := agent.selectEnforcer(ap, logger)
-	if enforcer == varmortypes.Unknown {
-		logger.Info("the enforcer is not supported")
+	enforcer, err := agent.selectEnforcer(ap, logger)
+	if err != nil {
 		return nil
 	}
 
