@@ -39,8 +39,9 @@ jobs:
       - name: Set up llvm and apparmor
         run: ./.github/scripts/toolchain.sh
 
-      - name: Get git status
-        run: git status && git log
+      - name: Git describe
+        id: ghd
+        uses: proudust/gh-describe@v2
 
       - name: make build
         run: make build
