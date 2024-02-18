@@ -39,7 +39,13 @@ jobs:
       - name: Set up llvm and apparmor
         run: ./.github/scripts/toolchain.sh
 
-      - name: Build dev image
+      - name: Get git status
+        run: git status && git log
+
+      - name: make build
+        run: make build
+
+      - name: Run build
         run: make docker-build
 
       - name: Login to Docker Hub

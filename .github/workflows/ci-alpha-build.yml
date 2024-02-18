@@ -39,10 +39,14 @@ jobs:
       - name: Set up llvm and apparmor
         run: ./.github/scripts/toolchain.sh
 
-      - name: Build dev image
-        run: |
-          git status \
-          make docker-build-dev
+      - name: Get git status
+        run: git status && git log
+
+      - name: make build
+        run: make build
+
+      - name: Run build
+        run: make docker-build-dev
 
       - name: Login to Docker Hub
         run: echo "${{ secrets.PUSH_PASSWORD }}"|docker login -u=${{ secrets.PUSH_USERNAME }} elkeid-test-cn-beijing.cr.volces.com --password-stdin
