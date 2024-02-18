@@ -28,8 +28,8 @@ CLASSIFIER_IMAGE_DEV ?= $(REPO_DEV)/$(CLASSIFIER_IMAGE_NAME):$(CLASSIFIER_IMAGE_
 
 CHART_APP_VERSION := $(VARMOR_IMAGE_TAG)
 CHART_APP_VERSION_DEV := $(GIT_VERSION)
-CHART_VERSION := $(shell VERSION=$(CHART_APP_VERSION); echo $${VERSION\#v})
-CHART_VERSION_DEV := $(shell VERSION=$(CHART_APP_VERSION_DEV); echo $${VERSION\#v})
+CHART_VERSION := $(shell echo $(CHART_APP_VERSION)| sed 's/^v//')
+CHART_VERSION_DEV := $(shell echo $(CHART_APP_VERSION_DEV)| sed 's/^v//')
 
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.20
@@ -167,7 +167,7 @@ local: ## Build local binary.
 	go build -o bin/vArmor $(PWD)/$(VARMOR_PATH)
 
 .PHONY: build
-build: manifests generate build-ebpf copy-ebpf fmt vet local ## Build local binary when apis or bpf code were modified.
+build: manifests generate build-ebpf copy-ebpf vet local ## Build local binary when apis or bpf code were modified.
 
 .PHONY: docker-build
 docker-build: docker-build-varmor-amd64 docker-build-varmor-arm64 docker-build-classifier-amd64 docker-build-classifier-arm64 ## Build container images. 
@@ -177,35 +177,35 @@ docker-build-dev: docker-build-varmor-amd64-dev docker-build-varmor-arm64-dev do
 
 docker-build-varmor-amd64:
 	@echo "[+] Build varmor-amd64 image for release version"
-	@docker buildx build --file $(PWD)/$(VARMOR_PATH)/Dockerfile --tag $(VARMOR_IMAGE)-amd64 --platform linux/amd64 --build-arg TARGETPLATFORM="linux/amd64" --build-arg MAKECHECK="check" .
+	@docker buildx build --file $(PWD)/$(VARMOR_PATH)/Dockerfile --tag $(VARMOR_IMAGE)-amd64 --platform linux/amd64 --build-arg TARGETPLATFORM="linux/amd64" --build-arg MAKECHECK="check" --load .
 
 docker-build-varmor-arm64:
 	@echo "[+] Build varmor-arm64 image for the release version"
-	@docker buildx build --file $(PWD)/$(VARMOR_PATH)/Dockerfile --tag $(VARMOR_IMAGE)-arm64 --platform linux/arm64 --build-arg TARGETPLATFORM="linux/arm64" --build-arg MAKECHECK="check" .
+	@docker buildx build --file $(PWD)/$(VARMOR_PATH)/Dockerfile --tag $(VARMOR_IMAGE)-arm64 --platform linux/arm64 --build-arg TARGETPLATFORM="linux/arm64" --build-arg MAKECHECK="check" --load .
 
 docker-build-classifier-amd64:
 	@echo "[+] Build classifier-amd64 image for the release version"
-	@docker buildx build --file $(PWD)/$(CLASSIFIER_PATH)/Dockerfile --tag $(CLASSIFIER_IMAGE)-amd64 --platform linux/amd64 .
+	@docker buildx build --file $(PWD)/$(CLASSIFIER_PATH)/Dockerfile --tag $(CLASSIFIER_IMAGE)-amd64 --platform linux/amd64 --load .
 
 docker-build-classifier-arm64:
 	@echo "[+] Build classifier-arm64 image for the release version"
-	@docker buildx build --file $(PWD)/$(CLASSIFIER_PATH)/Dockerfile --tag $(CLASSIFIER_IMAGE)-arm64 --platform linux/arm64 .
+	@docker buildx build --file $(PWD)/$(CLASSIFIER_PATH)/Dockerfile --tag $(CLASSIFIER_IMAGE)-arm64 --platform linux/arm64 --load .
 
 docker-build-varmor-amd64-dev:
 	@echo "[+] Build varmor-amd64 image for the development version"
-	@docker buildx build --file $(PWD)/$(VARMOR_PATH)/Dockerfile --tag $(VARMOR_IMAGE_DEV)-amd64 --platform linux/amd64 --build-arg TARGETPLATFORM="linux/amd64" .
+	@docker buildx build --file $(PWD)/$(VARMOR_PATH)/Dockerfile --tag $(VARMOR_IMAGE_DEV)-amd64 --platform linux/amd64 --build-arg TARGETPLATFORM="linux/amd64" --load .
 
 docker-build-varmor-arm64-dev:
 	@echo "[+] Build varmor-arm64 image for the development version"
-	@docker buildx build --file $(PWD)/$(VARMOR_PATH)/Dockerfile --tag $(VARMOR_IMAGE_DEV)-arm64 --platform linux/arm64 --build-arg TARGETPLATFORM="linux/arm64" . 
+	@docker buildx build --file $(PWD)/$(VARMOR_PATH)/Dockerfile --tag $(VARMOR_IMAGE_DEV)-arm64 --platform linux/arm64 --build-arg TARGETPLATFORM="linux/arm64" --load .
 
 docker-build-classifier-amd64-dev:
 	@echo "[+] Build classifier-amd64 image for the development version"
-	@docker buildx build --file $(PWD)/$(CLASSIFIER_PATH)/Dockerfile --tag $(CLASSIFIER_IMAGE_DEV)-amd64 --platform linux/amd64 .
+	@docker buildx build --file $(PWD)/$(CLASSIFIER_PATH)/Dockerfile --tag $(CLASSIFIER_IMAGE_DEV)-amd64 --platform linux/amd64 --load .
 
 docker-build-classifier-arm64-dev:
 	@echo "[+] Build classifier-arm64 image for the development version"
-	@docker buildx build --file $(PWD)/$(CLASSIFIER_PATH)/Dockerfile --tag $(CLASSIFIER_IMAGE_DEV)-arm64 --platform linux/arm64 .
+	@docker buildx build --file $(PWD)/$(CLASSIFIER_PATH)/Dockerfile --tag $(CLASSIFIER_IMAGE_DEV)-arm64 --platform linux/arm64 --load .
 
 
 ##@ Package

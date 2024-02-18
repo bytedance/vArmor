@@ -19,6 +19,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
 
       - name: Checkout submodules
         run: git submodule update --init --recursive
@@ -38,10 +40,6 @@ jobs:
 
       - name: Set up llvm and apparmor
         run: ./.github/scripts/toolchain.sh
-
-      - name: Git describe
-        id: ghd
-        uses: proudust/gh-describe@v2
 
       - name: make build
         run: make build
