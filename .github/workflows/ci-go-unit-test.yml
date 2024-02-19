@@ -1,0 +1,33 @@
+name: ci-go-unit-test
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "apis/**"
+      - "cmd/**"
+      - "config/**"
+      - "internal/**"
+      - "pkg/**"
+      - ".gitmodules"
+      - "manifests/**"
+      - "vArmor-ebpf/**" # check submodule content
+permissions: read-all
+jobs:
+  go-unit-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          submodules: recursive
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: "1.20"
+      - name: Get dependencies
+        run: go mod tidy
+      - name: Set up llvm and apparmor
+        run: ./.github/scripts/toolchain.sh
+      - name: Run Tests
+        run: go test -v ./...
