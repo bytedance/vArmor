@@ -122,9 +122,9 @@ func generateHardeningRules(rule string) (rules string) {
   deny capability wake_alarm,
   deny capability block_suspend,
   deny capability audit_read,
-	deny capability perfmon,
-	deny capability bpf,
-	deny capability checkpoint_restore,	
+  deny capability perfmon,
+  deny capability bpf,
+  deny capability checkpoint_restore,
 `
 	// disable the specified capability
 	case "disable-cap-chown":
