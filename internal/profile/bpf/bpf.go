@@ -472,7 +472,10 @@ func generateHardeningRules(rule string, content *varmor.BpfContent, privileged 
 			(1 << unix.CAP_SYSLOG) |
 			(1 << unix.CAP_WAKE_ALARM) |
 			(1 << unix.CAP_BLOCK_SUSPEND) |
-			(1 << unix.CAP_AUDIT_READ))
+			(1 << unix.CAP_AUDIT_READ) |
+			(1 << unix.CAP_PERFMON) |
+			(1 << unix.CAP_BPF) |
+			(1 << unix.CAP_CHECKPOINT_RESTORE))
 	// disable the specified capability
 	case "disable-cap-chown":
 		content.Capabilities |= 1 << unix.CAP_CHOWN
@@ -554,6 +557,8 @@ func generateHardeningRules(rule string, content *varmor.BpfContent, privileged 
 		content.Capabilities |= 1 << unix.CAP_PERFMON
 	case "disable-cap-bpf":
 		content.Capabilities |= 1 << unix.CAP_BPF
+	case "disable-cap-checkpoint-restore":
+		content.Capabilities |= 1 << unix.CAP_CHECKPOINT_RESTORE
 
 	//// 3. Kernel vulnerability mitigation
 	// diallow create user namespace

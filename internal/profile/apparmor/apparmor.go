@@ -122,6 +122,9 @@ func generateHardeningRules(rule string) (rules string) {
   deny capability wake_alarm,
   deny capability block_suspend,
   deny capability audit_read,
+	deny capability perfmon,
+	deny capability bpf,
+	deny capability checkpoint_restore,	
 `
 	// disable the specified capability
 	case "disable-cap-chown":
@@ -204,6 +207,8 @@ func generateHardeningRules(rule string) (rules string) {
 		rules += "  deny capability perfmon,\n"
 	case "disable-cap-bpf":
 		rules += "  deny capability bpf,\n"
+	case "disable-cap-checkpoint-restore":
+		rules += "  deny capability checkpoint_restore,\n"
 
 	//// 3. Kernel vulnerability mitigation
 	// forward-compatible
