@@ -1,4 +1,4 @@
-name: alpha-build
+name: ci-alpha-build
 on:
   pull_request:
     branches:
@@ -16,6 +16,8 @@ permissions: read-all
 jobs:
   build:
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.SetVersion.outputs.version }}
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -41,8 +43,14 @@ jobs:
       - name: Set up llvm and apparmor
         run: ./.github/scripts/toolchain.sh
 
-      - name: make build
-        run: make build
+      - name: Package helm chart
+        run: make helm-package-dev
+
+      - name: Upload Helm Chart as Artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: helm-chart
+          path: varmor-*.tgz
 
       - name: Run build
         run: make docker-build-dev
@@ -50,8 +58,43 @@ jobs:
       - name: Login to Docker Hub
         run: echo "${{ secrets.PUSH_PASSWORD }}"|docker login -u=${{ secrets.PUSH_USERNAME }} elkeid-test-cn-beijing.cr.volces.com --password-stdin
 
-      - name: Package helm chart
-        run: make helm-package-dev
 
       - name: Push image to registry
         run: make push-dev
+
+      - id: SetVersion
+        run: echo "version=$(git describe --tags --match "v[0-9]*"| sed 's/^v//')">> "$GITHUB_OUTPUT"
+
+
+
+  deploy-and-basic-test:
+    strategy:
+      fail-fast: false
+      matrix:
+        k8s_version: [ "1.20.15", "1.24.17", "1.26.14" ]
+        os: [ "ubuntu-latest" ]
+    runs-on: ${{ matrix.os }}
+    env:
+      KUBE_VER: ${{ matrix.k8s_version }}
+    steps:
+      - name: Create a K3s cluster
+        run: ./.github/scripts/create-k3s-cluster.sh
+      - name: Download Helm Chart Artifact
+        uses: actions/download-artifact@v2
+        with:
+          name: helm-chart
+      - name: Install varmor alpha version
+        run: |
+          helm install varmor varmor-*.tgz \
+              --namespace varmor --create-namespace \
+              --set image.registry="elkeid-test-cn-beijing.cr.volces.com" \
+              --set image.username=${{ secrets.TEST_USERNAME }}" \
+              --set image.password=${{ secrets.TEST_PASSWORD }}" \
+              --set bpfLsmEnforcer.enabled=true \
+              --set "agent.bpfLsmEnforcer.volumes[0].hostPath.type=Directory,agent.bpfLsmEnforcer.volumes[0].hostPath.path=/run/k3s/containerd/,agent.bpfLsmEnforcer.volumes[0].name=containerd" \
+              --set "agent.bpfLsmEnforcer.volumes[1].hostPath.type=Directory,agent.bpfLsmEnforcer.volumes[1].hostPath.path=/proc,agent.bpfLsmEnforcer.volumes[1].name=procfs"
+      - name: Run basic test
+        run: ./.github/scripts/basic-test.sh
+      - name: Kill all and clean up
+        if: ${{ always() }}
+        run: ./.github/scripts/kill-and-clean-all.sh
