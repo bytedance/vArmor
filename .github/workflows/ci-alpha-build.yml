@@ -68,6 +68,7 @@ jobs:
 
 
   deploy-and-basic-test:
+    needs: build
     strategy:
       fail-fast: false
       matrix:
@@ -83,6 +84,13 @@ jobs:
         uses: actions/download-artifact@v2
         with:
           name: helm-chart
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Checkout submodules
+        run: git submodule update --init --recursive
       - name: Install varmor alpha version
         run: |
           helm install varmor varmor-*.tgz \
