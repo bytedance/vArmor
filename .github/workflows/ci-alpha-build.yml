@@ -73,8 +73,8 @@ jobs:
       fail-fast: false
       matrix:
         k8s_version: [ "1.20.15", "1.24.17", "1.26.14" ]
-        os: [ "velinux-5.10" ]
-    runs-on: self-hosted, ${{ matrix.os }}
+        os: [ "self-hosted","ubuntu-latest" ]
+    runs-on:  ${{ matrix.os }}
     env:
       KUBE_VER: ${{ matrix.k8s_version }}
     steps:
@@ -82,8 +82,10 @@ jobs:
         uses: actions/checkout@v3
         with:
           fetch-depth: 0
-      - name: Create a K3s cluster
-        run: ./.github/scripts/create-k3s-cluster.sh $KUBE_VER
+      - uses: debianmaster/actions-k3s@master
+        id: k3s
+        with:
+          version: v${{ matrix.k8s_version }}-k3s1
       - name: Download Helm Chart Artifact
         uses: actions/download-artifact@v2
         with:
