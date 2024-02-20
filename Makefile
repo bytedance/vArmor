@@ -5,12 +5,13 @@ CLASSIFIER_PATH := cmd/classifier
 
 REGISTRY ?= elkeid-cn-beijing.cr.volces.com
 REGISTRY_AP ?= elkeid-ap-southeast-1.cr.volces.com
-REGISTRY_DEV ?= elkeid-test-cn-beijing.cr.volces.com
+REGISTRY_DEV ?= elkeid-ap-southeast-1.cr.volces.com
 
 NAMESPACE ?= varmor
+NAMESPACE_DEV ?= varmor-test
 REPO = $(REGISTRY)/$(NAMESPACE)
 REPO_AP = $(REGISTRY_AP)/$(NAMESPACE)
-REPO_DEV = $(REGISTRY_DEV)/$(NAMESPACE)
+REPO_DEV = $(REGISTRY_DEV)/$(NAMESPACE_DEV)
 
 VARMOR_IMAGE_NAME := varmor
 VARMOR_IMAGE_TAG := $(shell VERSION=$(GIT_VERSION); echo $${VERSION%-*-*})
