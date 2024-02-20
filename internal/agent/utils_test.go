@@ -32,19 +32,19 @@ func Test_versionGreaterThanOrEqual(t *testing.T) {
 			current:        "4-43",
 			minimumVersion: minKernelVersionForAppArmorLSM,
 			expectedResult: false,
-			expectedErr:    fmt.Errorf(fmt.Sprintf("the current version (4) < the minimum testd version (%s)", minKernelVersionForAppArmorLSM)),
+			expectedErr:    fmt.Errorf(fmt.Sprintf("the current version (4) < the minimum version (%s)", minKernelVersionForAppArmorLSM)),
 		},
 		{
 			current:        "4.13.117.23.bsk.10-amd64",
 			minimumVersion: minKernelVersionForAppArmorLSM,
 			expectedResult: false,
-			expectedErr:    fmt.Errorf(fmt.Sprintf("the current version (4.13.117) < the minimum testd version (%s)", minKernelVersionForAppArmorLSM)),
+			expectedErr:    fmt.Errorf(fmt.Sprintf("the current version (4.13.117) < the minimum version (%s)", minKernelVersionForAppArmorLSM)),
 		},
 		{
 			current:        "4.14.117.bsk.10-amd64",
 			minimumVersion: minKernelVersionForAppArmorLSM,
 			expectedResult: false,
-			expectedErr:    fmt.Errorf(fmt.Sprintf("the current version (4.14.117) < the minimum testd version (%s)", minKernelVersionForAppArmorLSM)),
+			expectedErr:    fmt.Errorf(fmt.Sprintf("the current version (4.14.117) < the minimum version (%s)", minKernelVersionForAppArmorLSM)),
 		},
 		{
 			current:        "4.15",
@@ -98,13 +98,13 @@ func Test_versionGreaterThanOrEqual(t *testing.T) {
 			current:        "5.4.0-148-generic",
 			minimumVersion: minKernelVersionForBPFLSM,
 			expectedResult: false,
-			expectedErr:    fmt.Errorf(fmt.Sprintf("the current version (5.4.0) < the minimum testd version (%s)", minKernelVersionForBPFLSM)),
+			expectedErr:    fmt.Errorf(fmt.Sprintf("the current version (5.4.0) < the minimum version (%s)", minKernelVersionForBPFLSM)),
 		},
 		{
 			current:        "5.6.135-2-velinux1-amd64",
 			minimumVersion: minKernelVersionForBPFLSM,
 			expectedResult: false,
-			expectedErr:    fmt.Errorf(fmt.Sprintf("the current version (5.6.135) < the minimum testd version (%s)", minKernelVersionForBPFLSM)),
+			expectedErr:    fmt.Errorf(fmt.Sprintf("the current version (5.6.135) < the minimum version (%s)", minKernelVersionForBPFLSM)),
 		},
 		{
 			current:        "5.10.134-13.1.al8.x86_64",
