@@ -34,6 +34,7 @@
 |         |                      |禁止加载内核模块<br><br>`disallow-insmod`|Privileged|攻击者可能会在特权容器中（**w/ CAP_SYS_MODULE**），通过执行内核模块加载命令 insmod，向内核中注入代码。|禁用 CAP_SYS_MODULE|AppArmor<br>BPF
 |         |                      |禁止加载 ebpf Program<br><br>`disallow-load-ebpf`|ALL|攻击者可能会在特权容器中（**w/ CAP_SYS_ADMIN & CAP_BPF**），加载 ebpf Program 实现数据窃取和隐藏。<br><br>注：CAP_BPF 自 Linux 5.8 引入。|禁用 CAP_SYS_ADMIN, CAP_BPF|AppArmor<br>BPF
 |         |                      |禁止访问进程文件系统的根目录<br><br>`disallow-access-procfs-root`|ALL|本策略禁止容器内进程访问进程文件系统的根目录（即 /proc/[PID]/root），防止攻击者利用共享 pid ns 的进程进行攻击。<br><br>攻击者可能会在共享了宿主机 pid ns、与其他容器共享 pid ns 的容器环境中，通过读写 /proc/*/root 来访问容器外的进程文件系统，实现信息泄露、权限提升、横向移动等攻击。|禁用 PTRACE_MODE_READ 权限|AppArmor<br>BPF
+|         |                      |禁止读取内核符号文件<br><br>`disallow-access-kallsyms`|ALL|攻击者可能会在特权容器中（CAP_SYS_ADMIN），通过读取内核符号文件来获取内核模块地址。从而绕过 KASLR 防护，降低内核漏洞的难度与成本。|禁止读取 /proc/kallsyms 文件|AppArmor<br>BPF
 |         |禁用 capabilities|禁用所有 capabilities<br><br>`disable-cap-all`|ALL|禁用所有 capabilities|-|AppArmor<br>BPF
 |         |                |禁用特权 capability<br><br>`disable-cap-privileged`|ALL|禁用所有的特权 capabilities（可直接造成逃逸、影响宿主机可用性的 capabilities）。仅允许非特权 capabilities，即 Container Runtime 默认授予容器的 capabilities。|-|AppArmor<br>BPF
 |         |                |禁用任意 capability<br><br>`disable-cap-XXXX`|ALL|禁用任意指定的 capabilities，请将 XXXX 替换为 man capabilities 中的值，例如 disable-cap-net-raw|-|AppArmor<br>BPF

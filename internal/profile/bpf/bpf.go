@@ -442,6 +442,13 @@ func generateHardeningRules(rule string, content *varmor.BpfContent, privileged 
 		}
 		content.Ptrace.Permissions |= AaPtraceRead
 		content.Ptrace.Flags |= PreciseMatch
+	// disallow access /proc/kallsyms
+	case "disallow-access-kallsyms":
+		fileContent, err := newBpfPathRule("/proc/kallsyms", AaMayRead)
+		if err != nil {
+			return err
+		}
+		content.Files = append(content.Files, *fileContent)
 
 	//// 2. Disable capabilities
 	// disable all capabilities
