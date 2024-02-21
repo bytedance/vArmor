@@ -2,7 +2,7 @@ name: ci-release-build
 on:
   push:
     tags:
-      - release-*
+      - v*
 permissions: read-all
 jobs:
   build:
