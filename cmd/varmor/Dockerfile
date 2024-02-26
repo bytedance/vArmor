@@ -6,7 +6,7 @@ LABEL maintainer="weiwei.danny@bytedance.com"
 ARG MAKECHECK
 
 RUN apt-get update && apt-get -y upgrade
-RUN apt-get install -y git python3-pip python3-dev swig bison flex dejagnu pyflakes3 autoconf libtool zlib1g-dev gettext gperf
+RUN apt-get install -y git python3-pip python3-dev swig bison flex dejagnu pyflakes3 autoconf libtool zlib1g-dev gettext gperf autoconf-archive
 RUN pip3 install notify2 psutil python-config
 
 RUN git clone https://gitlab.com/apparmor/apparmor.git
