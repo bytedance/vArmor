@@ -3,13 +3,11 @@ GIT_VERSION := $(shell git describe --tags --match "v[0-9]*")
 VARMOR_PATH := cmd/varmor
 CLASSIFIER_PATH := cmd/classifier
 
-REGISTRY ?= elkeid-cn-beijing.cr.volces.com
 REGISTRY_AP ?= elkeid-ap-southeast-1.cr.volces.com
 REGISTRY_DEV ?= elkeid-ap-southeast-1.cr.volces.com
 
 NAMESPACE ?= varmor
 NAMESPACE_DEV ?= varmor-test
-REPO = $(REGISTRY)/$(NAMESPACE)
 REPO_AP = $(REGISTRY_AP)/$(NAMESPACE)
 REPO_DEV = $(REGISTRY_DEV)/$(NAMESPACE_DEV)
 
@@ -20,10 +18,8 @@ CLASSIFIER_IMAGE_NAME := classifier
 CLASSIFIER_IMAGE_TAG := $(VARMOR_IMAGE_TAG)
 CLASSIFIER_IMAGE_TAG_DEV := $(VARMOR_IMAGE_TAG_DEV)
 
-VARMOR_IMAGE ?= $(REPO)/$(VARMOR_IMAGE_NAME):$(VARMOR_IMAGE_TAG)
 VARMOR_IMAGE_AP ?= $(REPO_AP)/$(VARMOR_IMAGE_NAME):$(VARMOR_IMAGE_TAG)
 VARMOR_IMAGE_DEV ?= $(REPO_DEV)/$(VARMOR_IMAGE_NAME):$(VARMOR_IMAGE_TAG_DEV)
-CLASSIFIER_IMAGE ?= $(REPO)/$(CLASSIFIER_IMAGE_NAME):$(CLASSIFIER_IMAGE_TAG)
 CLASSIFIER_IMAGE_AP ?= $(REPO_AP)/$(CLASSIFIER_IMAGE_NAME):$(CLASSIFIER_IMAGE_TAG)
 CLASSIFIER_IMAGE_DEV ?= $(REPO_DEV)/$(CLASSIFIER_IMAGE_NAME):$(CLASSIFIER_IMAGE_TAG_DEV)
 
@@ -178,19 +174,19 @@ docker-build-dev: docker-build-varmor-amd64-dev docker-build-varmor-arm64-dev do
 
 docker-build-varmor-amd64:
 	@echo "[+] Build varmor-amd64 image for release version"
-	@docker buildx build --file $(PWD)/$(VARMOR_PATH)/Dockerfile --tag $(VARMOR_IMAGE)-amd64 --platform linux/amd64 --build-arg TARGETPLATFORM="linux/amd64" --build-arg MAKECHECK="check" --load .
+	@docker buildx build --file $(PWD)/$(VARMOR_PATH)/Dockerfile --tag $(VARMOR_IMAGE_AP)-amd64 --platform linux/amd64 --build-arg TARGETPLATFORM="linux/amd64" --build-arg MAKECHECK="check" --load .
 
 docker-build-varmor-arm64:
 	@echo "[+] Build varmor-arm64 image for the release version"
-	@docker buildx build --file $(PWD)/$(VARMOR_PATH)/Dockerfile --tag $(VARMOR_IMAGE)-arm64 --platform linux/arm64 --build-arg TARGETPLATFORM="linux/arm64" --build-arg MAKECHECK="check" --load .
+	@docker buildx build --file $(PWD)/$(VARMOR_PATH)/Dockerfile --tag $(VARMOR_IMAGE_AP)-arm64 --platform linux/arm64 --build-arg TARGETPLATFORM="linux/arm64" --build-arg MAKECHECK="check" --load .
 
 docker-build-classifier-amd64:
 	@echo "[+] Build classifier-amd64 image for the release version"
-	@docker buildx build --file $(PWD)/$(CLASSIFIER_PATH)/Dockerfile --tag $(CLASSIFIER_IMAGE)-amd64 --platform linux/amd64 --load .
+	@docker buildx build --file $(PWD)/$(CLASSIFIER_PATH)/Dockerfile --tag $(CLASSIFIER_IMAGE_AP)-amd64 --platform linux/amd64 --load .
 
 docker-build-classifier-arm64:
 	@echo "[+] Build classifier-arm64 image for the release version"
-	@docker buildx build --file $(PWD)/$(CLASSIFIER_PATH)/Dockerfile --tag $(CLASSIFIER_IMAGE)-arm64 --platform linux/arm64 --load .
+	@docker buildx build --file $(PWD)/$(CLASSIFIER_PATH)/Dockerfile --tag $(CLASSIFIER_IMAGE_AP)-arm64 --platform linux/arm64 --load .
 
 docker-build-varmor-amd64-dev:
 	@echo "[+] Build varmor-amd64 image for the development version"
@@ -249,20 +245,6 @@ push-dev: ## Push images and chart to the private repository for development.
 
 
 push: ## Push images and chart to the public repository for release.
-	docker push $(VARMOR_IMAGE)-amd64
-	@echo "----------------------------------------"
-	docker push $(VARMOR_IMAGE)-arm64
-	@echo "----------------------------------------"
-	-docker manifest rm $(VARMOR_IMAGE)
-	@echo "----------------------------------------"
-	docker manifest create $(VARMOR_IMAGE) $(VARMOR_IMAGE)-amd64 $(VARMOR_IMAGE)-arm64
-	@echo "----------------------------------------"
-	docker manifest push $(VARMOR_IMAGE)
-	@echo "----------------------------------------"
-	docker tag $(VARMOR_IMAGE)-amd64 $(VARMOR_IMAGE_AP)-amd64
-	@echo "----------------------------------------"
-	docker tag $(VARMOR_IMAGE)-arm64 $(VARMOR_IMAGE_AP)-arm64
-	@echo "----------------------------------------"
 	docker push $(VARMOR_IMAGE_AP)-amd64
 	@echo "----------------------------------------"
 	docker push $(VARMOR_IMAGE_AP)-arm64
@@ -273,20 +255,6 @@ push: ## Push images and chart to the public repository for release.
 	@echo "----------------------------------------"
 	docker manifest push $(VARMOR_IMAGE_AP)
 	@echo "----------------------------------------"
-	docker push $(CLASSIFIER_IMAGE)-amd64
-	@echo "----------------------------------------"
-	docker push $(CLASSIFIER_IMAGE)-arm64
-	@echo "----------------------------------------"
-	-docker manifest rm $(CLASSIFIER_IMAGE)
-	@echo "----------------------------------------"
-	docker manifest create $(CLASSIFIER_IMAGE) $(CLASSIFIER_IMAGE)-amd64 $(CLASSIFIER_IMAGE)-arm64
-	@echo "----------------------------------------"
-	docker manifest push $(CLASSIFIER_IMAGE)
-	@echo "----------------------------------------"
-	docker tag $(CLASSIFIER_IMAGE)-amd64 $(CLASSIFIER_IMAGE_AP)-amd64
-	@echo "----------------------------------------"
-	docker tag $(CLASSIFIER_IMAGE)-arm64 $(CLASSIFIER_IMAGE_AP)-arm64
-	@echo "----------------------------------------"
 	docker push $(CLASSIFIER_IMAGE_AP)-amd64
 	@echo "----------------------------------------"
 	docker push $(CLASSIFIER_IMAGE_AP)-arm64
@@ -296,7 +264,5 @@ push: ## Push images and chart to the public repository for release.
 	docker manifest create $(CLASSIFIER_IMAGE_AP) $(CLASSIFIER_IMAGE_AP)-amd64 $(CLASSIFIER_IMAGE_AP)-arm64
 	@echo "----------------------------------------"
 	docker manifest push $(CLASSIFIER_IMAGE_AP)
-	@echo "----------------------------------------"
-	helm push varmor-$(CHART_VERSION).tgz oci://$(REPO)
 	@echo "----------------------------------------"
 	helm push varmor-$(CHART_VERSION).tgz oci://$(REPO_AP)
