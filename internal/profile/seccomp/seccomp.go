@@ -104,6 +104,21 @@ func GenerateEnhanceProtectProfile(enhanceProtect *varmor.EnhanceProtect, profil
 		}
 	}
 
+	// Vulnerability Mitigation
+	for _, rule := range enhanceProtect.VulMitigationRules {
+		rule = strings.ToLower(rule)
+		rule = strings.ReplaceAll(rule, "_", "-")
+
+		switch rule {
+		case "dirty-pipe-mitigation":
+			syscall := specs.LinuxSyscall{
+				Names:  []string{"splice"},
+				Action: specs.ActErrno,
+			}
+			profile.Syscalls = append(profile.Syscalls, syscall)
+		}
+	}
+
 	// Custom
 	profile.Syscalls = append(profile.Syscalls, enhanceProtect.SyscallRawRules...)
 
