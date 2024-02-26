@@ -29,17 +29,14 @@ jobs:
         with:
           platforms: linux/amd64,linux/arm64/v8
 
-      - name: Set up llvm and apparmor
-        run: ./.github/scripts/toolchain.sh
-
       - name: Run build
         run: make docker-build
-
-      - name: Login to Docker Hub
-        run: echo "${{ secrets.RELEASE_PASSWORD }}"||docker login -u=${{ secrets.PUSH_USERNAME }} elkeid-cn-beijing.cr.volces.com --password-stdin
 
       - name: Package helm chart
         run: make helm-package
 
-      - name: Push image to registry
+      - name: Login to registry
+        run: echo "${{ secrets.RELEASE_PASSWORD }}"||docker login -u=${{ secrets.PUSH_USERNAME }} elkeid-ap-southeast-1.cr.volces.com --password-stdin
+
+      - name: Push artifacts to registry
         run: make push

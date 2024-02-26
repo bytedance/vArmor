@@ -91,6 +91,9 @@ func generateHardeningRules(rule string) (rules string) {
 	// disallow access to the root of the task through procfs
 	case "disallow-access-procfs-root":
 		rules += "  deny ptrace read,\n"
+	// disallow access /proc/kallsyms
+	case "disallow-access-kallsyms":
+		rules += "  deny /proc/kallsyms r,\n"
 
 	//// 2. Disable capabilities
 	// disable all capabilities
@@ -273,6 +276,8 @@ func generateVulMitigationRules(rule string) (rules string) {
 		rules += "  deny /**/devices/**/cgroup.procs w,\n"
 		rules += "  deny /**/devices/tasks w,\n"
 		rules += "  deny /**/devices/**/tasks w,\n"
+	case "runc-override-mitigation":
+		rules += "  deny /**/runc w,\n"
 	}
 	return rules
 }
