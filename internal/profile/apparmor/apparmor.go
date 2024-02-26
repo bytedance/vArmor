@@ -276,6 +276,8 @@ func generateVulMitigationRules(rule string) (rules string) {
 		rules += "  deny /**/devices/**/cgroup.procs w,\n"
 		rules += "  deny /**/devices/tasks w,\n"
 		rules += "  deny /**/devices/**/tasks w,\n"
+	case "runc-override-mitigation":
+		rules += "  deny /**/runc w,\n"
 	}
 	return rules
 }

@@ -608,6 +608,13 @@ func generateVulMitigationRules(rule string, content *varmor.BpfContent) error {
 			return err
 		}
 		content.Files = append(content.Files, *fileContent)
+	case "runc-override-mitigation":
+		fileContent, err := newBpfPathRule("/**/runc", AaMayWrite|AaMayAppend)
+		if err != nil {
+			return err
+		}
+		content.Files = append(content.Files, *fileContent)
+
 	}
 	return nil
 }
@@ -678,6 +685,24 @@ func generateAttackProtectionRules(rule string, content *varmor.BpfContent) erro
 			return err
 		}
 		content.Networks = append(content.Networks, *networkContent)
+	case "disallow-access-k8s-sensitive-files":
+		fileContent, err = newBpfPathRule("**/etc/kubernetes", AaMayRead)
+		if err != nil {
+			return err
+		}
+		content.Files = append(content.Files, *fileContent)
+
+		fileContent, err = newBpfPathRule("**/.kube/config", AaMayRead)
+		if err != nil {
+			return err
+		}
+		content.Files = append(content.Files, *fileContent)
+
+		fileContent, err = newBpfPathRule("**/volumes/kubernetes.io~secret", AaMayRead)
+		if err != nil {
+			return err
+		}
+		content.Files = append(content.Files, *fileContent)
 
 	//// 5. Restrict the sensitive operations inside the container
 	case "disable-write-etc":
