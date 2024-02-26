@@ -40,9 +40,6 @@ jobs:
         with:
           platforms: linux/amd64,linux/arm64/v8
 
-      - name: Set up llvm and apparmor
-        run: ./.github/scripts/toolchain.sh
-
       - name: Run build
         run: make docker-build-dev
 
