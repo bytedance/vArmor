@@ -6,7 +6,7 @@
 
 **vArmor** 是一个云原生容器沙箱系统，它借助 Linux 的 [AppArmor LSM](https://en.wikipedia.org/wiki/AppArmor), [BPF LSM](https://docs.kernel.org/bpf/prog_lsm.html) 和 [Seccomp](https://en.wikipedia.org/wiki/Seccomp) 技术实现强制访问控制器（即 enforcer），从而对容器进行安全加固。它可以用于增强容器隔离性、减少内核攻击面、增加容器逃逸或横行移动攻击的难度与成本。
 
-你可以借助 vArmor 在以下场景对 Kubernetes 集群中的容器进行沙箱防护
+您可以借助 vArmor 在以下场景对 Kubernetes 集群中的容器进行沙箱防护
 * 业务场景存在多租户（多租户共享同一个集群），由于成本、技术条件等原因无法使用硬件虚拟化容器（如 Kata Container）
 * 需要对关键的业务进行安全加固，增加攻击者权限提升、容器逃逸、横向渗透的难度与成本
 * 当出现高危漏洞，但由于修复难度大、周期长等原因无法立即修复时，可以借助 vArmor 实施漏洞利用缓解（具体取决于漏洞类型或漏洞利用向量。缓解代表阻断利用向量、增加利用难度）
@@ -54,6 +54,7 @@ helm pull oci://elkeid-cn-beijing.cr.volces.com/varmor/varmor --version 0.5.6-rc
 ```
 
 ### Step 2. 安装
+*您可以在非中国地区使用 elkeid-ap-southeast-1.cr.volces.com 域名*
 ```
 helm install varmor varmor-0.5.6-rc.tgz \
     --namespace varmor --create-namespace \
@@ -118,7 +119,7 @@ vArmor 在研发初期参考了 [Nirmata](https://nirmata.com/) 开发的 [kyver
 
 ## 演示
 下面是一个使用 vArmor 对 Deployment 进行加固，防御 CVE-2021-22555 攻击的演示（Exploit 修改自 [cve-2021-22555](https://github.com/google/security-research/tree/master/pocs/linux/cve-2021-22555)）。<br>
-![image](test/demo/kernel-exp/CVE-2021-22555/demo.zh_CN.gif)
+![image](test/demo/vulnerability-mitigation/CVE-2021-22555/demo.zh_CN.gif)
 
 
 ## 404星链计划

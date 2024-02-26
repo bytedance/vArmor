@@ -52,15 +52,15 @@ For more information, please refer to [Policy Modes and Built-in Rules](docs/bui
 
 ### Step 1. Fetch chart
 ```
-helm pull oci://elkeid-cn-beijing.cr.volces.com/varmor/varmor --version 0.5.6-rc
+helm pull oci://elkeid-ap-southeast-1.cr.volces.com/varmor/varmor --version 0.5.6-rc
 ```
 
 ### Step 2. Install
-*You can use the domain `elkeid-ap-southeast-1.cr.volces.com` outside of the CN region.*
+*You can use the domain `elkeid-cn-beijing.cr.volces.com` inside of the CN region.*
 ```
 helm install varmor varmor-0.5.6-rc.tgz \
     --namespace varmor --create-namespace \
-    --set image.registry="elkeid-cn-beijing.cr.volces.com"
+    --set image.registry="elkeid-ap-southeast-1.cr.volces.com"
 ```
 
 ### Step 3. Try with this example
@@ -122,7 +122,7 @@ vArmor references part of the code of [kyverno](https://github.com/kyverno/kyver
 
 ## Demo
 Below is a demonstration of using vArmor to harden a Deployment and defend against CVE-2021-22555. (The exploit is modified from [cve-2021-22555](https://github.com/google/security-research/tree/master/pocs/linux/cve-2021-22555))<br>
-![image](test/demo/kernel-exp/CVE-2021-22555/demo.gif)
+![image](test/demo/vulnerability-mitigation/CVE-2021-22555/demo.gif)
 
 
 ## 404Starlink
