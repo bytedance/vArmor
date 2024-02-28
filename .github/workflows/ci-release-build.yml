@@ -35,8 +35,12 @@ jobs:
       - name: Package helm chart
         run: make helm-package
 
-      - name: Login to registry
-        run: echo "${{ secrets.RELEASE_PASSWORD }}"||docker login -u=${{ secrets.PUSH_USERNAME }} elkeid-ap-southeast-1.cr.volces.com --password-stdin
+      - name: Login to Volc CR
+        uses: docker/login-action@v3
+        with:
+          registry: elkeid-ap-southeast-1.cr.volces.com
+          username: ${{ secrets.PUSH_USERNAME }}
+          password: ${{ secrets.RELEASE_PASSWORD }}
 
       - name: Push artifacts to registry
         run: make push
