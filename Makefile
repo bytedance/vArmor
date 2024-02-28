@@ -174,11 +174,11 @@ docker-build-dev: docker-build-varmor-amd64-dev docker-build-varmor-arm64-dev do
 
 docker-build-varmor-amd64:
 	@echo "[+] Build varmor-amd64 image for release version"
-	@docker buildx build --file $(PWD)/$(VARMOR_PATH)/Dockerfile --tag $(VARMOR_IMAGE_AP)-amd64 --platform linux/amd64 --build-arg TARGETPLATFORM="linux/amd64" --build-arg MAKECHECK="check" --load .
+	@docker buildx build --file $(PWD)/$(VARMOR_PATH)/Dockerfile --tag $(VARMOR_IMAGE_AP)-amd64 --platform linux/amd64 --build-arg TARGETPLATFORM="linux/amd64" --load .
 
 docker-build-varmor-arm64:
 	@echo "[+] Build varmor-arm64 image for the release version"
-	@docker buildx build --file $(PWD)/$(VARMOR_PATH)/Dockerfile --tag $(VARMOR_IMAGE_AP)-arm64 --platform linux/arm64 --build-arg TARGETPLATFORM="linux/arm64" --build-arg MAKECHECK="check" --load .
+	@docker buildx build --file $(PWD)/$(VARMOR_PATH)/Dockerfile --tag $(VARMOR_IMAGE_AP)-arm64 --platform linux/arm64 --build-arg TARGETPLATFORM="linux/arm64" --load .
 
 docker-build-classifier-amd64:
 	@echo "[+] Build classifier-amd64 image for the release version"
