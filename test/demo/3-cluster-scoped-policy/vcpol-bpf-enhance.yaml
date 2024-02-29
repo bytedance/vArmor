@@ -1,8 +1,7 @@
 apiVersion: crd.varmor.org/v1beta1
-kind: VarmorPolicy
+kind: VarmorClusterPolicy
 metadata:
   name: demo-3
-  namespace: demo
 spec:
   target:
     kind: Pod
