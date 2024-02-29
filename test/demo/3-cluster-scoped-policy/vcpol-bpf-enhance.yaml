@@ -1,13 +1,14 @@
 apiVersion: crd.varmor.org/v1beta1
-kind: VarmorClusterPolicy
+kind: VarmorPolicy
 metadata:
   name: demo-3
+  namespace: demo
 spec:
   target:
     kind: Pod
     selector:
       matchLabels:
-        vcp: demo-3
+        app: demo-3
   policy:
     enforcer: BPF
     mode: EnhanceProtect
