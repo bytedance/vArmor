@@ -337,33 +337,37 @@ func generateHardeningRules(rule string, content *varmor.BpfContent, privileged 
 		content.Files = append(content.Files, *fileContent)
 	// disallow mount securityfs
 	case "disallow-mount-securityfs":
-		if !privileged {
-			break
+		if privileged {
+			// By default, the target container is configured to prohibit mounting.
+			// We will enforce the rule only if `.spec.policy.enhanceProtect.privileged` is set to true.
+
+			// mount new
+			flags := 0xFFFFFFFF &^ unix.MS_REMOUNT &^ unix.MS_BIND &^ unix.MS_SHARED &^
+				unix.MS_PRIVATE &^ unix.MS_SLAVE &^ unix.MS_UNBINDABLE &^ unix.MS_MOVE &^ AaMayUmount
+			mountContent, err := newBpfMountRule("**", "securityfs", uint32(flags), 0xFFFFFFFF)
+			if err != nil {
+				return err
+			}
+			content.Mounts = append(content.Mounts, *mountContent)
 		}
-		// mount new
-		flags := 0xFFFFFFFF &^ unix.MS_REMOUNT &^ unix.MS_BIND &^ unix.MS_SHARED &^
-			unix.MS_PRIVATE &^ unix.MS_SLAVE &^ unix.MS_UNBINDABLE &^ unix.MS_MOVE &^ AaMayUmount
-		mountContent, err := newBpfMountRule("**", "securityfs", uint32(flags), 0xFFFFFFFF)
-		if err != nil {
-			return err
-		}
-		content.Mounts = append(content.Mounts, *mountContent)
 	// disallow mount procfs
 	case "disallow-mount-procfs":
-		if !privileged {
-			break
+		if privileged {
+			// By default, the target container is configured to prohibit mounting.
+			// We will enforce the rule only if `.spec.policy.enhanceProtect.privileged` is set to true.
+
+			// mount new
+			flags := 0xFFFFFFFF &^ unix.MS_REMOUNT &^ unix.MS_BIND &^ unix.MS_SHARED &^
+				unix.MS_PRIVATE &^ unix.MS_SLAVE &^ unix.MS_UNBINDABLE &^ unix.MS_MOVE &^ AaMayUmount
+			mountContent, err := newBpfMountRule("**", "proc", uint32(flags), 0xFFFFFFFF)
+			if err != nil {
+				return err
+			}
+			content.Mounts = append(content.Mounts, *mountContent)
 		}
-		// mount new
-		flags := 0xFFFFFFFF &^ unix.MS_REMOUNT &^ unix.MS_BIND &^ unix.MS_SHARED &^
-			unix.MS_PRIVATE &^ unix.MS_SLAVE &^ unix.MS_UNBINDABLE &^ unix.MS_MOVE &^ AaMayUmount
-		mountContent, err := newBpfMountRule("**", "proc", uint32(flags), 0xFFFFFFFF)
-		if err != nil {
-			return err
-		}
-		content.Mounts = append(content.Mounts, *mountContent)
 		// bind, rbind, remount, move, umount
-		flags = unix.MS_BIND | unix.MS_REC | unix.MS_REMOUNT | unix.MS_MOVE | AaMayUmount
-		mountContent, err = newBpfMountRule("/proc**", "none", uint32(flags), 0)
+		flags := unix.MS_BIND | unix.MS_REC | unix.MS_REMOUNT | unix.MS_MOVE | AaMayUmount
+		mountContent, err := newBpfMountRule("/proc**", "none", uint32(flags), 0)
 		if err != nil {
 			return err
 		}
@@ -377,20 +381,22 @@ func generateHardeningRules(rule string, content *varmor.BpfContent, privileged 
 		content.Files = append(content.Files, *fileContent)
 	// disallow mount cgroupfs
 	case "disallow-mount-cgroupfs":
-		if !privileged {
-			break
+		if privileged {
+			// By default, the target container is configured to prohibit mounting.
+			// We will enforce the rule only if `.spec.policy.enhanceProtect.privileged` is set to true.
+
+			// mount new
+			flags := 0xFFFFFFFF &^ unix.MS_REMOUNT &^ unix.MS_BIND &^ unix.MS_SHARED &^
+				unix.MS_PRIVATE &^ unix.MS_SLAVE &^ unix.MS_UNBINDABLE &^ unix.MS_MOVE &^ AaMayUmount
+			mountContent, err := newBpfMountRule("**", "cgroup", uint32(flags), 0xFFFFFFFF)
+			if err != nil {
+				return err
+			}
+			content.Mounts = append(content.Mounts, *mountContent)
 		}
-		// mount new
-		flags := 0xFFFFFFFF &^ unix.MS_REMOUNT &^ unix.MS_BIND &^ unix.MS_SHARED &^
-			unix.MS_PRIVATE &^ unix.MS_SLAVE &^ unix.MS_UNBINDABLE &^ unix.MS_MOVE &^ AaMayUmount
-		mountContent, err := newBpfMountRule("**", "cgroup", uint32(flags), 0xFFFFFFFF)
-		if err != nil {
-			return err
-		}
-		content.Mounts = append(content.Mounts, *mountContent)
 		// bind, rbind, remount, move, umount
-		flags = unix.MS_BIND | unix.MS_REC | unix.MS_REMOUNT | unix.MS_MOVE | AaMayUmount
-		mountContent, err = newBpfMountRule("/sys**", "none", uint32(flags), 0)
+		flags := unix.MS_BIND | unix.MS_REC | unix.MS_REMOUNT | unix.MS_MOVE | AaMayUmount
+		mountContent, err := newBpfMountRule("/sys**", "none", uint32(flags), 0)
 		if err != nil {
 			return err
 		}
@@ -404,25 +410,31 @@ func generateHardeningRules(rule string, content *varmor.BpfContent, privileged 
 		content.Files = append(content.Files, *fileContent)
 	// disallow mount disk devices
 	case "disallow-mount-disk-device":
-		if !privileged {
-			break
+		if privileged {
+			// By default, the target container is configured to prohibit mounting.
+			// We will enforce the rule only if `.spec.policy.enhanceProtect.privileged` is set to true.
+
+			// mount new
+			mountContent, err := newBpfMountRule("{{.DiskDevices}}", "*", 0xFFFFFFFF&^AaMayUmount, 0xFFFFFFFF)
+			if err != nil {
+				return err
+			}
+			content.Mounts = append(content.Mounts, *mountContent)
 		}
-		mountContent, err := newBpfMountRule("{{.DiskDevices}}", "*", 0xFFFFFFFF&^AaMayUmount, 0xFFFFFFFF)
-		if err != nil {
-			return err
-		}
-		content.Mounts = append(content.Mounts, *mountContent)
-	// disallow mount anything
+	// disable mount operations
 	case "disallow-mount":
-		if !privileged {
-			break
+		if privileged {
+			// By default, the target container is configured to prohibit mounting.
+			// We will enforce the rule only if `.spec.policy.enhanceProtect.privileged` is set to true.
+
+			// mount new
+			mountContent, err := newBpfMountRule("**", "*", 0xFFFFFFFF&^AaMayUmount, 0xFFFFFFFF)
+			if err != nil {
+				return err
+			}
+			content.Mounts = append(content.Mounts, *mountContent)
 		}
-		mountContent, err := newBpfMountRule("**", "*", 0xFFFFFFFF&^AaMayUmount, 0xFFFFFFFF)
-		if err != nil {
-			return err
-		}
-		content.Mounts = append(content.Mounts, *mountContent)
-	// disallow umount anything
+	// disable umount operations
 	case "disallow-umount":
 		mountContent, err := newBpfMountRule("**", "none", AaMayUmount, 0)
 		if err != nil {
@@ -976,7 +988,7 @@ func generateRawMountRule(rule varmor.MountRule, bpfContent *varmor.BpfContent) 
 func GenerateEnhanceProtectProfile(enhanceProtect *varmor.EnhanceProtect, bpfContent *varmor.BpfContent) error {
 	var err error
 
-	// Add default rules for unprivileged containers based on the rules of the RuntimeDefault mode
+	// Add default rules for unprivileged containers (securityContext.privileged:true) based on the rules of the RuntimeDefault mode
 	if !enhanceProtect.Privileged {
 		err = GenerateRuntimeDefaultProfile(bpfContent)
 		if err != nil {
