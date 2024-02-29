@@ -2,7 +2,6 @@ apiVersion: crd.varmor.org/v1beta1
 kind: VarmorClusterPolicy
 metadata:
   name: demo-4
-  namespace: demo
 spec:
   target:
     kind: Deployment

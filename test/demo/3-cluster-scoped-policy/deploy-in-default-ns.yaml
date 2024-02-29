@@ -1,24 +1,22 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: demo-3-deploy-2
+  name: demo-3
   namespace: default
   labels:
-    app: demo-3-deploy-2
+    app: demo-3
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: demo-3-deploy-2
-      vcp: demo-3
+      app: demo-3
       sandbox.varmor.org/enable: "true"
   template:
     metadata:
       annotations:
         container.apparmor.security.beta.kubernetes.io/test: unconfined
       labels:
-        app: demo-3-deploy-2
-        vcp: demo-3
+        app: demo-3
         sandbox.varmor.org/enable: "true"
     spec:
       containers:
