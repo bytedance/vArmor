@@ -3,6 +3,8 @@ kind: VarmorClusterPolicy
 metadata:
   name: demo-4
 spec:
+  # Perform a rolling update on existing workloads.
+  updateExistingWorkloads: true
   target:
     kind: Deployment
     selector:
