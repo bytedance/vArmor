@@ -71,6 +71,8 @@ FROM debian:10
 
 LABEL maintainer="vArmor authors"
 
+ARG TARGETARCH
+
 # Copy the varmor executable to the image
 COPY --from=vArmor-builder /output/ /varmor
 # Copy the AppArmor feature ABI file which used during development and testing the VarmorPolicy to the image
@@ -86,8 +88,15 @@ COPY --from=apparmor-libseccomp-builder /usr/sbin/aa-status /usr/sbin/aa-status
 COPY --from=apparmor-libseccomp-builder /usr/lib/libapparmor.* /usr/lib/
 COPY --from=apparmor-libseccomp-builder /usr/sbin/aa-remove-unknown /usr/sbin/aa-remove-unknown
 COPY --from=apparmor-libseccomp-builder /lib/apparmor/rc.apparmor.functions /lib/apparmor/rc.apparmor.functions
+# Copy the libseccomp libraries to the image
 COPY --from=apparmor-libseccomp-builder /usr/lib/libseccomp.* /usr/lib/
+RUN if [ ${TARGETARCH} = "arm64" ]; then \
+        rm -f /usr/lib/aarch64-linux-gnu/libseccomp.*; \
+        cp /usr/lib/libseccomp.* /usr/lib/aarch64-linux-gnu/; \
+    else \
+        rm -f /usr/lib/x86_64-linux-gnu/libseccomp.*; \
+        cp /usr/lib/libseccomp.* /usr/lib/x86_64-linux-gnu/; \
+    fi
 
 USER 10001:10001
 WORKDIR /varmor
-ENTRYPOINT ["/vArmor"]
