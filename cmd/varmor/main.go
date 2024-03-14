@@ -130,7 +130,14 @@ func main() {
 	if agent {
 		setupLog.Info("vArmor agent startup")
 
+		serverVersion, err := kubeClient.ServerVersion()
+		if err != nil {
+			setupLog.Error(err, "kubeClient.ServerVersion()")
+			os.Exit(1)
+		}
+
 		agentCtrl, err := varmoragent.NewAgent(
+			serverVersion,
 			kubeClient.CoreV1().Pods(config.Namespace),
 			varmorClient.CrdV1beta1(),
 			varmorInformer.Crd().V1beta1().ArmorProfiles(),
