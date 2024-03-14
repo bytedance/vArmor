@@ -29,6 +29,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/apimachinery/pkg/version"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
@@ -62,6 +63,7 @@ type Agent struct {
 	queue                    workqueue.RateLimitingInterface
 	appArmorSupported        bool
 	bpfLsmSupported          bool
+	seccompSupported         bool
 	appArmorProfileDir       string
 	seccompProfileDir        string
 	bpfEnforcer              *varmorbpfenforcer.BpfEnforcer
@@ -85,6 +87,7 @@ type Agent struct {
 }
 
 func NewAgent(
+	versionInfo *version.Info,
 	podInterface corev1.PodInterface,
 	varmorInterface varmorinterface.CrdV1beta1Interface,
 	apInformer varmorinformer.ArmorProfileInformer,
@@ -142,9 +145,13 @@ func NewAgent(
 		agent.bpfLsmSupported = false
 		log.Info("the BPF enforcer is not enabled (use --enableBpfEnforcer to enable it)")
 	}
+	agent.seccompSupported, err = isSeccompSupported(versionInfo)
+	if err != nil {
+		log.Info("the Seccomp enforcer only supports Kubernetes v1.19 and above", "error", err)
+	}
 
-	if !agent.appArmorSupported && !agent.bpfLsmSupported {
-		log.Error(fmt.Errorf("neither the BPF LSM nor the AppArmor LSM is supported"), "unsupported system")
+	if !agent.appArmorSupported && !agent.bpfLsmSupported && !agent.seccompSupported {
+		log.Error(fmt.Errorf("no enforcer is supported in the environment"), "unsupported OS and Kubernetes")
 		return nil, err
 	}
 
@@ -294,7 +301,7 @@ func (agent *Agent) sendStatus(ap *varmor.ArmorProfile, status varmortypes.Statu
 	return varmorutils.PostStatusToStatusService(reqBody, agent.debug, agent.managerIP, agent.managerPort)
 }
 
-func (agent *Agent) selectEnforcer(ap *varmor.ArmorProfile, logger logr.Logger) (varmortypes.Enforcer, error) {
+func (agent *Agent) selectEnforcer(ap *varmor.ArmorProfile) (varmortypes.Enforcer, error) {
 	e := varmortypes.GetEnforcerType(ap.Spec.Profile.Enforcer)
 
 	if (e&varmortypes.AppArmor != 0) && !agent.appArmorSupported {
@@ -305,6 +312,11 @@ func (agent *Agent) selectEnforcer(ap *varmor.ArmorProfile, logger logr.Logger) 
 	if (e&varmortypes.BPF != 0) && !agent.bpfLsmSupported {
 		agent.sendStatus(ap, varmortypes.Failed, "The BPF LSM feature is not supported by the host, or the BPF enforcer has not been enabled in vArmor.")
 		return e, fmt.Errorf("the BPF LSM feature is not supported by the host, or the BPF enforcer has not been enabled in vArmor")
+	}
+
+	if (e&varmortypes.Seccomp != 0) && !agent.seccompSupported {
+		agent.sendStatus(ap, varmortypes.Failed, "The Seccomp enforcer needs Kubernetes v1.19 and above.")
+		return e, fmt.Errorf("the Seccomp enforcer needs Kubernetes v1.19 and above")
 	}
 
 	if (e&varmortypes.BPF != 0) && ap.Spec.BehaviorModeling.Enable {
@@ -337,7 +349,7 @@ func (agent *Agent) handleCreateOrUpdateArmorProfile(ap *varmor.ArmorProfile, ke
 		}
 	}()
 
-	enforcer, err := agent.selectEnforcer(ap, logger)
+	enforcer, err := agent.selectEnforcer(ap)
 	if err != nil {
 		return nil
 	}
@@ -394,7 +406,7 @@ func (agent *Agent) handleCreateOrUpdateArmorProfile(ap *varmor.ArmorProfile, ke
 	// AppArmor
 	if (enforcer & varmortypes.AppArmor) != 0 {
 		// Save and load AppArmor profile.
-		if agent.appArmorSupported && needLoadApparmor {
+		if needLoadApparmor {
 			logger.Info(fmt.Sprintf("saving the AppArmor profile ('%s') to Node/%s", ap.Spec.Profile.Name, agent.nodeName))
 			profilePath := filepath.Join(agent.appArmorProfileDir, ap.Spec.Profile.Name)
 			err := varmorapparmor.SaveAppArmorProfile(profilePath, ap.Spec.Profile.Content)
