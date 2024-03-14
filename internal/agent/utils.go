@@ -20,10 +20,12 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"strconv"
 	"strings"
 
-	version "github.com/hashicorp/go-version"
+	goversion "github.com/hashicorp/go-version"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/version"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 
 	varmorTypes "github.com/bytedance/vArmor/internal/types"
@@ -76,11 +78,11 @@ func versionGreaterThanOrEqual(current, minimum string) (bool, error) {
 		return false, err
 	}
 	current = regex.FindString(current)
-	currentVersion, err := version.NewVersion(current)
+	currentVersion, err := goversion.NewVersion(current)
 	if err != nil {
 		return false, err
 	}
-	minVersion, err := version.NewVersion(minimum)
+	minVersion, err := goversion.NewVersion(minimum)
 	if err != nil {
 		return false, err
 	}
@@ -111,6 +113,23 @@ func isLSMSupported(lsm string) (bool, error) {
 	default:
 		return false, fmt.Errorf("unsupported LSM")
 	}
+}
+
+func isSeccompSupported(versionInfo *version.Info) (bool, error) {
+	major, err := strconv.Atoi(versionInfo.Major)
+	if err != nil {
+		return false, err
+	}
+
+	minor, err := strconv.Atoi(versionInfo.Minor)
+	if err != nil {
+		return false, err
+	}
+
+	if major <= 1 && minor < 19 {
+		return false, fmt.Errorf(fmt.Sprintf("The current version of Kubernetes is v%d.%d", major, minor))
+	}
+	return true, nil
 }
 
 // retrieveNodeName retrieve nodeName from the varmor:agent pod's specification.
