@@ -1,5 +1,5 @@
 ## Building AppArmor & libseccomp
-FROM debian:10 as apparmor-libseccomp-builder
+FROM debian:bookworm as apparmor-libseccomp-builder
 
 LABEL maintainer="vArmor authors"
 
@@ -38,7 +38,7 @@ RUN make build-ebpf
 
 
 ## Building vArmor
-FROM golang:1.20-buster as vArmor-builder
+FROM golang:1.20-bookworm as vArmor-builder
 
 LABEL maintainer="vArmor authors"
 
@@ -64,7 +64,7 @@ RUN go build -o /output/vArmor -v ./cmd/varmor/
 
 
 ## Packaging vArmor
-FROM debian:10
+FROM debian:bookworm
 
 LABEL maintainer="vArmor authors"
 
