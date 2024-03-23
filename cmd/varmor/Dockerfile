@@ -1,24 +1,21 @@
 ## Building AppArmor & libseccomp
-FROM debian:10 as apparmor-libseccomp-builder
+FROM debian:bookworm as apparmor-libseccomp-builder
 
-LABEL maintainer="weiwei.danny@bytedance.com"
-
-ARG MAKECHECK
+LABEL maintainer="vArmor authors"
 
 RUN apt-get update && apt-get -y upgrade
-RUN apt-get install -y git python3-pip python3-dev swig bison flex dejagnu pyflakes3 autoconf libtool zlib1g-dev gettext gperf autoconf-archive
-RUN pip3 install notify2 psutil python-config
+RUN apt-get install --no-install-recommends -y git build-essential apache2-dev autoconf autoconf-archive automake bison dejagnu flex libpam-dev libtool pkg-config python3-all-dev python3-setuptools ruby-dev swig zlib1g-dev gperf
 
 RUN git clone https://gitlab.com/apparmor/apparmor.git
 WORKDIR /apparmor
-RUN git checkout apparmor-3.0
+RUN git checkout apparmor-3.1
 RUN cd ./libraries/libapparmor && \
     sh ./autogen.sh && \
     sh ./configure --prefix=/usr --with-perl --with-python && \
-    make && if [ ${MAKECHECK} = "check" ]; then make check; fi && make install
-RUN cd ./binutils && make && if [ ${MAKECHECK} = "check" ]; then make check; fi && make install
-RUN cd ./parser && make && if [ ${MAKECHECK} = "check" ]; then make check; fi && make install
-RUN cd ./utils && make && if [ ${MAKECHECK} = "check" ]; then make check PYFLAKES=/usr/bin/pyflakes3; fi && make install
+    make && make install
+RUN cd ./binutils && make && make install
+RUN cd ./parser && make && make install
+RUN cd ./utils && make && make install
 RUN cd ./profiles && make && make install
 # Set the AppArmor feature ABI file to our custom version, this will lock policy down to a given stable feature set.
 RUN echo "policy-features=/etc/apparmor.d/abi/varmor" >> /etc/apparmor/parser.conf
@@ -41,7 +38,7 @@ RUN make build-ebpf
 
 
 ## Building vArmor
-FROM golang:1.20-buster as vArmor-builder
+FROM golang:1.20-bookworm as vArmor-builder
 
 LABEL maintainer="vArmor authors"
 
@@ -67,7 +64,7 @@ RUN go build -o /output/vArmor -v ./cmd/varmor/
 
 
 ## Packaging vArmor
-FROM debian:10
+FROM debian:bookworm
 
 LABEL maintainer="vArmor authors"
 
