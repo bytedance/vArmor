@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo-5
+  namespace: demo
+  labels:
+    app: demo-5
+    sandbox.varmor.org/enable: "true"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: demo-5
+  template:
+    metadata:
+      labels:
+        app: demo-5
+    spec:
+      containers:
+      - name: c0
+        image: debian:10
+        command: ["/bin/sh", "-c", "sleep infinity"]
+        imagePullPolicy: IfNotPresent

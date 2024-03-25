@@ -18,7 +18,6 @@ spec:
       hardeningRules:
       - disable-cap-net-raw
       - disallow-access-procfs-root
-      - disallow-create-user-ns
       attackProtectionRules:
       - rules:
         - disable-write-etc
