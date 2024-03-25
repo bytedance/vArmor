@@ -1,0 +1,22 @@
+apiVersion: crd.varmor.org/v1beta1
+kind: VarmorPolicy
+metadata:
+  name: demo-5
+  namespace: demo
+spec:
+  # Perform a rolling update on existing workloads.
+  updateExistingWorkloads: true
+  target:
+    kind: Deployment
+    selector:
+      matchLabels:
+        app: demo-5
+  policy:
+    enforcer: Seccomp
+    mode: EnhanceProtect
+    enhanceProtect:
+      hardeningRules:
+      - disallow-create-user-ns
+      attackProtectionRules:
+      - rules:
+        - disable-chmod-x-bit

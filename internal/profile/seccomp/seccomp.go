@@ -71,6 +71,116 @@ func GenerateProfileWithBehaviorModel(dynamicResult *varmor.DynamicResult) (stri
 	return base64.StdEncoding.EncodeToString(p), nil
 }
 
+func generateAttackProtectionRules(rule string, profile *specs.LinuxSeccomp) {
+	rule = strings.ToLower(rule)
+	rule = strings.ReplaceAll(rule, "_", "-")
+
+	switch rule {
+	case "disable-chmod-x-bit":
+		fchmodat2 := specs.LinuxSyscall{
+			Names:  []string{"fchmodat2"},
+			Action: specs.ActErrno,
+			Args: []specs.LinuxSeccompArg{
+				{
+					Index:    2,
+					Value:    unix.S_IXUSR,
+					ValueTwo: unix.S_IXUSR,
+					Op:       specs.OpMaskedEqual,
+				},
+				{
+					Index:    2,
+					Value:    unix.S_IXGRP,
+					ValueTwo: unix.S_IXGRP,
+					Op:       specs.OpMaskedEqual,
+				},
+				{
+					Index:    2,
+					Value:    unix.S_IXOTH,
+					ValueTwo: unix.S_IXOTH,
+					Op:       specs.OpMaskedEqual,
+				},
+			},
+		}
+
+		fchmodat := specs.LinuxSyscall{
+			Names:  []string{"fchmodat"},
+			Action: specs.ActErrno,
+			Args: []specs.LinuxSeccompArg{
+				{
+					Index:    2,
+					Value:    unix.S_IXUSR,
+					ValueTwo: unix.S_IXUSR,
+					Op:       specs.OpMaskedEqual,
+				},
+				{
+					Index:    2,
+					Value:    unix.S_IXGRP,
+					ValueTwo: unix.S_IXGRP,
+					Op:       specs.OpMaskedEqual,
+				},
+				{
+					Index:    2,
+					Value:    unix.S_IXOTH,
+					ValueTwo: unix.S_IXOTH,
+					Op:       specs.OpMaskedEqual,
+				},
+			},
+		}
+
+		fchmod := specs.LinuxSyscall{
+			Names:  []string{"fchmod"},
+			Action: specs.ActErrno,
+			Args: []specs.LinuxSeccompArg{
+				{
+					Index:    1,
+					Value:    unix.S_IXUSR,
+					ValueTwo: unix.S_IXUSR,
+					Op:       specs.OpMaskedEqual,
+				},
+				{
+					Index:    1,
+					Value:    unix.S_IXGRP,
+					ValueTwo: unix.S_IXGRP,
+					Op:       specs.OpMaskedEqual,
+				},
+				{
+					Index:    1,
+					Value:    unix.S_IXOTH,
+					ValueTwo: unix.S_IXOTH,
+					Op:       specs.OpMaskedEqual,
+				},
+			},
+		}
+
+		chmod := specs.LinuxSyscall{
+			Names:  []string{"chmod"},
+			Action: specs.ActErrno,
+			Args: []specs.LinuxSeccompArg{
+				{
+					Index:    1,
+					Value:    unix.S_IXUSR,
+					ValueTwo: unix.S_IXUSR,
+					Op:       specs.OpMaskedEqual,
+				},
+				{
+					Index:    1,
+					Value:    unix.S_IXGRP,
+					ValueTwo: unix.S_IXGRP,
+					Op:       specs.OpMaskedEqual,
+				},
+				{
+					Index:    1,
+					Value:    unix.S_IXOTH,
+					ValueTwo: unix.S_IXOTH,
+					Op:       specs.OpMaskedEqual,
+				},
+			},
+		}
+
+		profile.Syscalls = append(profile.Syscalls, fchmodat2, fchmodat, fchmod, chmod)
+	}
+}
+
 func GenerateEnhanceProtectProfile(enhanceProtect *varmor.EnhanceProtect, profileName string) (string, error) {
 	if enhanceProtect.Privileged {
 		return "", nil
@@ -101,6 +211,15 @@ func GenerateEnhanceProtectProfile(enhanceProtect *varmor.EnhanceProtect, profil
 				},
 			}
 			profile.Syscalls = append(profile.Syscalls, syscall)
+		}
+	}
+
+	// Attack Protection
+	for _, attackProtectionRule := range enhanceProtect.AttackProtectionRules {
+		if len(attackProtectionRule.Targets) == 0 {
+			for _, rule := range attackProtectionRule.Rules {
+				generateAttackProtectionRules(rule, &profile)
+			}
 		}
 	}
 
