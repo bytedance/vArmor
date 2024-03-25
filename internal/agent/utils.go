@@ -121,7 +121,7 @@ func isSeccompSupported(versionInfo *version.Info) (bool, error) {
 		return false, err
 	}
 
-	minor, err := strconv.Atoi(versionInfo.Minor)
+	minor, err := strconv.Atoi(strings.TrimRight(versionInfo.Minor, "+"))
 	if err != nil {
 		return false, err
 	}
