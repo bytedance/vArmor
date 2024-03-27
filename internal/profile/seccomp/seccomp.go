@@ -77,33 +77,8 @@ func generateAttackProtectionRules(rule string, profile *specs.LinuxSeccomp) {
 
 	switch rule {
 	case "disable-chmod-x-bit":
-		fchmodat2 := specs.LinuxSyscall{
-			Names:  []string{"fchmodat2"},
-			Action: specs.ActErrno,
-			Args: []specs.LinuxSeccompArg{
-				{
-					Index:    2,
-					Value:    unix.S_IXUSR,
-					ValueTwo: unix.S_IXUSR,
-					Op:       specs.OpMaskedEqual,
-				},
-				{
-					Index:    2,
-					Value:    unix.S_IXGRP,
-					ValueTwo: unix.S_IXGRP,
-					Op:       specs.OpMaskedEqual,
-				},
-				{
-					Index:    2,
-					Value:    unix.S_IXOTH,
-					ValueTwo: unix.S_IXOTH,
-					Op:       specs.OpMaskedEqual,
-				},
-			},
-		}
-
 		fchmodat := specs.LinuxSyscall{
-			Names:  []string{"fchmodat"},
+			Names:  []string{"fchmodat", "fchmodat2"},
 			Action: specs.ActErrno,
 			Args: []specs.LinuxSeccompArg{
 				{
@@ -120,31 +95,6 @@ func generateAttackProtectionRules(rule string, profile *specs.LinuxSeccomp) {
 				},
 				{
 					Index:    2,
-					Value:    unix.S_IXOTH,
-					ValueTwo: unix.S_IXOTH,
-					Op:       specs.OpMaskedEqual,
-				},
-			},
-		}
-
-		fchmod := specs.LinuxSyscall{
-			Names:  []string{"fchmod"},
-			Action: specs.ActErrno,
-			Args: []specs.LinuxSeccompArg{
-				{
-					Index:    1,
-					Value:    unix.S_IXUSR,
-					ValueTwo: unix.S_IXUSR,
-					Op:       specs.OpMaskedEqual,
-				},
-				{
-					Index:    1,
-					Value:    unix.S_IXGRP,
-					ValueTwo: unix.S_IXGRP,
-					Op:       specs.OpMaskedEqual,
-				},
-				{
-					Index:    1,
 					Value:    unix.S_IXOTH,
 					ValueTwo: unix.S_IXOTH,
 					Op:       specs.OpMaskedEqual,
@@ -153,7 +103,7 @@ func generateAttackProtectionRules(rule string, profile *specs.LinuxSeccomp) {
 		}
 
 		chmod := specs.LinuxSyscall{
-			Names:  []string{"chmod"},
+			Names:  []string{"chmod", "fchmod"},
 			Action: specs.ActErrno,
 			Args: []specs.LinuxSeccompArg{
 				{
@@ -177,7 +127,7 @@ func generateAttackProtectionRules(rule string, profile *specs.LinuxSeccomp) {
 			},
 		}
 
-		profile.Syscalls = append(profile.Syscalls, fchmodat2, fchmodat, fchmod, chmod)
+		profile.Syscalls = append(profile.Syscalls, fchmodat, chmod)
 	}
 }
 
