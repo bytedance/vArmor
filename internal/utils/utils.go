@@ -225,3 +225,24 @@ func SetAgentReady() {
 func SetAgentUnready() {
 	atomic.StoreInt32(&AgentReady, 0)
 }
+func WaitForManagerReady(managerIP string, managerPort int) {
+	url := fmt.Sprintf("https://%s:%d/healthz", managerIP, managerPort)
+	client := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true,
+			},
+		},
+	}
+
+	for {
+		resp, err := client.Get(url)
+		if err == nil && resp.StatusCode == 200 {
+			fmt.Println("Manager is ready")
+			return
+		}
+
+		fmt.Println("Manager is not ready, waiting...")
+		time.Sleep(2 * time.Second)
+	}
+}
