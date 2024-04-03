@@ -23,6 +23,7 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
+	"sync/atomic"
 	"time"
 
 	k8errors "k8s.io/apimachinery/pkg/api/errors"
@@ -217,4 +218,10 @@ func InUint32Array(i uint32, array []uint32) bool {
 		}
 	}
 	return false
+}
+func SetAgentReady() {
+	atomic.StoreInt32(&AgentReady, 1)
+}
+func SetAgentUnready() {
+	atomic.StoreInt32(&AgentReady, 0)
 }

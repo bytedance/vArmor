@@ -28,6 +28,12 @@ spec:
         image: "{{ .Values.image.registry }}/{{ .Values.image.namespace }}/{{ .Values.agent.image.name }}:{{ .Values.agent.image.tag | default .Chart.AppVersion }}"
         imagePullPolicy: {{ .Values.agent.image.pullPolicy }}
         command: ["/varmor/vArmor", "--agent"]
+        readinessProbe:
+          httpGet:
+            path: /readiness
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 10
         {{- if or .Values.agent.args .Values.behaviorModeling.enabled .Values.bpfLsmEnforcer.enabled .Values.unloadAllAaProfiles.enabled .Values.removeAllSeccompProfiles.enabled }}
         args:
           {{- if .Values.agent.args }}
