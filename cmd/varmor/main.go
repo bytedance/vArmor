@@ -159,7 +159,8 @@ func main() {
 
 		go agentCtrl.Run(1, stopCh)
 		varmorInformer.Start(stopCh)
-
+		// Set up readiness probe
+		varmorutils.SetAgentReady()
 		setupLog.Info("vArmor agent is online")
 
 		<-stopCh
