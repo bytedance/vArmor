@@ -158,6 +158,8 @@ func main() {
 		}
 
 		go agentCtrl.Run(1, stopCh)
+		// wait for manager ready
+		varmorutils.WaitForManagerReady(managerIP, config.StatusServicePort)
 		varmorInformer.Start(stopCh)
 		// Set up readiness probe
 		varmorutils.SetAgentReady()
