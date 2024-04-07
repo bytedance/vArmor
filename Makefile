@@ -172,6 +172,10 @@ docker-build: docker-build-varmor-amd64 docker-build-varmor-arm64 docker-build-c
 .PHONY: docker-build-dev
 docker-build-dev: docker-build-varmor-amd64-dev docker-build-varmor-arm64-dev docker-build-classifier-amd64-dev docker-build-classifier-arm64-dev ## Build container images without check, only for development.
 
+.PHONY: docker-build-dev-ci
+docker-build-dev: docker-build-varmor-amd64-dev docker-build-varmor-arm64-dev docker-build-classifier-amd64-dev docker-build-classifier-arm64-dev docker-save-ci-dev ## Build container images without check, only for development.
+
+
 docker-build-varmor-amd64:
 	@echo "[+] Build varmor-amd64 image for release version"
 	@docker buildx build --file $(PWD)/$(VARMOR_PATH)/Dockerfile --tag $(VARMOR_IMAGE_AP)-amd64 --platform linux/amd64 --build-arg TARGETPLATFORM="linux/amd64" --load .
@@ -203,6 +207,15 @@ docker-build-classifier-amd64-dev:
 docker-build-classifier-arm64-dev:
 	@echo "[+] Build classifier-arm64 image for the development version"
 	@docker buildx build --file $(PWD)/$(CLASSIFIER_PATH)/Dockerfile --tag $(CLASSIFIER_IMAGE_DEV)-arm64 --platform linux/arm64 --load .
+docker-save-ci-dev:
+	@echo "[+] Saving varmor-amd64 image to varmor-amd64.tar"
+	@docker save $(VARMOR_IMAGE_DEV)-amd64 -o varmor-amd64.tar
+	@echo "[+] Saving varmor-arm64 image to varmor-arm64.tar"
+	@docker save $(VARMOR_IMAGE_DEV)-arm64 -o varmor-arm64.tar
+	@echo "[+] Saving classifier-amd64 image to classifier-amd64.tar"
+	@docker save $(CLASSIFIER_IMAGE_DEV)-amd64 -o classifier-amd64.tar
+	@echo "[+] Saving classifier-arm64 image to classifier-arm64.tar"
+	@docker save $(CLASSIFIER_IMAGE_DEV)-arm64 -o classifier-arm64.tar
 
 
 ##@ Package
@@ -243,7 +256,14 @@ push-dev: ## Push images and chart to the private repository for development.
 	@echo "----------------------------------------"
 	helm push varmor-$(CHART_VERSION_DEV).tgz oci://$(REPO_DEV)
 
-
+.PHONY: manifests-dev
+manifests-dev:
+	-docker manifest rm $(VARMOR_IMAGE_DEV)
+	@echo "----------------------------------------"
+	docker manifest create $(VARMOR_IMAGE_DEV) $(VARMOR_IMAGE_DEV)-amd64 $(VARMOR_IMAGE_DEV)-arm64
+	-docker manifest rm $(VARMOR_IMAGE_DEV)
+	@echo "----------------------------------------"
+	docker manifest create $(VARMOR_IMAGE_DEV) $(VARMOR_IMAGE_DEV)-amd64 $(VARMOR_IMAGE_DEV)-arm64
 push: ## Push images and chart to the public repository for release.
 	docker push $(VARMOR_IMAGE_AP)-amd64
 	@echo "----------------------------------------"
