@@ -41,22 +41,26 @@ jobs:
           platforms: linux/amd64,linux/arm64/v8
 
       - name: Run build
-        run: make docker-build-dev
+        run: docker-build-dev-ci
 
       - name: Package helm chart
         run: make helm-package-dev
-
-      - name: Login to registry
-        run: echo "${{ secrets.PUSH_PASSWORD }}" | docker login -u=${{ secrets.PUSH_USERNAME }} elkeid-ap-southeast-1.cr.volces.com --password-stdin
-
-      - name: Push artifacts to registry
-        run: make push-dev
 
       - name: Upload Helm Chart as Artifact
         uses: actions/upload-artifact@v2
         with:
           name: helm-chart
           path: varmor-*.tgz
+
+      - name: Upload Docker images as artifacts
+        uses: actions/upload-artifact@v2
+        with:
+          name: docker-images
+          path: |
+            varmor-amd64.tar
+            varmor-arm64.tar
+            classifier-amd64.tar
+            classifier-arm64.tar
 
       - id: SetVersion
         run: echo "version=$(git describe --tags --match "v[0-9]*" | sed 's/^v//')">> "$GITHUB_OUTPUT"
@@ -84,8 +88,17 @@ jobs:
         uses: actions/download-artifact@v2
         with:
           name: helm-chart
-
-
+      - name: Download Docker images
+        uses: actions/download-artifact@v2
+        with:
+          name: docker-images
+      - name: Load Docker images
+        run: |
+          docker load -i varmor-amd64.tar
+          docker load -i varmor-arm64.tar
+          docker load -i classifier-amd64.tar
+          docker load -i classifier-arm64.tar
+          make manifests-dev
       - name: Checkout submodules
         run: git submodule update --init --recursive
       - name: Install varmor alpha version
