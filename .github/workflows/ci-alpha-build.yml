@@ -41,7 +41,7 @@ jobs:
           platforms: linux/amd64,linux/arm64/v8
 
       - name: Run build
-        run: docker-build-dev-ci
+        run: make docker-build-dev-ci
 
       - name: Package helm chart
         run: make helm-package-dev
@@ -58,9 +58,7 @@ jobs:
           name: docker-images
           path: |
             varmor-amd64.tar
-            varmor-arm64.tar
             classifier-amd64.tar
-            classifier-arm64.tar
 
       - id: SetVersion
         run: echo "version=$(git describe --tags --match "v[0-9]*" | sed 's/^v//')">> "$GITHUB_OUTPUT"
@@ -95,9 +93,7 @@ jobs:
       - name: Load Docker images
         run: |
           docker load -i varmor-amd64.tar
-          docker load -i varmor-arm64.tar
           docker load -i classifier-amd64.tar
-          docker load -i classifier-arm64.tar
           make manifests-dev
       - name: Checkout submodules
         run: git submodule update --init --recursive
@@ -105,9 +101,7 @@ jobs:
         run: |
           helm install varmor varmor-*.tgz \
               --namespace varmor --create-namespace \
-              --set image.registry="elkeid-test-cn-beijing.cr.volces.com" \
-              --set image.username=${{ secrets.TEST_USERNAME }}" \
-              --set image.password=${{ secrets.TEST_PASSWORD }}" \
+              --set image.registry="elkeid-ap-southeast-1.cr.volces.com" \
               --set bpfLsmEnforcer.enabled=true \
               --set "agent.bpfLsmEnforcer.volumes[0].hostPath.type=Directory,agent.bpfLsmEnforcer.volumes[0].hostPath.path=/run/k3s/containerd/,agent.bpfLsmEnforcer.volumes[0].name=containerd" \
               --set "agent.bpfLsmEnforcer.volumes[1].hostPath.type=Directory,agent.bpfLsmEnforcer.volumes[1].hostPath.path=/proc,agent.bpfLsmEnforcer.volumes[1].name=procfs"
