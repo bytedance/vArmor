@@ -41,25 +41,24 @@ jobs:
           platforms: linux/amd64,linux/arm64/v8
 
       - name: Run build
-        run: make docker-build-dev
+        run: make docker-build-dev-ci
 
       - name: Package helm chart
         run: make helm-package-dev
-      - name: Login to Volc CR
-        uses: docker/login-action@v3
-        with:
-          registry: elkeid-ap-southeast-1.cr.volces.com
-          username: ${{ secrets.PUSH_USERNAME }}
-          password: ${{ secrets.PUSH_PASSWORD }}
-
-      - name: Push artifacts to registry
-        run: make push-dev
 
       - name: Upload Helm Chart as Artifact
         uses: actions/upload-artifact@v2
         with:
           name: helm-chart
           path: varmor-*.tgz
+
+      - name: Upload Docker images as artifacts
+        uses: actions/upload-artifact@v2
+        with:
+          name: docker-images
+          path: |
+            varmor-amd64.tar
+            classifier-amd64.tar
 
       - id: SetVersion
         run: echo "version=$(git describe --tags --match "v[0-9]*" | sed 's/^v//')">> "$GITHUB_OUTPUT"
@@ -87,17 +86,22 @@ jobs:
         uses: actions/download-artifact@v2
         with:
           name: helm-chart
-
-
+      - name: Download Docker images
+        uses: actions/download-artifact@v2
+        with:
+          name: docker-images
+      - name: Load Docker images
+        run: |
+          docker load -i varmor-amd64.tar
+          docker load -i classifier-amd64.tar
+          make manifests-dev
       - name: Checkout submodules
         run: git submodule update --init --recursive
       - name: Install varmor alpha version
         run: |
           helm install varmor varmor-*.tgz \
               --namespace varmor --create-namespace \
-              --set image.registry="elkeid-test-cn-beijing.cr.volces.com" \
-              --set image.username=${{ secrets.TEST_USERNAME }}" \
-              --set image.password=${{ secrets.TEST_PASSWORD }}" \
+              --set image.registry="elkeid-ap-southeast-1.cr.volces.com" \
               --set bpfLsmEnforcer.enabled=true \
               --set "agent.bpfLsmEnforcer.volumes[0].hostPath.type=Directory,agent.bpfLsmEnforcer.volumes[0].hostPath.path=/run/k3s/containerd/,agent.bpfLsmEnforcer.volumes[0].name=containerd" \
               --set "agent.bpfLsmEnforcer.volumes[1].hostPath.type=Directory,agent.bpfLsmEnforcer.volumes[1].hostPath.path=/proc,agent.bpfLsmEnforcer.volumes[1].name=procfs"
