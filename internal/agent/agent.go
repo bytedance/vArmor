@@ -133,17 +133,17 @@ func NewAgent(
 		varmorutils.InitAndStartTokenRotation(5*time.Minute, log)
 	}
 
-	//Set up a readiness probe
+	// Set up a readiness probe
 	r := gin.Default()
-	r.GET("/readiness", func(c *gin.Context) {
+	r.GET(varmorconfig.AgentReadinessPath, func(c *gin.Context) {
 		if atomic.LoadInt32(&varmorutils.AgentReady) == 1 {
-			c.String(200, "OK")
+			c.String(200, "ok")
 		} else {
 			c.Status(503)
 		}
 	})
 	go func() {
-		if err := r.Run(":8080"); err != nil {
+		if err := r.Run(fmt.Sprintf(":%d", varmorconfig.AgentServicePort)); err != nil {
 			panic(err)
 		}
 	}()

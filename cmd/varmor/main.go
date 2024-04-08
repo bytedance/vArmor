@@ -161,7 +161,7 @@ func main() {
 
 		// Wait for the manager to be ready.
 		setupLog.Info("Waiting for the manager to be ready")
-		varmorutils.WaitForManagerReady(managerIP, config.StatusServicePort)
+		varmorutils.WaitForManagerReady(debug, managerIP, config.StatusServicePort)
 
 		// Starting up agent.
 		varmorInformer.Start(stopCh)

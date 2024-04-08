@@ -36,6 +36,12 @@ var (
 	// AgentName is the daemonset name of vArmor agent
 	AgentName = "varmor-agent"
 
+	// AgentReadinessPort is the port of agent service
+	AgentServicePort = 6080
+
+	// AgentReadinessPath is the path for checking readness health of agent
+	AgentReadinessPath = "/health/readiness"
+
 	// ClassifierName is the deployment name of vArmor classifier
 	ClassifierName = "varmor-classifier"
 
@@ -93,10 +99,10 @@ var (
 	// WebhookTimeout specifies the timeout seconds for the mutation webhook
 	WebhookTimeout = 10
 
-	// LivenessServicePath is the path for check liveness health
+	// LivenessServicePath is the path for checking liveness health of the webhook server
 	LivenessServicePath = "/health/liveness"
 
-	// ReadinessServicePath is the path for check readness health
+	// ReadinessServicePath is the path for checking readness health of the webhook server
 	ReadinessServicePath = "/health/readiness"
 
 	// PackagedAppArmorProfiles include the AppArmor feature ABI, abstractions, tunables and default profiles that come from the development environment and upstream

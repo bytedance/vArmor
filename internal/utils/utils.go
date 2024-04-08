@@ -228,8 +228,14 @@ func SetAgentUnready() {
 	atomic.StoreInt32(&AgentReady, 0)
 }
 
-func WaitForManagerReady(managerIP string, managerPort int) {
-	url := fmt.Sprintf("https://%s:%d/healthz", managerIP, managerPort)
+func WaitForManagerReady(debug bool, address string, port int) {
+	var url string
+	if debug {
+		url = fmt.Sprintf(httpsDebugURL, address, port, "/healthz")
+	} else {
+		url = fmt.Sprintf(httpsServerURL, varmorconfig.StatusServiceName, varmorconfig.Namespace, port, "/healthz")
+	}
+
 	client := &http.Client{
 		Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{
