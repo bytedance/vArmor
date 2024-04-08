@@ -1,4 +1,4 @@
-name: ci-bightly-build
+name: ci-nightly-build
 on:
   pull_request:
     types:
