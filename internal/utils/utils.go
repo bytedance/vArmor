@@ -219,12 +219,15 @@ func InUint32Array(i uint32, array []uint32) bool {
 	}
 	return false
 }
+
 func SetAgentReady() {
 	atomic.StoreInt32(&AgentReady, 1)
 }
+
 func SetAgentUnready() {
 	atomic.StoreInt32(&AgentReady, 0)
 }
+
 func WaitForManagerReady(managerIP string, managerPort int) {
 	url := fmt.Sprintf("https://%s:%d/healthz", managerIP, managerPort)
 	client := &http.Client{
@@ -238,11 +241,8 @@ func WaitForManagerReady(managerIP string, managerPort int) {
 	for {
 		resp, err := client.Get(url)
 		if err == nil && resp.StatusCode == 200 {
-			fmt.Println("Manager is ready")
 			return
 		}
-
-		fmt.Println("Manager is not ready, waiting...")
 		time.Sleep(2 * time.Second)
 	}
 }

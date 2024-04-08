@@ -18,7 +18,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	varmorutils "github.com/bytedance/vArmor/internal/utils"
 	"strings"
 	"time"
 
@@ -31,6 +30,7 @@ import (
 	"google.golang.org/grpc"
 	runtimeapi "k8s.io/cri-api/pkg/apis/runtime/v1"
 
+	varmorutils "github.com/bytedance/vArmor/internal/utils"
 	varmortypes "github.com/bytedance/vArmor/pkg/types"
 )
 

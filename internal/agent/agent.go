@@ -18,7 +18,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/gin-gonic/gin"
 	"os/exec"
 	"path/filepath"
 	"reflect"
@@ -26,6 +25,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/go-logr/logr"
 	k8errors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -132,7 +132,8 @@ func NewAgent(
 	if !debug {
 		varmorutils.InitAndStartTokenRotation(5*time.Minute, log)
 	}
-	//set up a readiness probe
+
+	//Set up a readiness probe
 	r := gin.Default()
 	r.GET("/readiness", func(c *gin.Context) {
 		if atomic.LoadInt32(&varmorutils.AgentReady) == 1 {
@@ -146,6 +147,7 @@ func NewAgent(
 			panic(err)
 		}
 	}()
+
 	// Pre-checks
 	agent.appArmorSupported, err = isLSMSupported("AppArmor")
 	if err != nil {
