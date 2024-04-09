@@ -135,6 +135,12 @@ func NewAgent(
 
 	// Set up a readiness probe
 	r := gin.Default()
+	if debug {
+		gin.SetMode(gin.DebugMode)
+	} else {
+		gin.SetMode(gin.ReleaseMode)
+	}
+	r.Use(Logger())
 	r.GET(varmorconfig.AgentReadinessPath, func(c *gin.Context) {
 		if atomic.LoadInt32(&varmorutils.AgentReady) == 1 {
 			c.String(200, "ok")
@@ -670,4 +676,32 @@ func (agent *Agent) CleanUp() {
 	if agent.bpfLsmSupported {
 		agent.bpfEnforcer.Close()
 	}
+}
+func Logger() gin.HandlerFunc {
+	return gin.LoggerWithFormatter(func(param gin.LogFormatterParams) string {
+		var statusColor, methodColor, resetColor string
+		if param.IsOutputColor() {
+			statusColor = param.StatusCodeColor()
+			methodColor = param.MethodColor()
+			resetColor = param.ResetColor()
+		}
+
+		if param.StatusCode >= 400 {
+			return fmt.Sprintf("E%s %s\n",
+				time.Now().Format("0102 15:04:05.000000"),
+				param.ErrorMessage,
+			)
+		}
+
+		return fmt.Sprintf("I%s %v |%s %3d %s| %13v | %15s |%s %-7s %s %s\n%s",
+			time.Now().Format("0102 15:04:05.000000"),
+			param.TimeStamp.Format("2006/01/02 - 15:04:05"),
+			statusColor, param.StatusCode, resetColor,
+			param.Latency,
+			param.ClientIP,
+			methodColor, param.Method, resetColor,
+			param.Path,
+			param.ErrorMessage,
+		)
+	})
 }
