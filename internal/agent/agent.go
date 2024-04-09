@@ -22,8 +22,10 @@ import (
 	"path/filepath"
 	"reflect"
 	"sync"
+	"sync/atomic"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/go-logr/logr"
 	k8errors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -130,6 +132,21 @@ func NewAgent(
 	if !debug {
 		varmorutils.InitAndStartTokenRotation(5*time.Minute, log)
 	}
+
+	// Set up a readiness probe
+	r := gin.Default()
+	r.GET(varmorconfig.AgentReadinessPath, func(c *gin.Context) {
+		if atomic.LoadInt32(&varmorutils.AgentReady) == 1 {
+			c.String(200, "ok")
+		} else {
+			c.Status(503)
+		}
+	})
+	go func() {
+		if err := r.Run(fmt.Sprintf(":%d", varmorconfig.AgentServicePort)); err != nil {
+			panic(err)
+		}
+	}()
 
 	// Pre-checks
 	agent.appArmorSupported, err = isLSMSupported("AppArmor")
@@ -629,6 +646,7 @@ func (agent *Agent) Run(workers int, stopCh <-chan struct{}) {
 
 func (agent *Agent) CleanUp() {
 	agent.log.Info("cleaning up")
+	varmorutils.SetAgentUnready()
 	agent.queue.ShutDown()
 
 	if agent.appArmorSupported && agent.enableBehaviorModeling {

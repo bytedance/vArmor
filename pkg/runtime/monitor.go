@@ -30,6 +30,7 @@ import (
 	"google.golang.org/grpc"
 	runtimeapi "k8s.io/cri-api/pkg/apis/runtime/v1"
 
+	varmorutils "github.com/bytedance/vArmor/internal/utils"
 	varmortypes "github.com/bytedance/vArmor/pkg/types"
 )
 
@@ -265,6 +266,7 @@ func (monitor *RuntimeMonitor) eventHandler(stopCh <-chan struct{}) {
 			if err != nil {
 				logger.Error(err, "containerdClient.IsServing() failed")
 				monitor.status = err
+				varmorutils.SetAgentUnready()
 				return
 			} else if serving {
 				// kindly hold on until containerd is fully initialized
@@ -283,6 +285,7 @@ func (monitor *RuntimeMonitor) eventHandler(stopCh <-chan struct{}) {
 				}
 			} else {
 				logger.Info("the containerd isn't serving")
+				varmorutils.SetAgentUnready()
 				return
 			}
 

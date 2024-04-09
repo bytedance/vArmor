@@ -23,6 +23,7 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
+	"sync/atomic"
 	"time"
 
 	k8errors "k8s.io/apimachinery/pkg/api/errors"
@@ -217,4 +218,37 @@ func InUint32Array(i uint32, array []uint32) bool {
 		}
 	}
 	return false
+}
+
+func SetAgentReady() {
+	atomic.StoreInt32(&AgentReady, 1)
+}
+
+func SetAgentUnready() {
+	atomic.StoreInt32(&AgentReady, 0)
+}
+
+func WaitForManagerReady(debug bool, address string, port int) {
+	var url string
+	if debug {
+		url = fmt.Sprintf(httpsDebugURL, address, port, "/healthz")
+	} else {
+		url = fmt.Sprintf(httpsServerURL, varmorconfig.StatusServiceName, varmorconfig.Namespace, port, "/healthz")
+	}
+
+	client := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true,
+			},
+		},
+	}
+
+	for {
+		resp, err := client.Get(url)
+		if err == nil && resp.StatusCode == 200 {
+			return
+		}
+		time.Sleep(2 * time.Second)
+	}
 }

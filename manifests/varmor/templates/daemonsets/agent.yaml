@@ -88,6 +88,12 @@ spec:
         {{- else }}
         {{- toYaml .Values.agent.appArmorLsmEnforcer.resources | nindent 10 }}
         {{- end }}
+        readinessProbe:
+          httpGet:
+            path: /health/readiness
+            port: 6080
+          initialDelaySeconds: 5
+          periodSeconds: 10
       volumes:
       - hostPath:
           path: /sys/kernel/security

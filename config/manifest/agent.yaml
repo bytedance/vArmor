@@ -52,6 +52,12 @@ spec:
           name: seccomp-dir
         - mountPath: /var/run/secrets/tokens
           name: bound-token
+        readinessProbe:
+          httpGet:
+            path: /health/readiness
+            port: 6080
+          initialDelaySeconds: 5
+          periodSeconds: 10
       volumes:
       - hostPath:
           path: /sys/kernel/security

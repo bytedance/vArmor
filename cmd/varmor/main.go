@@ -158,8 +158,14 @@ func main() {
 		}
 
 		go agentCtrl.Run(1, stopCh)
-		varmorInformer.Start(stopCh)
 
+		// Wait for the manager to be ready.
+		setupLog.Info("Waiting for the manager to be ready")
+		varmorutils.WaitForManagerReady(debug, managerIP, config.StatusServicePort)
+
+		// Starting up agent.
+		varmorInformer.Start(stopCh)
+		varmorutils.SetAgentReady()
 		setupLog.Info("vArmor agent is online")
 
 		<-stopCh
