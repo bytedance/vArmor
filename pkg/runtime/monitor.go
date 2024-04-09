@@ -258,6 +258,7 @@ func (monitor *RuntimeMonitor) eventHandler(stopCh <-chan struct{}) {
 			}
 
 		case err := <-errCh:
+			varmorutils.SetAgentUnready()
 			logger.Error(err, "receive an error from the containerd, waiting for it to resume serving")
 			monitor.running = false
 			monitor.status = err
@@ -266,13 +267,13 @@ func (monitor *RuntimeMonitor) eventHandler(stopCh <-chan struct{}) {
 			if err != nil {
 				logger.Error(err, "containerdClient.IsServing() failed")
 				monitor.status = err
-				varmorutils.SetAgentUnready()
 				return
 			} else if serving {
 				// kindly hold on until containerd is fully initialized
 				time.Sleep(time.Second * 3)
 
 				logger.Info("restart watching the containerd events")
+				varmorutils.SetAgentReady()
 				eventsService = monitor.containerdClient.EventService()
 				eventsCh, errCh = eventsService.Subscribe(ctx, eventsFilter...)
 				monitor.running = true
@@ -285,7 +286,6 @@ func (monitor *RuntimeMonitor) eventHandler(stopCh <-chan struct{}) {
 				}
 			} else {
 				logger.Info("the containerd isn't serving")
-				varmorutils.SetAgentUnready()
 				return
 			}
 
