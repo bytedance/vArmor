@@ -134,7 +134,9 @@ func NewAgent(
 	}
 
 	// Set up a readiness probe
-	r := gin.Default()
+	r := gin.New()
+	r.Use(gin.Recovery(), varmorutils.GinLogger())
+	r.SetTrustedProxies(nil)
 	r.GET(varmorconfig.AgentReadinessPath, func(c *gin.Context) {
 		if atomic.LoadInt32(&varmorutils.AgentReady) == 1 {
 			c.String(200, "ok")
@@ -142,6 +144,7 @@ func NewAgent(
 			c.Status(503)
 		}
 	})
+
 	go func() {
 		if err := r.Run(fmt.Sprintf(":%d", varmorconfig.AgentServicePort)); err != nil {
 			panic(err)
