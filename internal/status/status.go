@@ -33,6 +33,7 @@ import (
 	varmorconfig "github.com/bytedance/vArmor/internal/config"
 	statusmanager "github.com/bytedance/vArmor/internal/status/api/v1"
 	varmortls "github.com/bytedance/vArmor/internal/tls"
+	varmorutils "github.com/bytedance/vArmor/internal/utils"
 	varmorinterface "github.com/bytedance/vArmor/pkg/client/clientset/versioned/typed/varmor/v1beta1"
 )
 
@@ -101,24 +102,18 @@ func NewStatusService(
 		return nil, fmt.Errorf("port is illegal")
 	}
 
-	if debug {
-		gin.SetMode(gin.DebugMode)
-	} else {
-		gin.SetMode(gin.ReleaseMode)
-	}
-
 	statusManager := statusmanager.NewStatusManager(coreInterface, appsInterface, varmorInterface, statusUpdateCycle, debug, log)
 
 	s := StatusService{
 		StatusManager: statusManager,
-		router:        gin.Default(),
+		router:        gin.New(),
 		addr:          addr,
 		port:          port,
 		debug:         debug,
 		log:           log,
 	}
+	s.router.Use(gin.Recovery(), varmorutils.GinLogger())
 	s.router.SetTrustedProxies(nil)
-
 	s.router.POST(varmorconfig.StatusSyncPath, CheckAgentToken(authInterface, debug), statusManager.Status)
 	s.router.POST(varmorconfig.DataSyncPath, CheckAgentToken(authInterface, debug), statusManager.Data)
 	s.router.GET("/healthz", health)

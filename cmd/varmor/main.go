@@ -22,6 +22,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/kyverno/kyverno/pkg/leaderelection"
 	kubeinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
@@ -126,6 +127,12 @@ func main() {
 
 	// vArmor CRD INFORMER, used to watch CRD resources: ArmorProfile & VarmorPolicy
 	varmorInformer := varmorinformer.NewSharedInformerFactoryWithOptions(varmorClient, varmorResyncPeriod)
+
+	if debug {
+		gin.SetMode(gin.DebugMode)
+	} else {
+		gin.SetMode(gin.ReleaseMode)
+	}
 
 	if agent {
 		setupLog.Info("vArmor agent startup")

@@ -26,6 +26,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	k8errors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -251,4 +252,22 @@ func WaitForManagerReady(debug bool, address string, port int) {
 		}
 		time.Sleep(2 * time.Second)
 	}
+}
+
+func GinLogger() gin.HandlerFunc {
+	return gin.LoggerWithFormatter(func(param gin.LogFormatterParams) string {
+		o := fmt.Sprintf("%s [GIN] \"statusCode\"=\"%d\" \"latency\"=\"%v\" \"clientIP\"=\"%s\" \"method\"=\"%s\" \"path\"=\"%s\" \"msg\"=\"%s\"\n",
+			time.Now().Format("0102 15:04:05.000000"),
+			param.StatusCode,
+			param.Latency,
+			param.ClientIP,
+			param.Method,
+			param.Path,
+			param.ErrorMessage)
+
+		if param.StatusCode >= 400 {
+			return "E" + o
+		}
+		return "I" + o
+	})
 }
