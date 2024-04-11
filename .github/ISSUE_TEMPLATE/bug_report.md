@@ -10,12 +10,20 @@ assignees: ''
 **Describe the bug**
 A clear and concise description of what the bug is.
 
-**Versions**
+**Environment Information**
+Please use the below commands to retrieve the necessary information.
+```
+# Access to cluster and retrieve the versions
+kubectl get Nodes -o wide && kubectl version
+# Login to the node and check the enabled LSM
+cat /sys/kernel/security/lsm
+```
 - vArmor: [e.g. v0.5.6]
 - Kubernetes: [e.g. v1.25.15]
 - contained: [e.g. containerd://1.7.5-1]
 - OS: [e.g. Ubuntu 22.04.3 LTS]
 - Kernel: [e.g. 5.15.0-1051-azure]
+- LSM status: [e.g. lockdown,capability,landlock,yama,apparmor,bpf]
 
 **To Reproduce**
 Steps to reproduce the behavior:
