@@ -5,6 +5,7 @@ metadata:
   namespace: demo
 spec:
   target:
+    # The policy protects all the containers by default if the .spec.target.containers is nil.
     kind: Deployment
     selector:
       matchExpressions:

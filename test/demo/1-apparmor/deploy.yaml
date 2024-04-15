@@ -4,9 +4,11 @@ metadata:
   name: demo-1
   namespace: demo
   labels:
-    sandbox.varmor.org/enable: "true"
     environment: production
     app: demo-1
+    # This label is required with target workloads. 
+    # You can disable the feature with --set 'manager.args={--webhookMatchLabel=}'
+    sandbox.varmor.org/enable: "true"
 spec:
   replicas: 1
   selector:
@@ -17,6 +19,8 @@ spec:
       labels:
         app: demo-1
       annotations:
+        # Use this annotation to explicitly disable the protection for the container named c0.
+        # It always takes precedence over the .spec.target.containers field of policy.
         container.apparmor.security.beta.kubernetes.io/c0: unconfined
     spec:
       containers:

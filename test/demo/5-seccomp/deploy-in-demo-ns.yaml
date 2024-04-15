@@ -5,6 +5,8 @@ metadata:
   namespace: demo
   labels:
     app: demo-5
+    # This label is required with target workloads. 
+    # You can disable the feature with --set 'manager.args={--webhookMatchLabel=}'
     sandbox.varmor.org/enable: "true"
 spec:
   replicas: 1

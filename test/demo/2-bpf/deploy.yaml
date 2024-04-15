@@ -4,9 +4,11 @@ metadata:
   name: demo-2
   namespace: demo
   labels:
-    sandbox.varmor.org/enable: "true"
     environment: production
     app: demo-2
+    # This label is required with target workloads. 
+    # You can disable the feature with --set 'manager.args={--webhookMatchLabel=}'
+    sandbox.varmor.org/enable: "true"
 spec:
   replicas: 1
   selector:
@@ -17,6 +19,8 @@ spec:
       labels:
         app: demo-2
       annotations:
+        # Use this annotation to explicitly disable the protection for the container named c0.
+        # It always takes precedence over the .spec.target.containers field of policy.
         container.bpf.security.beta.varmor.org/c0: unconfined
     spec:
       shareProcessNamespace: true

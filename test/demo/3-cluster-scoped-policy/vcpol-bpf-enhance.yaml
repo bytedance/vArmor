@@ -8,7 +8,7 @@ spec:
     selector:
       matchLabels:
         app: demo-3
-    # We only protect the container named test0
+    # We only protect the container named test0 explicitly.
     containers:
     - test0
   policy:

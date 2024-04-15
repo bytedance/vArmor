@@ -5,6 +5,7 @@ metadata:
   namespace: demo
 spec:
   # Perform a rolling update on existing workloads.
+  # It's disabled by default.
   updateExistingWorkloads: true
   target:
     kind: Deployment

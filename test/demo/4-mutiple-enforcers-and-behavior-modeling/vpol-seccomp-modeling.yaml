@@ -5,6 +5,7 @@ metadata:
   namespace: demo
 spec:
   # Perform a rolling update on existing workloads.
+  # It's disabled by default.
   updateExistingWorkloads: true
   target:
     kind: Deployment
@@ -13,6 +14,8 @@ spec:
         app: demo-4
   policy:
     enforcer: Seccomp
+    # Note: Switching the mode from BehaviorModeling to others is prohibited, and vice versa.
+    #       You need recraete the policy to switch the mode from BehaviorModeling to DefenseInDepth.
     # mode: DefenseInDepth
     mode: BehaviorModeling
     modelingOptions:
