@@ -14,18 +14,25 @@ spec:
   template:
     metadata:
       annotations:
-        container.apparmor.security.beta.kubernetes.io/test: unconfined
+        # By default, the container runtime will apply a default AppArmor profile 
+        # for the unprivileged containers if the host supports the AppArmor LSM.
+        #
+        # For testing BPF enforcer, we explicitly disable the AppArmor profile.
+        container.apparmor.security.beta.kubernetes.io/test0: unconfined
       labels:
         app: demo-3
         sandbox.varmor.org/enable: "true"
     spec:
       containers:
-      - name: test
+      - name: test0
         image: debian:10
         command: ["/bin/sh", "-c", "sleep infinity"]
         securityContext:
-          # privileged: true
           capabilities:
             add:
             - SYS_ADMIN
+        imagePullPolicy: IfNotPresent
+      - name: test1
+        image: debian:10
+        command: ["/bin/sh", "-c", "sleep infinity"]
         imagePullPolicy: IfNotPresent

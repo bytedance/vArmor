@@ -8,6 +8,9 @@ spec:
     selector:
       matchLabels:
         app: demo-3
+    # We only protect the container named test0
+    containers:
+    - test0
   policy:
     enforcer: BPF
     mode: EnhanceProtect
