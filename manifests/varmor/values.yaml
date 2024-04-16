@@ -237,15 +237,6 @@ agent:
             operator: NotIn
             values:
             - virtual-node
-        - matchExpressions:
-          - key: beta.kubernetes.io/os
-            operator: In
-            values:
-            - linux
-          - key: beta.kubernetes.io/instance-type
-            operator: NotIn
-            values:
-            - virtual-node
 
   tolerations:
     - effect: NoSchedule
