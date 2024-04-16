@@ -104,7 +104,8 @@ jobs:
               --set image.registry="elkeid-ap-southeast-1.cr.volces.com" \
               --set bpfLsmEnforcer.enabled=true \
               --set "agent.bpfLsmEnforcer.volumes[0].hostPath.type=Directory,agent.bpfLsmEnforcer.volumes[0].hostPath.path=/run/k3s/containerd/,agent.bpfLsmEnforcer.volumes[0].name=containerd" \
-              --set "agent.bpfLsmEnforcer.volumes[1].hostPath.type=Directory,agent.bpfLsmEnforcer.volumes[1].hostPath.path=/proc,agent.bpfLsmEnforcer.volumes[1].name=procfs"
+              --set "agent.bpfLsmEnforcer.volumes[1].hostPath.type=Directory,agent.bpfLsmEnforcer.volumes[1].hostPath.path=/proc,agent.bpfLsmEnforcer.volumes[1].name=procfs" \
+              --set image.namespace="varmor-test"
       - name: Run basic test
         run: ./.github/scripts/basic-test.sh
 #      - name: Kill all and clean up
