@@ -28,7 +28,7 @@ spec:
       - name: varmor-image-pull-secret
       containers:
       - name: classifier
-        image: elkeid-test-cn-beijing.cr.volces.com/varmor/varmor-classifier:v0.5.6
+        image: elkeid-test-cn-beijing.cr.volces.com/varmor/varmor-classifier:v0.5.7
         imagePullPolicy: IfNotPresent
         securityContext:
           allowPrivilegeEscalation: false
