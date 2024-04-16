@@ -4,6 +4,8 @@ set +e  # 允许脚本在命令失败时继续执行
 
 # AppArmor 测试流程
 echo "AppArmor 测试开始"
+sleep 60
+kubectl get pods -n varmor -o yaml
 kubectl create namespace demo
 kubectl create -f test/demo/1-apparmor/vpol-apparmor-alwaysallow.yaml
 echo "sleep 1 minute..."
