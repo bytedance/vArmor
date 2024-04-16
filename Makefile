@@ -208,10 +208,12 @@ docker-build-classifier-arm64-dev:
 	@echo "[+] Build classifier-arm64 image for the development version"
 	@docker buildx build --file $(PWD)/$(CLASSIFIER_PATH)/Dockerfile --tag $(CLASSIFIER_IMAGE_DEV)-arm64 --platform linux/arm64 --load .
 docker-save-ci-dev:
+	@docker tag  $(VARMOR_IMAGE_DEV)-amd64 $(VARMOR_IMAGE_DEV)
+	@docker tag  $(CLASSIFIER_IMAGE_DEV)-amd64 $(CLASSIFIER_IMAGE_DEV)
 	@echo "[+] Saving varmor-amd64 image to varmor-amd64.tar"
-	@docker save $(VARMOR_IMAGE_DEV)-amd64 -o varmor-amd64.tar
+	@docker save $(VARMOR_IMAGE_DEV) -o varmor-amd64.tar
 	@echo "[+] Saving classifier-amd64 image to classifier-amd64.tar"
-	@docker save $(CLASSIFIER_IMAGE_DEV)-amd64 -o classifier-amd64.tar
+	@docker save $(CLASSIFIER_IMAGE_DEV) -o classifier-amd64.tar
 
 
 ##@ Package

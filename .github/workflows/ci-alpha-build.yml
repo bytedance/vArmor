@@ -78,10 +78,8 @@ jobs:
         uses: actions/checkout@v3
         with:
           fetch-depth: 0
-      - uses: debianmaster/actions-k3s@master
-        id: k3s
-        with:
-          version: v${{ matrix.k8s_version }}-k3s1
+      - name: Setup a Kubernetes environment
+        run: ./.github/scripts/create-k3s-cluster.sh ${{ matrix.k8s_version }}
       - name: Download Helm Chart Artifact
         uses: actions/download-artifact@v2
         with:
@@ -92,9 +90,12 @@ jobs:
           name: docker-images
       - name: Load Docker images
         run: |
+          sudo ctr images import varmor-amd64.tar
+          sudo ctr images import classifier-amd64.tar
           docker load -i varmor-amd64.tar
           docker load -i classifier-amd64.tar
-          make manifests-dev
+          sudo k3s ctr images import varmor-amd64.tar
+          sudo k3s ctr images import classifier-amd64.tar
       - name: Checkout submodules
         run: git submodule update --init --recursive
       - name: Install varmor alpha version
@@ -103,9 +104,13 @@ jobs:
               --namespace varmor --create-namespace \
               --set image.registry="elkeid-ap-southeast-1.cr.volces.com" \
               --set bpfLsmEnforcer.enabled=true \
-              --set "agent.bpfLsmEnforcer.volumes[0].hostPath.type=Directory,agent.bpfLsmEnforcer.volumes[0].hostPath.path=/run/k3s/containerd/,agent.bpfLsmEnforcer.volumes[0].name=containerd" \
-              --set "agent.bpfLsmEnforcer.volumes[1].hostPath.type=Directory,agent.bpfLsmEnforcer.volumes[1].hostPath.path=/proc,agent.bpfLsmEnforcer.volumes[1].name=procfs" \
-              --set image.namespace="varmor-test"
+              --set "agent.bpfRelated.volumes[0].hostPath.type=File,agent.bpfRelated.volumes[0].hostPath.path=/sys/kernel/btf/vmlinux,agent.bpfRelated.volumes[0].name=btf" \
+              --set "agent.bpfRelated.volumes[1].hostPath.type=Directory,agent.bpfRelated.volumes[1].hostPath.path=/run/k3s/containerd/,agent.bpfRelated.volumes[1].name=containerd" \
+              --set "agent.bpfRelated.volumes[2].hostPath.type=Directory,agent.bpfRelated.volumes[2].hostPath.path=/proc,agent.bpfRelated.volumes[2].name=procfs" \
+              --set image.namespace="varmor-test" \
+              --set manager.image.pullPolicy="Never" \
+              --set agent.image.pullPolicy="Never" \
+              --set classifier.image.pullPolicy="Never"
       - name: Run basic test
         run: ./.github/scripts/basic-test.sh
 #      - name: Kill all and clean up
