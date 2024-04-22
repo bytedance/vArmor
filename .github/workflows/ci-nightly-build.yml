@@ -6,6 +6,15 @@ on:
   push:
     branches:
       - main
+    paths:
+      - "apis/**"
+      - "cmd/**"
+      - "config/**"
+      - "internal/**"
+      - "pkg/**"
+      - ".gitmodules"
+      - "manifests/**"
+      - "vArmor-ebpf/**" # check submodule content
 permissions: read-all
 jobs:
   build:
