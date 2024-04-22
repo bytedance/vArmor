@@ -583,7 +583,6 @@ func generateHardeningRules(rule string, content *varmor.BpfContent, privileged 
 	// diallow create user namespace
 	case "disallow-create-user-ns":
 		// TODO: add support for userns_create hook point (Linux v6.1+)
-		fallthrough
 	// diallow abuse user namespace
 	case "disallow-abuse-user-ns":
 		content.Capabilities |= 1 << unix.CAP_SYS_ADMIN

@@ -216,7 +216,7 @@ func generateHardeningRules(rule string) (rules string) {
 	//// 3. Kernel vulnerability mitigation
 	// forward-compatible
 	case "disallow-create-user-ns":
-		fallthrough
+		// TODO: add support for userns_create with AppArmor LSM (Linux v6.7+)
 	// diallow abuse user namespace
 	case "disallow-abuse-user-ns":
 		rules += "  deny capability sys_admin,\n"
