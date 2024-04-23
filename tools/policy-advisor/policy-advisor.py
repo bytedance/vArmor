@@ -188,7 +188,7 @@ For Example:
     privileged-container,require-sa,bind-privileged-socket-port\n\n''')
 
   parser.add_argument("-c", dest="capabilities", type=str, default="",
-    help='''The capabilities of target application and its container are required. Providing as
+    help='''The capabilities required by the target application and its containers. Providing as
 comprehensive a capability as possible helps generate more accurate strategy templates for you. 
 For example, before Linux 5.8, loading BPF programs required sys_admin capability. Since Linux 5.8, 
 loading BPF programs requires bpf, perfon or net_admin capabilities. If your application needs to 
