@@ -142,7 +142,7 @@ def built_in_rules_advisor(built_in_rules, app_features=[], app_capabilities=[],
   generate_policy_with_context(policy, built_in_rules, app_features, app_capabilities, armor_profile_model, debug)
 
   print('''
-Please take note of the following regarding the template configurations:
+Please take note of the following tips about the template:
   * It doesn't utilize the `Restrict Specific Executable` feature provided by the AppArmor enforcer.
   * It avoids applying any 'Disable Sensitive Operations' rules for compatibility when an ArmorProfileModel is not provided.
   * It excludes some `Vulnerability Mitigation` rules by default.
@@ -150,8 +150,7 @@ Please take note of the following regarding the template configurations:
 For additional information on built-in rules, please refer to the documentation: 
 https://github.com/bytedance/vArmor/blob/main/docs/built_in_rules.md
 
-You may tailor the policy settings accordingly based on the specific requirements of your scenario 
-and environment.''')
+You may modify the template accordingly based on the specific requirements of your scenario and environment.''')
 
   print("\n------------------ Template (json) ------------------\n")
   print(json.dumps(policy, indent=2))
