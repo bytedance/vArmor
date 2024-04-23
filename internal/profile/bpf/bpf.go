@@ -466,6 +466,9 @@ func generateHardeningRules(rule string, content *varmor.BpfContent, privileged 
 	// disable all capabilities
 	case "disable-cap-all":
 		content.Capabilities = (1 << (unix.CAP_LAST_CAP + 1)) - 1
+	// disable all capabilities except for net_bind_service
+	case "disable-cap-all-except-net-bind-service":
+		content.Capabilities = ((1 << (unix.CAP_LAST_CAP + 1)) - 1) - (1 << unix.CAP_NET_BIND_SERVICE)
 	// disable privileged capabilities
 	case "disable-cap-privileged":
 		content.Capabilities |= ((1 << unix.CAP_DAC_READ_SEARCH) |
