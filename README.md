@@ -52,13 +52,13 @@ For more information, please refer to [Policy Modes and Built-in Rules](docs/bui
 
 ### Step 1. Fetch chart
 ```
-helm pull oci://elkeid-ap-southeast-1.cr.volces.com/varmor/varmor --version 0.5.7
+helm pull oci://elkeid-ap-southeast-1.cr.volces.com/varmor/varmor --version 0.5.8
 ```
 
 ### Step 2. Install
 *You can use the domain `elkeid-cn-beijing.cr.volces.com` inside of the CN region.*
 ```
-helm install varmor varmor-0.5.7.tgz \
+helm install varmor varmor-0.5.8.tgz \
     --namespace varmor --create-namespace \
     --set image.registry="elkeid-ap-southeast-1.cr.volces.com"
 ```
