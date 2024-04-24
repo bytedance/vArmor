@@ -2,7 +2,7 @@
   "escape_pattern": [
     {
       "id": "disallow-write-core-pattern",
-      "enforcers": ["AppArmor", "BPF"],
+      "enforcers": ["apparmor", "bpf"],
       "conflicts": {},
       "applicable": {
         "features": ["privileged-container"],
@@ -11,7 +11,7 @@
     },
     {
       "id": "disallow-mount-securityfs",
-      "enforcers": ["AppArmor", "BPF"],
+      "enforcers": ["apparmor", "bpf"],
       "conflicts": {},
       "applicable": {
         "features": ["privileged-container"],
@@ -20,7 +20,7 @@
     },
     {
       "id": "disallow-mount-procfs",
-      "enforcers": ["AppArmor", "BPF"],
+      "enforcers": ["apparmor", "bpf"],
       "conflicts": {},
       "applicable": {
         "features": ["privileged-container"],
@@ -29,7 +29,7 @@
     },
     {
       "id": "disallow-write-release-agent",
-      "enforcers": ["AppArmor", "BPF"],
+      "enforcers": ["apparmor", "bpf"],
       "conflicts": {},
       "applicable": {
         "features": ["privileged-container"]
@@ -37,7 +37,7 @@
     },
     {
       "id": "disallow-mount-cgroupfs",
-      "enforcers": ["AppArmor", "BPF"],
+      "enforcers": ["apparmor", "bpf"],
       "conflicts": {},
       "applicable": {
         "features": ["privileged-container"],
@@ -46,7 +46,7 @@
     },
     {
       "id": "disallow-debug-disk-device",
-      "enforcers": ["AppArmor", "BPF"],
+      "enforcers": ["apparmor", "bpf"],
       "conflicts": {},
       "applicable": {
         "features": ["privileged-container"]
@@ -54,7 +54,7 @@
     },
     {
       "id": "disallow-mount-disk-device",
-      "enforcers": ["AppArmor", "BPF"],
+      "enforcers": ["apparmor", "bpf"],
       "conflicts": {},
       "applicable": {
         "features": ["privileged-container"]
@@ -62,7 +62,7 @@
     },
     {
       "id": "disallow-mount",
-      "enforcers": ["AppArmor", "BPF"],
+      "enforcers": ["apparmor", "bpf"],
       "conflicts": {
         "features": ["mount-sth"]
       },
@@ -72,7 +72,7 @@
     },
     {
       "id": "disallow-umount",
-      "enforcers": ["AppArmor", "BPF"],
+      "enforcers": ["apparmor", "bpf"],
       "conflicts": {
         "features": ["umount-sth"]
       },
@@ -82,7 +82,7 @@
     },
     {
       "id": "disallow-insmod",
-      "enforcers": ["AppArmor", "BPF"],
+      "enforcers": ["apparmor", "bpf"],
       "conflicts": {
         "capabilities": ["sys_module"]
       },
@@ -92,7 +92,7 @@
     },
     {
       "id": "disallow-load-ebpf",
-      "enforcers": ["AppArmor", "BPF"],
+      "enforcers": ["apparmor", "bpf"],
       "conflicts": {
         "capabilities": ["sys_admin", "bpf"]
       },
@@ -102,7 +102,7 @@
     },
     {
       "id": "disallow-access-procfs-root",
-      "enforcers": ["AppArmor", "BPF"],
+      "enforcers": ["apparmor", "bpf"],
       "conflicts": {},
       "applicable": {
         "features": ["share-containers-pid-ns", "share-host-pid-ns"]
@@ -110,7 +110,7 @@
     },
     {
       "id": "disallow-access-kallsyms",
-      "enforcers": ["AppArmor", "BPF"],
+      "enforcers": ["apparmor", "bpf"],
       "conflicts": {},
       "applicable": {
         "features": ["privileged-container"],
@@ -121,7 +121,7 @@
   "capability_set": [
     {
       "id": "disable-cap-all",
-      "enforcers": ["AppArmor", "BPF"],
+      "enforcers": ["apparmor", "bpf"],
       "conflicts": {
         "features": ["mount-sth", "umount-sth", "bind-privileged-socket-port"],
         "capabilities": [
@@ -137,7 +137,7 @@
     },
     {
       "id": "disable-cap-all-except-net-bind-service",
-      "enforcers": ["AppArmor", "BPF"],
+      "enforcers": ["apparmor", "bpf"],
       "conflicts": {
         "features": ["mount-sth", "umount-sth"],
         "capabilities": [
@@ -153,7 +153,7 @@
     },
     {
       "id": "disable-cap-privileged",
-      "enforcers": ["AppArmor", "BPF"],
+      "enforcers": ["apparmor", "bpf"],
       "conflicts": {
         "features": ["mount-sth", "umount-sth"],
         "capabilities": [
@@ -169,77 +169,77 @@
   "capability": [
     {
       "id": "disable-cap-chown",
-      "enforcers": ["AppArmor", "BPF"],
+      "enforcers": ["apparmor", "bpf"],
       "conflicts": {
         "capabilities": ["chown"]
       }
     },
     {
       "id": "disable-cap-dac-override",
-      "enforcers": ["AppArmor", "BPF"],
+      "enforcers": ["apparmor", "bpf"],
       "conflicts": {
         "capabilities": ["dac_override"]
       }
     },
     {
       "id": "disable-cap-dac-read-search",
-      "enforcers": ["AppArmor", "BPF"],
+      "enforcers": ["apparmor", "bpf"],
       "conflicts": {
         "capabilities": ["dac_read_search"]
       }
     },
     {
       "id": "disable-cap-fowner",
-      "enforcers": ["AppArmor", "BPF"],
+      "enforcers": ["apparmor", "bpf"],
       "conflicts": {
         "capabilities": ["fowner"]
       }
     },
     {
       "id": "disable-cap-fsetid",
-      "enforcers": ["AppArmor", "BPF"],
+      "enforcers": ["apparmor", "bpf"],
       "conflicts": {
         "capabilities": ["fsetid"]
       }
     },
     {
       "id": "disable-cap-kill",
-      "enforcers": ["AppArmor", "BPF"],
+      "enforcers": ["apparmor", "bpf"],
       "conflicts": {
         "capabilities": ["kill"]
       }
     },
     {
       "id": "disable-cap-setgid",
-      "enforcers": ["AppArmor", "BPF"],
+      "enforcers": ["apparmor", "bpf"],
       "conflicts": {
         "capabilities": ["setgid"]
       }
     },
     {
       "id": "disable-cap-setuid",
-      "enforcers": ["AppArmor", "BPF"],
+      "enforcers": ["apparmor", "bpf"],
       "conflicts": {
         "capabilities": ["setuid"]
       }
     },
     {
       "id": "disable-cap-setpcap",
-      "enforcers": ["AppArmor", "BPF"],
+      "enforcers": ["apparmor", "bpf"],
       "conflicts": {
         "capabilities": ["setpcap"]
       }
     },
     {
       "id": "disable-cap-linux-immutable",
-      "enforcers": ["AppArmor", "BPF"],
+      "enforcers": ["apparmor", "bpf"],
       "conflicts": {
         "capabilities": ["linux_immutable"]
       }
     },
     {
       "id": "disable-cap-net-bind-service",
-      "enforcers": ["AppArmor", "BPF"],
+      "enforcers": ["apparmor", "bpf"],
       "conflicts": {
         "features": ["bind-privileged-socket-port"],
         "capabilities": ["net_bind_service"]
@@ -247,77 +247,77 @@
     },
     {
       "id": "disable-cap-net-broadcast",
-      "enforcers": ["AppArmor", "BPF"],
+      "enforcers": ["apparmor", "bpf"],
       "conflicts": {
         "capabilities": ["net_broadcast"]
       }
     },
     {
       "id": "disable-cap-net-admin",
-      "enforcers": ["AppArmor", "BPF"],
+      "enforcers": ["apparmor", "bpf"],
       "conflicts": {
         "capabilities": ["net_admin"]
       }
     },
     {
       "id": "disable-cap-net-raw",
-      "enforcers": ["AppArmor", "BPF"],
+      "enforcers": ["apparmor", "bpf"],
       "conflicts": {
         "capabilities": ["net_raw"]
       }
     },
     {
       "id": "disable-cap-ipc-lock",
-      "enforcers": ["AppArmor", "BPF"],
+      "enforcers": ["apparmor", "bpf"],
       "conflicts": {
         "capabilities": ["ipc_lock"]
       }
     },
     {
       "id": "disable-cap-ipc-owner",
-      "enforcers": ["AppArmor", "BPF"],
+      "enforcers": ["apparmor", "bpf"],
       "conflicts": {
         "capabilities": ["ipc_owner"]
       }
     },
     {
       "id": "disable-cap-sys-module",
-      "enforcers": ["AppArmor", "BPF"],
+      "enforcers": ["apparmor", "bpf"],
       "conflicts": {
         "capabilities": ["sys_module"]
       }
     },
     {
       "id": "disable-cap-sys-rawio",
-      "enforcers": ["AppArmor", "BPF"],
+      "enforcers": ["apparmor", "bpf"],
       "conflicts": {
         "capabilities": ["sys_rawio"]
       }
     },
     {
       "id": "disable-cap-sys-chroot",
-      "enforcers": ["AppArmor", "BPF"],
+      "enforcers": ["apparmor", "bpf"],
       "conflicts": {
         "capabilities": ["sys_chroot"]
       }
     },
     {
       "id": "disable-cap-sys-ptrace",
-      "enforcers": ["AppArmor", "BPF"],
+      "enforcers": ["apparmor", "bpf"],
       "conflicts": {
         "capabilities": ["sys_ptrace"]
       }
     },
     {
       "id": "disable-cap-sys-pacct",
-      "enforcers": ["AppArmor", "BPF"],
+      "enforcers": ["apparmor", "bpf"],
       "conflicts": {
         "capabilities": ["sys_pacct"]
       }
     },
     {
       "id": "disable-cap-sys-admin",
-      "enforcers": ["AppArmor", "BPF"],
+      "enforcers": ["apparmor", "bpf"],
       "conflicts": {
         "features": ["mount-sth", "umount-sth"],
         "capabilities": ["sys_admin"]
@@ -325,133 +325,133 @@
     },
     {
       "id": "disable-cap-sys-boot",
-      "enforcers": ["AppArmor", "BPF"],
+      "enforcers": ["apparmor", "bpf"],
       "conflicts": {
         "capabilities": ["sys_boot"]
       }
     },
     {
       "id": "disable-cap-sys-nice",
-      "enforcers": ["AppArmor", "BPF"],
+      "enforcers": ["apparmor", "bpf"],
       "conflicts": {
         "capabilities": ["sys_nice"]
       }
     },
     {
       "id": "disable-cap-sys-resource",
-      "enforcers": ["AppArmor", "BPF"],
+      "enforcers": ["apparmor", "bpf"],
       "conflicts": {
         "capabilities": ["sys_resource"]
       }
     },
     {
       "id": "disable-cap-sys-time",
-      "enforcers": ["AppArmor", "BPF"],
+      "enforcers": ["apparmor", "bpf"],
       "conflicts": {
         "capabilities": ["sys_time"]
       }
     },
     {
       "id": "disable-cap-sys-tty-config",
-      "enforcers": ["AppArmor", "BPF"],
+      "enforcers": ["apparmor", "bpf"],
       "conflicts": {
         "capabilities": ["sys_tty_config"]
       }
     },
     {
       "id": "disable-cap-mknod",
-      "enforcers": ["AppArmor", "BPF"],
+      "enforcers": ["apparmor", "bpf"],
       "conflicts": {
         "capabilities": ["mknod"]
       }
     },
     {
       "id": "disable-cap-lease",
-      "enforcers": ["AppArmor", "BPF"],
+      "enforcers": ["apparmor", "bpf"],
       "conflicts": {
         "capabilities": ["lease"]
       }
     },
     {
       "id": "disable-cap-audit-write",
-      "enforcers": ["AppArmor", "BPF"],
+      "enforcers": ["apparmor", "bpf"],
       "conflicts": {
         "capabilities": ["audit_write"]
       }
     },
     {
       "id": "disable-cap-audit-control",
-      "enforcers": ["AppArmor", "BPF"],
+      "enforcers": ["apparmor", "bpf"],
       "conflicts": {
         "capabilities": ["audit_control"]
       }
     },
     {
       "id": "disable-cap-setfcap",
-      "enforcers": ["AppArmor", "BPF"],
+      "enforcers": ["apparmor", "bpf"],
       "conflicts": {
         "capabilities": ["setfcap"]
       }
     },
     {
       "id": "disable-cap-mac-override",
-      "enforcers": ["AppArmor", "BPF"],
+      "enforcers": ["apparmor", "bpf"],
       "conflicts": {
         "capabilities": ["mac_override"]
       }
     },
     {
       "id": "disable-cap-mac-admin",
-      "enforcers": ["AppArmor", "BPF"],
+      "enforcers": ["apparmor", "bpf"],
       "conflicts": {
         "capabilities": ["mac_admin"]
       }
     },
     {
       "id": "disable-cap-syslog",
-      "enforcers": ["AppArmor", "BPF"],
+      "enforcers": ["apparmor", "bpf"],
       "conflicts": {
         "capabilities": ["syslog"]
       }
     },
     {
       "id": "disable-cap-wake-alarm",
-      "enforcers": ["AppArmor", "BPF"],
+      "enforcers": ["apparmor", "bpf"],
       "conflicts": {
         "capabilities": ["wake_alarm"]
       }
     },
     {
       "id": "disable-cap-block-suspend",
-      "enforcers": ["AppArmor", "BPF"],
+      "enforcers": ["apparmor", "bpf"],
       "conflicts": {
         "capabilities": ["block_suspend"]
       }
     },
     {
       "id": "disable-cap-audit-read",
-      "enforcers": ["AppArmor", "BPF"],
+      "enforcers": ["apparmor", "bpf"],
       "conflicts": {
         "capabilities": ["audit_read"]
       }
     },
     {
       "id": "disable-cap-perfmon",
-      "enforcers": ["AppArmor", "BPF"],
+      "enforcers": ["apparmor", "bpf"],
       "conflicts": {
         "capabilities": ["perfmon"]
       }
     },
     {
       "id": "disable-cap-bpf",
-      "enforcers": ["AppArmor", "BPF"],
+      "enforcers": ["apparmor", "bpf"],
       "conflicts": {
         "capabilities": ["bpf"]
       }
     },
     {
       "id": "disable-cap-checkpoint-restore",
-      "enforcers": ["AppArmor", "BPF"],
+      "enforcers": ["apparmor", "bpf"],
       "conflicts": {
         "capabilities": ["checkpoint_restore"]
       }
@@ -460,7 +460,7 @@
   "blocking_exploit_vectors": [
     {
       "id": "disallow-abuse-user-ns",
-      "enforcers": ["AppArmor", "BPF"],
+      "enforcers": ["apparmor", "bpf"],
       "conflicts": {
         "capabilities": ["sys_admin"],
         "features": ["dind"]
@@ -468,7 +468,7 @@
     },
     {
       "id": "disallow-create-user-ns",
-      "enforcers": ["Seccomp"],
+      "enforcers": ["seccomp"],
       "conflicts": {
         "features": ["dind"]
       }
@@ -477,77 +477,77 @@
   "information_leak": [
     {
       "id": "mitigate-sa-leak",
-      "enforcers": ["AppArmor", "BPF"],
+      "enforcers": ["apparmor", "bpf"],
       "conflicts": {
         "features": ["require-sa"]
       }
     },
     {
       "id": "mitigate-disk-device-number-leak",
-      "enforcers": ["AppArmor", "BPF"]
+      "enforcers": ["apparmor", "bpf"]
     },
     {
       "id": "mitigate-overlayfs-leak",
-      "enforcers": ["AppArmor", "BPF"]
+      "enforcers": ["apparmor", "bpf"]
     },
     {
       "id": "mitigate-host-ip-leak",
-      "enforcers": ["AppArmor", "BPF"]
+      "enforcers": ["apparmor", "bpf"]
     },
     {
       "id": "disallow-metadata-service",
-      "enforcers": ["BPF"]
+      "enforcers": ["bpf"]
     }
   ],
   "sensitive_operations": [
     {
       "id": "disable-write-etc",
-      "enforcers": ["AppArmor", "BPF"]
+      "enforcers": ["apparmor", "bpf"]
     },
     {
       "id": "disable-busybox",
-      "enforcers": ["AppArmor", "BPF"]
+      "enforcers": ["apparmor", "bpf"]
     },
     {
       "id": "disable-shell",
-      "enforcers": ["AppArmor", "BPF"]
+      "enforcers": ["apparmor", "bpf"]
     },
     {
       "id": "disable-wget",
-      "enforcers": ["AppArmor", "BPF"]
+      "enforcers": ["apparmor", "bpf"]
     },
     {
       "id": "disable-curl",
-      "enforcers": ["AppArmor", "BPF"]
+      "enforcers": ["apparmor", "bpf"]
     },
     {
       "id": "disable-chmod",
-      "enforcers": ["AppArmor", "BPF"]
+      "enforcers": ["apparmor", "bpf"]
     },
     {
       "id": "disable-chmod-x-bit",
-      "enforcers": ["Seccomp"],
+      "enforcers": ["seccomp"],
       "conflicts": {
         "syscalls": ["chmod"]
       }
     },
     {
       "id": "disable-su-sudo",
-      "enforcers": ["AppArmor", "BPF"]
+      "enforcers": ["apparmor", "bpf"]
     }
   ],
   "vulnerability_mitigation": [
     {
       "id": "cgroups-lxcfs-escape-mitigation",
-      "enforcers": ["AppArmor", "BPF"]
+      "enforcers": ["apparmor", "bpf"]
     },
     {
       "id": "runc-override-mitigation",
-      "enforcers": ["AppArmor", "BPF"]
+      "enforcers": ["apparmor", "bpf"]
     },
     {
       "id": "dirty-pipe-mitigation",
-      "enforcers": ["Seccomp"],
+      "enforcers": ["seccomp"],
       "conflicts": {
         "syscalls": ["splice"]
       },

@@ -1,6 +1,7 @@
 import os, json, yaml, argparse
 from argparse import RawTextHelpFormatter
 
+
 def has_common_item(list_one, list_two):
   for item in list_one:
     if item == '*':
@@ -11,7 +12,10 @@ def has_common_item(list_one, list_two):
   return False
 
 
-def skip_the_rule(rule, app_features, app_capabilities):
+def skip_the_rule(rule, enforcers, app_features, app_capabilities):
+  if not has_common_item(enforcers, rule["enforcers"]):
+    return True
+
   if "conflicts" in rule:
     if "features" in rule["conflicts"]:
       if has_common_item(rule["conflicts"]["features"], app_features):
@@ -32,15 +36,12 @@ def skip_the_rule(rule, app_features, app_capabilities):
   return False
 
 
-def set_enforcer(policy, rule):
-  if "AppArmor" not in policy["enforcer"] and \
-      "AppArmor" in rule["enforcers"]:      
+def set_enforcer(policy, enforcers):
+  if "AppArmor" not in policy["enforcer"] and "apparmor" in enforcers:
       policy["enforcer"] += "AppArmor"
-  if "BPF" not in policy["enforcer"] and \
-    "BPF" in rule["enforcers"]:      
+  if "BPF" not in policy["enforcer"] and "bpf" in enforcers:
     policy["enforcer"] += "BPF"
-  if "Seccomp" not in policy["enforcer"] and \
-    "Seccomp" in rule["enforcers"]:      
+  if "Seccomp" not in policy["enforcer"] and "seccomp" in enforcers:
     policy["enforcer"] += "Seccomp"
 
 
@@ -50,16 +51,16 @@ def debug_print(rule, debug):
     print(rule["id"])
 
 
-def generate_policy_with_context(policy, built_in_rules, app_features, app_capabilities, armor_profile_model, debug):
+def generate_policy_with_context(policy, built_in_rules, enforcers, app_features, app_capabilities, armor_profile_model, debug):
   if "privileged-container" in app_features:
     policy["enhanceProtect"]["privileged"] = True
 
   # Hardening - Securing Privileged Containers
   for rule in built_in_rules["escape_pattern"]:
-    if skip_the_rule(rule, app_features, app_capabilities):
+    if skip_the_rule(rule, enforcers, app_features, app_capabilities):
       continue
 
-    set_enforcer(policy, rule)
+    set_enforcer(policy, enforcers)
     policy["enhanceProtect"]["hardeningRules"].append(rule["id"])
     debug_print(rule, debug)
 
@@ -67,10 +68,10 @@ def generate_policy_with_context(policy, built_in_rules, app_features, app_capab
   if not has_common_item(["privileged-container", "dind"], app_features):
     exist_cap_rules = False
     for rule in built_in_rules["capability_set"]:
-      if skip_the_rule(rule, app_features, app_capabilities):
+      if skip_the_rule(rule, enforcers, app_features, app_capabilities):
         continue
 
-      set_enforcer(policy, rule)
+      set_enforcer(policy, enforcers)
       policy["enhanceProtect"]["hardeningRules"].append(rule["id"])
       debug_print(rule, debug)
       exist_cap_rules = True
@@ -78,51 +79,51 @@ def generate_policy_with_context(policy, built_in_rules, app_features, app_capab
 
     if not exist_cap_rules:
       for rule in built_in_rules["capability"]:
-        if skip_the_rule(rule, app_features, app_capabilities):
+        if skip_the_rule(rule, enforcers, app_features, app_capabilities):
           continue
 
-        set_enforcer(policy, rule)
+        set_enforcer(policy, enforcers)
         policy["enhanceProtect"]["hardeningRules"].append(rule["id"])
         debug_print(rule, debug)
 
   # Hardening - Blocking Exploit Vectors
   for rule in built_in_rules["blocking_exploit_vectors"]:
-    if skip_the_rule(rule, app_features, app_capabilities):
+    if skip_the_rule(rule, enforcers, app_features, app_capabilities):
       continue
 
-    set_enforcer(policy, rule)
+    set_enforcer(policy, enforcers)
     policy["enhanceProtect"]["hardeningRules"].append(rule["id"])
     debug_print(rule, debug)
  
   # Attack Protection - Mitigating Information Leakage
   for rule in built_in_rules["information_leak"]:
-    if skip_the_rule(rule, app_features, app_capabilities):
+    if skip_the_rule(rule, enforcers, app_features, app_capabilities):
       continue
 
-    set_enforcer(policy, rule)
+    set_enforcer(policy, enforcers)
     policy["enhanceProtect"]["attackProtectionRules"][0]["rules"].append(rule["id"])
     debug_print(rule, debug)
 
   # Attack Protection - Disable Sensitive Operations
   if armor_profile_model:
     for rule in built_in_rules["sensitive_operations"]:
-      if skip_the_rule(rule, app_features, app_capabilities):
+      if skip_the_rule(rule, enforcers, app_features, app_capabilities):
         continue
-      set_enforcer(policy, rule)
+      set_enforcer(policy, enforcers)
       policy["enhanceProtect"]["attackProtectionRules"][0]["rules"].append(rule["id"])
       debug_print(rule, debug)
 
   # Vulnerability Mitigation
   for rule in built_in_rules["vulnerability_mitigation"]:
-    if skip_the_rule(rule, app_features, app_capabilities):
+    if skip_the_rule(rule, enforcers, app_features, app_capabilities):
       continue
 
-    set_enforcer(policy, rule)
+    set_enforcer(policy, enforcers)
     policy["enhanceProtect"]["attackProtectionRules"][0]["rules"].append(rule["id"])
     debug_print(rule, debug)
 
 
-def built_in_rules_advisor(built_in_rules, app_features=[], app_capabilities=[], armor_profile_model={}, debug=False):
+def built_in_rules_advisor(built_in_rules, enforcers, app_features=[], app_capabilities=[], armor_profile_model={}, debug=False):
   policy = {
     "enforcer": "",
     "mode": "EnhanceProtect",
@@ -139,7 +140,7 @@ def built_in_rules_advisor(built_in_rules, app_features=[], app_capabilities=[],
     }
   }
 
-  generate_policy_with_context(policy, built_in_rules, app_features, app_capabilities, armor_profile_model, debug)
+  generate_policy_with_context(policy, built_in_rules, enforcers, app_features, app_capabilities, armor_profile_model, debug)
 
   print('''
 Please take note of the following tips about the template:
@@ -163,13 +164,19 @@ if __name__ == "__main__":
     description='''This program can help users generate a `.spec.policy` template with the target context. The template can be a good
 start to create the final policy. Please use the -f and -c command-line arguments to specify the context.
 
-For Example: policy-advisor.py -f share-containers-pid-ns -c sys_admin,net_admin,kill
+For Example: policy-advisor.py AppArmor,BPF -f share-containers-pid-ns -c sys_admin,net_admin,kill
 ''')
+
+  parser.add_argument("enforcers", type=str,
+    help='''The enforcers supported by the environment.
+
+Available Values: AppArmor, BPF, Seccomp (they should be combined with commas.)
+For Example: AppArmor,BPF,Seccomp''')
 
   parser.add_argument("-f", dest="features", type=str, default="",
     help='''The features of the target application and its container.
 
-Available Values (They can be combined with commas.): 
+Available Values (they should be combined with commas.):
   * privileged-container: The target application runs in a privileged container.
   * mount-sth: The target application will mount some files/devices in the container.
   * umount-sth: The target application will unmount some files/devices in the container.
@@ -178,26 +185,23 @@ Available Values (They can be combined with commas.):
   * dind: The target application will create a docker in docker container.
   * require-sa: The target application will interact with API Server
   * bind-privileged-socket-port: The target application will listen on a socket port less than 1024.
-
-For Example:
-    privileged-container,require-sa,bind-privileged-socket-port\n\n''')
+For Example: privileged-container,require-sa,bind-privileged-socket-port\n\n''')
 
   parser.add_argument("-c", dest="capabilities", type=str, default="",
-    help='''The capabilities required by the target application and its containers. Providing as
+    help='''The capabilities required by the target application and its containers. Providing as 
 comprehensive a capability as possible helps generate more accurate strategy templates for you. 
 For example, before Linux 5.8, loading BPF programs required sys_admin capability. Since Linux 5.8, 
 loading BPF programs requires bpf, perfon or net_admin capabilities. If your application needs to 
 load BPF programs, please add both sys_admin and bpf, that is "sys_admin,bpf". See CAPABILITIES(7).
 
-Available Values: CAPABILITIES(7) without 'CAP_' prefix (they can be combined with commas). 
-
-For Example:
-    sys_admin,net_admin,sys_module,...\n\n''')
+Available Values: CAPABILITIES(7) without 'CAP_' prefix (they should be combined with commas).
+For Example: sys_admin,net_admin,sys_module,...\n\n''')
 
   parser.add_argument("-d", dest="debug", type=bool, default=False, help="Print debug information.")
 
   args = parser.parse_args()
 
+  enforcers = args.enforcers.lower().split(',')
   features = args.features.lower().split(',')
   capabilities = args.capabilities.lower().split(',')
 
@@ -208,6 +212,6 @@ For Example:
     if os.path.exists(os.path.join(current_dir, "./armor-profile-model.json")):
       with open(os.path.join(current_dir, "./armor-profile-model.json"), "r") as model_f:
         armor_profile_model = json.load(model_f)
-        built_in_rules_advisor(built_in_rules, features, capabilities, armor_profile_model, args.debug)
+        built_in_rules_advisor(built_in_rules, enforcers, features, capabilities, armor_profile_model, args.debug)
     else:
-      built_in_rules_advisor(built_in_rules, features, capabilities, {}, args.debug)
+      built_in_rules_advisor(built_in_rules, enforcers, features, capabilities, {}, args.debug)
