@@ -158,10 +158,6 @@ You may modify the template accordingly based on the specific requirements of yo
   print(yaml.dump(policy, default_flow_style=False))
 
 
-#
-# TODO:
-#   v0.5.8 - The disallow-create-user-ns rule will no longer conflict with sys_admin
-#
 if __name__ == "__main__":
   parser = argparse.ArgumentParser(formatter_class=RawTextHelpFormatter,
     description='''This program can help users generate a `.spec.policy` template with the target context. The template can be a good
@@ -196,7 +192,7 @@ load BPF programs, please add both sys_admin and bpf, that is "sys_admin,bpf". S
 Available Values: CAPABILITIES(7) without 'CAP_' prefix (they can be combined with commas). 
 
 For Example:
-    sys_admin,net_admin,sys_module,...\n''')
+    sys_admin,net_admin,sys_module,...\n\n''')
 
   parser.add_argument("-d", dest="debug", type=bool, default=False, help="Print debug information.")
 
