@@ -1,0 +1,557 @@
+{
+  "escape_pattern": [
+    {
+      "id": "disallow-write-core-pattern",
+      "enforcers": ["apparmor", "bpf"],
+      "conflicts": {},
+      "applicable": {
+        "features": ["privileged-container"],
+        "capabilities": ["sys_admin"]
+      }
+    },
+    {
+      "id": "disallow-mount-securityfs",
+      "enforcers": ["apparmor", "bpf"],
+      "conflicts": {},
+      "applicable": {
+        "features": ["privileged-container"],
+        "capabilities": ["sys_admin"]
+      }
+    },
+    {
+      "id": "disallow-mount-procfs",
+      "enforcers": ["apparmor", "bpf"],
+      "conflicts": {},
+      "applicable": {
+        "features": ["privileged-container"],
+        "capabilities": ["sys_admin"]
+      }
+    },
+    {
+      "id": "disallow-write-release-agent",
+      "enforcers": ["apparmor", "bpf"],
+      "conflicts": {},
+      "applicable": {
+        "features": ["privileged-container"]
+      }
+    },
+    {
+      "id": "disallow-mount-cgroupfs",
+      "enforcers": ["apparmor", "bpf"],
+      "conflicts": {},
+      "applicable": {
+        "features": ["privileged-container"],
+        "capabilities": ["sys_admin"]
+      }
+    },
+    {
+      "id": "disallow-debug-disk-device",
+      "enforcers": ["apparmor", "bpf"],
+      "conflicts": {},
+      "applicable": {
+        "features": ["privileged-container"]
+      }
+    },
+    {
+      "id": "disallow-mount-disk-device",
+      "enforcers": ["apparmor", "bpf"],
+      "conflicts": {},
+      "applicable": {
+        "features": ["privileged-container"]
+      }
+    },
+    {
+      "id": "disallow-mount",
+      "enforcers": ["apparmor", "bpf"],
+      "conflicts": {
+        "features": ["mount-sth"]
+      },
+      "applicable": {
+        "features": ["privileged-container"]
+      }
+    },
+    {
+      "id": "disallow-umount",
+      "enforcers": ["apparmor", "bpf"],
+      "conflicts": {
+        "features": ["umount-sth"]
+      },
+      "applicable": {
+        "features": ["*"]
+      }
+    },
+    {
+      "id": "disallow-insmod",
+      "enforcers": ["apparmor", "bpf"],
+      "conflicts": {
+        "capabilities": ["sys_module"]
+      },
+      "applicable": {
+        "features": ["privileged-container"]
+      }
+    },
+    {
+      "id": "disallow-load-ebpf",
+      "enforcers": ["apparmor", "bpf"],
+      "conflicts": {
+        "capabilities": ["sys_admin", "bpf"]
+      },
+      "applicable": {
+        "features": ["privileged-container"]
+      }
+    },
+    {
+      "id": "disallow-access-procfs-root",
+      "enforcers": ["apparmor", "bpf"],
+      "conflicts": {},
+      "applicable": {
+        "features": ["share-containers-pid-ns", "share-host-pid-ns"]
+      }
+    },
+    {
+      "id": "disallow-access-kallsyms",
+      "enforcers": ["apparmor", "bpf"],
+      "conflicts": {},
+      "applicable": {
+        "features": ["privileged-container"],
+        "capabilities": ["syslog"]
+      }
+    }
+  ],
+  "capability_set": [
+    {
+      "id": "disable-cap-all",
+      "enforcers": ["apparmor", "bpf"],
+      "conflicts": {
+        "features": ["mount-sth", "umount-sth", "bind-privileged-socket-port"],
+        "capabilities": [
+          "chown", "dac_override", "dac_read_search", "fowner", "fsetid", "kill",
+          "setgid", "setuid", "setpcap", "linux_immutable", "net_bind_service",
+          "net_broadcast", "net_admin", "net_raw", "ipc_lock", "ipc_owner", "sys_module",
+          "sys_rawio", "sys_chroot", "sys_ptrace", "sys_pacct", "sys_admin", "sys_boot",
+          "sys_nice", "sys_resource", "sys_time", "sys_tty_config", "mknod", "lease",
+          "audit_write", "audit_control", "setfcap", "mac_override", "mac_admin", "syslog",
+          "wake_alarm", "block_suspend", "audit_read", "perfmon", "bpf", "checkpoint_restore"
+        ]
+      }
+    },
+    {
+      "id": "disable-cap-all-except-net-bind-service",
+      "enforcers": ["apparmor", "bpf"],
+      "conflicts": {
+        "features": ["mount-sth", "umount-sth"],
+        "capabilities": [
+          "chown", "dac_override", "dac_read_search", "fowner", "fsetid", "kill",
+          "setgid", "setuid", "setpcap", "linux_immutable", "net_broadcast", "net_admin", 
+          "net_raw", "ipc_lock", "ipc_owner", "sys_module", "sys_rawio", "sys_chroot", 
+          "sys_ptrace", "sys_pacct", "sys_admin", "sys_boot", "sys_nice", "sys_resource", 
+          "sys_time", "sys_tty_config", "mknod", "lease", "audit_write", "audit_control", 
+          "setfcap", "mac_override", "mac_admin", "syslog", "wake_alarm", "block_suspend", 
+          "audit_read", "perfmon", "bpf", "checkpoint_restore"
+        ]
+      }
+    },
+    {
+      "id": "disable-cap-privileged",
+      "enforcers": ["apparmor", "bpf"],
+      "conflicts": {
+        "features": ["mount-sth", "umount-sth"],
+        "capabilities": [
+          "dac_read_search", "linux_immutable", "net_broadcast", "net_admin", "ipc_lock", 
+          "ipc_owner", "sys_module", "sys_rawio", "sys_ptrace", "sys_pacct", "sys_admin",
+          "sys_boot", "sys_nice", "sys_resource", "sys_time", "sys_tty_config", "lease",
+          "audit_control", "mac_override", "mac_admin", "syslog", "wake_alarm", "block_suspend",
+          "audit_read", "perfmon", "bpf", "checkpoint_restore"
+        ]
+      }
+    }
+  ],
+  "capability": [
+    {
+      "id": "disable-cap-chown",
+      "enforcers": ["apparmor", "bpf"],
+      "conflicts": {
+        "capabilities": ["chown"]
+      }
+    },
+    {
+      "id": "disable-cap-dac-override",
+      "enforcers": ["apparmor", "bpf"],
+      "conflicts": {
+        "capabilities": ["dac_override"]
+      }
+    },
+    {
+      "id": "disable-cap-dac-read-search",
+      "enforcers": ["apparmor", "bpf"],
+      "conflicts": {
+        "capabilities": ["dac_read_search"]
+      }
+    },
+    {
+      "id": "disable-cap-fowner",
+      "enforcers": ["apparmor", "bpf"],
+      "conflicts": {
+        "capabilities": ["fowner"]
+      }
+    },
+    {
+      "id": "disable-cap-fsetid",
+      "enforcers": ["apparmor", "bpf"],
+      "conflicts": {
+        "capabilities": ["fsetid"]
+      }
+    },
+    {
+      "id": "disable-cap-kill",
+      "enforcers": ["apparmor", "bpf"],
+      "conflicts": {
+        "capabilities": ["kill"]
+      }
+    },
+    {
+      "id": "disable-cap-setgid",
+      "enforcers": ["apparmor", "bpf"],
+      "conflicts": {
+        "capabilities": ["setgid"]
+      }
+    },
+    {
+      "id": "disable-cap-setuid",
+      "enforcers": ["apparmor", "bpf"],
+      "conflicts": {
+        "capabilities": ["setuid"]
+      }
+    },
+    {
+      "id": "disable-cap-setpcap",
+      "enforcers": ["apparmor", "bpf"],
+      "conflicts": {
+        "capabilities": ["setpcap"]
+      }
+    },
+    {
+      "id": "disable-cap-linux-immutable",
+      "enforcers": ["apparmor", "bpf"],
+      "conflicts": {
+        "capabilities": ["linux_immutable"]
+      }
+    },
+    {
+      "id": "disable-cap-net-bind-service",
+      "enforcers": ["apparmor", "bpf"],
+      "conflicts": {
+        "features": ["bind-privileged-socket-port"],
+        "capabilities": ["net_bind_service"]
+      }
+    },
+    {
+      "id": "disable-cap-net-broadcast",
+      "enforcers": ["apparmor", "bpf"],
+      "conflicts": {
+        "capabilities": ["net_broadcast"]
+      }
+    },
+    {
+      "id": "disable-cap-net-admin",
+      "enforcers": ["apparmor", "bpf"],
+      "conflicts": {
+        "capabilities": ["net_admin"]
+      }
+    },
+    {
+      "id": "disable-cap-net-raw",
+      "enforcers": ["apparmor", "bpf"],
+      "conflicts": {
+        "capabilities": ["net_raw"]
+      }
+    },
+    {
+      "id": "disable-cap-ipc-lock",
+      "enforcers": ["apparmor", "bpf"],
+      "conflicts": {
+        "capabilities": ["ipc_lock"]
+      }
+    },
+    {
+      "id": "disable-cap-ipc-owner",
+      "enforcers": ["apparmor", "bpf"],
+      "conflicts": {
+        "capabilities": ["ipc_owner"]
+      }
+    },
+    {
+      "id": "disable-cap-sys-module",
+      "enforcers": ["apparmor", "bpf"],
+      "conflicts": {
+        "capabilities": ["sys_module"]
+      }
+    },
+    {
+      "id": "disable-cap-sys-rawio",
+      "enforcers": ["apparmor", "bpf"],
+      "conflicts": {
+        "capabilities": ["sys_rawio"]
+      }
+    },
+    {
+      "id": "disable-cap-sys-chroot",
+      "enforcers": ["apparmor", "bpf"],
+      "conflicts": {
+        "capabilities": ["sys_chroot"]
+      }
+    },
+    {
+      "id": "disable-cap-sys-ptrace",
+      "enforcers": ["apparmor", "bpf"],
+      "conflicts": {
+        "capabilities": ["sys_ptrace"]
+      }
+    },
+    {
+      "id": "disable-cap-sys-pacct",
+      "enforcers": ["apparmor", "bpf"],
+      "conflicts": {
+        "capabilities": ["sys_pacct"]
+      }
+    },
+    {
+      "id": "disable-cap-sys-admin",
+      "enforcers": ["apparmor", "bpf"],
+      "conflicts": {
+        "features": ["mount-sth", "umount-sth"],
+        "capabilities": ["sys_admin"]
+      }
+    },
+    {
+      "id": "disable-cap-sys-boot",
+      "enforcers": ["apparmor", "bpf"],
+      "conflicts": {
+        "capabilities": ["sys_boot"]
+      }
+    },
+    {
+      "id": "disable-cap-sys-nice",
+      "enforcers": ["apparmor", "bpf"],
+      "conflicts": {
+        "capabilities": ["sys_nice"]
+      }
+    },
+    {
+      "id": "disable-cap-sys-resource",
+      "enforcers": ["apparmor", "bpf"],
+      "conflicts": {
+        "capabilities": ["sys_resource"]
+      }
+    },
+    {
+      "id": "disable-cap-sys-time",
+      "enforcers": ["apparmor", "bpf"],
+      "conflicts": {
+        "capabilities": ["sys_time"]
+      }
+    },
+    {
+      "id": "disable-cap-sys-tty-config",
+      "enforcers": ["apparmor", "bpf"],
+      "conflicts": {
+        "capabilities": ["sys_tty_config"]
+      }
+    },
+    {
+      "id": "disable-cap-mknod",
+      "enforcers": ["apparmor", "bpf"],
+      "conflicts": {
+        "capabilities": ["mknod"]
+      }
+    },
+    {
+      "id": "disable-cap-lease",
+      "enforcers": ["apparmor", "bpf"],
+      "conflicts": {
+        "capabilities": ["lease"]
+      }
+    },
+    {
+      "id": "disable-cap-audit-write",
+      "enforcers": ["apparmor", "bpf"],
+      "conflicts": {
+        "capabilities": ["audit_write"]
+      }
+    },
+    {
+      "id": "disable-cap-audit-control",
+      "enforcers": ["apparmor", "bpf"],
+      "conflicts": {
+        "capabilities": ["audit_control"]
+      }
+    },
+    {
+      "id": "disable-cap-setfcap",
+      "enforcers": ["apparmor", "bpf"],
+      "conflicts": {
+        "capabilities": ["setfcap"]
+      }
+    },
+    {
+      "id": "disable-cap-mac-override",
+      "enforcers": ["apparmor", "bpf"],
+      "conflicts": {
+        "capabilities": ["mac_override"]
+      }
+    },
+    {
+      "id": "disable-cap-mac-admin",
+      "enforcers": ["apparmor", "bpf"],
+      "conflicts": {
+        "capabilities": ["mac_admin"]
+      }
+    },
+    {
+      "id": "disable-cap-syslog",
+      "enforcers": ["apparmor", "bpf"],
+      "conflicts": {
+        "capabilities": ["syslog"]
+      }
+    },
+    {
+      "id": "disable-cap-wake-alarm",
+      "enforcers": ["apparmor", "bpf"],
+      "conflicts": {
+        "capabilities": ["wake_alarm"]
+      }
+    },
+    {
+      "id": "disable-cap-block-suspend",
+      "enforcers": ["apparmor", "bpf"],
+      "conflicts": {
+        "capabilities": ["block_suspend"]
+      }
+    },
+    {
+      "id": "disable-cap-audit-read",
+      "enforcers": ["apparmor", "bpf"],
+      "conflicts": {
+        "capabilities": ["audit_read"]
+      }
+    },
+    {
+      "id": "disable-cap-perfmon",
+      "enforcers": ["apparmor", "bpf"],
+      "conflicts": {
+        "capabilities": ["perfmon"]
+      }
+    },
+    {
+      "id": "disable-cap-bpf",
+      "enforcers": ["apparmor", "bpf"],
+      "conflicts": {
+        "capabilities": ["bpf"]
+      }
+    },
+    {
+      "id": "disable-cap-checkpoint-restore",
+      "enforcers": ["apparmor", "bpf"],
+      "conflicts": {
+        "capabilities": ["checkpoint_restore"]
+      }
+    }
+  ],
+  "blocking_exploit_vectors": [
+    {
+      "id": "disallow-abuse-user-ns",
+      "enforcers": ["apparmor", "bpf"],
+      "conflicts": {
+        "capabilities": ["sys_admin"],
+        "features": ["dind"]
+      }
+    },
+    {
+      "id": "disallow-create-user-ns",
+      "enforcers": ["seccomp"],
+      "conflicts": {
+        "features": ["dind"]
+      }
+    }
+  ],
+  "information_leak": [
+    {
+      "id": "mitigate-sa-leak",
+      "enforcers": ["apparmor", "bpf"],
+      "conflicts": {
+        "features": ["require-sa"]
+      }
+    },
+    {
+      "id": "mitigate-disk-device-number-leak",
+      "enforcers": ["apparmor", "bpf"]
+    },
+    {
+      "id": "mitigate-overlayfs-leak",
+      "enforcers": ["apparmor", "bpf"]
+    },
+    {
+      "id": "mitigate-host-ip-leak",
+      "enforcers": ["apparmor", "bpf"]
+    },
+    {
+      "id": "disallow-metadata-service",
+      "enforcers": ["bpf"]
+    }
+  ],
+  "sensitive_operations": [
+    {
+      "id": "disable-write-etc",
+      "enforcers": ["apparmor", "bpf"]
+    },
+    {
+      "id": "disable-busybox",
+      "enforcers": ["apparmor", "bpf"]
+    },
+    {
+      "id": "disable-shell",
+      "enforcers": ["apparmor", "bpf"]
+    },
+    {
+      "id": "disable-wget",
+      "enforcers": ["apparmor", "bpf"]
+    },
+    {
+      "id": "disable-curl",
+      "enforcers": ["apparmor", "bpf"]
+    },
+    {
+      "id": "disable-chmod",
+      "enforcers": ["apparmor", "bpf"]
+    },
+    {
+      "id": "disable-chmod-x-bit",
+      "enforcers": ["seccomp"],
+      "conflicts": {
+        "syscalls": ["chmod"]
+      }
+    },
+    {
+      "id": "disable-su-sudo",
+      "enforcers": ["apparmor", "bpf"]
+    }
+  ],
+  "vulnerability_mitigation": [
+    {
+      "id": "cgroups-lxcfs-escape-mitigation",
+      "enforcers": ["apparmor", "bpf"]
+    },
+    {
+      "id": "runc-override-mitigation",
+      "enforcers": ["apparmor", "bpf"]
+    },
+    {
+      "id": "dirty-pipe-mitigation",
+      "enforcers": ["seccomp"],
+      "conflicts": {
+        "syscalls": ["splice"]
+      },
+      "applicable": {}
+    }
+  ]
+}
