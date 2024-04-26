@@ -132,10 +132,6 @@ func generateAttackProtectionRules(rule string, profile *specs.LinuxSeccomp) {
 }
 
 func GenerateEnhanceProtectProfile(enhanceProtect *varmor.EnhanceProtect, profileName string) (string, error) {
-	if enhanceProtect.Privileged {
-		return "", nil
-	}
-
 	profile := specs.LinuxSeccomp{
 		DefaultAction: specs.ActAllow,
 		Syscalls:      []specs.LinuxSyscall{},
