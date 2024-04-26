@@ -85,7 +85,7 @@ func modifyDeploymentAnnotationsAndEnv(enforcer string, target varmor.Target, de
 			continue
 		}
 
-		// BPF, BPFSeccomp
+		// BPF
 		if (e & varmortypes.BPF) != 0 {
 			key := fmt.Sprintf("container.bpf.security.beta.varmor.org/%s", container.Name)
 			if value, ok := deploy.Spec.Template.Annotations[key]; ok && value == "unconfined" {
@@ -98,7 +98,7 @@ func modifyDeploymentAnnotationsAndEnv(enforcer string, target varmor.Target, de
 				deploy.Spec.Template.Annotations[key] = "unconfined"
 			}
 		}
-		// AppArmor, AppArmorSeccomp
+		// AppArmor
 		if (e & varmortypes.AppArmor) != 0 {
 			key := fmt.Sprintf("container.apparmor.security.beta.kubernetes.io/%s", container.Name)
 			if value, ok := deploy.Spec.Template.Annotations[key]; ok && value == "unconfined" {
@@ -106,7 +106,7 @@ func modifyDeploymentAnnotationsAndEnv(enforcer string, target varmor.Target, de
 			}
 			deploy.Spec.Template.Annotations[key] = fmt.Sprintf("localhost/%s", profileName)
 		}
-		// Seccomp, BPFSeccomp, AppArmorSeccomp
+		// Seccomp
 		if (e & varmortypes.Seccomp) != 0 {
 			if (container.SecurityContext != nil && container.SecurityContext.SeccompProfile != nil) ||
 				(container.SecurityContext != nil && container.SecurityContext.Privileged != nil && *container.SecurityContext.Privileged) ||
