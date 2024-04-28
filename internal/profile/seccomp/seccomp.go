@@ -71,63 +71,120 @@ func GenerateProfileWithBehaviorModel(dynamicResult *varmor.DynamicResult) (stri
 	return base64.StdEncoding.EncodeToString(p), nil
 }
 
-func generateAttackProtectionRules(rule string, profile *specs.LinuxSeccomp) {
+func generateAttackProtectionRules(rule string, syscalls map[string]specs.LinuxSyscall) {
 	rule = strings.ToLower(rule)
 	rule = strings.ReplaceAll(rule, "_", "-")
 
 	switch rule {
 	case "disable-chmod-x-bit":
-		fchmodat := specs.LinuxSyscall{
-			Names:  []string{"fchmodat", "fchmodat2"},
-			Action: specs.ActErrno,
-			Args: []specs.LinuxSeccompArg{
-				{
-					Index:    2,
-					Value:    unix.S_IXUSR,
-					ValueTwo: unix.S_IXUSR,
-					Op:       specs.OpMaskedEqual,
-				},
-				{
-					Index:    2,
-					Value:    unix.S_IXGRP,
-					ValueTwo: unix.S_IXGRP,
-					Op:       specs.OpMaskedEqual,
-				},
-				{
-					Index:    2,
-					Value:    unix.S_IXOTH,
-					ValueTwo: unix.S_IXOTH,
-					Op:       specs.OpMaskedEqual,
-				},
-			},
+		if _, ok := syscalls["fchmodat"]; !ok {
+			syscalls["fchmodat"] = specs.LinuxSyscall{
+				Names:  []string{"fchmodat", "fchmodat2"},
+				Action: specs.ActErrno,
+				Args:   []specs.LinuxSeccompArg{},
+			}
 		}
-
-		chmod := specs.LinuxSyscall{
-			Names:  []string{"chmod", "fchmod"},
-			Action: specs.ActErrno,
-			Args: []specs.LinuxSeccompArg{
-				{
-					Index:    1,
-					Value:    unix.S_IXUSR,
-					ValueTwo: unix.S_IXUSR,
-					Op:       specs.OpMaskedEqual,
-				},
-				{
-					Index:    1,
-					Value:    unix.S_IXGRP,
-					ValueTwo: unix.S_IXGRP,
-					Op:       specs.OpMaskedEqual,
-				},
-				{
-					Index:    1,
-					Value:    unix.S_IXOTH,
-					ValueTwo: unix.S_IXOTH,
-					Op:       specs.OpMaskedEqual,
-				},
+		fchmodat := syscalls["fchmodat"]
+		fchmodat.Args = append(fchmodat.Args, []specs.LinuxSeccompArg{
+			{
+				Index:    2,
+				Value:    unix.S_IXUSR,
+				ValueTwo: unix.S_IXUSR,
+				Op:       specs.OpMaskedEqual,
 			},
-		}
+			{
+				Index:    2,
+				Value:    unix.S_IXGRP,
+				ValueTwo: unix.S_IXGRP,
+				Op:       specs.OpMaskedEqual,
+			},
+			{
+				Index:    2,
+				Value:    unix.S_IXOTH,
+				ValueTwo: unix.S_IXOTH,
+				Op:       specs.OpMaskedEqual,
+			},
+		}...)
+		syscalls["fchmodat"] = fchmodat
 
-		profile.Syscalls = append(profile.Syscalls, fchmodat, chmod)
+		if _, ok := syscalls["chmod"]; !ok {
+			syscalls["chmod"] = specs.LinuxSyscall{
+				Names:  []string{"chmod", "fchmod"},
+				Action: specs.ActErrno,
+				Args:   []specs.LinuxSeccompArg{},
+			}
+		}
+		chmod := syscalls["chmod"]
+		chmod.Args = append(chmod.Args, []specs.LinuxSeccompArg{
+			{
+				Index:    1,
+				Value:    unix.S_IXUSR,
+				ValueTwo: unix.S_IXUSR,
+				Op:       specs.OpMaskedEqual,
+			},
+			{
+				Index:    1,
+				Value:    unix.S_IXGRP,
+				ValueTwo: unix.S_IXGRP,
+				Op:       specs.OpMaskedEqual,
+			},
+			{
+				Index:    1,
+				Value:    unix.S_IXOTH,
+				ValueTwo: unix.S_IXOTH,
+				Op:       specs.OpMaskedEqual,
+			},
+		}...)
+		syscalls["chmod"] = chmod
+
+	case "disable-chmod-s-bit":
+		if _, ok := syscalls["fchmodat"]; !ok {
+			syscalls["fchmodat"] = specs.LinuxSyscall{
+				Names:  []string{"fchmodat", "fchmodat2"},
+				Action: specs.ActErrno,
+				Args:   []specs.LinuxSeccompArg{},
+			}
+		}
+		fchmodat := syscalls["fchmodat"]
+		fchmodat.Args = append(fchmodat.Args, []specs.LinuxSeccompArg{
+			{
+				Index:    2,
+				Value:    unix.S_ISUID,
+				ValueTwo: unix.S_ISUID,
+				Op:       specs.OpMaskedEqual,
+			},
+			{
+				Index:    2,
+				Value:    unix.S_ISGID,
+				ValueTwo: unix.S_ISGID,
+				Op:       specs.OpMaskedEqual,
+			},
+		}...)
+		syscalls["fchmodat"] = fchmodat
+
+		if _, ok := syscalls["chmod"]; !ok {
+			syscalls["chmod"] = specs.LinuxSyscall{
+				Names:  []string{"chmod", "fchmod"},
+				Action: specs.ActErrno,
+				Args:   []specs.LinuxSeccompArg{},
+			}
+		}
+		chmod := syscalls["chmod"]
+		chmod.Args = append(chmod.Args, []specs.LinuxSeccompArg{
+			{
+				Index:    1,
+				Value:    unix.S_ISUID,
+				ValueTwo: unix.S_ISUID,
+				Op:       specs.OpMaskedEqual,
+			},
+			{
+				Index:    1,
+				Value:    unix.S_ISGID,
+				ValueTwo: unix.S_ISGID,
+				Op:       specs.OpMaskedEqual,
+			},
+		}...)
+		syscalls["chmod"] = chmod
 	}
 }
 
@@ -161,12 +218,16 @@ func GenerateEnhanceProtectProfile(enhanceProtect *varmor.EnhanceProtect, profil
 	}
 
 	// Attack Protection
+	syscalls := make(map[string]specs.LinuxSyscall)
 	for _, attackProtectionRule := range enhanceProtect.AttackProtectionRules {
 		if len(attackProtectionRule.Targets) == 0 {
 			for _, rule := range attackProtectionRule.Rules {
-				generateAttackProtectionRules(rule, &profile)
+				generateAttackProtectionRules(rule, syscalls)
 			}
 		}
+	}
+	for _, syscall := range syscalls {
+		profile.Syscalls = append(profile.Syscalls, syscall)
 	}
 
 	// Vulnerability Mitigation
