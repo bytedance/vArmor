@@ -312,7 +312,7 @@ func (m *StatusManager) updateVarmorClusterPolicyStatus(
 		if phase == varmortypes.VarmorPolicyError {
 			condition.Reason = "Error"
 			condition.Message = fmt.Sprintf("The agents failed processing the profile. Please refer to the status of ArmorProfile object (%s/%s) for more details.",
-				vcp.Namespace, vcp.Status.ProfileName)
+				varmorconfig.Namespace, vcp.Status.ProfileName)
 		}
 	}
 	exist := false
