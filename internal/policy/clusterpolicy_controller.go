@@ -186,30 +186,24 @@ func (c *ClusterPolicyController) updateVarmorClusterPolicyStatus(
 	status apicorev1.ConditionStatus,
 	reason, message string) error {
 
+	condition := varmor.VarmorPolicyCondition{
+		Type:               condType,
+		Status:             status,
+		LastTransitionTime: metav1.Now(),
+		Reason:             reason,
+		Message:            message,
+	}
 	exist := false
-
-	if condType == varmortypes.VarmorPolicyUpdated {
-
+	if condition.Type == varmortypes.VarmorPolicyUpdated {
 		for i, c := range vcp.Status.Conditions {
 			if c.Type == varmortypes.VarmorPolicyUpdated {
-				vcp.Status.Conditions[i].Status = status
-				vcp.Status.Conditions[i].LastTransitionTime = metav1.Now()
-				vcp.Status.Conditions[i].Reason = reason
-				vcp.Status.Conditions[i].Message = message
+				condition.DeepCopyInto(&vcp.Status.Conditions[i])
 				exist = true
 				break
 			}
 		}
 	}
-
 	if !exist {
-		condition := varmor.VarmorPolicyCondition{
-			Type:               condType,
-			Status:             status,
-			LastTransitionTime: metav1.Now(),
-			Reason:             reason,
-			Message:            message,
-		}
 		vcp.Status.Conditions = append(vcp.Status.Conditions, condition)
 	}
 

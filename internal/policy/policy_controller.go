@@ -192,30 +192,24 @@ func (c *PolicyController) updateVarmorPolicyStatus(
 	status apicorev1.ConditionStatus,
 	reason, message string) error {
 
-	var exist bool = false
-
-	if condType == varmortypes.VarmorPolicyUpdated {
-
+	condition := varmor.VarmorPolicyCondition{
+		Type:               condType,
+		Status:             status,
+		LastTransitionTime: metav1.Now(),
+		Reason:             reason,
+		Message:            message,
+	}
+	exist := false
+	if condition.Type == varmortypes.VarmorPolicyUpdated {
 		for i, c := range vp.Status.Conditions {
 			if c.Type == varmortypes.VarmorPolicyUpdated {
-				vp.Status.Conditions[i].Status = status
-				vp.Status.Conditions[i].LastTransitionTime = metav1.Now()
-				vp.Status.Conditions[i].Reason = reason
-				vp.Status.Conditions[i].Message = message
+				condition.DeepCopyInto(&vp.Status.Conditions[i])
 				exist = true
 				break
 			}
 		}
 	}
-
 	if !exist {
-		condition := varmor.VarmorPolicyCondition{
-			Type:               condType,
-			Status:             status,
-			LastTransitionTime: metav1.Now(),
-			Reason:             reason,
-			Message:            message,
-		}
 		vp.Status.Conditions = append(vp.Status.Conditions, condition)
 	}
 

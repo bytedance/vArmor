@@ -240,6 +240,34 @@ func (m *StatusManager) updateVarmorPolicyStatus(
 		return vp, nil
 	}
 
+	condition := varmor.VarmorPolicyCondition{
+		Type:               varmortypes.VarmorPolicyReady,
+		LastTransitionTime: metav1.Now(),
+	}
+	if ready {
+		condition.Status = v1.ConditionTrue
+		condition.Reason = "AllAgentsReady"
+	} else {
+		condition.Status = v1.ConditionFalse
+		condition.Reason = "Processing"
+		if phase == varmortypes.VarmorPolicyError {
+			condition.Reason = "Error"
+			condition.Message = fmt.Sprintf("The agents failed processing the profile. Please refer to the status of ArmorProfile object (%s/%s) for more details.",
+				vp.Namespace, vp.Status.ProfileName)
+		}
+	}
+	exist := false
+	for i, c := range vp.Status.Conditions {
+		if c.Type == varmortypes.VarmorPolicyReady {
+			condition.DeepCopyInto(&vp.Status.Conditions[i])
+			exist = true
+			break
+		}
+	}
+	if !exist {
+		vp.Status.Conditions = append(vp.Status.Conditions, condition)
+	}
+
 	regain := false
 	update := func() (err error) {
 		if regain {
@@ -269,6 +297,34 @@ func (m *StatusManager) updateVarmorClusterPolicyStatus(
 	// Nothing need to be updated.
 	if vcp.Status.Ready == ready && vcp.Status.Phase == phase {
 		return vcp, nil
+	}
+
+	condition := varmor.VarmorPolicyCondition{
+		Type:               varmortypes.VarmorPolicyReady,
+		LastTransitionTime: metav1.Now(),
+	}
+	if ready {
+		condition.Status = v1.ConditionTrue
+		condition.Reason = "AllAgentsReady"
+	} else {
+		condition.Status = v1.ConditionFalse
+		condition.Reason = "Processing"
+		if phase == varmortypes.VarmorPolicyError {
+			condition.Reason = "Error"
+			condition.Message = fmt.Sprintf("The agents failed processing the profile. Please refer to the status of ArmorProfile object (%s/%s) for more details.",
+				varmorconfig.Namespace, vcp.Status.ProfileName)
+		}
+	}
+	exist := false
+	for i, c := range vcp.Status.Conditions {
+		if c.Type == varmortypes.VarmorPolicyReady {
+			condition.DeepCopyInto(&vcp.Status.Conditions[i])
+			exist = true
+			break
+		}
+	}
+	if !exist {
+		vcp.Status.Conditions = append(vcp.Status.Conditions, condition)
 	}
 
 	regain := false
@@ -452,12 +508,14 @@ func (m *StatusManager) reconcileStatus(stopCh <-chan struct{}) {
 					phase = varmortypes.VarmorPolicyCompleted
 				}
 			}
-			if policyStatus.FailedNumber > 0 {
-				phase = varmortypes.VarmorPolicyError
-			}
+
 			ready := false
 			if policyStatus.SuccessedNumber >= m.desiredNumber {
 				ready = true
+			}
+			if policyStatus.FailedNumber > 0 {
+				phase = varmortypes.VarmorPolicyError
+				ready = false
 			}
 
 			// Update VarmorPolicy/status or VarmorClusterPolicy/status
