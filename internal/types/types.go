@@ -49,6 +49,7 @@ const (
 	// VarmorPolicy Condition Type
 	VarmorPolicyCreated varmor.VarmorPolicyConditionType = "Created"
 	VarmorPolicyUpdated varmor.VarmorPolicyConditionType = "Updated"
+	VarmorPolicyReady   varmor.VarmorPolicyConditionType = "Ready"
 
 	// ArmorProfile Condition Type
 	ArmorProfileReady      varmor.ArmorProfileConditionType      = "Ready"
