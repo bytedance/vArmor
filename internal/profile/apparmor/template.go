@@ -66,6 +66,7 @@ profile %s flags=(attach_disconnected,mediate_deleted) {
 const runtimeDefaultTemplate = `
 ## == Managed by vArmor == ##
 
+abi <abi/3.0>,
 #include <tunables/global>
 
 profile %s flags=(attach_disconnected,mediate_deleted) {
@@ -79,6 +80,10 @@ profile %s flags=(attach_disconnected,mediate_deleted) {
 
   # host (privileged) processes may send signals to container processes.
   signal (receive) peer=unconfined,
+  # runc may send signals to container processes.
+  signal (receive) peer=runc,
+  # crun may send signals to container processes.
+  signal (receive) peer=crun,
   # container processes may send signals amongst themselves.
   signal (send,receive) peer=%s,
 
@@ -103,9 +108,11 @@ profile %s flags=(attach_disconnected,mediate_deleted) {
   deny /sys/fs/c[^g]*/** wklx,
   deny /sys/fs/cg[^r]*/** wklx,
   deny /sys/firmware/** rwklx,
+  deny /sys/devices/virtual/powercap/** rwklx,
   deny /sys/kernel/security/** rwklx,
 
-  # suppress ptrace denials when using 'docker ps' or using 'ps' inside a container
+  # allow processes within the container to trace each other,
+  # provided all other LSM and yama setting allow it.
   ptrace (trace,read,tracedby,readby) peer=%s,
 
 %s
@@ -127,8 +134,13 @@ profile %s flags=(attach_disconnected,mediate_deleted) {
   file,
   umount,
 
+  # host (privileged) processes may send signals to container processes.
   signal (receive) peer=unconfined,
-  # processes with child profile may receive signals from processes with parent profile
+  # runc may send signals to container processes.
+  signal (receive) peer=runc,
+  # crun may send signals to container processes.
+  signal (receive) peer=crun,
+  # processes with child profile may receive signals from processes with parent profile.
   signal (receive) peer=%s,
   # processes with child profile may send signals amongst themselves.
   signal (send,receive) peer=%s,
@@ -150,6 +162,7 @@ profile %s flags=(attach_disconnected,mediate_deleted) {
   deny /sys/fs/c[^g]*/** wklx,
   deny /sys/fs/cg[^r]*/** wklx,
   deny /sys/firmware/** rwklx,
+  deny /sys/devices/virtual/powercap/** rwklx,
   deny /sys/kernel/security/** rwklx,
 
   # processes with parent profile may ptrace processes with child profile, but not vice versa.
