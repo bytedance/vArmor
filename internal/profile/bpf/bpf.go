@@ -100,6 +100,12 @@ func GenerateRuntimeDefaultProfile(bpfContent *varmor.BpfContent) error {
 	}
 	bpfContent.Files = append(bpfContent.Files, *fileContent)
 
+	fileContent, err = newBpfPathRule("/sys/devices/virtual/powercap/**", AaMayRead|AaMayWrite|AaMayAppend)
+	if err != nil {
+		return err
+	}
+	bpfContent.Files = append(bpfContent.Files, *fileContent)
+
 	fileContent, err = newBpfPathRule("/sys/kernel/security/**", AaMayRead|AaMayWrite|AaMayAppend)
 	if err != nil {
 		return err
