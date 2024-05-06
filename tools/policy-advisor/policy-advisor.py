@@ -119,7 +119,7 @@ def generate_policy_with_context(policy, built_in_rules, enforcers, app_features
       continue
 
     set_enforcer(policy, enforcers)
-    policy["enhanceProtect"]["attackProtectionRules"][0]["rules"].append(rule["id"])
+    policy["enhanceProtect"]["vulMitigationRules"].append(rule["id"])
     debug_print(rule, debug)
 
 
