@@ -15,6 +15,7 @@ on:
       - ".gitmodules"
       - "manifests/**"
       - "vArmor-ebpf/**" # check submodule content
+      - ".github/workflows/ci-nightly-build.yml"
 permissions: read-all
 jobs:
   build:
