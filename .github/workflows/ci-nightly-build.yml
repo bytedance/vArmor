@@ -51,6 +51,8 @@ jobs:
 
       - name: Login to registry
         run: echo "${{ secrets.PUSH_PASSWORD }}" | docker login -u=${{ secrets.PUSH_USERNAME }} elkeid-ap-southeast-1.cr.volces.com --password-stdin
+        timeout-minutes: 5
 
       - name: Push artifacts to registry
         run: make push-dev
+        timeout-minutes: 20
