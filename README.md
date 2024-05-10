@@ -48,7 +48,7 @@ For more information, please refer to [Policy Modes and Built-in Rules](docs/bui
 
 ## Quick start
 
-**For more configuration options and detailed instructions, please refer to the [usage instructions](docs/usage_instructions.md).**
+**For more configuration options and detailed instructions, please refer to the [usage instructions](docs/usage_instructions.md).** You can refer to the [examples](test/demo) to understand how to use the relevant features and write policies. You can also try using [policy-advisor](tools/policy-advisor/policy-advisor.py) to generate a policy template, and then build the final policy based on it."
 
 ### Step 1. Fetch chart
 ```
