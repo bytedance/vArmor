@@ -28,7 +28,7 @@ vArmor was created by the **Elkeid Team** of the endpoint security department at
 
 
 ## Prerequisites
-You can specify the enforcer through the `spec.policy.enforcer` field of policy objects ([VarmorPolicy](docs/usage_instructions.zh_CN.md#varmorpolicy)/[VarmorClusterPolicy](docs/usage_instructions.zh_CN.md#varmorclusterpolicy)). In addition, you can also use different enforcers individually or in combination, such as: AppArmorBPF, AppArmorSeccomp, AppArmorBPFSeccomp etc.
+You can specify the enforcer through the `spec.policy.enforcer` field of policy objects ([VarmorPolicy](docs/usage_instructions.md#varmorpolicy)/[VarmorClusterPolicy](docs/usage_instructions.md#varmorclusterpolicy)). In addition, you can also use different enforcers individually or in combination, such as: AppArmorBPF, AppArmorSeccomp, AppArmorBPFSeccomp etc.
 
 The prerequisites required by different enforcers are as shown in the following table.
 
