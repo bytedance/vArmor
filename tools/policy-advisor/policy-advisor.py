@@ -178,13 +178,13 @@ For Example: AppArmor,BPF,Seccomp''')
 
 Available Values (they should be combined with commas.):
   * privileged-container: The target application runs in a privileged container.
-  * mount-sth: The target application will mount some files/devices in the container.
-  * umount-sth: The target application will unmount some files/devices in the container.
+  * mount-sth: The target application needs to execute some mount operations in the container.
+  * umount-sth: The target application needs to execute some umount operations in the container.
   * share-containers-pid-ns: The target container shares the PID namespace with sidecar containers.
   * share-host-pid-ns: The target container shares the PID namespace with host.
   * dind: The target application will create a docker in docker container.
-  * require-sa: The target application will interact with API Server
-  * bind-privileged-socket-port: The target application will listen on a socket port less than 1024.
+  * require-sa: The target application needs to interact with API Server.
+  * bind-privileged-socket-port: The target application needs to listen on a socket port less than 1024.
 For Example: privileged-container,require-sa,bind-privileged-socket-port\n\n''')
 
   parser.add_argument("-c", dest="capabilities", type=str, default="",
