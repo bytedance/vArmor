@@ -346,48 +346,50 @@ func GenerateEnhanceProtectProfile(enhanceProtect *varmor.EnhanceProtect, profil
 	}
 
 	// Attack Protection
+	index := 0
 	for _, attackProtectionRule := range enhanceProtect.AttackProtectionRules {
 		if len(attackProtectionRule.Targets) == 0 {
 			for _, rule := range attackProtectionRule.Rules {
 				baseRules += generateAttackProtectionRules(rule)
 			}
-		}
-	}
-
-	// childName(target): childRules
-	childRulesMap := make(map[string]string)
-	for _, attackProtectionRule := range enhanceProtect.AttackProtectionRules {
-		if len(attackProtectionRule.Targets) != 0 {
-			var childRules string
-
-			for _, childName := range attackProtectionRule.Targets {
-				if _, ok := childRulesMap[childName]; !ok {
-					childRules = baseRules
-				} else {
-					childRules = childRulesMap[childName]
-				}
-
-				for _, rule := range attackProtectionRule.Rules {
-					childRules += generateAttackProtectionRules(rule)
-					childRulesMap[childName] = childRules
-				}
-			}
-		}
-	}
-
-	for childName, childRules := range childRulesMap {
-		if enhanceProtect.Privileged {
-			// Create the child profile for privileged container based on the AlwaysAllow child template
-			baseRules += fmt.Sprintf(alwaysAllowChildTemplate, childName, childName, childName, childRules)
 		} else {
-			// Create the child profile for unprivileged container based on the RuntimeDefault child template
-			childProfileName := fmt.Sprintf("%s//%s", profileName, childName)
-			baseRules += fmt.Sprintf(runtimeDefaultChildTemplate,
-				childProfileName,                // signal
-				childName, childName, childName, // target
-				profileName, childProfileName, // signal
-				profileName, childProfileName, // ptrace
-				childRules)
+			// build a child profile for certain binaries
+			childProfileName := fmt.Sprintf("child_%d", index)
+			childProfilePath := fmt.Sprintf("%s//%s", profileName, childProfileName)
+			childProfileRules := baseRules
+			index += 1
+
+			for _, rule := range attackProtectionRule.Rules {
+				childProfileRules += generateAttackProtectionRules(rule)
+			}
+
+			targetsCx := ""
+			for _, target := range attackProtectionRule.Targets {
+				targetsCx += fmt.Sprintf("%s cx -> %s,\n", target, childProfileName)
+			}
+
+			targetsRix := ""
+			for _, target := range attackProtectionRule.Targets {
+				targetsRix += fmt.Sprintf("%s rix,\n", target)
+			}
+
+			if enhanceProtect.Privileged {
+				baseRules += fmt.Sprintf(alwaysAllowChildTemplate,
+					targetsCx,
+					childProfileName,
+					targetsRix,
+					childProfileRules)
+			} else {
+				baseRules += fmt.Sprintf(runtimeDefaultChildTemplate,
+					childProfilePath, // parent may send signal to child
+					childProfilePath, // parent may ptrace child
+					targetsCx,
+					childProfileName,
+					targetsRix,
+					profileName, childProfilePath, // signal
+					profileName, childProfilePath, // ptrace
+					childProfileRules)
+			}
 		}
 	}
 
