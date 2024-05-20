@@ -41,10 +41,10 @@ profile %s flags=(attach_disconnected,mediate_deleted) {
 `
 
 const alwaysAllowChildTemplate = `
-%s cx,
-profile %s flags=(attach_disconnected,mediate_deleted) {
-  %s rix,
 
+%s
+profile %s flags=(attach_disconnected,mediate_deleted) {
+  %s
   #include <abstractions/base>
 
   file,
@@ -123,10 +123,12 @@ const runtimeDefaultChildTemplate = `
 
 # processes with parent profile may send signal to processes with child profile
 signal (send) peer=%s,
-%s cx,
-profile %s flags=(attach_disconnected,mediate_deleted) {
-  %s rix,
+# processes with parent profile may ptrace processes with child profile, but not vice versa.
+ptrace (trace,read) peer=%s,
 
+%s
+profile %s flags=(attach_disconnected,mediate_deleted) {
+  %s
   #include <abstractions/base>
 
   network,
@@ -167,6 +169,7 @@ profile %s flags=(attach_disconnected,mediate_deleted) {
 
   # processes with parent profile may ptrace processes with child profile, but not vice versa.
   ptrace (tracedby,readby) peer=%s,
+  # processes with child profile may ptrace processes amongst themselves.
   ptrace (trace,read,tracedby,readby) peer=%s,
 
 %s

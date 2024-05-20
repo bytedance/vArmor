@@ -167,7 +167,7 @@ func buildSignalRules(dynamicResult *varmor.DynamicResult, profileName string, d
 	return ruleSet
 }
 
-func buildDefaultAllowRules(dynamicResult *varmor.DynamicResult) string {
+func buildDefaultAllowRules() string {
 	// From docker-default profile
 	//   https://github.com/moby/moby/blob/master/profiles/apparmor/template.go
 	//   https://github.com/containerd/containerd/blob/main/contrib/apparmor/template.go
@@ -188,7 +188,7 @@ func GenerateProfileWithBehaviorModel(dynamicResult *varmor.DynamicResult, debug
 		ruleSet += buildNetworkRules(dynamicResult, debug)
 		ruleSet += buildPtraceRules(dynamicResult, profileName, debug)
 		ruleSet += buildSignalRules(dynamicResult, profileName, debug)
-		ruleSet += buildDefaultAllowRules(dynamicResult)
+		ruleSet += buildDefaultAllowRules()
 
 		profile := fmt.Sprintf(defenseInDepthTemplate, profileName, ruleSet)
 		return base64.StdEncoding.EncodeToString([]byte(profile)), nil
