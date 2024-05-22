@@ -17,6 +17,7 @@ package seccomp
 import (
 	"encoding/base64"
 	"encoding/json"
+	"reflect"
 	"strings"
 
 	"golang.org/x/sys/unix"
@@ -71,15 +72,117 @@ func GenerateProfileWithBehaviorModel(dynamicResult *varmor.DynamicResult) (stri
 	return base64.StdEncoding.EncodeToString(p), nil
 }
 
+func generateHardeningRules(rule string, syscalls map[string]specs.LinuxSyscall) {
+	rule = strings.ToLower(rule)
+	rule = strings.ReplaceAll(rule, "_", "-")
+
+	switch rule {
+	case "disallow-create-user-ns":
+		if _, ok := syscalls["unshare"]; !ok {
+			syscalls["unshare"] = specs.LinuxSyscall{
+				Names:  []string{"unshare"},
+				Action: specs.ActErrno,
+				Args:   []specs.LinuxSeccompArg{},
+			}
+		}
+		unshare := syscalls["unshare"]
+		unshare.Args = append(unshare.Args, []specs.LinuxSeccompArg{
+			{
+				Index:    0,
+				Value:    unix.CLONE_NEWUSER,
+				ValueTwo: unix.CLONE_NEWUSER,
+				Op:       specs.OpMaskedEqual,
+			},
+		}...)
+		syscalls["unshare"] = unshare
+	}
+}
+
+func generateVulMitigationRules(rule string, syscalls map[string]specs.LinuxSyscall) {
+	rule = strings.ToLower(rule)
+	rule = strings.ReplaceAll(rule, "_", "-")
+
+	switch rule {
+	case "dirty-pipe-mitigation":
+		if _, ok := syscalls["splice"]; !ok {
+			syscalls["splice"] = specs.LinuxSyscall{
+				Names:  []string{"splice"},
+				Action: specs.ActErrno,
+				Args:   []specs.LinuxSeccompArg{},
+			}
+		}
+	}
+}
+
 func generateAttackProtectionRules(rule string, syscalls map[string]specs.LinuxSyscall) {
 	rule = strings.ToLower(rule)
 	rule = strings.ReplaceAll(rule, "_", "-")
 
 	switch rule {
 	case "disable-chmod-x-bit":
+		if _, ok := syscalls["chmod"]; !ok {
+			syscalls["chmod"] = specs.LinuxSyscall{
+				Names:  []string{"chmod"},
+				Action: specs.ActErrno,
+				Args:   []specs.LinuxSeccompArg{},
+			}
+		}
+		chmod := syscalls["chmod"]
+		chmod.Args = append(chmod.Args, []specs.LinuxSeccompArg{
+			{
+				Index:    1,
+				Value:    unix.S_IXUSR,
+				ValueTwo: unix.S_IXUSR,
+				Op:       specs.OpMaskedEqual,
+			},
+			{
+				Index:    1,
+				Value:    unix.S_IXGRP,
+				ValueTwo: unix.S_IXGRP,
+				Op:       specs.OpMaskedEqual,
+			},
+			{
+				Index:    1,
+				Value:    unix.S_IXOTH,
+				ValueTwo: unix.S_IXOTH,
+				Op:       specs.OpMaskedEqual,
+			},
+		}...)
+		syscalls["chmod"] = chmod
+
+		if _, ok := syscalls["fchmod"]; !ok {
+			syscalls["fchmod"] = specs.LinuxSyscall{
+				Names:  []string{"fchmod"},
+				Action: specs.ActErrno,
+				Args:   []specs.LinuxSeccompArg{},
+			}
+		}
+		fchmod := syscalls["fchmod"]
+		fchmod.Args = append(fchmod.Args, []specs.LinuxSeccompArg{
+			{
+				Index:    1,
+				Value:    unix.S_IXUSR,
+				ValueTwo: unix.S_IXUSR,
+				Op:       specs.OpMaskedEqual,
+			},
+			{
+				Index:    1,
+				Value:    unix.S_IXGRP,
+				ValueTwo: unix.S_IXGRP,
+				Op:       specs.OpMaskedEqual,
+			},
+			{
+				Index:    1,
+				Value:    unix.S_IXOTH,
+				ValueTwo: unix.S_IXOTH,
+				Op:       specs.OpMaskedEqual,
+			},
+		}...)
+		syscalls["fchmod"] = fchmod
+
 		if _, ok := syscalls["fchmodat"]; !ok {
 			syscalls["fchmodat"] = specs.LinuxSyscall{
-				Names:  []string{"fchmodat", "fchmodat2"},
+				Names:  []string{"fchmodat"},
 				Action: specs.ActErrno,
 				Args:   []specs.LinuxSeccompArg{},
 			}
@@ -107,40 +210,88 @@ func generateAttackProtectionRules(rule string, syscalls map[string]specs.LinuxS
 		}...)
 		syscalls["fchmodat"] = fchmodat
 
-		if _, ok := syscalls["chmod"]; !ok {
-			syscalls["chmod"] = specs.LinuxSyscall{
-				Names:  []string{"chmod", "fchmod"},
+		if _, ok := syscalls["fchmodat2"]; !ok {
+			syscalls["fchmodat2"] = specs.LinuxSyscall{
+				Names:  []string{"fchmodat2"},
 				Action: specs.ActErrno,
 				Args:   []specs.LinuxSeccompArg{},
 			}
 		}
-		chmod := syscalls["chmod"]
-		chmod.Args = append(chmod.Args, []specs.LinuxSeccompArg{
+		fchmodat2 := syscalls["fchmodat2"]
+		fchmodat2.Args = append(fchmodat2.Args, []specs.LinuxSeccompArg{
 			{
-				Index:    1,
+				Index:    2,
 				Value:    unix.S_IXUSR,
 				ValueTwo: unix.S_IXUSR,
 				Op:       specs.OpMaskedEqual,
 			},
 			{
-				Index:    1,
+				Index:    2,
 				Value:    unix.S_IXGRP,
 				ValueTwo: unix.S_IXGRP,
 				Op:       specs.OpMaskedEqual,
 			},
 			{
-				Index:    1,
+				Index:    2,
 				Value:    unix.S_IXOTH,
 				ValueTwo: unix.S_IXOTH,
 				Op:       specs.OpMaskedEqual,
 			},
 		}...)
-		syscalls["chmod"] = chmod
+		syscalls["fchmodat2"] = fchmodat2
 
 	case "disable-chmod-s-bit":
+		if _, ok := syscalls["chmod"]; !ok {
+			syscalls["chmod"] = specs.LinuxSyscall{
+				Names:  []string{"chmod"},
+				Action: specs.ActErrno,
+				Args:   []specs.LinuxSeccompArg{},
+			}
+		}
+		chmod := syscalls["chmod"]
+		chmod.Args = append(chmod.Args, []specs.LinuxSeccompArg{
+			{
+				Index:    1,
+				Value:    unix.S_ISUID,
+				ValueTwo: unix.S_ISUID,
+				Op:       specs.OpMaskedEqual,
+			},
+			{
+				Index:    1,
+				Value:    unix.S_ISGID,
+				ValueTwo: unix.S_ISGID,
+				Op:       specs.OpMaskedEqual,
+			},
+		}...)
+		syscalls["chmod"] = chmod
+
+		if _, ok := syscalls["fchmod"]; !ok {
+			syscalls["fchmod"] = specs.LinuxSyscall{
+				Names:  []string{"fchmod"},
+				Action: specs.ActErrno,
+				Args:   []specs.LinuxSeccompArg{},
+			}
+		}
+		fchmod := syscalls["fchmod"]
+		fchmod.Args = append(fchmod.Args, []specs.LinuxSeccompArg{
+			{
+				Index:    1,
+				Value:    unix.S_ISUID,
+				ValueTwo: unix.S_ISUID,
+				Op:       specs.OpMaskedEqual,
+			},
+			{
+				Index:    1,
+				Value:    unix.S_ISGID,
+				ValueTwo: unix.S_ISGID,
+				Op:       specs.OpMaskedEqual,
+			},
+		}...)
+		syscalls["fchmod"] = fchmod
+
 		if _, ok := syscalls["fchmodat"]; !ok {
 			syscalls["fchmodat"] = specs.LinuxSyscall{
-				Names:  []string{"fchmodat", "fchmodat2"},
+				Names:  []string{"fchmodat"},
 				Action: specs.ActErrno,
 				Args:   []specs.LinuxSeccompArg{},
 			}
@@ -162,29 +313,83 @@ func generateAttackProtectionRules(rule string, syscalls map[string]specs.LinuxS
 		}...)
 		syscalls["fchmodat"] = fchmodat
 
-		if _, ok := syscalls["chmod"]; !ok {
-			syscalls["chmod"] = specs.LinuxSyscall{
-				Names:  []string{"chmod", "fchmod"},
+		if _, ok := syscalls["fchmodat2"]; !ok {
+			syscalls["fchmodat2"] = specs.LinuxSyscall{
+				Names:  []string{"fchmodat2"},
 				Action: specs.ActErrno,
 				Args:   []specs.LinuxSeccompArg{},
 			}
 		}
-		chmod := syscalls["chmod"]
-		chmod.Args = append(chmod.Args, []specs.LinuxSeccompArg{
+		fchmodat2 := syscalls["fchmodat2"]
+		fchmodat2.Args = append(fchmodat2.Args, []specs.LinuxSeccompArg{
 			{
-				Index:    1,
+				Index:    2,
 				Value:    unix.S_ISUID,
 				ValueTwo: unix.S_ISUID,
 				Op:       specs.OpMaskedEqual,
 			},
 			{
-				Index:    1,
+				Index:    2,
 				Value:    unix.S_ISGID,
 				ValueTwo: unix.S_ISGID,
 				Op:       specs.OpMaskedEqual,
 			},
 		}...)
-		syscalls["chmod"] = chmod
+		syscalls["fchmodat2"] = fchmodat2
+	}
+}
+
+func InLinuxSeccompArgArray(c specs.LinuxSeccompArg, array []specs.LinuxSeccompArg) bool {
+	for _, v := range array {
+		if reflect.DeepEqual(c, v) {
+			return true
+		}
+	}
+	return false
+}
+
+func mergeSyscallArgs(syscallName string, rawRule specs.LinuxSyscall, syscalls map[string]specs.LinuxSyscall) bool {
+	if syscall, ok := syscalls[syscallName]; ok {
+		if syscall.Action == rawRule.Action && reflect.DeepEqual(syscall.ErrnoRet, rawRule.ErrnoRet) {
+			if len(rawRule.Args) == 0 && len(syscall.Args) != 0 {
+				// Make the raw rule override the built-in rule
+				return false
+			} else if len(rawRule.Args) != 0 && len(syscall.Args) == 0 {
+				// Ignore the raw rule because the built-in rule disables the syscall
+				return true
+			}
+
+			for _, rawArg := range rawRule.Args {
+				if !InLinuxSeccompArgArray(rawArg, syscall.Args) {
+					// Merge the arguments of raw rule into the selected built-in rule
+					syscall.Args = append(syscall.Args, rawArg)
+					syscalls[syscallName] = syscall
+				}
+			}
+			return true
+		}
+	}
+	return false
+}
+
+func generateRawRules(rawRules []specs.LinuxSyscall, syscalls map[string]specs.LinuxSyscall, profile *specs.LinuxSeccomp) {
+	for _, rawRule := range rawRules {
+		for _, name := range rawRule.Names {
+			// Merge the arguments of raw rule into the selected built-in rules.
+			if mergeSyscallArgs(name, rawRule, syscalls) {
+				continue
+			}
+
+			// Add new syscall rule to profile
+			s := specs.LinuxSyscall{
+				Names:    []string{name},
+				Action:   rawRule.Action,
+				ErrnoRet: rawRule.ErrnoRet,
+				Args:     []specs.LinuxSeccompArg{},
+			}
+			s.Args = append(s.Args, rawRule.Args...)
+			profile.Syscalls = append(profile.Syscalls, s)
+		}
 	}
 }
 
@@ -194,31 +399,19 @@ func GenerateEnhanceProtectProfile(enhanceProtect *varmor.EnhanceProtect, profil
 		Syscalls:      []specs.LinuxSyscall{},
 	}
 
+	syscalls := make(map[string]specs.LinuxSyscall)
+
 	// Hardening
 	for _, rule := range enhanceProtect.HardeningRules {
-		rule = strings.ToLower(rule)
-		rule = strings.ReplaceAll(rule, "_", "-")
+		generateHardeningRules(rule, syscalls)
+	}
 
-		switch rule {
-		case "disallow-create-user-ns":
-			syscall := specs.LinuxSyscall{
-				Names:  []string{"unshare"},
-				Action: specs.ActErrno,
-				Args: []specs.LinuxSeccompArg{
-					{
-						Index:    0,
-						Value:    unix.CLONE_NEWUSER,
-						ValueTwo: unix.CLONE_NEWUSER,
-						Op:       specs.OpMaskedEqual,
-					},
-				},
-			}
-			profile.Syscalls = append(profile.Syscalls, syscall)
-		}
+	// Vulnerability Mitigation
+	for _, rule := range enhanceProtect.VulMitigationRules {
+		generateVulMitigationRules(rule, syscalls)
 	}
 
 	// Attack Protection
-	syscalls := make(map[string]specs.LinuxSyscall)
 	for _, attackProtectionRule := range enhanceProtect.AttackProtectionRules {
 		if len(attackProtectionRule.Targets) == 0 {
 			for _, rule := range attackProtectionRule.Rules {
@@ -226,27 +419,14 @@ func GenerateEnhanceProtectProfile(enhanceProtect *varmor.EnhanceProtect, profil
 			}
 		}
 	}
+
+	// Custom
+	generateRawRules(enhanceProtect.SyscallRawRules, syscalls, &profile)
+
+	// Add all selected built-in rules to profile.
 	for _, syscall := range syscalls {
 		profile.Syscalls = append(profile.Syscalls, syscall)
 	}
-
-	// Vulnerability Mitigation
-	for _, rule := range enhanceProtect.VulMitigationRules {
-		rule = strings.ToLower(rule)
-		rule = strings.ReplaceAll(rule, "_", "-")
-
-		switch rule {
-		case "dirty-pipe-mitigation":
-			syscall := specs.LinuxSyscall{
-				Names:  []string{"splice"},
-				Action: specs.ActErrno,
-			}
-			profile.Syscalls = append(profile.Syscalls, syscall)
-		}
-	}
-
-	// Custom
-	profile.Syscalls = append(profile.Syscalls, enhanceProtect.SyscallRawRules...)
 
 	p, err := json.Marshal(profile)
 	if err != nil {
