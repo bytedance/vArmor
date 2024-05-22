@@ -15,7 +15,6 @@
 package seccomp
 
 import (
-	"fmt"
 	"reflect"
 	"testing"
 
@@ -775,10 +774,6 @@ func Test_generateRawRules(t *testing.T) {
 
 			generateRawRules(tc.syscallRawRules, tc.syscalls, &profile)
 
-			fmt.Println(tc.syscalls)
-			fmt.Println(tc.expectedSyscalls)
-			fmt.Println(profile)
-			fmt.Println(tc.expectedProfile)
 			assert.Equal(t, true, reflect.DeepEqual(tc.syscalls, tc.expectedSyscalls))
 			assert.Equal(t, true, reflect.DeepEqual(profile, tc.expectedProfile))
 		})
