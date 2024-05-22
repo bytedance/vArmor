@@ -59,4 +59,3 @@ jobs:
 
       - name: Push artifacts to registry
         run: make push-dev
-        timeout-minutes: 20
