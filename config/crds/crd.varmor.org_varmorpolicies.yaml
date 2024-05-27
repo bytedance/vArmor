@@ -106,6 +106,14 @@ spec:
                           - rules
                           type: object
                         type: array
+                      auditViolations:
+                        description: "AuditViolations determines whether to audit
+                          the actions that violate the mandatory access control rules.
+                          Currently, this feature supports only the AppArmor enforcer.
+                          Any detected violation will be logged to the system's audit
+                          file. If you are using syslog or rsyslog, the default log
+                          path is `/var/log/kern.log`. \n Default is false."
+                        type: boolean
                       bpfRawRules:
                         description: BpfRawRules is used to set native BPF rules
                         properties:
