@@ -23,7 +23,7 @@ package v1beta1
 
 import (
 	specs_go "github.com/opencontainers/runtime-spec/specs-go"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 )
 

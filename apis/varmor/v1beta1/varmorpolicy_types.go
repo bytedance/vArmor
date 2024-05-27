@@ -159,6 +159,14 @@ type EnhanceProtect struct {
 	// If set to `true`, vArmor will not build Seccomp profile for the target workloads.
 	// +optional
 	Privileged bool `json:"privileged,omitempty"`
+	// AuditViolations determines whether to audit the actions that violate the mandatory access
+	// control rules. Currently, this feature supports only the AppArmor enforcer. Any detected
+	// violation will be logged to the system's audit file. If you are using syslog or rsyslog,
+	// the default log path is `/var/log/kern.log`.
+	//
+	// Default is false.
+	// +optional
+	AuditViolations bool `json:"auditViolations,omitempty"`
 }
 
 type ModelingOptions struct {
