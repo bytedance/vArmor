@@ -78,6 +78,8 @@ func generateHardeningRules(rule string, syscalls map[string]specs.LinuxSyscall)
 
 	switch rule {
 	case "disallow-create-user-ns":
+		// Note: We should append the arguments after initializing the LinuxSyscall
+		// object when we want to add new built-in rules for unshare().
 		if _, ok := syscalls["unshare"]; !ok {
 			syscalls["unshare"] = specs.LinuxSyscall{
 				Names:  []string{"unshare"},
@@ -117,198 +119,230 @@ func generateAttackProtectionRules(rule string, syscalls map[string]specs.LinuxS
 
 	switch rule {
 	case "disable-chmod-x-bit":
+		// Append the arguments for chmod
 		if _, ok := syscalls["chmod"]; !ok {
 			syscalls["chmod"] = specs.LinuxSyscall{
 				Names:  []string{"chmod"},
 				Action: specs.ActErrno,
-				Args: []specs.LinuxSeccompArg{
-					{
-						Index:    1,
-						Value:    unix.S_IXUSR,
-						ValueTwo: unix.S_IXUSR,
-						Op:       specs.OpMaskedEqual,
-					},
-					{
-						Index:    1,
-						Value:    unix.S_IXGRP,
-						ValueTwo: unix.S_IXGRP,
-						Op:       specs.OpMaskedEqual,
-					},
-					{
-						Index:    1,
-						Value:    unix.S_IXOTH,
-						ValueTwo: unix.S_IXOTH,
-						Op:       specs.OpMaskedEqual,
-					},
-				},
+				Args:   []specs.LinuxSeccompArg{},
 			}
 		}
+		chmod := syscalls["chmod"]
+		chmod.Args = append(chmod.Args, []specs.LinuxSeccompArg{
+			{
+				Index:    1,
+				Value:    unix.S_IXUSR,
+				ValueTwo: unix.S_IXUSR,
+				Op:       specs.OpMaskedEqual,
+			},
+			{
+				Index:    1,
+				Value:    unix.S_IXGRP,
+				ValueTwo: unix.S_IXGRP,
+				Op:       specs.OpMaskedEqual,
+			},
+			{
+				Index:    1,
+				Value:    unix.S_IXOTH,
+				ValueTwo: unix.S_IXOTH,
+				Op:       specs.OpMaskedEqual,
+			},
+		}...)
+		syscalls["chmod"] = chmod
 
+		// Append the arguments for fchmod
 		if _, ok := syscalls["fchmod"]; !ok {
 			syscalls["fchmod"] = specs.LinuxSyscall{
 				Names:  []string{"fchmod"},
 				Action: specs.ActErrno,
-				Args: []specs.LinuxSeccompArg{
-					{
-						Index:    1,
-						Value:    unix.S_IXUSR,
-						ValueTwo: unix.S_IXUSR,
-						Op:       specs.OpMaskedEqual,
-					},
-					{
-						Index:    1,
-						Value:    unix.S_IXGRP,
-						ValueTwo: unix.S_IXGRP,
-						Op:       specs.OpMaskedEqual,
-					},
-					{
-						Index:    1,
-						Value:    unix.S_IXOTH,
-						ValueTwo: unix.S_IXOTH,
-						Op:       specs.OpMaskedEqual,
-					},
-				},
+				Args:   []specs.LinuxSeccompArg{},
 			}
 		}
+		fchmod := syscalls["fchmod"]
+		fchmod.Args = append(fchmod.Args, []specs.LinuxSeccompArg{
+			{
+				Index:    1,
+				Value:    unix.S_IXUSR,
+				ValueTwo: unix.S_IXUSR,
+				Op:       specs.OpMaskedEqual,
+			},
+			{
+				Index:    1,
+				Value:    unix.S_IXGRP,
+				ValueTwo: unix.S_IXGRP,
+				Op:       specs.OpMaskedEqual,
+			},
+			{
+				Index:    1,
+				Value:    unix.S_IXOTH,
+				ValueTwo: unix.S_IXOTH,
+				Op:       specs.OpMaskedEqual,
+			},
+		}...)
+		syscalls["fchmod"] = fchmod
 
+		// Append the arguments for fchmodat
 		if _, ok := syscalls["fchmodat"]; !ok {
 			syscalls["fchmodat"] = specs.LinuxSyscall{
 				Names:  []string{"fchmodat"},
 				Action: specs.ActErrno,
-				Args: []specs.LinuxSeccompArg{
-					{
-						Index:    2,
-						Value:    unix.S_IXUSR,
-						ValueTwo: unix.S_IXUSR,
-						Op:       specs.OpMaskedEqual,
-					},
-					{
-						Index:    2,
-						Value:    unix.S_IXGRP,
-						ValueTwo: unix.S_IXGRP,
-						Op:       specs.OpMaskedEqual,
-					},
-					{
-						Index:    2,
-						Value:    unix.S_IXOTH,
-						ValueTwo: unix.S_IXOTH,
-						Op:       specs.OpMaskedEqual,
-					},
-				},
+				Args:   []specs.LinuxSeccompArg{},
 			}
 		}
+		fchmodat := syscalls["fchmodat"]
+		fchmodat.Args = append(fchmodat.Args, []specs.LinuxSeccompArg{
+			{
+				Index:    2,
+				Value:    unix.S_IXUSR,
+				ValueTwo: unix.S_IXUSR,
+				Op:       specs.OpMaskedEqual,
+			},
+			{
+				Index:    2,
+				Value:    unix.S_IXGRP,
+				ValueTwo: unix.S_IXGRP,
+				Op:       specs.OpMaskedEqual,
+			},
+			{
+				Index:    2,
+				Value:    unix.S_IXOTH,
+				ValueTwo: unix.S_IXOTH,
+				Op:       specs.OpMaskedEqual,
+			},
+		}...)
+		syscalls["fchmodat"] = fchmodat
 
+		// Append the arguments for fchmodat2
 		if _, ok := syscalls["fchmodat2"]; !ok {
 			syscalls["fchmodat2"] = specs.LinuxSyscall{
 				Names:  []string{"fchmodat2"},
 				Action: specs.ActErrno,
-				Args: []specs.LinuxSeccompArg{
-					{
-						Index:    2,
-						Value:    unix.S_IXUSR,
-						ValueTwo: unix.S_IXUSR,
-						Op:       specs.OpMaskedEqual,
-					},
-					{
-						Index:    2,
-						Value:    unix.S_IXGRP,
-						ValueTwo: unix.S_IXGRP,
-						Op:       specs.OpMaskedEqual,
-					},
-					{
-						Index:    2,
-						Value:    unix.S_IXOTH,
-						ValueTwo: unix.S_IXOTH,
-						Op:       specs.OpMaskedEqual,
-					},
-				},
+				Args:   []specs.LinuxSeccompArg{},
 			}
 		}
+		fchmodat2 := syscalls["fchmodat2"]
+		fchmodat2.Args = append(fchmodat2.Args, []specs.LinuxSeccompArg{
+			{
+				Index:    2,
+				Value:    unix.S_IXUSR,
+				ValueTwo: unix.S_IXUSR,
+				Op:       specs.OpMaskedEqual,
+			},
+			{
+				Index:    2,
+				Value:    unix.S_IXGRP,
+				ValueTwo: unix.S_IXGRP,
+				Op:       specs.OpMaskedEqual,
+			},
+			{
+				Index:    2,
+				Value:    unix.S_IXOTH,
+				ValueTwo: unix.S_IXOTH,
+				Op:       specs.OpMaskedEqual,
+			},
+		}...)
+		syscalls["fchmodat2"] = fchmodat2
 
 	case "disable-chmod-s-bit":
+		// Append arguments for chmod
 		if _, ok := syscalls["chmod"]; !ok {
 			syscalls["chmod"] = specs.LinuxSyscall{
 				Names:  []string{"chmod"},
 				Action: specs.ActErrno,
-				Args: []specs.LinuxSeccompArg{
-					{
-						Index:    1,
-						Value:    unix.S_ISUID,
-						ValueTwo: unix.S_ISUID,
-						Op:       specs.OpMaskedEqual,
-					},
-					{
-						Index:    1,
-						Value:    unix.S_ISGID,
-						ValueTwo: unix.S_ISGID,
-						Op:       specs.OpMaskedEqual,
-					},
-				},
+				Args:   []specs.LinuxSeccompArg{},
 			}
 		}
+		chmod := syscalls["chmod"]
+		chmod.Args = append(chmod.Args, []specs.LinuxSeccompArg{
+			{
+				Index:    1,
+				Value:    unix.S_ISUID,
+				ValueTwo: unix.S_ISUID,
+				Op:       specs.OpMaskedEqual,
+			},
+			{
+				Index:    1,
+				Value:    unix.S_ISGID,
+				ValueTwo: unix.S_ISGID,
+				Op:       specs.OpMaskedEqual,
+			},
+		}...)
+		syscalls["chmod"] = chmod
 
+		// Append arguments for fchmod
 		if _, ok := syscalls["fchmod"]; !ok {
 			syscalls["fchmod"] = specs.LinuxSyscall{
 				Names:  []string{"fchmod"},
 				Action: specs.ActErrno,
-				Args: []specs.LinuxSeccompArg{
-					{
-						Index:    1,
-						Value:    unix.S_ISUID,
-						ValueTwo: unix.S_ISUID,
-						Op:       specs.OpMaskedEqual,
-					},
-					{
-						Index:    1,
-						Value:    unix.S_ISGID,
-						ValueTwo: unix.S_ISGID,
-						Op:       specs.OpMaskedEqual,
-					},
-				},
+				Args:   []specs.LinuxSeccompArg{},
 			}
 		}
+		fchmod := syscalls["fchmod"]
+		fchmod.Args = append(fchmod.Args, []specs.LinuxSeccompArg{
+			{
+				Index:    1,
+				Value:    unix.S_ISUID,
+				ValueTwo: unix.S_ISUID,
+				Op:       specs.OpMaskedEqual,
+			},
+			{
+				Index:    1,
+				Value:    unix.S_ISGID,
+				ValueTwo: unix.S_ISGID,
+				Op:       specs.OpMaskedEqual,
+			},
+		}...)
+		syscalls["fchmod"] = fchmod
 
+		// Append arguments for fchmodat
 		if _, ok := syscalls["fchmodat"]; !ok {
 			syscalls["fchmodat"] = specs.LinuxSyscall{
 				Names:  []string{"fchmodat"},
 				Action: specs.ActErrno,
-				Args: []specs.LinuxSeccompArg{
-					{
-						Index:    2,
-						Value:    unix.S_ISUID,
-						ValueTwo: unix.S_ISUID,
-						Op:       specs.OpMaskedEqual,
-					},
-					{
-						Index:    2,
-						Value:    unix.S_ISGID,
-						ValueTwo: unix.S_ISGID,
-						Op:       specs.OpMaskedEqual,
-					},
-				},
+				Args:   []specs.LinuxSeccompArg{},
 			}
 		}
+		fchmodat := syscalls["fchmodat"]
+		fchmodat.Args = append(fchmodat.Args, []specs.LinuxSeccompArg{
+			{
+				Index:    2,
+				Value:    unix.S_ISUID,
+				ValueTwo: unix.S_ISUID,
+				Op:       specs.OpMaskedEqual,
+			},
+			{
+				Index:    2,
+				Value:    unix.S_ISGID,
+				ValueTwo: unix.S_ISGID,
+				Op:       specs.OpMaskedEqual,
+			},
+		}...)
+		syscalls["fchmodat"] = fchmodat
 
+		// Append arguments for fchmodat2
 		if _, ok := syscalls["fchmodat2"]; !ok {
 			syscalls["fchmodat2"] = specs.LinuxSyscall{
 				Names:  []string{"fchmodat2"},
 				Action: specs.ActErrno,
-				Args: []specs.LinuxSeccompArg{
-					{
-						Index:    2,
-						Value:    unix.S_ISUID,
-						ValueTwo: unix.S_ISUID,
-						Op:       specs.OpMaskedEqual,
-					},
-					{
-						Index:    2,
-						Value:    unix.S_ISGID,
-						ValueTwo: unix.S_ISGID,
-						Op:       specs.OpMaskedEqual,
-					},
-				},
+				Args:   []specs.LinuxSeccompArg{},
 			}
 		}
+		fchmodat2 := syscalls["fchmodat2"]
+		fchmodat2.Args = append(fchmodat2.Args, []specs.LinuxSeccompArg{
+			{
+				Index:    2,
+				Value:    unix.S_ISUID,
+				ValueTwo: unix.S_ISUID,
+				Op:       specs.OpMaskedEqual,
+			},
+			{
+				Index:    2,
+				Value:    unix.S_ISGID,
+				ValueTwo: unix.S_ISGID,
+				Op:       specs.OpMaskedEqual,
+			},
+		}...)
+		syscalls["fchmodat2"] = fchmodat2
 	}
 }
 
