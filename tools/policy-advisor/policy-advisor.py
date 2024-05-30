@@ -35,6 +35,7 @@ def skip_the_rule_with_context(rule, enforcers, app_features, app_capabilities, 
 
   return False
 
+
 def retrieve_capabilities_from_model(armor_profile_model):
   caps = []
   if "data" in armor_profile_model and \
@@ -42,16 +43,30 @@ def retrieve_capabilities_from_model(armor_profile_model):
     "apparmor" in armor_profile_model["data"]["dynamicResult"] and \
     "capabilities" in armor_profile_model["data"]["dynamicResult"]["apparmor"]:
     caps.extend(armor_profile_model["data"]["dynamicResult"]["apparmor"]["capabilities"])
-
   return caps
+
 
 def retrieve_syscalls_from_model(armor_profile_model):
   if "data" in armor_profile_model and \
     "dynamicResult" in armor_profile_model["data"] and \
     "seccomp" in armor_profile_model["data"]["dynamicResult"] and \
-    "syscall" in armor_profile_model["data"]["dynamicResult"]["seccomp"]:
-    return armor_profile_model["data"]["dynamicResult"]["seccomp"]["syscall"]
+    "syscalls" in armor_profile_model["data"]["dynamicResult"]["seccomp"]:
+    return armor_profile_model["data"]["dynamicResult"]["seccomp"]["syscalls"]
   return []
+
+
+def retrieve_executions_from_model(armor_profile_model):
+  executions = []
+  if "data" in armor_profile_model and \
+    "dynamicResult" in armor_profile_model["data"] and \
+    "apparmor" in armor_profile_model["data"]["dynamicResult"] and \
+    "executions" in armor_profile_model["data"]["dynamicResult"]["apparmor"]:
+
+    for execution in armor_profile_model["data"]["dynamicResult"]["apparmor"]["executions"]:
+      executions.append(os.path.basename(execution))
+
+  return executions
+
 
 def skip_the_rule_with_model_data(rule, enforcers, armor_profile_model):
   if not has_common_item(enforcers, rule["enforcers"]):
@@ -65,6 +80,10 @@ def skip_the_rule_with_model_data(rule, enforcers, armor_profile_model):
     if "syscalls" in rule["conflicts"]:
       syscalls = retrieve_syscalls_from_model(armor_profile_model)
       return has_common_item(rule["conflicts"]["syscalls"], syscalls)
+
+    if "executions" in rule["conflicts"]:
+      executions = retrieve_executions_from_model(armor_profile_model)
+      return has_common_item(rule["conflicts"]["executions"], executions)
 
   return False
 

@@ -507,23 +507,38 @@
     },
     {
       "id": "disable-busybox",
-      "enforcers": ["apparmor", "bpf"]
+      "enforcers": ["apparmor", "bpf"],
+      "conflicts": {
+        "executions": ["busybox"]
+      }
     },
     {
       "id": "disable-shell",
-      "enforcers": ["apparmor", "bpf"]
+      "enforcers": ["apparmor", "bpf"],
+      "conflicts": {
+        "executions": ["sh", "bash", "dash"]
+      }
     },
     {
       "id": "disable-wget",
-      "enforcers": ["apparmor", "bpf"]
+      "enforcers": ["apparmor", "bpf"],
+      "conflicts": {
+        "executions": ["wget"]
+      }
     },
     {
       "id": "disable-curl",
-      "enforcers": ["apparmor", "bpf"]
+      "enforcers": ["apparmor", "bpf"],
+      "conflicts": {
+        "executions": ["curl"]
+      }
     },
     {
       "id": "disable-chmod",
-      "enforcers": ["apparmor", "bpf"]
+      "enforcers": ["apparmor", "bpf"],
+      "conflicts": {
+        "executions": ["chmod"]
+      }
     },
     {
       "id": "disable-chmod-x-bit",
@@ -541,7 +556,10 @@
     },
     {
       "id": "disable-su-sudo",
-      "enforcers": ["apparmor", "bpf"]
+      "enforcers": ["apparmor", "bpf"],
+      "conflicts": {
+        "executions": ["su", "sudo"]
+      }
     }
   ],
   "vulnerability_mitigation": [
