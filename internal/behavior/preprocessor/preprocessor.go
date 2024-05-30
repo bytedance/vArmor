@@ -86,7 +86,7 @@ func NewDataPreprocessor(
 	p.behaviorData.DynamicResult.AppArmor.Ptraces = make([]varmor.Ptrace, 0)
 	p.behaviorData.DynamicResult.AppArmor.Signals = make([]varmor.Signal, 0)
 	p.behaviorData.DynamicResult.AppArmor.Unhandled = make([]string, 0)
-	p.behaviorData.DynamicResult.Seccomp.Syscall = make([]string, 0)
+	p.behaviorData.DynamicResult.Seccomp.Syscalls = make([]string, 0)
 	p.behaviorData.Namespace = namespace
 	p.behaviorData.NodeName = nodeName
 	p.behaviorData.ProfileName = name
@@ -275,7 +275,7 @@ func (p *DataPreprocessor) Process() []byte {
 
 	p.log.Info("data preprocess completed",
 		"apparmor profiles num", len(p.behaviorData.DynamicResult.AppArmor.Profiles),
-		"seccomp num", len(p.behaviorData.DynamicResult.Seccomp.Syscall))
+		"seccomp num", len(p.behaviorData.DynamicResult.Seccomp.Syscalls))
 
 	p.behaviorData.Status = varmortypes.Succeeded
 	p.behaviorData.Message = ""

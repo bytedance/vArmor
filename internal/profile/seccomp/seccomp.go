@@ -51,13 +51,13 @@ func GenerateBehaviorModelingProfile() string {
 }
 
 func GenerateProfileWithBehaviorModel(dynamicResult *varmor.DynamicResult) (string, error) {
-	if len(dynamicResult.Seccomp.Syscall) == 0 {
+	if len(dynamicResult.Seccomp.Syscalls) == 0 {
 		return "", nil
 	}
 
 	syscall := specs.LinuxSyscall{
 		Action: specs.ActAllow,
-		Names:  dynamicResult.Seccomp.Syscall,
+		Names:  dynamicResult.Seccomp.Syscalls,
 	}
 
 	profile := specs.LinuxSeccomp{

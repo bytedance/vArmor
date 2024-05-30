@@ -60,7 +60,7 @@ type AppArmor struct {
 }
 
 type Seccomp struct {
-	Syscall []string `json:"syscall,omitempty"`
+	Syscalls []string `json:"syscalls,omitempty"`
 }
 
 type DynamicResult struct {
