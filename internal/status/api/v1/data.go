@@ -277,20 +277,20 @@ func mergeAppArmorResult(apm *varmor.ArmorProfileModel, data *varmortypes.Behavi
 }
 
 func mergeSeccompResult(apm *varmor.ArmorProfileModel, data *varmortypes.BehaviorData) {
-	if apm.Data.DynamicResult.Seccomp.Syscall == nil && len(apm.Data.DynamicResult.Seccomp.Syscall) != 0 {
-		apm.Data.DynamicResult.Seccomp.Syscall = make([]string, 0)
-		apm.Data.DynamicResult.Seccomp.Syscall = append(apm.Data.DynamicResult.Seccomp.Syscall, data.DynamicResult.Seccomp.Syscall...)
+	if apm.Data.DynamicResult.Seccomp.Syscalls == nil && len(apm.Data.DynamicResult.Seccomp.Syscalls) != 0 {
+		apm.Data.DynamicResult.Seccomp.Syscalls = make([]string, 0)
+		apm.Data.DynamicResult.Seccomp.Syscalls = append(apm.Data.DynamicResult.Seccomp.Syscalls, data.DynamicResult.Seccomp.Syscalls...)
 	} else {
-		for _, newSyscall := range data.DynamicResult.Seccomp.Syscall {
+		for _, newSyscall := range data.DynamicResult.Seccomp.Syscalls {
 			find := false
-			for _, syscall := range apm.Data.DynamicResult.Seccomp.Syscall {
+			for _, syscall := range apm.Data.DynamicResult.Seccomp.Syscalls {
 				if newSyscall == syscall {
 					find = true
 					break
 				}
 			}
 			if !find {
-				apm.Data.DynamicResult.Seccomp.Syscall = append(apm.Data.DynamicResult.Seccomp.Syscall, newSyscall)
+				apm.Data.DynamicResult.Seccomp.Syscalls = append(apm.Data.DynamicResult.Seccomp.Syscalls, newSyscall)
 			}
 		}
 	}

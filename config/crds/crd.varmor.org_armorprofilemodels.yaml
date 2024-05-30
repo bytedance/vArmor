@@ -133,7 +133,7 @@ spec:
                     type: object
                   seccomp:
                     properties:
-                      syscall:
+                      syscalls:
                         items:
                           type: string
                         type: array

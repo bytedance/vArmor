@@ -470,7 +470,8 @@
       "id": "disallow-create-user-ns",
       "enforcers": ["seccomp"],
       "conflicts": {
-        "features": ["dind"]
+        "features": ["dind"],
+        "syscalls": ["unshare"]
       }
     }
   ],
@@ -506,34 +507,59 @@
     },
     {
       "id": "disable-busybox",
-      "enforcers": ["apparmor", "bpf"]
+      "enforcers": ["apparmor", "bpf"],
+      "conflicts": {
+        "executions": ["busybox"]
+      }
     },
     {
       "id": "disable-shell",
-      "enforcers": ["apparmor", "bpf"]
+      "enforcers": ["apparmor", "bpf"],
+      "conflicts": {
+        "executions": ["sh", "bash", "dash"]
+      }
     },
     {
       "id": "disable-wget",
-      "enforcers": ["apparmor", "bpf"]
+      "enforcers": ["apparmor", "bpf"],
+      "conflicts": {
+        "executions": ["wget"]
+      }
     },
     {
       "id": "disable-curl",
-      "enforcers": ["apparmor", "bpf"]
+      "enforcers": ["apparmor", "bpf"],
+      "conflicts": {
+        "executions": ["curl"]
+      }
     },
     {
       "id": "disable-chmod",
-      "enforcers": ["apparmor", "bpf"]
+      "enforcers": ["apparmor", "bpf"],
+      "conflicts": {
+        "executions": ["chmod"]
+      }
     },
     {
       "id": "disable-chmod-x-bit",
       "enforcers": ["seccomp"],
       "conflicts": {
-        "syscalls": ["chmod"]
+        "syscalls": ["chmod", "fchmod", "fchmodat", "fchmodat2"]
+      }
+    },
+    {
+      "id": "disable-chmod-s-bit",
+      "enforcers": ["seccomp"],
+      "conflicts": {
+        "syscalls": ["chmod", "fchmod", "fchmodat", "fchmodat2"]
       }
     },
     {
       "id": "disable-su-sudo",
-      "enforcers": ["apparmor", "bpf"]
+      "enforcers": ["apparmor", "bpf"],
+      "conflicts": {
+        "executions": ["su", "sudo"]
+      }
     }
   ],
   "vulnerability_mitigation": [
