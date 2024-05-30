@@ -470,7 +470,8 @@
       "id": "disallow-create-user-ns",
       "enforcers": ["seccomp"],
       "conflicts": {
-        "features": ["dind"]
+        "features": ["dind"],
+        "syscalls": ["unshare"]
       }
     }
   ],
@@ -528,7 +529,14 @@
       "id": "disable-chmod-x-bit",
       "enforcers": ["seccomp"],
       "conflicts": {
-        "syscalls": ["chmod"]
+        "syscalls": ["chmod", "fchmod", "fchmodat", "fchmodat2"]
+      }
+    },
+    {
+      "id": "disable-chmod-s-bit",
+      "enforcers": ["seccomp"],
+      "conflicts": {
+        "syscalls": ["chmod", "fchmod", "fchmodat", "fchmodat2"]
       }
     },
     {
