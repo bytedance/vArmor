@@ -75,7 +75,7 @@ func (p *DataPreprocessor) parseSeccompEventForTree(event *varmortypes.SeccompLo
 	}
 
 	p.syscall[event.Syscall] = struct{}{}
-	p.behaviorData.DynamicResult.Seccomp.Syscall = append(p.behaviorData.DynamicResult.Seccomp.Syscall, event.Syscall)
+	p.behaviorData.DynamicResult.Seccomp.Syscalls = append(p.behaviorData.DynamicResult.Seccomp.Syscalls, event.Syscall)
 
 	return nil
 }
