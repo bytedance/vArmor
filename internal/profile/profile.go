@@ -76,6 +76,10 @@ func GenerateProfile(policy varmor.Policy, name string, namespace string, varmor
 			var bpfContent varmor.BpfContent
 			profile.BpfContent = &bpfContent
 		}
+		// Seccomp
+		if (e & varmortypes.Seccomp) != 0 {
+			profile.SeccompContent = seccompprofile.GenerateAlwaysAllowProfile()
+		}
 
 	case varmortypes.RuntimeDefaultMode:
 		if e == varmortypes.Unknown {

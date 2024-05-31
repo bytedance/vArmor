@@ -40,6 +40,15 @@ var (
 	}
 )
 
+func GenerateAlwaysAllowProfile() string {
+	profile := specs.LinuxSeccomp{
+		DefaultAction: specs.ActAllow,
+	}
+
+	p, _ := json.Marshal(profile)
+	return base64.StdEncoding.EncodeToString(p)
+}
+
 func GenerateBehaviorModelingProfile() string {
 	profile := specs.LinuxSeccomp{
 		DefaultAction: specs.ActLog,

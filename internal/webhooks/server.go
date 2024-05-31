@@ -181,10 +181,13 @@ func (ws *WebhookServer) matchAndPatch(request *admissionv1.AdmissionRequest, ke
 	}
 
 	enforcer := ""
+	var mode varmor.VarmorPolicyMode
 	if clusterScope {
 		enforcer = ws.policyCacher.ClusterPolicyEnforcer[key]
+		mode = ws.policyCacher.ClusterPolicyMode[key]
 	} else {
 		enforcer = ws.policyCacher.PolicyEnforcer[key]
+		mode = ws.policyCacher.PolicyMode[key]
 	}
 
 	obj, err := ws.deserializeWorkload(request)
@@ -202,7 +205,7 @@ func (ws *WebhookServer) matchAndPatch(request *admissionv1.AdmissionRequest, ke
 	apName := varmorprofile.GenerateArmorProfileName(policyNamespace, policyName, clusterScope)
 	if target.Name != "" && target.Name == m.GetName() {
 		logger.Info("mutating resource", "resource kind", request.Kind.Kind, "resource namespace", request.Namespace, "resource name", request.Name, "profile", apName)
-		patch, err := buildPatch(obj, enforcer, target, apName, ws.bpfExclusiveMode)
+		patch, err := buildPatch(obj, enforcer, mode, target, apName, ws.bpfExclusiveMode)
 		if err != nil {
 			logger.Error(err, "ws.buildPatch()")
 			return nil
@@ -215,7 +218,7 @@ func (ws *WebhookServer) matchAndPatch(request *admissionv1.AdmissionRequest, ke
 		}
 		if selector.Matches(labels.Set(m.GetLabels())) {
 			logger.Info("mutating resource", "resource kind", request.Kind.Kind, "resource namespace", request.Namespace, "resource name", request.Name, "profile", apName)
-			patch, err := buildPatch(obj, enforcer, target, apName, ws.bpfExclusiveMode)
+			patch, err := buildPatch(obj, enforcer, mode, target, apName, ws.bpfExclusiveMode)
 			if err != nil {
 				logger.Error(err, "ws.buildPatch()")
 				return nil
