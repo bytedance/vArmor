@@ -8,8 +8,8 @@ The modes can be specified through the `spec.policy.mode` field of [VarmorPolicy
 
 |Policy Mode|AppArmor|BPF|Seccomp|Description|
 |-----------|--------|---|-------|-----------|
-|AlwaysAllow|[x]|[x]|-|No mandatory access control rules are imposed on container.
-|RuntimeDefault|[x]|[x]|-|Basic protection is provided using the same default policy as the container runtime components (such as containerd's [cri-containerd.apparmor.d](https://github.com/containerd/containerd/blob/main/contrib/apparmor/template.go)).
+|AlwaysAllow|[x]|[x]|[x]|No mandatory access control rules are imposed on container.
+|RuntimeDefault|[x]|[x]|[x]|Basic protection is provided using the same default policy as the container runtime components (such as containerd's [cri-containerd.apparmor.d](https://github.com/containerd/containerd/blob/main/contrib/apparmor/template.go)).
 |EnhanceProtect|[x]|[x]|[x]|- It offers 5 types of [built-in rules](built_in_rules.md#the-built-in-rules) and custom interfaces to meet various protection requirements.<br>- Enhanced protection is based on the RuntimeDefault mode by default. (The `spec.policy.privileged` field is `nil` or `false`)<br>- Also supports enhanced protection on the basis of the AlwaysAllow mode. (The `spec.policy.privileged` field is `true`)
 |BehaviorModeling|[x]|[ ]|[x]|- Utilize BPF and Audit technologies to perform behavior modeling on multiple workloads.<br>- The behavior model will be stored in the corresponding [ArmorProfileModel](../apis/varmor/v1beta1/armorprofilemodel_types.go) object.<br>- Dynamic switching mode is not supported.<br>- Please refer to the [BehaviorModeling Mode](behavior_modeling.md) for more details.
 |DefenseInDepth|[x]|-|[x]|Protect the workloads based on the [ArmorProfileModel](../apis/varmor/v1beta1/armorprofilemodel_types.go) object.

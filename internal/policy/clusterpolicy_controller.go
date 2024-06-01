@@ -166,6 +166,7 @@ func (c *ClusterPolicyController) handleDeleteVarmorClusterPolicy(name string) e
 			c.appsInterface,
 			metav1.NamespaceAll,
 			ap.Spec.Profile.Enforcer,
+			"",
 			ap.Spec.Target,
 			"", false, logger)
 	}
@@ -342,6 +343,7 @@ func (c *ClusterPolicyController) handleAddVarmorClusterPolicy(vcp *varmor.Varmo
 			c.appsInterface,
 			metav1.NamespaceAll,
 			vcp.Spec.Policy.Enforcer,
+			vcp.Spec.Policy.Mode,
 			vcp.Spec.Target,
 			ap.Name,
 			c.bpfExclusiveMode,

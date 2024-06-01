@@ -171,6 +171,7 @@ func (c *PolicyController) handleDeleteVarmorPolicy(namespace, name string) erro
 			c.appsInterface,
 			namespace,
 			ap.Spec.Profile.Enforcer,
+			"",
 			ap.Spec.Target,
 			"", false, logger)
 	}
@@ -366,6 +367,7 @@ func (c *PolicyController) handleAddVarmorPolicy(vp *varmor.VarmorPolicy) error 
 			c.appsInterface,
 			vp.Namespace,
 			vp.Spec.Policy.Enforcer,
+			vp.Spec.Policy.Mode,
 			vp.Spec.Target,
 			ap.Name,
 			c.bpfExclusiveMode,

@@ -35,8 +35,10 @@ type PolicyCacher struct {
 	vpInformerSynced      cache.InformerSynced
 	ClusterPolicyTargets  map[string]varmor.Target
 	ClusterPolicyEnforcer map[string]string
+	ClusterPolicyMode     map[string]varmor.VarmorPolicyMode
 	PolicyTargets         map[string]varmor.Target
 	PolicyEnforcer        map[string]string
+	PolicyMode            map[string]varmor.VarmorPolicyMode
 	debug                 bool
 	log                   logr.Logger
 }
@@ -56,8 +58,10 @@ func NewPolicyCacher(
 		vpInformerSynced:      vpInformer.Informer().HasSynced,
 		ClusterPolicyTargets:  make(map[string]varmor.Target),
 		ClusterPolicyEnforcer: make(map[string]string),
+		ClusterPolicyMode:     make(map[string]varmor.VarmorPolicyMode),
 		PolicyTargets:         make(map[string]varmor.Target),
 		PolicyEnforcer:        make(map[string]string),
+		PolicyMode:            make(map[string]varmor.VarmorPolicyMode),
 		debug:                 debug,
 		log:                   log,
 	}
@@ -75,6 +79,7 @@ func (c *PolicyCacher) addVarmorClusterPolicy(obj interface{}) {
 	}
 	c.ClusterPolicyTargets[key] = vcp.Spec.DeepCopy().Target
 	c.ClusterPolicyEnforcer[key] = vcp.Spec.Policy.Enforcer
+	c.ClusterPolicyMode[key] = vcp.Spec.Policy.Mode
 }
 
 func (c *PolicyCacher) updateVarmorClusterPolicy(oldObj, newObj interface{}) {
@@ -87,6 +92,7 @@ func (c *PolicyCacher) updateVarmorClusterPolicy(oldObj, newObj interface{}) {
 	}
 	c.ClusterPolicyTargets[key] = vcp.Spec.DeepCopy().Target
 	c.ClusterPolicyEnforcer[key] = vcp.Spec.Policy.Enforcer
+	c.ClusterPolicyMode[key] = vcp.Spec.Policy.Mode
 }
 
 func (c *PolicyCacher) deleteVarmorClusterPolicy(obj interface{}) {
@@ -99,6 +105,7 @@ func (c *PolicyCacher) deleteVarmorClusterPolicy(obj interface{}) {
 	}
 	delete(c.ClusterPolicyTargets, key)
 	delete(c.ClusterPolicyEnforcer, key)
+	delete(c.ClusterPolicyMode, key)
 }
 
 func (c *PolicyCacher) addVarmorPolicy(obj interface{}) {
@@ -111,6 +118,7 @@ func (c *PolicyCacher) addVarmorPolicy(obj interface{}) {
 	}
 	c.PolicyTargets[key] = vp.Spec.DeepCopy().Target
 	c.PolicyEnforcer[key] = vp.Spec.Policy.Enforcer
+	c.PolicyMode[key] = vp.Spec.Policy.Mode
 }
 
 func (c *PolicyCacher) updateVarmorPolicy(oldObj, newObj interface{}) {
@@ -123,6 +131,7 @@ func (c *PolicyCacher) updateVarmorPolicy(oldObj, newObj interface{}) {
 	}
 	c.PolicyTargets[key] = vp.Spec.DeepCopy().Target
 	c.PolicyEnforcer[key] = vp.Spec.Policy.Enforcer
+	c.PolicyMode[key] = vp.Spec.Policy.Mode
 }
 
 func (c *PolicyCacher) deleteVarmorPolicy(obj interface{}) {
@@ -135,6 +144,7 @@ func (c *PolicyCacher) deleteVarmorPolicy(obj interface{}) {
 	}
 	delete(c.PolicyTargets, key)
 	delete(c.PolicyEnforcer, key)
+	delete(c.PolicyMode, key)
 }
 
 func (c *PolicyCacher) Run(stopCh <-chan struct{}) {
