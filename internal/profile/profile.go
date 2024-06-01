@@ -98,6 +98,13 @@ func GenerateProfile(policy varmor.Policy, name string, namespace string, varmor
 			}
 			profile.BpfContent = &bpfContent
 		}
+		// Seccomp
+		// We need to mock an AlwaysAllow profile when switching a policy to RuntimeDefault mode
+		// in case the containers in existing Pods can normally restart, because we can't update
+		// the Seccomp settings of the existing Pods.
+		if (e & varmortypes.Seccomp) != 0 {
+			profile.SeccompContent = seccompprofile.GenerateAlwaysAllowProfile()
+		}
 
 	case varmortypes.EnhanceProtectMode:
 		if e == varmortypes.Unknown {

@@ -166,8 +166,7 @@ func buildPatch(obj interface{}, enforcer string,
 				if value, ok := deploy.Spec.Template.Annotations[key]; ok && value == "unconfined" {
 					continue
 				}
-				if (mode == varmortypes.RuntimeDefaultMode) ||
-					(container.SecurityContext != nil && container.SecurityContext.Privileged != nil && *container.SecurityContext.Privileged) ||
+				if (container.SecurityContext != nil && container.SecurityContext.Privileged != nil && *container.SecurityContext.Privileged) ||
 					(container.SecurityContext != nil && container.SecurityContext.SeccompProfile != nil && container.SecurityContext.SeccompProfile.Type == "Unconfined") ||
 					(deploy.Spec.Template.Spec.SecurityContext != nil && deploy.Spec.Template.Spec.SecurityContext.SeccompProfile != nil && deploy.Spec.Template.Spec.SecurityContext.SeccompProfile.Type == "Unconfined") {
 					continue
@@ -176,7 +175,11 @@ func buildPatch(obj interface{}, enforcer string,
 				if container.SecurityContext == nil {
 					jsonPatch += fmt.Sprintf(`{"op": "add", "path": "/spec/template/spec/containers/%d/securityContext", "value": {}},`, index)
 				}
-				jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/containers/%d/securityContext/seccompProfile", "value": {"type": "Localhost", "localhostProfile": "%s"}},`, index, profileName)
+				if mode == varmortypes.RuntimeDefaultMode {
+					jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/containers/%d/securityContext/seccompProfile", "value": {"type": "RuntimeDefault"}},`, index)
+				} else {
+					jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/containers/%d/securityContext/seccompProfile", "value": {"type": "Localhost", "localhostProfile": "%s"}},`, index, profileName)
+				}
 			}
 		}
 	case "StatefulSet":
@@ -220,8 +223,7 @@ func buildPatch(obj interface{}, enforcer string,
 				if value, ok := statefulSet.Spec.Template.Annotations[key]; ok && value == "unconfined" {
 					continue
 				}
-				if (mode == varmortypes.RuntimeDefaultMode) ||
-					(container.SecurityContext != nil && container.SecurityContext.Privileged != nil && *container.SecurityContext.Privileged) ||
+				if (container.SecurityContext != nil && container.SecurityContext.Privileged != nil && *container.SecurityContext.Privileged) ||
 					(container.SecurityContext != nil && container.SecurityContext.SeccompProfile != nil && container.SecurityContext.SeccompProfile.Type == "Unconfined") ||
 					(statefulSet.Spec.Template.Spec.SecurityContext != nil && statefulSet.Spec.Template.Spec.SecurityContext.SeccompProfile != nil && statefulSet.Spec.Template.Spec.SecurityContext.SeccompProfile.Type == "Unconfined") {
 					continue
@@ -230,7 +232,11 @@ func buildPatch(obj interface{}, enforcer string,
 				if container.SecurityContext == nil {
 					jsonPatch += fmt.Sprintf(`{"op": "add", "path": "/spec/template/spec/containers/%d/securityContext", "value": {}},`, index)
 				}
-				jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/containers/%d/securityContext/seccompProfile", "value": {"type": "Localhost", "localhostProfile": "%s"}},`, index, profileName)
+				if mode == varmortypes.RuntimeDefaultMode {
+					jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/containers/%d/securityContext/seccompProfile", "value": {"type": "RuntimeDefault"}},`, index)
+				} else {
+					jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/containers/%d/securityContext/seccompProfile", "value": {"type": "Localhost", "localhostProfile": "%s"}},`, index, profileName)
+				}
 			}
 		}
 	case "DaemonSet":
@@ -274,8 +280,7 @@ func buildPatch(obj interface{}, enforcer string,
 				if value, ok := daemonSet.Spec.Template.Annotations[key]; ok && value == "unconfined" {
 					continue
 				}
-				if (mode == varmortypes.RuntimeDefaultMode) ||
-					(container.SecurityContext != nil && container.SecurityContext.Privileged != nil && *container.SecurityContext.Privileged) ||
+				if (container.SecurityContext != nil && container.SecurityContext.Privileged != nil && *container.SecurityContext.Privileged) ||
 					(container.SecurityContext != nil && container.SecurityContext.SeccompProfile != nil && container.SecurityContext.SeccompProfile.Type == "Unconfined") ||
 					(daemonSet.Spec.Template.Spec.SecurityContext != nil && daemonSet.Spec.Template.Spec.SecurityContext.SeccompProfile != nil && daemonSet.Spec.Template.Spec.SecurityContext.SeccompProfile.Type == "Unconfined") {
 					continue
@@ -284,7 +289,11 @@ func buildPatch(obj interface{}, enforcer string,
 				if container.SecurityContext == nil {
 					jsonPatch += fmt.Sprintf(`{"op": "add", "path": "/spec/template/spec/containers/%d/securityContext", "value": {}},`, index)
 				}
-				jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/containers/%d/securityContext/seccompProfile", "value": {"type": "Localhost", "localhostProfile": "%s"}},`, index, profileName)
+				if mode == varmortypes.RuntimeDefaultMode {
+					jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/containers/%d/securityContext/seccompProfile", "value": {"type": "RuntimeDefault"}},`, index)
+				} else {
+					jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/containers/%d/securityContext/seccompProfile", "value": {"type": "Localhost", "localhostProfile": "%s"}},`, index, profileName)
+				}
 			}
 		}
 	case "Pod":
@@ -324,8 +333,7 @@ func buildPatch(obj interface{}, enforcer string,
 				if value, ok := pod.Annotations[key]; ok && value == "unconfined" {
 					continue
 				}
-				if (mode == varmortypes.RuntimeDefaultMode) ||
-					(container.SecurityContext != nil && container.SecurityContext.Privileged != nil && *container.SecurityContext.Privileged) ||
+				if (container.SecurityContext != nil && container.SecurityContext.Privileged != nil && *container.SecurityContext.Privileged) ||
 					(container.SecurityContext != nil && container.SecurityContext.SeccompProfile != nil && container.SecurityContext.SeccompProfile.Type == "Unconfined") ||
 					(pod.Spec.SecurityContext != nil && pod.Spec.SecurityContext.SeccompProfile != nil && pod.Spec.SecurityContext.SeccompProfile.Type == "Unconfined") {
 					continue
@@ -334,7 +342,11 @@ func buildPatch(obj interface{}, enforcer string,
 				if container.SecurityContext == nil {
 					jsonPatch += fmt.Sprintf(`{"op": "add", "path": "/spec/containers/%d/securityContext", "value": {}},`, index)
 				}
-				jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/containers/%d/securityContext/seccompProfile", "value": {"type": "Localhost", "localhostProfile": "%s"}},`, index, profileName)
+				if mode == varmortypes.RuntimeDefaultMode {
+					jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/containers/%d/securityContext/seccompProfile", "value": {"type": "RuntimeDefault"}},`, index)
+				} else {
+					jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/containers/%d/securityContext/seccompProfile", "value": {"type": "Localhost", "localhostProfile": "%s"}},`, index, profileName)
+				}
 			}
 		}
 	}
