@@ -14,7 +14,7 @@ The modes can be specified through the `spec.policy.mode` field of [VarmorPolicy
 |BehaviorModeling|[x]|[ ]|[x]|- Utilize BPF and Audit technologies to perform behavior modeling on multiple workloads.<br>- The behavior model will be stored in the corresponding [ArmorProfileModel](../apis/varmor/v1beta1/armorprofilemodel_types.go) object.<br>- Dynamic switching mode is not supported.<br>- Please refer to the [BehaviorModeling Mode](behavior_modeling.md) for more details.
 |DefenseInDepth|[x]|-|[x]|Protect the workloads based on the [ArmorProfileModel](../apis/varmor/v1beta1/armorprofilemodel_types.go) object.
 
-*Note: vArmor policy supports dynamic switching of running modes (limited to AlwaysAllow, EnhanceProtect, RuntimeDefault, DefenseInDepth) and updating sandbox rules without having to restart the workloads. However, when using the **Seccomp enforcer**, the workload must be restarted for changes to the **Seccomp Profile** to take effect.*
+*Note: <br>- vArmor policy supports dynamic switching of running modes (limited to AlwaysAllow, EnhanceProtect, RuntimeDefault, DefenseInDepth) and updating sandbox rules without having to restart the workloads. However, when using the **Seccomp enforcer**, the workload must be restarted for changes to the **Seccomp Profile** to take effect.*<br>- vArmor supports modifying policies to add new enforcers, but does not support removing enforcers that have been set. In addition, newly added enforcers only take effect for newly created Workloads.
 
 ## The Built-in Rules
 

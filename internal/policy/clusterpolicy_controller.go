@@ -405,13 +405,25 @@ func (c *ClusterPolicyController) ignoreUpdate(newVp *varmor.VarmorClusterPolicy
 		return true, nil
 	}
 
-	// Disallow switch the enforcer.
-	if newVp.Spec.Policy.Enforcer != oldAp.Spec.Profile.Enforcer {
+	// Disallow shutting down the enforcer that has been activated.
+	newEnforcers := varmortypes.GetEnforcerType(newVp.Spec.Policy.Enforcer)
+	oldEnforcers := varmortypes.GetEnforcerType(oldAp.Spec.Profile.Enforcer)
+	if newEnforcers&oldEnforcers != oldEnforcers {
+		err := fmt.Errorf("disallow shutting down the enforcer that has been activated")
+		logger.Error(err, "update VarmorClusterPolicy/status with forbidden info")
+		err = c.updateVarmorClusterPolicyStatus(newVp, "", true, varmortypes.VarmorPolicyUnchanged, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionFalse,
+			"Forbidden",
+			"Modifying a policy to remove an already-set enforcer is not allowed. To remove enforcers, you must recreate the VarmorClusterPolicy object.")
+		return true, err
+	}
+
+	// Disallow switching the enforcer during modeling.
+	if newEnforcers != oldEnforcers && newVp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode {
 		err := fmt.Errorf("disallow switch the enforcer")
 		logger.Error(err, "update VarmorClusterPolicy/status with forbidden info")
 		err = c.updateVarmorClusterPolicyStatus(newVp, "", true, varmortypes.VarmorPolicyUnchanged, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionFalse,
 			"Forbidden",
-			"Switch the enforcer is not allowed. You need to recreate the VarmorClusterPolicy object.")
+			"Switch the enforcer during modeling is not allowed. You need to recreate the VarmorClusterPolicy object.")
 		return true, err
 	}
 
