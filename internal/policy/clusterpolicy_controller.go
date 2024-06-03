@@ -411,7 +411,7 @@ func (c *ClusterPolicyController) ignoreUpdate(newVp *varmor.VarmorClusterPolicy
 		logger.Error(err, "update VarmorClusterPolicy/status with forbidden info")
 		err = c.updateVarmorClusterPolicyStatus(newVp, "", true, varmortypes.VarmorPolicyUnchanged, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionFalse,
 			"Forbidden",
-			"Disable the enforcer that has been activated is not allowed. You need to recreate the VarmorClusterPolicy object.")
+			"Modifying a policy to remove an already-set enforcer is not allowed. To remove enforcers, you must recreate the VarmorClusterPolicy object.")
 		return true, err
 	}
 
