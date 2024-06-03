@@ -12,7 +12,7 @@
 |BehaviorModeling|[x]|[ ]|[x]|- 利用 BPF & Audit 等技术同时对多个工作负载进行行为建模<br>- 行为模型保存在对应的 [ArmorProfileModel](../apis/varmor/v1beta1/armorprofilemodel_types.go) 对象中<br>- 不可切换防护模式<br>- 请参见 [The BehaviorModeling Mode](behavior_modeling.md)
 |DefenseInDepth|[x]|-|[x]|基于行为模型 [ArmorProfileModel](../apis/varmor/v1beta1/armorprofilemodel_types.go) 对工作负载进行防护
 
-注意：<br>- vArmor 策略支持动态切换运行模式（限 EnhanceProtect, RuntimeDefault, AlwaysAllow, DefenseInDepth）、更新沙箱规则，而无需重启工作负载。但当使用 Seccomp enforcer 时，需要重启工作负载来使 Seccomp Profile 的变更生效。<br>- vArmor 支持修改策略为其添加新的 enforcer，但不支持删除已经启用的 enforcer。除此之外，新添加的 enforcer 仅对新创建的 Workloads 生效。
+注意：<br>- vArmor 策略支持动态切换运行模式（限 EnhanceProtect, RuntimeDefault, AlwaysAllow, DefenseInDepth）、更新沙箱规则，而无需重启工作负载。但当使用 Seccomp enforcer 时，需要重启工作负载来使 Seccomp Profile 的变更生效。<br>- vArmor 支持修改策略为其添加新的 enforcer，但不支持删除已经设置的 enforcer。除此之外，新添加的 enforcer 仅对新创建的 Workloads 生效。
 
 
 ## 内置规则
