@@ -146,17 +146,18 @@ func (c *ClusterPolicyController) handleDeleteVarmorClusterPolicy(name string) e
 	ap, err := c.varmorInterface.ArmorProfiles(varmorconfig.Namespace).Get(context.Background(), apName, metav1.GetOptions{})
 	if err != nil {
 		if k8errors.IsNotFound(err) {
-			return nil
+			logger.Info("ArmorProfile object not found", "namespace", varmorconfig.Namespace, "name", apName)
+		} else {
+			logger.Error(err, "c.varmorInterface.ArmorProfiles().Get()")
+			return err
 		}
-		logger.Error(err, "c.varmorInterface.ArmorProfiles().Get()")
-		return err
-	}
-
-	logger.Info("delete ArmorProfile")
-	err = c.varmorInterface.ArmorProfiles(varmorconfig.Namespace).Delete(context.Background(), apName, metav1.DeleteOptions{})
-	if err != nil {
-		logger.Error(err, "ArmorProfile().Delete()")
-		return err
+	} else {
+		logger.Info("delete ArmorProfile")
+		err = c.varmorInterface.ArmorProfiles(varmorconfig.Namespace).Delete(context.Background(), apName, metav1.DeleteOptions{})
+		if err != nil {
+			logger.Error(err, "ArmorProfile().Delete()")
+			return err
+		}
 	}
 
 	if c.restartExistWorkloads && ap.Spec.UpdateExistingWorkloads {
