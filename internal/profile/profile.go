@@ -191,6 +191,7 @@ func GenerateProfile(policy varmor.Policy, name string, namespace string, varmor
 
 func NewArmorProfile(obj interface{}, varmorInterface varmorinterface.CrdV1beta1Interface, clusterScope bool) (*varmor.ArmorProfile, error) {
 	ap := varmor.ArmorProfile{}
+	controller := true
 
 	if clusterScope {
 		vcp := obj.(*varmor.VarmorClusterPolicy)
@@ -199,6 +200,15 @@ func NewArmorProfile(obj interface{}, varmorInterface varmorinterface.CrdV1beta1
 		ap.Name = profileName
 		ap.Namespace = varmorconfig.Namespace
 		ap.Labels = vcp.ObjectMeta.DeepCopy().Labels
+		ap.OwnerReferences = []metav1.OwnerReference{
+			{
+				APIVersion: "crd.varmor.org/v1beta1",
+				Kind:       "VarmorClusterPolicy",
+				Name:       vcp.Name,
+				UID:        vcp.UID,
+				Controller: &controller,
+			},
+		}
 
 		profile, err := GenerateProfile(vcp.Spec.Policy, ap.Name, ap.Namespace, varmorInterface, false)
 		if err != nil {
@@ -223,6 +233,15 @@ func NewArmorProfile(obj interface{}, varmorInterface varmorinterface.CrdV1beta1
 		ap.Name = profileName
 		ap.Namespace = vp.Namespace
 		ap.Labels = vp.ObjectMeta.DeepCopy().Labels
+		ap.OwnerReferences = []metav1.OwnerReference{
+			{
+				APIVersion: "crd.varmor.org/v1beta1",
+				Kind:       "VarmorPolicy",
+				Name:       vp.Name,
+				UID:        vp.UID,
+				Controller: &controller,
+			},
+		}
 
 		profile, err := GenerateProfile(vp.Spec.Policy, ap.Name, ap.Namespace, varmorInterface, false)
 		if err != nil {
