@@ -430,8 +430,7 @@ func (c *PolicyController) ignoreUpdate(newVp *varmor.VarmorPolicy, oldAp *varmo
 	// Disallow shutting down the enforcer that has been activated.
 	newEnforcers := varmortypes.GetEnforcerType(newVp.Spec.Policy.Enforcer)
 	oldEnforcers := varmortypes.GetEnforcerType(oldAp.Spec.Profile.Enforcer)
-	if newEnforcers&oldEnforcers != oldEnforcers &&
-		newVp.Spec.Policy.Mode != varmortypes.BehaviorModelingMode {
+	if newEnforcers&oldEnforcers != oldEnforcers {
 		err := fmt.Errorf("disallow shutting down the enforcer that has been activated")
 		logger.Error(err, "update VarmorPolicy/status with forbidden info")
 		err = c.updateVarmorPolicyStatus(newVp, "", true, varmortypes.VarmorPolicyUnchanged, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionFalse,
