@@ -2,7 +2,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "varmor.classifier.fullname" . }}
+  name: varmor-classifier
   namespace: {{ include "varmor.namespace" . }}
   labels:
     {{- include "varmor.classifier.labels" . | nindent 4 }}

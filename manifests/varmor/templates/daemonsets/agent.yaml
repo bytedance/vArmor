@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  name: {{ include "varmor.agent.fullname" . }}
+  name: varmor-agent
   namespace: {{ include "varmor.namespace" . }}
   labels:
     {{- include "varmor.agent.labels" . | nindent 4 }}
@@ -20,7 +20,7 @@ spec:
       {{- toYaml . | nindent 6 }}
       {{- end }}
       {{- end }}
-      serviceAccountName: {{ include "varmor.agent.serviceAccountName" . }}
+      serviceAccountName: varmor-agent
       securityContext:
         {{- toYaml .Values.agent.podSecurityContext | nindent 8 }}
       containers:
