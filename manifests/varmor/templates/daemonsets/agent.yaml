@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  name: {{ include "varmor.agent.fullname" . }}
+  name: varmor-agent
   namespace: {{ include "varmor.namespace" . }}
   labels:
     {{- include "varmor.agent.labels" . | nindent 4 }}

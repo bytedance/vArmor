@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "varmor.manager.fullname" . }}
+  name: varmor-manager
   namespace: {{ include "varmor.namespace" . }}
   labels:
     {{- include "varmor.manager.labels" . | nindent 4 }}
