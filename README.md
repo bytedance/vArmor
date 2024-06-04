@@ -4,20 +4,12 @@
         <img src="docs/img/logo-dark.svg" alt="Logo" width="500">
     </picture>
 </div>
-<div align="center">
-    <a href="https://goreportcard.com/report/github.com/bytedance/vArmor">
-        <img src="https://goreportcard.com/badge/github.com/bytedance/vArmor" alt="Go Report Card">
-    </a>
-    <a href="https://opensource.org/licenses/Apache-2.0">
-        <img src="https://img.shields.io/badge/License-Apache_2.0-blue.svg" alt="License">
-    </a>
-    <a href="https://opensource.org/license/gpl-2-0">
-        <img src="https://img.shields.io/badge/license-GPL-blue.svg" alt="License">
-    </a>
-    <a href="https://github.com/bytedance/vArmor/releases">
-        <img src="https://img.shields.io/github/v/release/bytedance/vArmor" alt="License">
-    </a>
-</div>
+<br>
+
+[![Go Report Card](https://goreportcard.com/badge/github.com/bytedance/vArmor)](https://goreportcard.com/report/github.com/bytedance/vArmor)
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![License](https://img.shields.io/badge/license-GPL-blue.svg)](https://opensource.org/license/gpl-2-0)
+[![Latest release](https://img.shields.io/github/v/release/bytedance/vArmor)](https://github.com/bytedance/vArmor/releases)
 
 English | [简体中文](README.zh_CN.md)
 
