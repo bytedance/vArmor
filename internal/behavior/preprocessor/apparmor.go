@@ -136,7 +136,7 @@ func (p *DataPreprocessor) converProfileToParents(profile string) string {
 	return profile
 }
 
-// Returns the operation type if known, unkown otherwise.
+// Returns the operation type if known, unknown otherwise.
 func (p *DataPreprocessor) opType(event *varmortypes.AaLogRecord) string {
 	if strings.HasPrefix(event.Operation, "file_") ||
 		strings.HasPrefix(event.Operation, "inode_") ||

@@ -507,3 +507,30 @@ func updateWorkloadAnnotationsAndEnv(
 		}
 	}
 }
+
+func forceSetOwnerReference(ap *varmor.ArmorProfile, obj interface{}, clusterScope bool) {
+	controller := true
+	if clusterScope {
+		vcp := obj.(*varmor.VarmorClusterPolicy)
+		ap.OwnerReferences = []metav1.OwnerReference{
+			{
+				APIVersion: "crd.varmor.org/v1beta1",
+				Kind:       "VarmorClusterPolicy",
+				Name:       vcp.Name,
+				UID:        vcp.UID,
+				Controller: &controller,
+			},
+		}
+	} else {
+		vp := obj.(*varmor.VarmorPolicy)
+		ap.OwnerReferences = []metav1.OwnerReference{
+			{
+				APIVersion: "crd.varmor.org/v1beta1",
+				Kind:       "VarmorPolicy",
+				Name:       vp.Name,
+				UID:        vp.UID,
+				Controller: &controller,
+			},
+		}
+	}
+}

@@ -499,6 +499,15 @@ func (c *ClusterPolicyController) handleUpdateVarmorClusterPolicy(newVp *varmor.
 
 		logger.Info("2.3. update ArmorProfile")
 		oldAp.Spec = *newApSpec
+		forceSetOwnerReference(oldAp, newVp, true)
+		_, err = c.varmorInterface.ArmorProfiles(oldAp.Namespace).Update(context.Background(), oldAp, metav1.UpdateOptions{})
+		if err != nil {
+			logger.Error(err, "ArmorProfile().Update()")
+			return err
+		}
+	} else if len(oldAp.OwnerReferences) == 0 {
+		// Forward compatibility, add an ownerReference to the existing ArmorProfile object
+		forceSetOwnerReference(oldAp, newVp, true)
 		_, err = c.varmorInterface.ArmorProfiles(oldAp.Namespace).Update(context.Background(), oldAp, metav1.UpdateOptions{})
 		if err != nil {
 			logger.Error(err, "ArmorProfile().Update()")

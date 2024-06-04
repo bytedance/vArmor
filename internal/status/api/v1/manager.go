@@ -360,7 +360,7 @@ func (m *StatusManager) updateAllCRStatus(logger logr.Logger) {
 		return
 	}
 
-	// Get the list of nodes where the agent is running.
+	// Get the list of nodes where the agents are running.
 	nodes, err := m.retrieveNodeNameList()
 	if err != nil {
 		logger.Error(err, "m.retrieveNodeNameList()")

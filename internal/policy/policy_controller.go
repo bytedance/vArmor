@@ -523,7 +523,16 @@ func (c *PolicyController) handleUpdateVarmorPolicy(newVp *varmor.VarmorPolicy, 
 
 		logger.Info("2.3. update ArmorProfile")
 		oldAp.Spec = *newApSpec
-		_, err = c.varmorInterface.ArmorProfiles(newVp.Namespace).Update(context.Background(), oldAp, metav1.UpdateOptions{})
+		forceSetOwnerReference(oldAp, newVp, false)
+		_, err = c.varmorInterface.ArmorProfiles(oldAp.Namespace).Update(context.Background(), oldAp, metav1.UpdateOptions{})
+		if err != nil {
+			logger.Error(err, "ArmorProfile().Update()")
+			return err
+		}
+	} else if len(oldAp.OwnerReferences) == 0 {
+		// Forward compatibility, add an ownerReference to the existing ArmorProfile object
+		forceSetOwnerReference(oldAp, newVp, false)
+		_, err = c.varmorInterface.ArmorProfiles(oldAp.Namespace).Update(context.Background(), oldAp, metav1.UpdateOptions{})
 		if err != nil {
 			logger.Error(err, "ArmorProfile().Update()")
 			return err
