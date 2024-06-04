@@ -1,9 +1,11 @@
 <a>
   <picture>
-    <source media="(prefers-color-scheme: light)" srcset="docs/img/logo-dark.svg" width="400">
+    <source media="(prefers-color-scheme: light)" srcset="docs/img/logo.svg" width="400">
     <img src="docs/img/logo-dark.svg" width="400">
   </picture>
 </a>
+
+<br>
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![License](https://img.shields.io/badge/license-GPL-blue.svg)](https://opensource.org/license/gpl-2-0/)
