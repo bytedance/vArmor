@@ -1,4 +1,12 @@
-# vArmor: A Cloud Native Container Sandbox
+<a>
+  <picture>
+    <source media="(prefers-color-scheme: light)" srcset="docs/img/logo-dark.svg" width="400">
+    <img src="docs/img/logo-dark.svg" width="400">
+  </picture>
+</a>
+
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![License](https://img.shields.io/badge/license-GPL-blue.svg)](https://opensource.org/license/gpl-2-0/)
 
 [English](README.md) | 简体中文
 
@@ -24,7 +32,7 @@ vArmor 由字节跳动终端安全团队的 **Elkeid Team** 研发，目前该�
 
 
 ## 架构
-<img src="docs/architecture.png" width="600">
+<img src="docs/img/architecture.png" width="600">
 
 
 ## 前置条件

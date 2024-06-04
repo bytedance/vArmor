@@ -58,5 +58,5 @@ vArmor 用户态组件默认使用下表所示的值进行资源申请
   * 当云主机在高负载时，cache 局部性/热度导致文件拷贝被加速等原因导致了波动
   * 云主机存在超售情况，宿主机在测试期间整体负载存在波动，从而导致云主机内的基线测试结果有所波动
 
-  <img src="./bpf_enforcer_benchmark.png" width="600">
+  <img src="./img/bpf_enforcer_benchmark.png" width="600">
   
