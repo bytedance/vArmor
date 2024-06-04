@@ -1,14 +1,17 @@
-<a>
+<div align="center">
   <picture>
     <source media="(prefers-color-scheme: light)" srcset="docs/img/logo.svg" width="400">
     <img src="docs/img/logo-dark.svg" width="400">
   </picture>
-</a>
-
-<br>
-
-[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![License](https://img.shields.io/badge/license-GPL-blue.svg)](https://opensource.org/license/gpl-2-0/)
+</div>
+<div align="center">
+    <a href="https://opensource.org/licenses/Apache-2.0" target="_blank">
+        <img src="https://img.shields.io/badge/License-Apache_2.0-blue.svg" alt="license">
+    </a>
+    <a href="https://opensource.org/license/gpl-2-0" target="_blank">
+        <img src="https://img.shields.io/badge/license-GPL-blue.svg" alt="license">
+    </a>
+</div>
 
 English | [简体中文](README.zh_CN.md)
 
