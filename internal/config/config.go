@@ -117,7 +117,7 @@ var (
 	// WebhookSelectorLabel is used for matching the admission requests
 	WebhookSelectorLabel = map[string]string{}
 
-	// OmuxSocketPath is used for recieving the audit logs of AppArmor from rsyslog
+	// OmuxSocketPath is used for receiving the audit logs of AppArmor from rsyslog
 	OmuxSocketPath = "/var/run/varmor/audit/omuxsock.sock"
 )
 
