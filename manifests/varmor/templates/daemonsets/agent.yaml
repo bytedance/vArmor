@@ -20,7 +20,7 @@ spec:
       {{- toYaml . | nindent 6 }}
       {{- end }}
       {{- end }}
-      serviceAccountName: {{ include "varmor.agent.serviceAccountName" . }}
+      serviceAccountName: varmor-agent
       securityContext:
         {{- toYaml .Values.agent.podSecurityContext | nindent 8 }}
       containers:

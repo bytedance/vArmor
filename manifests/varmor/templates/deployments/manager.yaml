@@ -27,7 +27,7 @@ spec:
       {{- toYaml . | nindent 6 }}
       {{- end }}
       {{- end }}
-      serviceAccountName: {{ include "varmor.manager.serviceAccountName" . }}
+      serviceAccountName: varmor-manager
       securityContext:
         {{- toYaml .Values.manager.podSecurityContext | nindent 8 }}
       containers:
