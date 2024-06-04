@@ -1,10 +1,21 @@
-# vArmor: A Cloud Native Container Sandbox
+<div>
+    <picture>
+        <source media="(prefers-color-scheme: light)" srcset="docs/img/logo.svg" width="400">
+        <img src="docs/img/logo-dark.svg" alt="Logo" width="400">
+    </picture>
+</div>
+<br>
+
+[![Go Report Card](https://goreportcard.com/badge/github.com/bytedance/vArmor)](https://goreportcard.com/report/github.com/bytedance/vArmor)
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![License](https://img.shields.io/badge/license-GPL-blue.svg)](https://opensource.org/license/gpl-2-0)
+[![Latest release](https://img.shields.io/github/v/release/bytedance/vArmor)](https://github.com/bytedance/vArmor/releases)
 
 English | [简体中文](README.zh_CN.md)
 
 ## Introduction
 
-**vArmor** is a cloud-native container sandbox system. It leverages Linux's [AppArmor LSM](https://en.wikipedia.org/wiki/AppArmor), [BPF LSM](https://docs.kernel.org/bpf/prog_lsm.html) and [Seccomp](https://en.wikipedia.org/wiki/Seccomp) technologies to implement enforcers. It can be used to strengthen container isolation, reduce the kernel attack surface, and increase the difficulty and cost of container escape or lateral movement attacks. You can leverage vArmor in the following scenarios to provide sandbox protection for containers within a Kubernetes cluster.
+vArmor is a cloud-native container sandbox system. It leverages Linux's [AppArmor LSM](https://en.wikipedia.org/wiki/AppArmor), [BPF LSM](https://docs.kernel.org/bpf/prog_lsm.html) and [Seccomp](https://en.wikipedia.org/wiki/Seccomp) technologies to implement enforcers. It can be used to strengthen container isolation, reduce the kernel attack surface, and increase the difficulty and cost of container escape or lateral movement attacks. You can leverage vArmor in the following scenarios to provide sandbox protection for containers within a Kubernetes cluster.
 * In multi-tenant environments, hardware-virtualized container solutions cannot be employed due to factors such as cost and technical conditions.
 * When there is a need to enhance the security of critical business containers, making it more difficult for attackers to escalate privileges, escape, or laterally move.
 * When high-risk vulnerabilities are present, but immediate remediation is not possible due to the difficulty or lengthy process of patching. vArmor can be used to mitigate the risks (depending on the vulnerability type or exploitation vector) to block or increase the difficulty of exploitation.
@@ -24,7 +35,7 @@ vArmor was created by the **Elkeid Team** of the endpoint security department at
 
 
 ## Architecture
-<img src="docs/architecture.png" width="600">
+<img src="docs/img/architecture.png" width="600">
 
 
 ## Prerequisites

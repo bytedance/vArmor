@@ -1,10 +1,21 @@
-# vArmor: A Cloud Native Container Sandbox
+<div>
+    <picture>
+        <source media="(prefers-color-scheme: light)" srcset="docs/img/logo.svg" width="400">
+        <img src="docs/img/logo-dark.svg" alt="Logo" width="400">
+    </picture>
+</div>
+<br>
+
+[![Go Report Card](https://goreportcard.com/badge/github.com/bytedance/vArmor)](https://goreportcard.com/report/github.com/bytedance/vArmor)
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![License](https://img.shields.io/badge/license-GPL-blue.svg)](https://opensource.org/license/gpl-2-0)
+[![Latest release](https://img.shields.io/github/v/release/bytedance/vArmor)](https://github.com/bytedance/vArmor/releases)
 
 [English](README.md) | 简体中文
 
 ## 简介
 
-**vArmor** 是一个云原生容器沙箱系统，它借助 Linux 的 [AppArmor LSM](https://en.wikipedia.org/wiki/AppArmor), [BPF LSM](https://docs.kernel.org/bpf/prog_lsm.html) 和 [Seccomp](https://en.wikipedia.org/wiki/Seccomp) 技术实现强制访问控制器（即 enforcer），从而对容器进行安全加固。它可以用于增强容器隔离性、减少内核攻击面、增加容器逃逸或横行移动攻击的难度与成本。
+vArmor 是一个云原生容器沙箱系统，它借助 Linux 的 [AppArmor LSM](https://en.wikipedia.org/wiki/AppArmor), [BPF LSM](https://docs.kernel.org/bpf/prog_lsm.html) 和 [Seccomp](https://en.wikipedia.org/wiki/Seccomp) 技术实现强制访问控制器（即 enforcer），从而对容器进行安全加固。它可以用于增强容器隔离性、减少内核攻击面、增加容器逃逸或横行移动攻击的难度与成本。
 
 您可以借助 vArmor 在以下场景对 Kubernetes 集群中的容器进行沙箱防护
 * 业务场景存在多租户（多租户共享同一个集群），由于成本、技术条件等原因无法使用硬件虚拟化容器（如 Kata Container）
@@ -24,7 +35,7 @@ vArmor 由字节跳动终端安全团队的 **Elkeid Team** 研发，目前该�
 
 
 ## 架构
-<img src="docs/architecture.png" width="600">
+<img src="docs/img/architecture.png" width="600">
 
 
 ## 前置条件

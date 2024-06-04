@@ -57,4 +57,4 @@ Test results:
   * When the elastic cloud server is under high load, file copying may be accelerated due to factors like cache heat, leading to fluctuations.
   * The host may experience overselling, which can result in fluctuations in baseline test results within the elastic cloud server.
 
-  <img src="./bpf_enforcer_benchmark.png" width="600">
+  <img src="./img/bpf_enforcer_benchmark.png" width="600">
