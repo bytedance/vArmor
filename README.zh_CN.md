@@ -1,7 +1,7 @@
-<div align="center">
+<div>
     <picture>
-        <source media="(prefers-color-scheme: light)" srcset="docs/img/logo.svg">
-        <img src="docs/img/logo-dark.svg" alt="Logo" width="500">
+        <source media="(prefers-color-scheme: light)" srcset="docs/img/logo.svg" width="400">
+        <img src="docs/img/logo-dark.svg" alt="Logo" width="400">
     </picture>
 </div>
 <br>
@@ -15,7 +15,7 @@
 
 ## 简介
 
-**vArmor** 是一个云原生容器沙箱系统，它借助 Linux 的 [AppArmor LSM](https://en.wikipedia.org/wiki/AppArmor), [BPF LSM](https://docs.kernel.org/bpf/prog_lsm.html) 和 [Seccomp](https://en.wikipedia.org/wiki/Seccomp) 技术实现强制访问控制器（即 enforcer），从而对容器进行安全加固。它可以用于增强容器隔离性、减少内核攻击面、增加容器逃逸或横行移动攻击的难度与成本。
+vArmor 是一个云原生容器沙箱系统，它借助 Linux 的 [AppArmor LSM](https://en.wikipedia.org/wiki/AppArmor), [BPF LSM](https://docs.kernel.org/bpf/prog_lsm.html) 和 [Seccomp](https://en.wikipedia.org/wiki/Seccomp) 技术实现强制访问控制器（即 enforcer），从而对容器进行安全加固。它可以用于增强容器隔离性、减少内核攻击面、增加容器逃逸或横行移动攻击的难度与成本。
 
 您可以借助 vArmor 在以下场景对 Kubernetes 集群中的容器进行沙箱防护
 * 业务场景存在多租户（多租户共享同一个集群），由于成本、技术条件等原因无法使用硬件虚拟化容器（如 Kata Container）
