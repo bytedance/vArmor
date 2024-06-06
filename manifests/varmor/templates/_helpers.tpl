@@ -67,16 +67,7 @@ We truncate at 63 chars because some Kubernetes name fields are limited to this 
 If release name contains chart name it will be used as a full name.
 */}}
 {{- define "varmor.manager.fullname" -}}
-{{- if .Values.fullnameOverride }}
-{{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
-{{- else }}
-{{- $name := default .Chart.Name .Values.nameOverride }}
-{{- if contains $name .Release.Name }}
-{{- printf "%s-%s" .Release.Name .Values.manager.name | trunc 63 | trimSuffix "-" }}
-{{- else }}
-{{- printf "%s-%s-%s" .Release.Name $name .Values.manager.name | trunc 63 | trimSuffix "-" }}
-{{- end }}
-{{- end }}
+{{- printf "varmor-%s" .Values.manager.name | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{- define "varmor.manager.labels" -}}
@@ -110,16 +101,7 @@ We truncate at 63 chars because some Kubernetes name fields are limited to this 
 If release name contains chart name it will be used as a full name.
 */}}
 {{- define "varmor.agent.fullname" -}}
-{{- if .Values.fullnameOverride }}
-{{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
-{{- else }}
-{{- $name := default .Chart.Name .Values.nameOverride }}
-{{- if contains $name .Release.Name }}
-{{- printf "%s-%s" .Release.Name .Values.agent.name | trunc 63 | trimSuffix "-" }}
-{{- else }}
-{{- printf "%s-%s-%s" .Release.Name $name .Values.agent.name | trunc 63 | trimSuffix "-" }}
-{{- end }}
-{{- end }}
+{{- printf "varmor-%s" .Values.agent.name | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{- define "varmor.agent.labels" -}}

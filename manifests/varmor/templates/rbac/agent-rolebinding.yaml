@@ -1,15 +1,15 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: varmor-agent
+  name: {{ include "varmor.agent.fullname" . }}
   namespace: {{ include "varmor.namespace" . }}
   labels:
     {{- include "varmor.agent.labels" . | nindent 4 }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
-  name: varmor-agent
+  name: {{ include "varmor.agent.fullname" . }}
 subjects:
 - kind: ServiceAccount
-  name: varmor-agent
+  name: {{ include "varmor.agent.serviceAccountName" . }}
   namespace: {{ include "varmor.namespace" . }}
