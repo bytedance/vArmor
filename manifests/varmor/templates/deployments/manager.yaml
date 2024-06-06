@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: varmor-manager
+  name: {{ include "varmor.manager.fullname" . }}
   namespace: {{ include "varmor.namespace" . }}
   labels:
     {{- include "varmor.manager.labels" . | nindent 4 }}
@@ -27,7 +27,7 @@ spec:
       {{- toYaml . | nindent 6 }}
       {{- end }}
       {{- end }}
-      serviceAccountName: varmor-manager
+      serviceAccountName: {{ include "varmor.manager.serviceAccountName" . }}
       securityContext:
         {{- toYaml .Values.manager.podSecurityContext | nindent 8 }}
       containers:
