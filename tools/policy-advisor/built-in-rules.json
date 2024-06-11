@@ -3,7 +3,17 @@
     {
       "id": "disallow-write-core-pattern",
       "enforcers": ["apparmor", "bpf"],
-      "conflicts": {},
+      "conflicts": {
+        "files": [
+          {
+            "path_regex": "\/proc\/sys\/kernel\/core_pattern",
+            "permissions": [
+              "w",
+              "a"
+            ]
+          }
+        ]
+      },
       "applicable": {
         "features": ["privileged-container"],
         "capabilities": ["sys_admin"]
@@ -30,7 +40,17 @@
     {
       "id": "disallow-write-release-agent",
       "enforcers": ["apparmor", "bpf"],
-      "conflicts": {},
+      "conflicts": {
+        "files": [
+          {
+            "path_regex": "\/sys\/fs\/cgroup\/.*\/release_agent",
+            "permissions": [
+              "w",
+              "a"
+            ]
+          }
+        ]
+      },
       "applicable": {
         "features": ["privileged-container"]
       }
@@ -103,7 +123,16 @@
     {
       "id": "disallow-access-procfs-root",
       "enforcers": ["apparmor", "bpf"],
-      "conflicts": {},
+      "conflicts": {
+        "files": [
+          {
+            "path_regex": "\/proc\/.*\/root$|\/proc\/.*\/root\/",
+            "permissions": [
+              "*"
+            ]
+          }
+        ]
+      },
       "applicable": {
         "features": ["share-containers-pid-ns", "share-host-pid-ns"]
       }
@@ -111,7 +140,16 @@
     {
       "id": "disallow-access-kallsyms",
       "enforcers": ["apparmor", "bpf"],
-      "conflicts": {},
+      "conflicts": {
+        "files": [
+          {
+            "path_regex": "\/proc\/kallsyms",
+            "permissions": [
+              "r"
+            ]
+          }
+        ]
+      },
       "applicable": {
         "features": ["privileged-container"],
         "capabilities": ["syslog"]
@@ -480,20 +518,58 @@
       "id": "mitigate-sa-leak",
       "enforcers": ["apparmor", "bpf"],
       "conflicts": {
-        "features": ["require-sa"]
+        "features": ["require-sa"],
+        "files": [
+          {
+            "path_regex": "\/run\/secrets\/kubernetes.io\/serviceaccount\/",
+            "permissions": [
+              "r"
+            ]
+          }
+        ]
       }
     },
     {
       "id": "mitigate-disk-device-number-leak",
-      "enforcers": ["apparmor", "bpf"]
+      "enforcers": ["apparmor", "bpf"],
+      "conflicts": {
+        "files": [
+          {
+            "path_regex": "\/proc\/partitions|\/proc\/.*\/mountinfo",
+            "permissions": [
+              "r"
+            ]
+          }
+        ]
+      }
     },
     {
       "id": "mitigate-overlayfs-leak",
-      "enforcers": ["apparmor", "bpf"]
+      "enforcers": ["apparmor", "bpf"],
+      "conflicts": {
+        "files": [
+          {
+            "path_regex": "\/proc\/mounts|\/proc\/.*\/mounts|\/proc\/.*\/mountinfo",
+            "permissions": [
+              "r"
+            ]
+          }
+        ]
+      }
     },
     {
       "id": "mitigate-host-ip-leak",
-      "enforcers": ["apparmor", "bpf"]
+      "enforcers": ["apparmor", "bpf"],
+      "conflicts": {
+        "files": [
+          {
+            "path_regex": "\/proc\/net\/arp|\/proc\/.*\/net\/arp",
+            "permissions": [
+              "r"
+            ]
+          }
+        ]
+      }
     },
     {
       "id": "disallow-metadata-service",
@@ -503,7 +579,18 @@
   "sensitive_operations": [
     {
       "id": "disable-write-etc",
-      "enforcers": ["apparmor", "bpf"]
+      "enforcers": ["apparmor", "bpf"],
+      "conflicts": {
+        "files": [
+          {
+            "path_regex": "^\/etc$|^\/etc\/|\/containerd\/.*\/fs\/root\/etc$|\/containerd\/.*\/fs\/root\/etc\/",
+            "permissions": [
+              "w",
+              "a"
+            ]
+          }
+        ]
+      }
     },
     {
       "id": "disable-busybox",
@@ -565,11 +652,33 @@
   "vulnerability_mitigation": [
     {
       "id": "cgroups-lxcfs-escape-mitigation",
-      "enforcers": ["apparmor", "bpf"]
+      "enforcers": ["apparmor", "bpf"],
+      "conflicts": {
+        "files": [
+          {
+            "path_regex": "\/release_agent$|\/devices\/devices.allow$|\/devices\/.*\/devices.allow$|\/devices\/cgroup.procs$|\/devices\/.*\/cgroup.procs$|\/devices\/tasks$|\/devices\/.*\/tasks$",
+            "permissions": [
+              "w",
+              "a"
+            ]
+          }
+        ]
+      }
     },
     {
       "id": "runc-override-mitigation",
-      "enforcers": ["apparmor", "bpf"]
+      "enforcers": ["apparmor", "bpf"],
+      "conflicts": {
+        "files": [
+          {
+            "path_regex": "\/runc$",
+            "permissions": [
+              "w",
+              "a"
+            ]
+          }
+        ]
+      }
     },
     {
       "id": "dirty-pipe-mitigation",

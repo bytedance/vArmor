@@ -1,16 +1,6 @@
 import os, json, yaml, argparse, sys
 from argparse import RawTextHelpFormatter
-
-
-def has_common_item(list_one, list_two):
-  for item in list_one:
-    if item == '*':
-      return True
-    if item in list_two:
-      return True
-
-  return False
-
+from utils import *
 
 def skip_the_rule_with_context(rule, enforcers, app_features, app_capabilities, ignore_applicable):
   if not has_common_item(enforcers, rule["enforcers"]):
@@ -36,38 +26,6 @@ def skip_the_rule_with_context(rule, enforcers, app_features, app_capabilities, 
   return False
 
 
-def retrieve_capabilities_from_model(armor_profile_model):
-  caps = []
-  if "data" in armor_profile_model and \
-    "dynamicResult" in armor_profile_model["data"] and \
-    "apparmor" in armor_profile_model["data"]["dynamicResult"] and \
-    "capabilities" in armor_profile_model["data"]["dynamicResult"]["apparmor"]:
-    caps.extend(armor_profile_model["data"]["dynamicResult"]["apparmor"]["capabilities"])
-  return caps
-
-
-def retrieve_syscalls_from_model(armor_profile_model):
-  if "data" in armor_profile_model and \
-    "dynamicResult" in armor_profile_model["data"] and \
-    "seccomp" in armor_profile_model["data"]["dynamicResult"] and \
-    "syscalls" in armor_profile_model["data"]["dynamicResult"]["seccomp"]:
-    return armor_profile_model["data"]["dynamicResult"]["seccomp"]["syscalls"]
-  return []
-
-
-def retrieve_executions_from_model(armor_profile_model):
-  executions = []
-  if "data" in armor_profile_model and \
-    "dynamicResult" in armor_profile_model["data"] and \
-    "apparmor" in armor_profile_model["data"]["dynamicResult"] and \
-    "executions" in armor_profile_model["data"]["dynamicResult"]["apparmor"]:
-
-    for execution in armor_profile_model["data"]["dynamicResult"]["apparmor"]["executions"]:
-      executions.append(os.path.basename(execution))
-
-  return executions
-
-
 def skip_the_rule_with_model_data(rule, enforcers, armor_profile_model):
   if not has_common_item(enforcers, rule["enforcers"]):
     return True
@@ -85,6 +43,10 @@ def skip_the_rule_with_model_data(rule, enforcers, armor_profile_model):
       executions = retrieve_executions_from_model(armor_profile_model)
       return has_common_item(rule["conflicts"]["executions"], executions)
 
+    if "files" in rule["conflicts"]:
+      files = retrieve_files_from_model(armor_profile_model)
+      return files_conflict_with_rule(rule["conflicts"]["files"], files)
+
   return False
 
 
@@ -95,12 +57,6 @@ def set_enforcer(policy, enforcers):
     policy["enforcer"] += "BPF"
   if "Seccomp" not in policy["enforcer"] and "seccomp" in enforcers:
     policy["enforcer"] += "Seccomp"
-
-
-def debug_print(rule, debug):
-  if debug:
-    print("--------------")
-    print(rule["id"])
 
 
 def generate_policy_template(policy, built_in_rules, enforcers, app_features, app_capabilities, armor_profile_model, debug):
@@ -304,30 +260,26 @@ For Example: "sys_admin,net_admin,sys_module"\n\n''')
 The input file must be in JSON format. You can export the data with kubectl command, such as: 
 kubectl get ArmorProfileModel -n {NAMESPACE} {NAME} -o json > model.json\n\n''')
 
-  parser.add_argument("-d", dest="debug", type=bool, default=False, help="Print debug information.")
+  parser.add_argument("-d", dest="debug", action="store_true", default=False, help="Print debug information.")
 
   args = parser.parse_args()
-
   enforcers = args.enforcers.lower().split(',')
   features = args.features.lower().split(',')
   capabilities = args.capabilities.lower().split(',')
-  model_file = args.behavior_model
-
   if len(features) == 1 and '' in features:
     features = []
   if len(capabilities) == 1 and '' in capabilities:
     capabilities = []
 
-  if model_file and not os.path.exists(model_file):
+  if args.behavior_model and not os.path.exists(args.behavior_model):
     print("[!] The model file isn't exist.")
     sys.exit(1)
 
-  current_dir = os.path.dirname(os.path.realpath(__file__))
   with open(os.path.join(current_dir, "./built-in-rules.json"), "r") as f:
     built_in_rules = json.load(f)
 
-    if model_file:
-      with open(model_file, "r") as model_f:
+    if args.behavior_model:
+      with open(args.behavior_model, "r") as model_f:
         armor_profile_model = json.load(model_f)
         built_in_rules_advisor(built_in_rules, enforcers, features, capabilities, armor_profile_model, args.debug)
     else:
