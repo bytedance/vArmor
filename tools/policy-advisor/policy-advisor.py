@@ -2,7 +2,7 @@ import os, json, yaml, argparse, sys
 from argparse import RawTextHelpFormatter
 from utils import *
 
-def skip_the_rule_with_context(rule, enforcers, app_features, app_capabilities, ignore_applicable):
+def skip_the_rule_with_context(rule, enforcers, app_features, app_capabilities):
   if not has_common_item(enforcers, rule["enforcers"]):
     return True
 
@@ -14,7 +14,7 @@ def skip_the_rule_with_context(rule, enforcers, app_features, app_capabilities, 
       if has_common_item(rule["conflicts"]["capabilities"], app_capabilities):
         return True
 
-  if "applicable" in rule and not ignore_applicable:
+  if "applicable" in rule:
     if "features" in rule["applicable"]:
       if has_common_item(rule["applicable"]["features"], app_features):
         return False
@@ -63,17 +63,10 @@ def generate_policy_template(policy, built_in_rules, enforcers, app_features, ap
   if "privileged-container" in app_features:
     policy["enhanceProtect"]["privileged"] = True
 
-  # If we want to generate policy template using behavior model data 
-  # and no context information is provided, we should ignore the
-  # 'applicable' field in the built-in rules.
-  ignore_applicable = False
-  if (not app_features and not app_capabilities) and armor_profile_model:
-    ignore_applicable = True
-
   # ========= Hardening - Securing Privileged Containers =========
   for rule in built_in_rules["escape_pattern"]:
     # Filter out the rule with context
-    if skip_the_rule_with_context(rule, enforcers, app_features, app_capabilities, ignore_applicable):
+    if skip_the_rule_with_context(rule, enforcers, app_features, app_capabilities):
       continue
 
     # Filter out the rule with behavior model data
@@ -89,7 +82,7 @@ def generate_policy_template(policy, built_in_rules, enforcers, app_features, ap
     exist_cap_rules = False
     for rule in built_in_rules["capability_set"]:
       # Filter out the rule with context
-      if skip_the_rule_with_context(rule, enforcers, app_features, app_capabilities, ignore_applicable):
+      if skip_the_rule_with_context(rule, enforcers, app_features, app_capabilities):
         continue
 
       # Filter out the rule with behavior model data
@@ -105,7 +98,7 @@ def generate_policy_template(policy, built_in_rules, enforcers, app_features, ap
     if not exist_cap_rules:
       for rule in built_in_rules["capability"]:
         # Filter out the rule with context
-        if skip_the_rule_with_context(rule, enforcers, app_features, app_capabilities, ignore_applicable):
+        if skip_the_rule_with_context(rule, enforcers, app_features, app_capabilities):
           continue
 
         # Filter out the rule with behavior model data
@@ -119,7 +112,7 @@ def generate_policy_template(policy, built_in_rules, enforcers, app_features, ap
   # ========= Hardening - Blocking Exploit Vectors =========
   for rule in built_in_rules["blocking_exploit_vectors"]:
     # Filter out the rule with context
-    if skip_the_rule_with_context(rule, enforcers, app_features, app_capabilities, ignore_applicable):
+    if skip_the_rule_with_context(rule, enforcers, app_features, app_capabilities):
       continue
 
     # Filter out the rule with behavior model data
@@ -133,7 +126,7 @@ def generate_policy_template(policy, built_in_rules, enforcers, app_features, ap
   # ========= Attack Protection - Mitigating Information Leakage =========
   for rule in built_in_rules["information_leak"]:
     # Filter out the rule with context
-    if skip_the_rule_with_context(rule, enforcers, app_features, app_capabilities, ignore_applicable):
+    if skip_the_rule_with_context(rule, enforcers, app_features, app_capabilities):
       continue
 
     # Filter out the rule with behavior model data
@@ -151,7 +144,7 @@ def generate_policy_template(policy, built_in_rules, enforcers, app_features, ap
   if armor_profile_model:
     for rule in built_in_rules["sensitive_operations"]:
       # Filter out the rule with context
-      if skip_the_rule_with_context(rule, enforcers, app_features, app_capabilities, ignore_applicable):
+      if skip_the_rule_with_context(rule, enforcers, app_features, app_capabilities):
         continue
 
       # Filter out the rule with behavior model data
@@ -165,7 +158,7 @@ def generate_policy_template(policy, built_in_rules, enforcers, app_features, ap
   # ========= Vulnerability Mitigation =========
   for rule in built_in_rules["vulnerability_mitigation"]:
     # Filter out the rule with context
-    if skip_the_rule_with_context(rule, enforcers, app_features, app_capabilities, ignore_applicable):
+    if skip_the_rule_with_context(rule, enforcers, app_features, app_capabilities):
       continue
 
     # Filter out the rule with behavior model data
@@ -222,7 +215,7 @@ use cases:
 1). Generate a policy template that runs in EnhanceProtect mode with built-in rules supported by AppArmor and BPF enforcers.
     policy-advisor.py AppArmor,BPF -f share-containers-pid-ns -c sys_admin,net_admin,kill
 
-2). Filter out the conflicted built-in rules with behavior model data to make the policy template more percise.
+2). Filter out the conflicted built-in rules with behavior model data to make the policy template more precise.
     policy-advisor.py AppArmor,BPF -f share-containers-pid-ns -c sys_admin,net_admin,kill -m model_data.json
 ''')
 
@@ -232,7 +225,8 @@ Available Values: AppArmor, BPF, Seccomp (they should be combined with commas.)
 For Example: "AppArmor,BPF,Seccomp"\n''')
 
   parser.add_argument("-f", dest="features", type=str, default="",
-    help='''The features of the target application and its container.
+    help='''The features of the target application and its container. Providing as comprehensive features as 
+possible helps generate more precise policy templates.
 
 Available Values (they should be combined with commas.):
   * privileged-container: The target application runs in a privileged container.
@@ -246,11 +240,11 @@ Available Values (they should be combined with commas.):
 For Example: "privileged-container,require-sa,bind-privileged-socket-port"\n\n''')
 
   parser.add_argument("-c", dest="capabilities", type=str, default="",
-    help='''The capabilities required by the target application and its containers. Providing as comprehensive 
-a capability as possible helps generate more accurate strategy templates for you. For example, 
-before Linux 5.8, loading BPF programs required sys_admin capability. Since Linux 5.8, loading 
-BPF programs requires bpf, perfmon or net_admin capabilities. If your application needs to load 
-BPF programs, please add both sys_admin and bpf, that is "sys_admin,bpf". See CAPABILITIES(7).
+    help='''The capabilities required by the target application and its containers. Providing the capabilities 
+needed for the application explicitly helps generate more precise policy templates. For example, 
+before Linux 5.8, loading BPF programs required sys_admin capability. Since Linux 5.8, loading BPF 
+programs requires bpf, perfmon or net_admin capabilities. If your application needs to load BPF 
+programs, please add both sys_admin and bpf, that is "sys_admin,bpf". See CAPABILITIES(7).
 
 Available Values: CAPABILITIES(7) without 'CAP_' prefix (they should be combined with commas).
 For Example: "sys_admin,net_admin,sys_module"\n\n''')
