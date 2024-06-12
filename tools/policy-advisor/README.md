@@ -28,7 +28,8 @@ positional arguments:
 
 optional arguments:
   -h, --help         show this help message and exit
-  -f FEATURES        The features of the target application and its container.
+  -f FEATURES        The features of the target application and its container. Providing as comprehensive features as
+                     possible helps generate more precise policy templates.
 
                      Available Values (they should be combined with commas.):
                        * privileged-container: The target application runs in a privileged container.
@@ -41,11 +42,11 @@ optional arguments:
                        * bind-privileged-socket-port: The target application needs to listen on a socket port less than 1024.
                      For Example: "privileged-container,require-sa,bind-privileged-socket-port"
 
-  -c CAPABILITIES    The capabilities required by the target application and its containers. Providing as comprehensive
-                     a capability as possible helps generate more accurate strategy templates for you. For example,
-                     before Linux 5.8, loading BPF programs required sys_admin capability. Since Linux 5.8, loading
-                     BPF programs requires bpf, perfmon or net_admin capabilities. If your application needs to load
-                     BPF programs, please add both sys_admin and bpf, that is "sys_admin,bpf". See CAPABILITIES(7).
+  -c CAPABILITIES    The capabilities required by the target application and its containers. Providing the capabilities
+                     needed for the application explicitly helps generate more precise policy templates. For example,
+                     before Linux 5.8, loading BPF programs required sys_admin capability. Since Linux 5.8, loading BPF
+                     programs requires bpf, perfmon or net_admin capabilities. If your application needs to load BPF
+                     programs, please add both sys_admin and bpf, that is "sys_admin,bpf". See CAPABILITIES(7).
 
                      Available Values: CAPABILITIES(7) without 'CAP_' prefix (they should be combined with commas).
                      For Example: "sys_admin,net_admin,sys_module"
