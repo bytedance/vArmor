@@ -18,7 +18,7 @@ Note: <br>- vArmor policy supports dynamic switching of running modes (limited t
 
 ## The Built-in Rules
 
-**vArmor** supports defining protection policies ([VarmorPolicy](usage_instructions.md#varmorpolicy)/[VarmorClusterPolicy](usage_instructions.md#varmorclusterpolicy)) using built-in rules and custom interfaces in **EnhanceProtect** mode. The currently supported built-in rules and categories are shown in the following table.
+**vArmor** supports defining protection policies ([VarmorPolicy](usage_instructions.md#varmorpolicy)/[VarmorClusterPolicy](usage_instructions.md#varmorclusterpolicy)) using built-in rules and custom interfaces in **EnhanceProtect** mode. The currently supported built-in rules and categories are shown in the following table. You can try using the [policy advisor](../tools/policy-advisor/README.md) to generate a policy template with built-in rules.
 
 Note:<br>- The built-in rules and syntax supported by different enforcers are still under development.<br>- There are some limitations in the rules and syntax supported by different enforcers. For example, the AppArmor enforcer does not support fine-grained network access control, and BPF does not support access control for specified executables.<br>
 

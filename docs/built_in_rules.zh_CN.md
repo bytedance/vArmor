@@ -16,7 +16,7 @@
 
 
 ## 内置规则
-**vArmor** 支持使用在 **EnhanceProtect** 模式下使用内置规则和自定义接口来定义防护策略，当前支持的内置规则及其分类如下表所示。
+**vArmor** 支持使用在 **EnhanceProtect** 模式下使用内置规则和自定义接口来定义防护策略，当前支持的内置规则及其分类如下表所示。你可以尝试使用 [policy advisor](../tools/policy-advisor/README.md) 来生成策略模版，从而帮助创建最终的防护策略。
 
 注意：<br>- 不同 enforcer 所支持的内置策略与语法仍旧处于开发中。<br>- 不同 enforcer 所能支持的规则和语法会有所区别。例如 AppArmor enforcer 不支持细粒度的网络访问控制，BPF 不支持对指定的可执行程序进行访问控制等。<br>
 
