@@ -216,7 +216,7 @@ You may modify the template accordingly based on the specific requirements of yo
 if __name__ == "__main__":
   parser = argparse.ArgumentParser(formatter_class=RawTextHelpFormatter,
     description='''This program can help users generate a `.spec.policy` template with built-in rules or the behavior model data. 
-The template can be a good start to create the final policy. Please use the -f and -c command-line arguments to specify the context.
+The template can be a good start to craft the final policy. Please use the -f and -c command-line arguments to specify the context.
 
 use cases: 
 1). Generate a policy template that runs in EnhanceProtect mode with built-in rules supported by AppArmor and BPF enforcers.
@@ -249,7 +249,7 @@ For Example: "privileged-container,require-sa,bind-privileged-socket-port"\n\n''
     help='''The capabilities required by the target application and its containers. Providing as comprehensive 
 a capability as possible helps generate more accurate strategy templates for you. For example, 
 before Linux 5.8, loading BPF programs required sys_admin capability. Since Linux 5.8, loading 
-BPF programs requires bpf, perfon or net_admin capabilities. If your application needs to load 
+BPF programs requires bpf, perfmon or net_admin capabilities. If your application needs to load 
 BPF programs, please add both sys_admin and bpf, that is "sys_admin,bpf". See CAPABILITIES(7).
 
 Available Values: CAPABILITIES(7) without 'CAP_' prefix (they should be combined with commas).
