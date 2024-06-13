@@ -388,8 +388,7 @@ func (m *StatusManager) syncData(data string) error {
 	oldDynamicResult := apm.Data.DynamicResult.DeepCopy()
 	mergeAppArmorResult(apm, &behaviorData)
 	mergeSeccompResult(apm, &behaviorData)
-	needUpdateAPM := !reflect.DeepEqual(oldDynamicResult, &apm.Data.DynamicResult)
-	if !needUpdateAPM {
+	if reflect.DeepEqual(oldDynamicResult, &apm.Data.DynamicResult) {
 		logger.Info("2. no new behavior data to update to ArmorProfileModel", "profile", behaviorData.ProfileName, "node", behaviorData.NodeName)
 	} else {
 		// Update ArmorProfileModel object
@@ -421,37 +420,36 @@ func (m *StatusManager) syncData(data string) error {
 	if modelingStatus.CompletedNumber >= m.desiredNumber {
 		complete = true
 
-		logger.Info("3.1 all modeller completed")
+		logger.Info("3.1. all modeller completed")
 
-		if needUpdateAPM {
-			// Build the final AppArmor Profile
-			logger.Info("3.1.1 build AppArmor profile with behavior model")
-			apparmorProfile, err := apparmorprofile.GenerateProfileWithBehaviorModel(&apm.Data.DynamicResult, m.debug)
-			if err != nil {
-				logger.Info("3.1.1 no AppArmor profile built", "info", err)
-			}
-
-			// Build the final Seccomp Profile
-			logger.Info("3.1.2 build AppArmor profile with behavior model")
-			seccompProfile, err := seccompprofile.GenerateProfileWithBehaviorModel(&apm.Data.DynamicResult)
-			if err != nil {
-				logger.Info("3.1.2 no Seccomp profile built", "info", err)
-			}
-
-			// Update ArmorProfileModel object
-			logger.Info("3.2 update profile to ArmorProfileModel", "namespace", behaviorData.Namespace, "name", behaviorData.ProfileName)
-			apm.Data.Profile.Content = apparmorProfile
-			apm.Data.Profile.SeccompContent = seccompProfile
-			apm.Data.Profile.Name = behaviorData.ProfileName
-			apm.Data.Profile.Enforcer = ""
-			apm.Data.Profile.Mode = ""
-			apm, err = m.updateArmorProfileModel(apm)
-			if err != nil {
-				logger.Error(err, "m.updateArmorProfileModel()")
-				return err
-			}
+		// Build the final AppArmor Profile
+		logger.Info("3.1.1. build AppArmor profile with behavior model")
+		apparmorProfile, err := apparmorprofile.GenerateProfileWithBehaviorModel(&apm.Data.DynamicResult, m.debug)
+		if err != nil {
+			logger.Info("apparmorprofile.GenerateProfileWithBehaviorModel() failed", "info", err)
 		}
-		logger.Info("3.3 send signal to UpdateModeCh", "status key", statusKey)
+
+		// Build the final Seccomp Profile
+		logger.Info("3.1.2. build Seccomp profile with behavior model")
+		seccompProfile, err := seccompprofile.GenerateProfileWithBehaviorModel(&apm.Data.DynamicResult)
+		if err != nil {
+			logger.Info("seccompprofile.GenerateProfileWithBehaviorModel() failed", "info", err)
+		}
+
+		// Update ArmorProfileModel object
+		logger.Info("3.2. update profile to ArmorProfileModel", "namespace", behaviorData.Namespace, "name", behaviorData.ProfileName)
+		apm.Data.Profile.Content = apparmorProfile
+		apm.Data.Profile.SeccompContent = seccompProfile
+		apm.Data.Profile.Name = behaviorData.ProfileName
+		apm.Data.Profile.Enforcer = ""
+		apm.Data.Profile.Mode = ""
+		apm, err = m.updateArmorProfileModel(apm)
+		if err != nil {
+			logger.Error(err, "m.updateArmorProfileModel()")
+			return err
+		}
+
+		logger.Info("3.3. send signal to UpdateModeCh", "status key", statusKey)
 		m.UpdateModeCh <- statusKey
 	}
 
