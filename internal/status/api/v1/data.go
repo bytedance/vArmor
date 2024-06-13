@@ -423,21 +423,21 @@ func (m *StatusManager) syncData(data string) error {
 		logger.Info("3.1. all modeller completed")
 
 		// Build the final AppArmor Profile
-		logger.Info("3.1.1 build AppArmor profile with behavior model")
+		logger.Info("3.1.1. build AppArmor profile with behavior model")
 		apparmorProfile, err := apparmorprofile.GenerateProfileWithBehaviorModel(&apm.Data.DynamicResult, m.debug)
 		if err != nil {
 			logger.Info("apparmorprofile.GenerateProfileWithBehaviorModel() failed", "info", err)
 		}
 
 		// Build the final Seccomp Profile
-		logger.Info("3.1.2 build Seccomp profile with behavior model")
+		logger.Info("3.1.2. build Seccomp profile with behavior model")
 		seccompProfile, err := seccompprofile.GenerateProfileWithBehaviorModel(&apm.Data.DynamicResult)
 		if err != nil {
 			logger.Info("seccompprofile.GenerateProfileWithBehaviorModel() failed", "info", err)
 		}
 
 		// Update ArmorProfileModel object
-		logger.Info("3.2 update profile to ArmorProfileModel", "namespace", behaviorData.Namespace, "name", behaviorData.ProfileName)
+		logger.Info("3.2. update profile to ArmorProfileModel", "namespace", behaviorData.Namespace, "name", behaviorData.ProfileName)
 		apm.Data.Profile.Content = apparmorProfile
 		apm.Data.Profile.SeccompContent = seccompProfile
 		apm.Data.Profile.Name = behaviorData.ProfileName
@@ -449,7 +449,7 @@ func (m *StatusManager) syncData(data string) error {
 			return err
 		}
 
-		logger.Info("3.3 send signal to UpdateModeCh", "status key", statusKey)
+		logger.Info("3.3. send signal to UpdateModeCh", "status key", statusKey)
 		m.UpdateModeCh <- statusKey
 	}
 
