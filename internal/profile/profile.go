@@ -209,6 +209,7 @@ func NewArmorProfile(obj interface{}, varmorInterface varmorinterface.CrdV1beta1
 				Controller: &controller,
 			},
 		}
+		ap.Finalizers = []string{"varmor.org/ap-protection"}
 
 		profile, err := GenerateProfile(vcp.Spec.Policy, ap.Name, ap.Namespace, varmorInterface, false)
 		if err != nil {
@@ -242,6 +243,7 @@ func NewArmorProfile(obj interface{}, varmorInterface varmorinterface.CrdV1beta1
 				Controller: &controller,
 			},
 		}
+		ap.Finalizers = []string{"varmor.org/ap-protection"}
 
 		profile, err := GenerateProfile(vp.Spec.Policy, ap.Name, ap.Namespace, varmorInterface, false)
 		if err != nil {
