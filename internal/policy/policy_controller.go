@@ -157,10 +157,11 @@ func (c *PolicyController) handleDeleteVarmorPolicy(namespace, name string) erro
 			return err
 		}
 	} else {
-		logger.Info("delete ArmorProfile")
-		err = c.varmorInterface.ArmorProfiles(namespace).Delete(context.Background(), apName, metav1.DeleteOptions{})
+		logger.Info("remove ArmorProfile's finalizers")
+		ap.Finalizers = []string{}
+		_, err := c.varmorInterface.ArmorProfiles(namespace).Update(context.Background(), ap, metav1.UpdateOptions{})
 		if err != nil {
-			logger.Error(err, "ArmorProfile().Delete()")
+			logger.Error(err, "remove ArmorProfile's finalizers failed")
 			return err
 		}
 	}
