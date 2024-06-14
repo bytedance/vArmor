@@ -509,7 +509,6 @@ func updateWorkloadAnnotationsAndEnv(
 }
 
 func forceSetOwnerReference(ap *varmor.ArmorProfile, obj interface{}, clusterScope bool) {
-	controller := true
 	if clusterScope {
 		vcp := obj.(*varmor.VarmorClusterPolicy)
 		ap.OwnerReferences = []metav1.OwnerReference{
@@ -518,7 +517,6 @@ func forceSetOwnerReference(ap *varmor.ArmorProfile, obj interface{}, clusterSco
 				Kind:       "VarmorClusterPolicy",
 				Name:       vcp.Name,
 				UID:        vcp.UID,
-				Controller: &controller,
 			},
 		}
 	} else {
@@ -529,7 +527,6 @@ func forceSetOwnerReference(ap *varmor.ArmorProfile, obj interface{}, clusterSco
 				Kind:       "VarmorPolicy",
 				Name:       vp.Name,
 				UID:        vp.UID,
-				Controller: &controller,
 			},
 		}
 	}

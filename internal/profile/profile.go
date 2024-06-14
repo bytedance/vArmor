@@ -191,7 +191,6 @@ func GenerateProfile(policy varmor.Policy, name string, namespace string, varmor
 
 func NewArmorProfile(obj interface{}, varmorInterface varmorinterface.CrdV1beta1Interface, clusterScope bool) (*varmor.ArmorProfile, error) {
 	ap := varmor.ArmorProfile{}
-	controller := true
 
 	if clusterScope {
 		vcp := obj.(*varmor.VarmorClusterPolicy)
@@ -206,7 +205,6 @@ func NewArmorProfile(obj interface{}, varmorInterface varmorinterface.CrdV1beta1
 				Kind:       "VarmorClusterPolicy",
 				Name:       vcp.Name,
 				UID:        vcp.UID,
-				Controller: &controller,
 			},
 		}
 
@@ -239,7 +237,6 @@ func NewArmorProfile(obj interface{}, varmorInterface varmorinterface.CrdV1beta1
 				Kind:       "VarmorPolicy",
 				Name:       vp.Name,
 				UID:        vp.UID,
-				Controller: &controller,
 			},
 		}
 
