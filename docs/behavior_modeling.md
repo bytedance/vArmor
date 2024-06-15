@@ -29,7 +29,7 @@ If you are using [AKS](https://azure.microsoft.com/en-us/products/kubernetes-ser
     ```
 4. Enable the **BehaviorModeling** feature with `--set behaviorModeling.enabled=true`
     ```
-    helm upgrade varmor varmor-0.5.8.tgz \
+    helm upgrade varmor varmor-0.5.9.tgz \
         --namespace varmor --create-namespace \
         --set image.registry="elkeid-cn-beijing.cr.volces.com" \
         --set behaviorModeling.enabled=true
