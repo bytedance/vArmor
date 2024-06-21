@@ -57,7 +57,7 @@ vArmor 的策略支持 5 种运行模式：**AlwaysAllow、RuntimeDefault、Enha
 
 
 ## 快速上手
-更多配置项和使用说明详见 [使用说明](docs/usage_instructions.zh_CN.md)。您可以参考 [样例](test/demo) 来了解相关功能的用法，从而辅助策略编写。您也可以尝试使用 [policy-advisor](tools/policy-advisor/policy-advisor.py) 生成策略模版，并在模版基础上制定最终的策略。
+更多配置项和使用说明详见 [使用说明](docs/usage_instructions.zh_CN.md)。您可以参考 [样例](test/demo) 来了解相关功能的用法，从而辅助策略编写。您也可以尝试使用 [policy-advisor](tools/policy-advisor/README.md) 生成策略模版，并在模版基础上制定最终的策略。
 
 ### Step 1. 拉取 chart 包
 ```
