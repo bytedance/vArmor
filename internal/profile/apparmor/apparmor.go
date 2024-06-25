@@ -144,7 +144,7 @@ func generateHardeningRules(rule, qualifier string) (rules string) {
 
 	// disable privileged capabilities
 	case "disable-cap-privileged":
-		rules += qualifier + "deny capability dac_read_searchn\n"
+		rules += qualifier + "deny capability dac_read_search,\n"
 		rules += qualifier + "deny capability linux_immutable,\n"
 		rules += qualifier + "deny capability net_broadcast,\n"
 		rules += qualifier + "deny capability net_admin,\n"
