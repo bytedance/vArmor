@@ -26,7 +26,7 @@ import (
 )
 
 func Test_createRuntimeMonitor(t *testing.T) {
-	createCh := make(chan varmortypes.ContainerInfo, 100)
+	startCh := make(chan varmortypes.ContainerInfo, 100)
 	deleteCh := make(chan varmortypes.ContainerInfo, 100)
 	syncCh := make(chan bool, 1)
 
@@ -37,11 +37,11 @@ func Test_createRuntimeMonitor(t *testing.T) {
 	}
 	defer monitor.Close()
 
-	monitor.SetTaskNotifyChs(createCh, deleteCh, syncCh)
+	monitor.SetTaskNotifyChs(startCh, deleteCh, syncCh)
 }
 
 func Test_watchContainerdEvents(t *testing.T) {
-	createCh := make(chan varmortypes.ContainerInfo, 100)
+	startCh := make(chan varmortypes.ContainerInfo, 100)
 	deleteCh := make(chan varmortypes.ContainerInfo, 100)
 	syncCh := make(chan bool, 1)
 
@@ -52,7 +52,7 @@ func Test_watchContainerdEvents(t *testing.T) {
 	}
 	defer monitor.Close()
 
-	monitor.SetTaskNotifyChs(createCh, deleteCh, syncCh)
+	monitor.SetTaskNotifyChs(startCh, deleteCh, syncCh)
 
 	log.Log.Info("monitoring")
 	go monitor.Run(nil)
@@ -61,8 +61,8 @@ func Test_watchContainerdEvents(t *testing.T) {
 LOOP:
 	for {
 		select {
-		case info := <-createCh:
-			log.Log.Info("recevie /task/create event", "info", info)
+		case info := <-startCh:
+			log.Log.Info("recevie /task/start event", "info", info)
 		case info := <-deleteCh:
 			log.Log.Info("recevie /task/delete event", "info", info)
 		case <-syncCh:
@@ -80,7 +80,7 @@ LOOP:
 }
 
 func Test_CollectExistingTargetContainers(t *testing.T) {
-	createCh := make(chan varmortypes.ContainerInfo, 100)
+	startCh := make(chan varmortypes.ContainerInfo, 100)
 	deleteCh := make(chan varmortypes.ContainerInfo, 100)
 	syncCh := make(chan bool, 1)
 
@@ -91,7 +91,9 @@ func Test_CollectExistingTargetContainers(t *testing.T) {
 	}
 	defer monitor.Close()
 
-	monitor.SetTaskNotifyChs(createCh, deleteCh, syncCh)
+	monitor.SetTaskNotifyChs(startCh, deleteCh, syncCh)
+	log.Log.Info("monitoring")
+	go monitor.Run(nil)
 
 	go monitor.CollectExistingTargetContainers()
 
@@ -100,8 +102,8 @@ func Test_CollectExistingTargetContainers(t *testing.T) {
 LOOP:
 	for {
 		select {
-		case info := <-createCh:
-			log.Log.Info("recevie /task/create event", "info", info)
+		case info := <-startCh:
+			log.Log.Info("recevie /task/start event", "info", info)
 		case info := <-deleteCh:
 			log.Log.Info("recevie /task/delete event", "info", info)
 		case <-stopTicker.C:

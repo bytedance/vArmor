@@ -40,7 +40,7 @@ type RuntimeMonitor struct {
 	runtimeConn      *grpc.ClientConn
 	running          bool
 	status           error
-	taskCreateCh     chan<- varmortypes.ContainerInfo
+	taskStartCh      chan<- varmortypes.ContainerInfo
 	taskDeleteCh     chan<- varmortypes.ContainerInfo
 	taskDeleteSyncCh chan<- bool
 	modellerChs      map[string]chan<- uint32
@@ -76,10 +76,10 @@ func (monitor *RuntimeMonitor) Close() {
 }
 
 func (monitor *RuntimeMonitor) SetTaskNotifyChs(
-	createCh chan varmortypes.ContainerInfo,
+	startCh chan varmortypes.ContainerInfo,
 	deleteCh chan varmortypes.ContainerInfo,
 	deleteSynCh chan bool) {
-	monitor.taskCreateCh = createCh
+	monitor.taskStartCh = startCh
 	monitor.taskDeleteCh = deleteCh
 	monitor.taskDeleteSyncCh = deleteSynCh
 }
@@ -159,7 +159,7 @@ func (monitor *RuntimeMonitor) retrievePodInfo(containerInfo *varmortypes.Contai
 	return nil
 }
 
-// eventHandler monitor the create and delete events of containerd and send them to the enforcer to handle
+// eventHandler monitor the start and delete events of containerd and send them to the enforcer to handle
 func (monitor *RuntimeMonitor) eventHandler(stopCh <-chan struct{}) {
 	logger := monitor.log.WithName("eventHandler()")
 	logger.Info("start watching the containerd events")
@@ -167,7 +167,7 @@ func (monitor *RuntimeMonitor) eventHandler(stopCh <-chan struct{}) {
 	ctx, cancel := appContext(context.Background(), varmortypes.K8sCriNamespace, 0)
 	defer cancel()
 
-	eventsFilter := []string{`topic=="/tasks/create"`, `topic=="/tasks/delete"`}
+	eventsFilter := []string{`topic=="/tasks/start"`, `topic=="/tasks/delete"`}
 	eventsService := monitor.containerdClient.EventService()
 	eventsCh, errCh := eventsService.Subscribe(ctx, eventsFilter...)
 	monitor.running = true
@@ -180,25 +180,25 @@ func (monitor *RuntimeMonitor) eventHandler(stopCh <-chan struct{}) {
 			}
 
 			switch e.Topic {
-			case "/tasks/create":
-				var createEvent events.TaskCreate
-				err := typeurl.UnmarshalTo(e.Event, &createEvent)
+			case "/tasks/start":
+				var startEvent events.TaskStart
+				err := typeurl.UnmarshalTo(e.Event, &startEvent)
 				if err != nil {
-					logger.Error(err, "typeurl.UnmarshalTo() TaskCreate failed")
+					logger.Error(err, "typeurl.UnmarshalTo() TaskStart failed")
 					continue
 				}
 
 				info := varmortypes.ContainerInfo{
-					PID:         createEvent.Pid,
-					ContainerID: createEvent.ContainerID,
+					PID:         startEvent.Pid,
+					ContainerID: startEvent.ContainerID,
 				}
 
 				err = monitor.retrieveContainerInfo(&info)
 				if err != nil {
-					logger.Error(err, "monitor.retrieveContainerInfo() failed", "container id", createEvent.ContainerID, "pid", createEvent.Pid)
+					logger.Error(err, "monitor.retrieveContainerInfo() failed", "container id", startEvent.ContainerID, "pid", startEvent.Pid)
 					continue
 				} else if info.PodID == "" {
-					logger.V(3).Info("sandbox was created, just ignore it")
+					logger.V(3).Info("sandbox was started, just ignore it")
 					continue
 				}
 
@@ -208,12 +208,12 @@ func (monitor *RuntimeMonitor) eventHandler(stopCh <-chan struct{}) {
 					continue
 				}
 
-				logger.V(3).Info("/tasks/create event", "info", info)
+				logger.V(3).Info("/tasks/start event", "info", info)
 
 				key := fmt.Sprintf("container.bpf.security.beta.varmor.org/%s", info.ContainerName)
 				if _, ok := info.PodAnnotations[key]; ok {
-					if monitor.taskCreateCh != nil {
-						monitor.taskCreateCh <- info
+					if monitor.taskStartCh != nil {
+						monitor.taskStartCh <- info
 					}
 				}
 
@@ -345,8 +345,8 @@ func (monitor *RuntimeMonitor) CollectExistingTargetContainers() error {
 
 		key := fmt.Sprintf("container.bpf.security.beta.varmor.org/%s", info.ContainerName)
 		if _, ok := info.PodAnnotations[key]; ok {
-			if monitor.taskCreateCh != nil {
-				monitor.taskCreateCh <- info
+			if monitor.taskStartCh != nil {
+				monitor.taskStartCh <- info
 			}
 		}
 	}
