@@ -301,24 +301,6 @@ func (c *PolicyController) ignoreAdd(vp *varmor.VarmorPolicy, logger logr.Logger
 	return false
 }
 
-func resetArmorProfileModelStatus(varmorInterface varmorinterface.CrdV1beta1Interface, namespace, name string) error {
-	return retry.RetryOnConflict(retry.DefaultRetry,
-		func() error {
-			apm, err := varmorInterface.ArmorProfileModels(namespace).Get(context.Background(), name, metav1.GetOptions{})
-			if err != nil {
-				if k8errors.IsNotFound(err) {
-					return nil
-				}
-				return err
-			}
-			apm.Status.CompletedNumber = 0
-			apm.Status.Conditions = nil
-			apm.Status.Ready = false
-			_, err = varmorInterface.ArmorProfileModels(namespace).UpdateStatus(context.Background(), apm, metav1.UpdateOptions{})
-			return err
-		})
-}
-
 func (c *PolicyController) handleAddVarmorPolicy(vp *varmor.VarmorPolicy) error {
 	logger := c.log.WithName("handleAddVarmorPolicy()")
 
