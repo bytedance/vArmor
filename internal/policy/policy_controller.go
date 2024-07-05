@@ -142,40 +142,44 @@ func (c *PolicyController) updateVarmorPolicy(oldObj, newObj interface{}) {
 
 func (c *PolicyController) handleDeleteVarmorPolicy(namespace, name string) error {
 	logger := c.log.WithName("handleDeleteVarmorPolicy()")
-
 	logger.Info("VarmorPolicy", "namespace", namespace, "name", name)
 
 	apName := varmorprofile.GenerateArmorProfileName(namespace, name, false)
-
-	logger.Info("retrieve ArmorProfile")
+	logger.Info("retrieve ArmorProfile", "namespace", namespace, "name", apName)
 	ap, err := c.varmorInterface.ArmorProfiles(namespace).Get(context.Background(), apName, metav1.GetOptions{})
 	if err != nil {
 		if k8errors.IsNotFound(err) {
-			logger.Info("ArmorProfile object not found", "namespace", namespace, "name", apName)
+			logger.Error(err, "namespace", namespace, "name", apName)
 		} else {
 			logger.Error(err, "c.varmorInterface.ArmorProfiles().Get()")
 			return err
 		}
 	} else {
-		logger.Info("remove ArmorProfile's finalizers")
-		ap.Finalizers = []string{}
-		_, err := c.varmorInterface.ArmorProfiles(namespace).Update(context.Background(), ap, metav1.UpdateOptions{})
-		if err != nil {
-			logger.Error(err, "remove ArmorProfile's finalizers failed")
+		if c.restartExistWorkloads && ap.Spec.UpdateExistingWorkloads {
+			// This will trigger the rolling upgrade of the target workload
+			logger.Info("delete annotations of target workloads to trigger a rolling upgrade asynchronously")
+			go updateWorkloadAnnotationsAndEnv(
+				c.appsInterface,
+				namespace,
+				ap.Spec.Profile.Enforcer,
+				"",
+				ap.Spec.Target,
+				"", false, logger)
+		}
+
+		logger.Info("remove the ArmorProfile's finalizers")
+		removeFinalizers := func() error {
+			ap, err := c.varmorInterface.ArmorProfiles(namespace).Get(context.Background(), apName, metav1.GetOptions{})
+			if err == nil {
+				ap.Finalizers = []string{}
+				_, err = c.varmorInterface.ArmorProfiles(namespace).Update(context.Background(), ap, metav1.UpdateOptions{})
+			}
 			return err
 		}
-	}
-
-	if c.restartExistWorkloads && ap.Spec.UpdateExistingWorkloads {
-		// This will trigger the rolling upgrade of the target workload
-		logger.Info("delete annotations of target workloads to trigger a rolling upgrade asynchronously")
-		go updateWorkloadAnnotationsAndEnv(
-			c.appsInterface,
-			namespace,
-			ap.Spec.Profile.Enforcer,
-			"",
-			ap.Spec.Target,
-			"", false, logger)
+		err := retry.RetryOnConflict(retry.DefaultRetry, removeFinalizers)
+		if err != nil {
+			logger.Error(err, "failed to remove the ArmorProfile's finalizers")
+		}
 	}
 
 	// Cleanup the PolicyStatus and ModelingStatus of status manager for the deleted VarmorPolicy/ArmorProfile object
@@ -295,24 +299,6 @@ func (c *PolicyController) ignoreAdd(vp *varmor.VarmorPolicy, logger logr.Logger
 	}
 
 	return false
-}
-
-func resetArmorProfileModelStatus(varmorInterface varmorinterface.CrdV1beta1Interface, namespace, name string) error {
-	return retry.RetryOnConflict(retry.DefaultRetry,
-		func() error {
-			apm, err := varmorInterface.ArmorProfileModels(namespace).Get(context.Background(), name, metav1.GetOptions{})
-			if err != nil {
-				if k8errors.IsNotFound(err) {
-					return nil
-				}
-				return err
-			}
-			apm.Status.CompletedNumber = 0
-			apm.Status.Conditions = nil
-			apm.Status.Ready = false
-			_, err = varmorInterface.ArmorProfileModels(namespace).UpdateStatus(context.Background(), apm, metav1.UpdateOptions{})
-			return err
-		})
 }
 
 func (c *PolicyController) handleAddVarmorPolicy(vp *varmor.VarmorPolicy) error {

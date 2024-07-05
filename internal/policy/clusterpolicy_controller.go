@@ -28,6 +28,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	appsv1 "k8s.io/client-go/kubernetes/typed/apps/v1"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
+	"k8s.io/client-go/util/retry"
 
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
@@ -136,45 +137,49 @@ func (c *ClusterPolicyController) updateVarmorClusterPolicy(oldObj, newObj inter
 }
 
 func (c *ClusterPolicyController) handleDeleteVarmorClusterPolicy(name string) error {
-	logger := c.log.WithName("handleDeleteVarmorPolicy()")
-
+	logger := c.log.WithName("handleDeleteVarmorClusterPolicy()")
 	logger.Info("VarmorClusterPolicy", "name", name)
 
-	apName := varmorprofile.GenerateArmorProfileName("", name, true)
-
-	logger.Info("retrieve ArmorProfile")
+	apName := varmorprofile.GenerateArmorProfileName(metav1.NamespaceAll, name, true)
+	logger.Info("retrieve ArmorProfile", "namespace", varmorconfig.Namespace, "name", apName)
 	ap, err := c.varmorInterface.ArmorProfiles(varmorconfig.Namespace).Get(context.Background(), apName, metav1.GetOptions{})
 	if err != nil {
 		if k8errors.IsNotFound(err) {
-			logger.Info("ArmorProfile object not found", "namespace", varmorconfig.Namespace, "name", apName)
+			logger.Error(err, "namespace", varmorconfig.Namespace, "name", apName)
 		} else {
 			logger.Error(err, "c.varmorInterface.ArmorProfiles().Get()")
 			return err
 		}
 	} else {
-		logger.Info("remove ArmorProfile's finalizers")
-		ap.Finalizers = []string{}
-		_, err := c.varmorInterface.ArmorProfiles(varmorconfig.Namespace).Update(context.Background(), ap, metav1.UpdateOptions{})
-		if err != nil {
-			logger.Error(err, "remove ArmorProfile's finalizers failed")
+		if c.restartExistWorkloads && ap.Spec.UpdateExistingWorkloads {
+			// This will trigger the rolling upgrade of the target workloads
+			logger.Info("delete annotations of target workloads to trigger a rolling upgrade asynchronously")
+			go updateWorkloadAnnotationsAndEnv(
+				c.appsInterface,
+				metav1.NamespaceAll,
+				ap.Spec.Profile.Enforcer,
+				"",
+				ap.Spec.Target,
+				"", false, logger)
+		}
+
+		logger.Info("remove the ArmorProfile's finalizers")
+		removeFinalizers := func() error {
+			ap, err := c.varmorInterface.ArmorProfiles(varmorconfig.Namespace).Get(context.Background(), apName, metav1.GetOptions{})
+			if err == nil {
+				ap.Finalizers = []string{}
+				_, err = c.varmorInterface.ArmorProfiles(varmorconfig.Namespace).Update(context.Background(), ap, metav1.UpdateOptions{})
+			}
 			return err
+		}
+		err := retry.RetryOnConflict(retry.DefaultRetry, removeFinalizers)
+		if err != nil {
+			logger.Error(err, "failed to remove the ArmorProfile's finalizers")
 		}
 	}
 
-	if c.restartExistWorkloads && ap.Spec.UpdateExistingWorkloads {
-		// This will trigger the rolling upgrade of the target workloads
-		logger.Info("delete annotations of target workloads to trigger a rolling upgrade asynchronously")
-		go updateWorkloadAnnotationsAndEnv(
-			c.appsInterface,
-			metav1.NamespaceAll,
-			ap.Spec.Profile.Enforcer,
-			"",
-			ap.Spec.Target,
-			"", false, logger)
-	}
-
 	// Cleanup the PolicyStatus and ModelingStatus of status manager for the deleted VarmorClusterPolicy/ArmorProfile object
-	logger.Info("cleanup the policy status of statusmanager.policystatuses")
+	logger.Info("cleanup the policy status (and if any modeling status) of statusmanager.policystatuses")
 	c.statusManager.DeleteCh <- name
 
 	return nil
@@ -274,7 +279,7 @@ func (c *ClusterPolicyController) ignoreAdd(vcp *varmor.VarmorClusterPolicy, log
 
 	// Do not exceed the length of a standard Kubernetes name (63 characters)
 	// Note: The advisory length of AppArmor profile name is 100 (See https://bugs.launchpad.net/apparmor/+bug/1499544).
-	profileName := varmorprofile.GenerateArmorProfileName("", vcp.Name, true)
+	profileName := varmorprofile.GenerateArmorProfileName(metav1.NamespaceAll, vcp.Name, true)
 	if len(profileName) > 63 {
 		err := fmt.Errorf("the length of ArmorProfile name is exceed 63. name: %s, length: %d", profileName, len(profileName))
 		logger.Error(err, "update VarmorClusterPolicy/status with forbidden info")
@@ -546,7 +551,7 @@ func (c *ClusterPolicyController) syncClusterPolicy(key string) error {
 		}
 	}
 
-	apName := varmorprofile.GenerateArmorProfileName("", vcp.Name, true)
+	apName := varmorprofile.GenerateArmorProfileName(metav1.NamespaceAll, vcp.Name, true)
 	ap, err := c.varmorInterface.ArmorProfiles(varmorconfig.Namespace).Get(context.Background(), apName, metav1.GetOptions{})
 	if err != nil {
 		if k8errors.IsNotFound(err) {
