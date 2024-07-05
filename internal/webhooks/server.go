@@ -185,6 +185,7 @@ func (ws *WebhookServer) matchAndPatch(request *admissionv1.AdmissionRequest, ke
 	if clusterScope {
 		enforcer = ws.policyCacher.ClusterPolicyEnforcer[key]
 		mode = ws.policyCacher.ClusterPolicyMode[key]
+		policyNamespace = varmorconfig.Namespace
 	} else {
 		enforcer = ws.policyCacher.PolicyEnforcer[key]
 		mode = ws.policyCacher.PolicyMode[key]

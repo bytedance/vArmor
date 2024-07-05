@@ -140,7 +140,7 @@ func (c *ClusterPolicyController) handleDeleteVarmorClusterPolicy(name string) e
 	logger := c.log.WithName("handleDeleteVarmorClusterPolicy()")
 	logger.Info("VarmorClusterPolicy", "name", name)
 
-	apName := varmorprofile.GenerateArmorProfileName(metav1.NamespaceAll, name, true)
+	apName := varmorprofile.GenerateArmorProfileName(varmorconfig.Namespace, name, true)
 	logger.Info("retrieve ArmorProfile", "namespace", varmorconfig.Namespace, "name", apName)
 	ap, err := c.varmorInterface.ArmorProfiles(varmorconfig.Namespace).Get(context.Background(), apName, metav1.GetOptions{})
 	if err != nil {
@@ -279,11 +279,11 @@ func (c *ClusterPolicyController) ignoreAdd(vcp *varmor.VarmorClusterPolicy, log
 
 	// Do not exceed the length of a standard Kubernetes name (63 characters)
 	// Note: The advisory length of AppArmor profile name is 100 (See https://bugs.launchpad.net/apparmor/+bug/1499544).
-	profileName := varmorprofile.GenerateArmorProfileName(metav1.NamespaceAll, vcp.Name, true)
+	profileName := varmorprofile.GenerateArmorProfileName(varmorconfig.Namespace, vcp.Name, true)
 	if len(profileName) > 63 {
 		err := fmt.Errorf("the length of ArmorProfile name is exceed 63. name: %s, length: %d", profileName, len(profileName))
 		logger.Error(err, "update VarmorClusterPolicy/status with forbidden info")
-		msg := fmt.Sprintf("The length of VarmorClusterPolicy object name is too long, please limit it to %d bytes", 63-len(varmorprofile.ProfileNameTemplate)+4-len(vcp.Namespace))
+		msg := fmt.Sprintf("The length of VarmorClusterPolicy object name is too long, please limit it to %d bytes", 63-len(varmorprofile.ClusterProfileNameTemplate)+4-len(varmorconfig.Namespace))
 		err = c.updateVarmorClusterPolicyStatus(vcp, "", false, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyCreated, apicorev1.ConditionFalse,
 			"Forbidden",
 			msg)
@@ -326,7 +326,7 @@ func (c *ClusterPolicyController) handleAddVarmorClusterPolicy(vcp *varmor.Varmo
 	}
 
 	if vcp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode {
-		err = resetArmorProfileModelStatus(c.varmorInterface, ap.Namespace, ap.Name)
+		err = resetArmorProfileModelStatus(c.varmorInterface, varmorconfig.Namespace, ap.Name)
 		if err != nil {
 			logger.Error(err, "resetArmorProfileModelStatus()")
 		}
@@ -454,7 +454,7 @@ func (c *ClusterPolicyController) handleUpdateVarmorClusterPolicy(newVp *varmor.
 
 	// Second, build a new ArmorProfileSpec
 	newApSpec := oldAp.Spec.DeepCopy()
-	newProfile, err := varmorprofile.GenerateProfile(newVp.Spec.Policy, oldAp.Name, oldAp.Namespace, c.varmorInterface, false)
+	newProfile, err := varmorprofile.GenerateProfile(newVp.Spec.Policy, oldAp.Name, varmorconfig.Namespace, c.varmorInterface, false)
 	if err != nil {
 		logger.Error(err, "GenerateProfile() failed")
 		err = c.updateVarmorClusterPolicyStatus(newVp, "", false, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyCreated, apicorev1.ConditionFalse,
@@ -479,17 +479,17 @@ func (c *ClusterPolicyController) handleUpdateVarmorClusterPolicy(newVp *varmor.
 		// Update object
 		logger.Info("2. update the object and its status")
 
-		logger.Info("2.1. reset ArmorProfile/status and ArmorProfileModel/Status", "namespace", oldAp.Namespace, "name", oldAp.Name)
+		logger.Info("2.1. reset ArmorProfile/status and ArmorProfileModel/Status", "namespace", varmorconfig.Namespace, "name", oldAp.Name)
 		oldAp.Status.CurrentNumberLoaded = 0
 		oldAp.Status.Conditions = nil
-		oldAp, err = c.varmorInterface.ArmorProfiles(oldAp.Namespace).UpdateStatus(context.Background(), oldAp, metav1.UpdateOptions{})
+		oldAp, err = c.varmorInterface.ArmorProfiles(varmorconfig.Namespace).UpdateStatus(context.Background(), oldAp, metav1.UpdateOptions{})
 		if err != nil {
 			logger.Error(err, "ArmorProfile().UpdateStatus()")
 			return err
 		}
 
 		if newVp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode {
-			err = resetArmorProfileModelStatus(c.varmorInterface, oldAp.Namespace, oldAp.Name)
+			err = resetArmorProfileModelStatus(c.varmorInterface, varmorconfig.Namespace, oldAp.Name)
 			if err != nil {
 				logger.Error(err, "resetArmorProfileModelStatus()")
 			}
@@ -501,7 +501,7 @@ func (c *ClusterPolicyController) handleUpdateVarmorClusterPolicy(newVp *varmor.
 		logger.Info("2.3. update ArmorProfile")
 		oldAp.Spec = *newApSpec
 		forceSetOwnerReference(oldAp, newVp, true)
-		_, err = c.varmorInterface.ArmorProfiles(oldAp.Namespace).Update(context.Background(), oldAp, metav1.UpdateOptions{})
+		_, err = c.varmorInterface.ArmorProfiles(varmorconfig.Namespace).Update(context.Background(), oldAp, metav1.UpdateOptions{})
 		if err != nil {
 			logger.Error(err, "ArmorProfile().Update()")
 			return err
@@ -509,7 +509,7 @@ func (c *ClusterPolicyController) handleUpdateVarmorClusterPolicy(newVp *varmor.
 	} else if len(oldAp.OwnerReferences) == 0 {
 		// Forward compatibility, add an ownerReference to the existing ArmorProfile object
 		forceSetOwnerReference(oldAp, newVp, true)
-		_, err = c.varmorInterface.ArmorProfiles(oldAp.Namespace).Update(context.Background(), oldAp, metav1.UpdateOptions{})
+		_, err = c.varmorInterface.ArmorProfiles(varmorconfig.Namespace).Update(context.Background(), oldAp, metav1.UpdateOptions{})
 		if err != nil {
 			logger.Error(err, "ArmorProfile().Update()")
 			return err
@@ -551,7 +551,7 @@ func (c *ClusterPolicyController) syncClusterPolicy(key string) error {
 		}
 	}
 
-	apName := varmorprofile.GenerateArmorProfileName(metav1.NamespaceAll, vcp.Name, true)
+	apName := varmorprofile.GenerateArmorProfileName(varmorconfig.Namespace, vcp.Name, true)
 	ap, err := c.varmorInterface.ArmorProfiles(varmorconfig.Namespace).Get(context.Background(), apName, metav1.GetOptions{})
 	if err != nil {
 		if k8errors.IsNotFound(err) {

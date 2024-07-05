@@ -43,7 +43,7 @@ func GenerateArmorProfileName(ns string, name string, clusterScope bool) string 
 	profileName := ""
 
 	if clusterScope {
-		profileName = fmt.Sprintf(ClusterProfileNameTemplate, varmorconfig.Namespace, name)
+		profileName = fmt.Sprintf(ClusterProfileNameTemplate, ns, name)
 	} else {
 		profileName = fmt.Sprintf(ProfileNameTemplate, ns, name)
 	}
@@ -195,9 +195,8 @@ func NewArmorProfile(obj interface{}, varmorInterface varmorinterface.CrdV1beta1
 
 	if clusterScope {
 		vcp := obj.(*varmor.VarmorClusterPolicy)
-		profileName := GenerateArmorProfileName("", vcp.Name, clusterScope)
 
-		ap.Name = profileName
+		ap.Name = GenerateArmorProfileName(varmorconfig.Namespace, vcp.Name, clusterScope)
 		ap.Namespace = varmorconfig.Namespace
 		ap.Labels = vcp.ObjectMeta.DeepCopy().Labels
 		ap.OwnerReferences = []metav1.OwnerReference{
@@ -229,9 +228,8 @@ func NewArmorProfile(obj interface{}, varmorInterface varmorinterface.CrdV1beta1
 
 	} else {
 		vp := obj.(*varmor.VarmorPolicy)
-		profileName := GenerateArmorProfileName(vp.Namespace, vp.Name, clusterScope)
 
-		ap.Name = profileName
+		ap.Name = GenerateArmorProfileName(vp.Namespace, vp.Name, clusterScope)
 		ap.Namespace = vp.Namespace
 		ap.Labels = vp.ObjectMeta.DeepCopy().Labels
 		ap.OwnerReferences = []metav1.OwnerReference{
