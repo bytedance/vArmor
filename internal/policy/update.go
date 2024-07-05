@@ -35,6 +35,7 @@ import (
 	varmorconfig "github.com/bytedance/vArmor/internal/config"
 	varmortypes "github.com/bytedance/vArmor/internal/types"
 	varmorutils "github.com/bytedance/vArmor/internal/utils"
+	varmorinterface "github.com/bytedance/vArmor/pkg/client/clientset/versioned/typed/varmor/v1beta1"
 )
 
 func modifyDeploymentAnnotationsAndEnv(enforcer string, mode varmor.VarmorPolicyMode, target varmor.Target, deploy *appsV1.Deployment, profileName string, bpfExclusiveMode bool) {
@@ -533,4 +534,22 @@ func forceSetOwnerReference(ap *varmor.ArmorProfile, obj interface{}, clusterSco
 			},
 		}
 	}
+}
+
+func resetArmorProfileModelStatus(varmorInterface varmorinterface.CrdV1beta1Interface, namespace, name string) error {
+	return retry.RetryOnConflict(retry.DefaultRetry,
+		func() error {
+			apm, err := varmorInterface.ArmorProfileModels(namespace).Get(context.Background(), name, metav1.GetOptions{})
+			if err != nil {
+				if k8errors.IsNotFound(err) {
+					return nil
+				}
+				return err
+			}
+			apm.Status.CompletedNumber = 0
+			apm.Status.Conditions = nil
+			apm.Status.Ready = false
+			_, err = varmorInterface.ArmorProfileModels(namespace).UpdateStatus(context.Background(), apm, metav1.UpdateOptions{})
+			return err
+		})
 }
