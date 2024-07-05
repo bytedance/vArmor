@@ -44,30 +44,26 @@ func modifyDeploymentAnnotationsAndEnv(enforcer string, mode varmor.VarmorPolicy
 	// Clean up first
 	for key, value := range deploy.Spec.Template.Annotations {
 		// BPF
-		if (e & varmortypes.BPF) != 0 {
-			if strings.HasPrefix(key, "container.bpf.security.beta.varmor.org/") && value != "unconfined" {
-				delete(deploy.Spec.Template.Annotations, key)
-			}
+		if strings.HasPrefix(key, "container.bpf.security.beta.varmor.org/") && value != "unconfined" {
+			delete(deploy.Spec.Template.Annotations, key)
 		}
+
 		// AppArmor
-		if (e & varmortypes.AppArmor) != 0 {
-			if strings.HasPrefix(key, "container.apparmor.security.beta.kubernetes.io/") && value != "unconfined" {
-				delete(deploy.Spec.Template.Annotations, key)
-			}
+		if strings.HasPrefix(key, "container.apparmor.security.beta.kubernetes.io/") && value != "unconfined" {
+			delete(deploy.Spec.Template.Annotations, key)
 		}
+
 		// Seccomp
-		if (e & varmortypes.Seccomp) != 0 {
-			if strings.HasPrefix(key, "container.seccomp.security.beta.varmor.org/") && value != "unconfined" {
-				delete(deploy.Spec.Template.Annotations, key)
-				parts := strings.Split(key, "/")
-				if len(parts) != 2 {
-					continue
-				}
-				// Clean up the seccomp settings from the SecurityContext
-				for index, container := range deploy.Spec.Template.Spec.Containers {
-					if container.Name == parts[1] {
-						deploy.Spec.Template.Spec.Containers[index].SecurityContext.SeccompProfile = nil
-					}
+		if strings.HasPrefix(key, "container.seccomp.security.beta.varmor.org/") && value != "unconfined" {
+			delete(deploy.Spec.Template.Annotations, key)
+			parts := strings.Split(key, "/")
+			if len(parts) != 2 {
+				continue
+			}
+			// Clean up the seccomp settings from the SecurityContext
+			for index, container := range deploy.Spec.Template.Spec.Containers {
+				if container.Name == parts[1] {
+					deploy.Spec.Template.Spec.Containers[index].SecurityContext.SeccompProfile = nil
 				}
 			}
 		}
@@ -142,30 +138,26 @@ func modifyStatefulSetAnnotationsAndEnv(enforcer string, mode varmor.VarmorPolic
 	// Clean up first
 	for key, value := range stateful.Spec.Template.Annotations {
 		// BPF
-		if (e & varmortypes.BPF) != 0 {
-			if strings.HasPrefix(key, "container.bpf.security.beta.varmor.org/") && value != "unconfined" {
-				delete(stateful.Spec.Template.Annotations, key)
-			}
+		if strings.HasPrefix(key, "container.bpf.security.beta.varmor.org/") && value != "unconfined" {
+			delete(stateful.Spec.Template.Annotations, key)
 		}
+
 		// AppArmor
-		if (e & varmortypes.AppArmor) != 0 {
-			if strings.HasPrefix(key, "container.apparmor.security.beta.kubernetes.io/") && value != "unconfined" {
-				delete(stateful.Spec.Template.Annotations, key)
-			}
+		if strings.HasPrefix(key, "container.apparmor.security.beta.kubernetes.io/") && value != "unconfined" {
+			delete(stateful.Spec.Template.Annotations, key)
 		}
+
 		// Seccomp
-		if (e & varmortypes.Seccomp) != 0 {
-			if strings.HasPrefix(key, "container.seccomp.security.beta.varmor.org/") && value != "unconfined" {
-				delete(stateful.Spec.Template.Annotations, key)
-				parts := strings.Split(key, "/")
-				if len(parts) != 2 {
-					continue
-				}
-				// Clean up the seccomp settings from the SecurityContext
-				for index, container := range stateful.Spec.Template.Spec.Containers {
-					if container.Name == parts[1] {
-						stateful.Spec.Template.Spec.Containers[index].SecurityContext.SeccompProfile = nil
-					}
+		if strings.HasPrefix(key, "container.seccomp.security.beta.varmor.org/") && value != "unconfined" {
+			delete(stateful.Spec.Template.Annotations, key)
+			parts := strings.Split(key, "/")
+			if len(parts) != 2 {
+				continue
+			}
+			// Clean up the seccomp settings from the SecurityContext
+			for index, container := range stateful.Spec.Template.Spec.Containers {
+				if container.Name == parts[1] {
+					stateful.Spec.Template.Spec.Containers[index].SecurityContext.SeccompProfile = nil
 				}
 			}
 		}
@@ -240,33 +232,30 @@ func modifyDaemonSetAnnotationsAndEnv(enforcer string, mode varmor.VarmorPolicyM
 	// Clean up first
 	for key, value := range daemon.Spec.Template.Annotations {
 		// BPF
-		if (e & varmortypes.BPF) != 0 {
-			if strings.HasPrefix(key, "container.bpf.security.beta.varmor.org/") && value != "unconfined" {
-				delete(daemon.Spec.Template.Annotations, key)
-			}
+		if strings.HasPrefix(key, "container.bpf.security.beta.varmor.org/") && value != "unconfined" {
+			delete(daemon.Spec.Template.Annotations, key)
 		}
+
 		// AppArmor
-		if (e & varmortypes.AppArmor) != 0 {
-			if strings.HasPrefix(key, "container.apparmor.security.beta.kubernetes.io/") && value != "unconfined" {
-				delete(daemon.Spec.Template.Annotations, key)
-			}
+		if strings.HasPrefix(key, "container.apparmor.security.beta.kubernetes.io/") && value != "unconfined" {
+			delete(daemon.Spec.Template.Annotations, key)
 		}
+
 		// Seccomp
-		if (e & varmortypes.Seccomp) != 0 {
-			if strings.HasPrefix(key, "container.seccomp.security.beta.varmor.org/") && value != "unconfined" {
-				delete(daemon.Spec.Template.Annotations, key)
-				parts := strings.Split(key, "/")
-				if len(parts) != 2 {
-					continue
-				}
-				// Clean up the seccomp settings from the SecurityContext
-				for index, container := range daemon.Spec.Template.Spec.Containers {
-					if container.Name == parts[1] {
-						daemon.Spec.Template.Spec.Containers[index].SecurityContext.SeccompProfile = nil
-					}
+		if strings.HasPrefix(key, "container.seccomp.security.beta.varmor.org/") && value != "unconfined" {
+			delete(daemon.Spec.Template.Annotations, key)
+			parts := strings.Split(key, "/")
+			if len(parts) != 2 {
+				continue
+			}
+			// Clean up the seccomp settings from the SecurityContext
+			for index, container := range daemon.Spec.Template.Spec.Containers {
+				if container.Name == parts[1] {
+					daemon.Spec.Template.Spec.Containers[index].SecurityContext.SeccompProfile = nil
 				}
 			}
 		}
+
 	}
 
 	// Add the modification time to annotation
