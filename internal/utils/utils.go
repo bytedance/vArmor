@@ -76,6 +76,7 @@ func httpsPostWithRetryAndToken(reqBody []byte, debug bool, service string, name
 					// try update token
 					updateChan <- true
 				}
+				return fmt.Errorf(fmt.Sprintf("http error code %d", httpRsp.StatusCode))
 			default:
 				err = fmt.Errorf(fmt.Sprintf("http error code %d", httpRsp.StatusCode))
 			}
@@ -148,7 +149,7 @@ func httpPostAndGetResponseWithRetry(reqBody []byte, debug bool, service string,
 				err = fmt.Errorf(fmt.Sprintf("http error code %d", httpRsp.StatusCode))
 			}
 		}
-		r := rand.Intn(10)
+		r := rand.Intn(60) + 20
 		time.Sleep(time.Duration(r) * time.Millisecond)
 	}
 
