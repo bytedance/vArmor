@@ -265,9 +265,9 @@ func GinLogger() gin.HandlerFunc {
 			param.Path,
 			param.ErrorMessage)
 
-		if param.StatusCode >= 400 {
+		if param.StatusCode&200 != 200 {
 			return "E" + o
 		}
-		return "I" + o
+		return ""
 	})
 }
