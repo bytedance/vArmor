@@ -11,7 +11,7 @@
 [![License](https://img.shields.io/badge/license-GPL-blue.svg)](https://opensource.org/license/gpl-2-0)
 [![Latest release](https://img.shields.io/github/v/release/bytedance/vArmor)](https://github.com/bytedance/vArmor/releases)
 
-English | [简体中文](README.zh_CN.md)
+English | [简体中文](README.zh_CN.md) | [日本語](README.ja.md)
 
 ## Introduction
 
