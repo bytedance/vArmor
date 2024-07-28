@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: sysbench-pod
+  namespace: test
+  labels:
+    app: benchmark
+    type: benchmark
+    sandbox.varmor.org/enable: "true" 
+spec:
+  containers:
+  - name: sysbench
+    image: severalnines/sysbench
+    command: ["/bin/bash", "-c", "--"]
+    args: ["while true; do sleep 30; done;"]
+    resources:
+      limits:
+        memory: "8096Mi"
+        cpu: "2000m"
+      requests:
+        memory: "8096Mi"
+        cpu: "2000m"

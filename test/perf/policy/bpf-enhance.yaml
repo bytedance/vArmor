@@ -1,0 +1,30 @@
+apiVersion: crd.varmor.org/v1beta1
+kind: VarmorPolicy
+metadata:
+  name: pod-policy-enhance
+  namespace: test
+spec:
+  target:
+    kind: Pod
+    selector:
+      matchLabels:
+        app: benchmark
+  policy:
+    enforcer: BPF
+    mode: EnhanceProtect
+    enhanceProtect:
+      privileged: false
+      hardeningRules:
+      - disable-cap-privileged
+      - disallow-umount
+      - disallow-access-procfs-root
+      attackProtectionRules:
+      - rules:
+        - mitigate-disk-device-number-leak	
+        - mitigate-sa-leak
+        - mitigate-overlayfs-leak	
+        - mitigate-host-ip-leak	
+        - disallow-metadata-service	
+      vulMitigationRules:
+      - cgroups-lxcfs-escape-mitigation	
+      - runc-override-mitigation	

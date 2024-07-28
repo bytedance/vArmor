@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: phoronix-pod
+  namespace: test
+  labels:
+    app: benchmark
+    type: benchmark
+    sandbox.varmor.org/enable: "true" 
+spec:
+  containers:
+  - name: phoronix
+    image: phoronix/pts
+    command: ["/bin/bash", "-c", "--"]
+    args: ["while true; do sleep 30; done;"]
+    resources:
+      limits:
+        memory: "8Gi"
+        cpu: "2000m"
+      requests:
+        memory: "8Gi"
+        cpu: "2000m"
+
