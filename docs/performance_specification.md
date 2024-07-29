@@ -17,9 +17,9 @@ The factors affecting performance for vArmor's user-space and kernel-space compo
 
 vArmor user-space components use the resource quotas as shown in the table below by default.
 
-| Version | Manager CPU | Manager Memory | Agent CPU   | Agent Memory                                                                              |
+| Version | Manager CPU | Manager Memory | Agent CPU   | Agent Memory |
 | ------- |:-----------:|:--------------:|:-----------:|:-----------------------------------------------------------------------------------------:|
-| v0.5.1  | 200m / 100m | 300Mi / 200Mi  | 200m / 100m | 100Mi / 40Mi (The BPF enforcer is disabled)<br>200Mi /100Mi (The BPF enforcer is enabled) |
+| v0.5.11 | 200m / 100m | 300Mi / 200Mi  | 200m / 100m | 100Mi / 40Mi (The BPF enforcer is disabled)<br>200Mi /100Mi (The BPF enforcer is enabled) |
 
 Explanation:
 
@@ -35,14 +35,14 @@ We conducted a basic performance test of BPF enforcer (v0.5.0) on a VKE cluster 
 
 *Note: We plan to conduct further comparative testing for typical applications and scenarios in the future.*
 
-Test environments:
+#### Test Environment
 
 * Kubernetes version: v1.20.15
 * Node number: 2
 * The node host has AppArmor and BPF LSM enabled by default.
 * Node specification: ecs.g2i.xlarge (4 vCPUs, 16 GiB RAM)
 
-Test steps:
+#### Test Steps
 
 * Deploy a test workload (disabling the default AppArmor profile for the test container via annotation).
 * Perform 10 consecutive baseline tests within the test container.
@@ -54,42 +54,47 @@ Test steps:
 * Update the VarmorPolicy (8 rules for each access control type), then perform 10 consecutive baseline tests within the test container.
 * Collect test data, calculate the average of the test data, and then use the test results without vArmor installation as the baseline to measure performance losses under different scenarios.
 
-Test results:
+#### Test Results
 
 * After installing vArmor v0.5.0, if the container is not sandboxed (or if the container is sandboxed with the AlwaysAllow mode), it introduces a maximum performance loss of 1.34% to container process (in terms of Execl Throughput).
-
 * vArmor v0.5.0 introduces the most significant performance overhead in terms of Execl Throughput and Process Creation. When 8 rules of various access control types are set for container process, the maximum performance loss for execl is 2.55%, and the maximum performance loss for process creation is 2.32%.
-
 * The File Copy 4096 bufsize 8000 maxblocks scores for different test cases fluctuate compared to the baseline, which is unexpected. Possible reasons for this could be:
-  
   * When the elastic cloud server is under high load, file copying may be accelerated due to factors like cache heat, leading to fluctuations.
   * The host may experience overselling, which can result in fluctuations in baseline test results within the elastic cloud server.
   
   <img src="./img/bpf_enforcer_benchmark.png" width="600">
 
+
 ### Performance Testing of Simulated Real Scenarios and Common Loads
 
-To further compare different Enforcers in real scenarios, we used the Phoronix Test Suite (PTS) to conduct a series of automated performance tests on some common loads (Redis, Apache, etc.).
+To further compare different Enforcers in real scenarios, we used the [Phoronix Test Suite (PTS)](https://github.com/phoronix-test-suite/phoronix-test-suite) to conduct a series of automated performance tests on some common loads (Redis, Apache, etc.).
 
 #### Test Environment
 
-- Cluster version: v1.26.10-vke.18
-- Number of nodes: 3
-- Nodes with AppArmor & BPF LSM enabled by default
-- Node specifications: ecs.g3i.xlarge (4vCPU 16GiB)
+* Cluster version: v1.26.10-vke.18
+*  Number of nodes: 3
+*  Nodes with AppArmor & BPF LSM enabled by default
+*  Node specifications: ecs.g3i.xlarge (4vCPU 16GiB)
 
 #### Test Scenarios
 
-In this round of testing, we performed horizontal comparisons of two enforcer LSMs: AppArmor and BPF LSM. Each enforcer was tested in three typical scenarios, including AlwaysAllow, RuntimeDefault, and the most protective EnhanceProtect. The policies for each scenario are as follows:
+In this round of testing, we performed horizontal comparisons of two enforcers: AppArmor and BPF. Each enforcer was tested in three typical scenarios, including AlwaysAllow, RuntimeDefault, and EnhanceProtect. The policies for each scenario are as follows:
 
-- **Init Test**
-  - No policy applied
-- **AlwaysAllow**
-  - Tested with AlwaysAllow Mode, no rules enabled
-- **RuntimeDefault**
-  - Tested with RuntimeDefault Mode, no rules enabled
-- **EnhanceProtect (most protective)**
-  - Tested with EnhanceProtect Mode, with the following rules enabled:
+* **Init Benchmark**
+  
+  No policy applied
+
+* **AlwaysAllow**
+  
+  Tested with AlwaysAllow Mode, no rules enabled
+
+* **RuntimeDefault**
+  
+  Tested with RuntimeDefault Mode, no rules enabled
+
+* **EnhanceProtect**
+
+  Tested with EnhanceProtect Mode, with the following rules enabled:
     - disable-cap-privilege
     - disallow-umount
     - disallow-access-procfs-root
@@ -101,40 +106,32 @@ In this round of testing, we performed horizontal comparisons of two enforcer LS
     - cgroups-lxcfs-escape-mitigation
     - runc-override-mitigation
 
-In addition, we also tested the Seccomp enforcer with the currently available four rules. This test is for reference only and not used as a performance benchmark.
+In addition, we also tested the Seccomp enforcer with the currently available four rules. This test is for reference only and is not used as a performance benchmark or comparison.
 
-The policy files used for the tests can be found in the test/perf/policy directory.
+The policy files used for the tests can be found in the [test/perf/policy](../test/perf/policy) directory.
 
-#### Test Process
+#### Test Steps
 
 We wrote a bash script to automate the testing process, which mainly completes the following tasks:
 
-- Create and delete Pods in the Kubernetes cluster.
-- Apply and remove different security policies.
-- Initialize test configurations, install test tools, and run the Phoronix Test Suite.
-- Record the test results.
+* Create and delete Pods in the Kubernetes cluster.
+* Apply and remove different security policies.
+* Initialize test configurations, install test tools, and run the Phoronix Test Suite.
+* Record the test results.
 
-Specifically, for the Init, BPF, and Seccomp modes, we used different Pod configurations and enabled `container.apparmor.security.beta.kubernetes.io/phoronix: unconfined` to ensure AppArmor was not enabled, avoiding the default AppArmor from affecting the test results.
+Specifically, for the Init Benchmark, BPF, and Seccomp modes, we used different Pod configurations and enabled `container.apparmor.security.beta.kubernetes.io/phoronix: unconfined` to ensure AppArmor was not enabled, avoiding the default AppArmor profile from affecting the test results.
 
-You can find the pod definitions and Phoronix runtime configurations in the test/perf/policy directory. The automation test script is also located in the test/perf/policy directory. Additionally, we have written separate test scripts for sysbench and unixbench, which you can use if you are interested in conducting your own tests.
+You can find the Pod definitions and Phoronix runtime configurations in the [test/perf/policy](../test/perf/policy) directory. The automation test script is also located in the [test/perf](../test/perf) directory. Additionally, we have written separate test scripts for sysbench and unixbench, which you can use if you are interested in conducting your own tests.
 
 #### Test Results
 
-1. **EnhanceProtect**:
-   
-   - The performance of BPF decreased by about 1.2% compared to AppArmor.
-
-2. **RuntimeDefault**:
-   
-   - The performance of BPF decreased by about 0.6% compared to AppArmor.
-
-3. **AlwaysAllow**:
-   
-   - The performance of BPF decreased by about 0.1% compared to AppArmor.
-
-The analysis shows that although BPF generally exhibits slight performance degradation compared to AppArmor in different scenarios, the differences are relatively small. This indicates that BPF is a feasible alternative to AppArmor with acceptable performance overhead in security applications.
-
+* **EnhanceProtect**: The performance of BPF decreased by about 1.2% compared to AppArmor.
+* **RuntimeDefault**: The performance of BPF decreased by about 0.6% compared to AppArmor.
+* **AlwaysAllow**: The performance of BPF decreased by about 0.1% compared to AppArmor.
+  
   <img src="./img/pts_benchmark.png" width="600">
+
+The analysis results shows that although BPF generally exhibits slight performance degradation compared to AppArmor in different scenarios, the differences are relatively small. This indicates that BPF is a feasible alternative to AppArmor with acceptable performance overhead in security applications.
 
 Below are the detailed test results for each scenario:
 
