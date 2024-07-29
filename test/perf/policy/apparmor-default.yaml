@@ -1,0 +1,14 @@
+apiVersion: crd.varmor.org/v1beta1
+kind: VarmorPolicy
+metadata:
+  name: pod-policy-default
+  namespace: test
+spec:
+  target:
+    kind: Pod
+    selector:
+      matchLabels:
+        app: benchmark
+  policy:
+    enforcer: AppArmor
+    mode: RuntimeDefault
