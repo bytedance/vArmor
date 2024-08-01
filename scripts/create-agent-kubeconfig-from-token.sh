@@ -22,10 +22,13 @@ clusterName=kubernetes
 
 # your server address
 if [ -f ~/.kube/config ]; then
-  server=`cat ~/.kube/config | grep server: | awk '{print $2}'`
+  server=$(cat ~/.kube/config | grep server: | awk '{print $2}')
+  ca=$(cat ~/.kube/config | grep certificate-authority-data: | awk '{print $2}')
 elif [ $KUBECONFIG ]; then
-  server=`cat $KUBECONFIG | grep server: | awk '{print $2}'`
+  server=$(cat $KUBECONFIG | grep server: | awk '{print $2}')
+  ca=$(cat $KUBECONFIG | grep certificate-authority-data: | awk '{print $2}')
 else
+  echo "[!] Can't find kubeconfig file in ~/.kube/config or $KUBECONFIG."
   exit 1
 fi
 
@@ -37,9 +40,17 @@ serviceAccount=varmor-agent
 # actual script starts
 set -o errexit
 
-secretName=$(kubectl --namespace $namespace get serviceAccount $serviceAccount -o jsonpath='{.secrets[0].name}')
-ca=$(kubectl --namespace $namespace get secret/$secretName -o jsonpath='{.data.ca\.crt}')
-token=$(kubectl --namespace $namespace get secret/$secretName -o jsonpath='{.data.token}' | base64 --decode)
+minor_version=$(kubectl version -o json 2>/dev/null | jq -r '.serverVersion.minor')
+if [[ $minor_version == 22* || $minor_version == 3* ]]; then
+  token=$(kubectl --namespace $namespace create token $serviceAccount)
+else
+  secretName=$(kubectl --namespace $namespace get serviceAccount $serviceAccount -o jsonpath='{.secrets[0].name}')
+  if [[ -z $secretName ]]; then
+    echo "[!] Can't retrieve the secret name of varmor-agent ServiceAccount"
+    exit 1
+  fi
+  token=$(kubectl --namespace $namespace get secret/$secretName -o jsonpath='{.data.token}' | base64 --decode)
+fi
 
 echo "
 ---
