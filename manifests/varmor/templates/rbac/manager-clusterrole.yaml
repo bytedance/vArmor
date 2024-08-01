@@ -98,9 +98,16 @@ rules:
   - mutatingwebhookconfigurations
   verbs:
   - create
-  - delete
   - list
   - watch
+- apiGroups:
+  - admissionregistration.k8s.io
+  resources:
+  - mutatingwebhookconfigurations
+  verbs:
+  - delete
+  resourceNames:
+  - varmor-resource-mutating-webhook-cfg
 - apiGroups:
   - authentication.k8s.io
   resources:
