@@ -134,7 +134,7 @@ vArmor 用户态组件默认使用下表所示的值进行资源申请
 
 ##### Phoronix-Apache
 
-Requests Per Second-High is better
+Requests Per Second-Higher is better
 
 | Test Scenario           | Apache Concurrent Requests 4 | Apache Concurrent Requests 20 | Apache Concurrent Requests 100 | Apache Concurrent Requests 200 | Apache Concurrent Requests 500 | Apache Concurrent Requests 1000 |
 | ----------------------- | ---------------------------- | ----------------------------- | ------------------------------ | ------------------------------ | ------------------------------ | ------------------------------- |
@@ -149,7 +149,7 @@ Requests Per Second-High is better
 
 ##### Phoronix-GIMP
 
-Time Usage-Low is better
+Time Usage-Lower is better
 
 | Test Scenario           | GIMP Resize Times | GIMP RotateTimes | GIMP Auto-Levels Times | GIMP Unsharp-Mask Times |
 | ----------------------- | ----------------- | ---------------- | ---------------------- | ----------------------- |
@@ -164,7 +164,7 @@ Time Usage-Low is better
 
 ##### Phoronix-Redis
 
-Requests Per Second-High is better
+Requests Per Second-Higher is better
 
 | Test Scenario           | GET Connection 50 | SETConnection 50 | GETConnection 500 | SET Connection 500 | LPOPConnection 500 |
 | ----------------------- | ----------------- | ---------------- | ----------------- | ------------------ | ------------------ |
@@ -179,7 +179,7 @@ Requests Per Second-High is better
 
 ##### Phoronix-Sysbench
 
-High is better
+Higher is better
 
 | Test Scenario           | SysbenchRam/Memory | SysbenchCPU |
 | ----------------------- | ------------------ | ----------- |
