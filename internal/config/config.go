@@ -22,11 +22,15 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+	"k8s.io/apimachinery/pkg/version"
 	rest "k8s.io/client-go/rest"
 	clientcmd "k8s.io/client-go/tools/clientcmd"
 )
 
 var (
+	// ServerVersion cache APIServer version information
+	ServerVersion = &version.Info{}
+
 	// Namespace is the vArmor namespace
 	Namespace = GetNamespace()
 
