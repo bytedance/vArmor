@@ -464,6 +464,15 @@ func (agent *Agent) handleCreateOrUpdateArmorProfile(ap *varmor.ArmorProfile, ke
 			logger.Error(err, "SaveAndApplyBpfProfile()")
 			return agent.sendStatus(ap, varmortypes.Failed, "SaveBpfProfile(): "+err.Error())
 		}
+	} else {
+		// Unload BPF profile.
+		if agent.bpfLsmSupported && agent.bpfEnforcer.IsBpfProfileExist(ap.Spec.Profile.Name) {
+			logger.Info(fmt.Sprintf("unloading the BPF profile ('%s')", ap.Spec.Profile.Name))
+			err := agent.bpfEnforcer.DeleteBpfProfile(ap.Spec.Profile.Name)
+			if err != nil {
+				logger.Error(err, "DeleteBpfProfile()")
+			}
+		}
 	}
 
 	// Seccomp
