@@ -135,6 +135,12 @@ func main() {
 		os.Exit(1)
 	}
 
+	config.AppArmorGA, err = varmorutils.IsAppArmorGA(config.ServerVersion)
+	if err != nil {
+		setupLog.Error(err, "varmorutils.IsAppArmorGA()")
+		os.Exit(1)
+	}
+
 	if debug {
 		gin.SetMode(gin.DebugMode)
 	} else {

@@ -31,8 +31,11 @@ var (
 	// ServerVersion cache APIServer version information
 	ServerVersion = &version.Info{}
 
+	// appArmorGA is true if the APIServer version is 1.30 and above
+	AppArmorGA = false
+
 	// Namespace is the vArmor namespace
-	Namespace = GetNamespace()
+	Namespace = getNamespace()
 
 	// ManagerName is the deployment name of vArmor manager
 	ManagerName = "varmor-manager"
@@ -153,7 +156,7 @@ func createClientConfig(kubeconfig string, log logr.Logger) (*rest.Config, error
 	return clientcmd.BuildConfigFromFlags("", kubeconfig)
 }
 
-func GetNamespace() string {
+func getNamespace() string {
 	content, err := os.ReadFile("/run/secrets/kubernetes.io/serviceaccount/namespace")
 	if err != nil {
 		return "varmor"
