@@ -206,11 +206,12 @@ func (ws *WebhookServer) matchAndPatch(request *admissionv1.AdmissionRequest, ke
 	apName := varmorprofile.GenerateArmorProfileName(policyNamespace, policyName, clusterScope)
 	if target.Name != "" && target.Name == m.GetName() {
 		logger.Info("mutating resource", "resource kind", request.Kind.Kind, "resource namespace", request.Namespace, "resource name", request.Name, "profile", apName)
-		patch, err := buildPatch(obj, enforcer, mode, target, apName, ws.bpfExclusiveMode)
+		patch, err := buildPatch(obj, enforcer, mode, target, apName, ws.bpfExclusiveMode, varmorconfig.AppArmorGA)
 		if err != nil {
 			logger.Error(err, "ws.buildPatch()")
 			return nil
 		}
+		logger.V(3).Info("mutating resource", "json patch", patch)
 		return successResponse(request.UID, []byte(patch))
 	} else if target.Selector != nil {
 		selector, err := metav1.LabelSelectorAsSelector(target.Selector)
@@ -219,11 +220,12 @@ func (ws *WebhookServer) matchAndPatch(request *admissionv1.AdmissionRequest, ke
 		}
 		if selector.Matches(labels.Set(m.GetLabels())) {
 			logger.Info("mutating resource", "resource kind", request.Kind.Kind, "resource namespace", request.Namespace, "resource name", request.Name, "profile", apName)
-			patch, err := buildPatch(obj, enforcer, mode, target, apName, ws.bpfExclusiveMode)
+			patch, err := buildPatch(obj, enforcer, mode, target, apName, ws.bpfExclusiveMode, varmorconfig.AppArmorGA)
 			if err != nil {
 				logger.Error(err, "ws.buildPatch()")
 				return nil
 			}
+			logger.V(3).Info("mutating resource", "json patch", patch)
 			return successResponse(request.UID, []byte(patch))
 		}
 	}
