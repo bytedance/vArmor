@@ -20,8 +20,9 @@ spec:
         app: demo-1
       annotations:
         # Use this annotation to explicitly disable the protection for the container named c0.
-        # It always takes precedence over the .spec.target.containers field of policy.
-        container.apparmor.security.beta.kubernetes.io/c0: unconfined
+        # It always takes precedence over the '.spec.target.containers' field of VarmorPolicy 
+        # or VarmorClusterPolicy object.
+        container.apparmor.security.beta.varmor.org/c0: unconfined
     spec:
       containers:
       - name: c0
