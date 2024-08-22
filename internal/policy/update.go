@@ -51,8 +51,26 @@ func modifyDeploymentAnnotationsAndEnv(enforcer string, mode varmor.VarmorPolicy
 		}
 		// AppArmor
 		if (e & varmortypes.AppArmor) != 0 {
-			if strings.HasPrefix(key, "container.apparmor.security.beta.kubernetes.io/") && value != "unconfined" {
-				delete(deploy.Spec.Template.Annotations, key)
+			if !varmorconfig.AppArmorGA {
+				// Below Kubernetes v1.30
+				if strings.HasPrefix(key, "container.apparmor.security.beta.kubernetes.io/") && value != "unconfined" {
+					delete(deploy.Spec.Template.Annotations, key)
+				}
+			} else {
+				// Kubernetes v1.30 and above
+				if strings.HasPrefix(key, "container.apparmor.security.beta.varmor.org/") && value != "unconfined" {
+					delete(deploy.Spec.Template.Annotations, key)
+					parts := strings.Split(key, "/")
+					if len(parts) != 2 {
+						continue
+					}
+					// Clean up the apparmor settings from the SecurityContext
+					for index, container := range deploy.Spec.Template.Spec.Containers {
+						if container.Name == parts[1] && deploy.Spec.Template.Spec.Containers[index].SecurityContext != nil {
+							deploy.Spec.Template.Spec.Containers[index].SecurityContext.AppArmorProfile = nil
+						}
+					}
+				}
 			}
 		}
 		// Seccomp
@@ -65,7 +83,7 @@ func modifyDeploymentAnnotationsAndEnv(enforcer string, mode varmor.VarmorPolicy
 				}
 				// Clean up the seccomp settings from the SecurityContext
 				for index, container := range deploy.Spec.Template.Spec.Containers {
-					if container.Name == parts[1] {
+					if container.Name == parts[1] && deploy.Spec.Template.Spec.Containers[index].SecurityContext != nil {
 						deploy.Spec.Template.Spec.Containers[index].SecurityContext.SeccompProfile = nil
 					}
 				}
@@ -101,9 +119,30 @@ func modifyDeploymentAnnotationsAndEnv(enforcer string, mode varmor.VarmorPolicy
 		}
 		// AppArmor
 		if (e & varmortypes.AppArmor) != 0 {
-			key := fmt.Sprintf("container.apparmor.security.beta.kubernetes.io/%s", container.Name)
+			key := fmt.Sprintf("container.apparmor.security.beta.varmor.org/%s", container.Name)
 			if value, ok := deploy.Spec.Template.Annotations[key]; !ok || value != "unconfined" {
-				deploy.Spec.Template.Annotations[key] = fmt.Sprintf("localhost/%s", profileName)
+				if !varmorconfig.AppArmorGA {
+					// Below Kubernetes v1.30
+					key = fmt.Sprintf("container.apparmor.security.beta.kubernetes.io/%s", container.Name)
+					if value, ok := deploy.Spec.Template.Annotations[key]; !ok || value != "unconfined" {
+						deploy.Spec.Template.Annotations[key] = fmt.Sprintf("localhost/%s", profileName)
+					}
+				} else {
+					// Kubernetes v1.30 and above
+					if (container.SecurityContext != nil && container.SecurityContext.AppArmorProfile != nil && container.SecurityContext.AppArmorProfile.Type == "Unconfined") ||
+						(deploy.Spec.Template.Spec.SecurityContext != nil && deploy.Spec.Template.Spec.SecurityContext.AppArmorProfile != nil && deploy.Spec.Template.Spec.SecurityContext.AppArmorProfile.Type == "Unconfined") {
+						// Do nothing
+					} else {
+						deploy.Spec.Template.Annotations[key] = fmt.Sprintf("localhost/%s", profileName)
+						if deploy.Spec.Template.Spec.Containers[index].SecurityContext == nil {
+							deploy.Spec.Template.Spec.Containers[index].SecurityContext = &coreV1.SecurityContext{}
+						}
+						deploy.Spec.Template.Spec.Containers[index].SecurityContext.AppArmorProfile = &coreV1.AppArmorProfile{
+							Type:             "Localhost",
+							LocalhostProfile: &profileName,
+						}
+					}
+				}
 			}
 		}
 		// Seccomp
@@ -149,8 +188,26 @@ func modifyStatefulSetAnnotationsAndEnv(enforcer string, mode varmor.VarmorPolic
 		}
 		// AppArmor
 		if (e & varmortypes.AppArmor) != 0 {
-			if strings.HasPrefix(key, "container.apparmor.security.beta.kubernetes.io/") && value != "unconfined" {
-				delete(stateful.Spec.Template.Annotations, key)
+			if !varmorconfig.AppArmorGA {
+				// Below Kubernetes v1.30
+				if strings.HasPrefix(key, "container.apparmor.security.beta.kubernetes.io/") && value != "unconfined" {
+					delete(stateful.Spec.Template.Annotations, key)
+				}
+			} else {
+				// Kubernetes v1.30 and above
+				if strings.HasPrefix(key, "container.apparmor.security.beta.varmor.org/") && value != "unconfined" {
+					delete(stateful.Spec.Template.Annotations, key)
+					parts := strings.Split(key, "/")
+					if len(parts) != 2 {
+						continue
+					}
+					// Clean up the apparmor settings from the SecurityContext
+					for index, container := range stateful.Spec.Template.Spec.Containers {
+						if container.Name == parts[1] && stateful.Spec.Template.Spec.Containers[index].SecurityContext != nil {
+							stateful.Spec.Template.Spec.Containers[index].SecurityContext.AppArmorProfile = nil
+						}
+					}
+				}
 			}
 		}
 		// Seccomp
@@ -163,7 +220,7 @@ func modifyStatefulSetAnnotationsAndEnv(enforcer string, mode varmor.VarmorPolic
 				}
 				// Clean up the seccomp settings from the SecurityContext
 				for index, container := range stateful.Spec.Template.Spec.Containers {
-					if container.Name == parts[1] {
+					if container.Name == parts[1] && stateful.Spec.Template.Spec.Containers[index].SecurityContext != nil {
 						stateful.Spec.Template.Spec.Containers[index].SecurityContext.SeccompProfile = nil
 					}
 				}
@@ -199,9 +256,30 @@ func modifyStatefulSetAnnotationsAndEnv(enforcer string, mode varmor.VarmorPolic
 		}
 		// AppArmor
 		if (e & varmortypes.AppArmor) != 0 {
-			key := fmt.Sprintf("container.apparmor.security.beta.kubernetes.io/%s", container.Name)
+			key := fmt.Sprintf("container.apparmor.security.beta.varmor.org/%s", container.Name)
 			if value, ok := stateful.Spec.Template.Annotations[key]; !ok || value != "unconfined" {
-				stateful.Spec.Template.Annotations[key] = fmt.Sprintf("localhost/%s", profileName)
+				if !varmorconfig.AppArmorGA {
+					// Below Kubernetes v1.30
+					key = fmt.Sprintf("container.apparmor.security.beta.kubernetes.io/%s", container.Name)
+					if value, ok := stateful.Spec.Template.Annotations[key]; !ok || value != "unconfined" {
+						stateful.Spec.Template.Annotations[key] = fmt.Sprintf("localhost/%s", profileName)
+					}
+				} else {
+					// Kubernetes v1.30 and above
+					if (container.SecurityContext != nil && container.SecurityContext.AppArmorProfile != nil && container.SecurityContext.AppArmorProfile.Type == "Unconfined") ||
+						(stateful.Spec.Template.Spec.SecurityContext != nil && stateful.Spec.Template.Spec.SecurityContext.AppArmorProfile != nil && stateful.Spec.Template.Spec.SecurityContext.AppArmorProfile.Type == "Unconfined") {
+						// Do nothing
+					} else {
+						stateful.Spec.Template.Annotations[key] = fmt.Sprintf("localhost/%s", profileName)
+						if stateful.Spec.Template.Spec.Containers[index].SecurityContext == nil {
+							stateful.Spec.Template.Spec.Containers[index].SecurityContext = &coreV1.SecurityContext{}
+						}
+						stateful.Spec.Template.Spec.Containers[index].SecurityContext.AppArmorProfile = &coreV1.AppArmorProfile{
+							Type:             "Localhost",
+							LocalhostProfile: &profileName,
+						}
+					}
+				}
 			}
 		}
 		// Seccomp
@@ -247,8 +325,26 @@ func modifyDaemonSetAnnotationsAndEnv(enforcer string, mode varmor.VarmorPolicyM
 		}
 		// AppArmor
 		if (e & varmortypes.AppArmor) != 0 {
-			if strings.HasPrefix(key, "container.apparmor.security.beta.kubernetes.io/") && value != "unconfined" {
-				delete(daemon.Spec.Template.Annotations, key)
+			if !varmorconfig.AppArmorGA {
+				// Below Kubernetes v1.30
+				if strings.HasPrefix(key, "container.apparmor.security.beta.kubernetes.io/") && value != "unconfined" {
+					delete(daemon.Spec.Template.Annotations, key)
+				}
+			} else {
+				// Kubernetes v1.30 and above
+				if strings.HasPrefix(key, "container.apparmor.security.beta.varmor.org/") && value != "unconfined" {
+					delete(daemon.Spec.Template.Annotations, key)
+					parts := strings.Split(key, "/")
+					if len(parts) != 2 {
+						continue
+					}
+					// Clean up the apparmor settings from the SecurityContext
+					for index, container := range daemon.Spec.Template.Spec.Containers {
+						if container.Name == parts[1] && daemon.Spec.Template.Spec.Containers[index].SecurityContext != nil {
+							daemon.Spec.Template.Spec.Containers[index].SecurityContext.AppArmorProfile = nil
+						}
+					}
+				}
 			}
 		}
 		// Seccomp
@@ -261,7 +357,7 @@ func modifyDaemonSetAnnotationsAndEnv(enforcer string, mode varmor.VarmorPolicyM
 				}
 				// Clean up the seccomp settings from the SecurityContext
 				for index, container := range daemon.Spec.Template.Spec.Containers {
-					if container.Name == parts[1] {
+					if container.Name == parts[1] && daemon.Spec.Template.Spec.Containers[index].SecurityContext != nil {
 						daemon.Spec.Template.Spec.Containers[index].SecurityContext.SeccompProfile = nil
 					}
 				}
@@ -297,9 +393,30 @@ func modifyDaemonSetAnnotationsAndEnv(enforcer string, mode varmor.VarmorPolicyM
 		}
 		// AppArmor
 		if (e & varmortypes.AppArmor) != 0 {
-			key := fmt.Sprintf("container.apparmor.security.beta.kubernetes.io/%s", container.Name)
+			key := fmt.Sprintf("container.apparmor.security.beta.varmor.org/%s", container.Name)
 			if value, ok := daemon.Spec.Template.Annotations[key]; !ok || value != "unconfined" {
-				daemon.Spec.Template.Annotations[key] = fmt.Sprintf("localhost/%s", profileName)
+				if !varmorconfig.AppArmorGA {
+					// Below Kubernetes v1.30
+					key := fmt.Sprintf("container.apparmor.security.beta.kubernetes.io/%s", container.Name)
+					if value, ok := daemon.Spec.Template.Annotations[key]; !ok || value != "unconfined" {
+						daemon.Spec.Template.Annotations[key] = fmt.Sprintf("localhost/%s", profileName)
+					}
+				} else {
+					// Kubernetes v1.30 and above
+					if (container.SecurityContext != nil && container.SecurityContext.AppArmorProfile != nil && container.SecurityContext.AppArmorProfile.Type == "Unconfined") ||
+						(daemon.Spec.Template.Spec.SecurityContext != nil && daemon.Spec.Template.Spec.SecurityContext.AppArmorProfile != nil && daemon.Spec.Template.Spec.SecurityContext.AppArmorProfile.Type == "Unconfined") {
+						// Do nothing
+					} else {
+						daemon.Spec.Template.Annotations[key] = fmt.Sprintf("localhost/%s", profileName)
+						if daemon.Spec.Template.Spec.Containers[index].SecurityContext == nil {
+							daemon.Spec.Template.Spec.Containers[index].SecurityContext = &coreV1.SecurityContext{}
+						}
+						daemon.Spec.Template.Spec.Containers[index].SecurityContext.AppArmorProfile = &coreV1.AppArmorProfile{
+							Type:             "Localhost",
+							LocalhostProfile: &profileName,
+						}
+					}
+				}
 			}
 		}
 		// Seccomp

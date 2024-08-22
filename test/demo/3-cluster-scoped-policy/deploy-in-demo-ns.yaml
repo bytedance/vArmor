@@ -19,6 +19,9 @@ spec:
         #
         # For testing BPF enforcer, we explicitly disable the AppArmor profile 
         # of container named test0.
+        #
+        # Note: Please use 'spec.containers[0].securityContext.appArmorProfile.type=Unconfined' 
+        #       instead of this annotation in the Kubernetes v1.30 and above
         container.apparmor.security.beta.kubernetes.io/test0: unconfined
       labels:
         app: demo-3

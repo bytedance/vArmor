@@ -8,6 +8,8 @@ metadata:
     type: benchmark
     sandbox.varmor.org/enable: "true" 
   annotations:
+    # Note: Please use 'spec.containers[0].securityContext.appArmorProfile.type=Unconfined' 
+    #       instead of this annotation in the Kubernetes v1.30 and above
     container.apparmor.security.beta.kubernetes.io/unixbench: unconfined
 spec:
   containers:

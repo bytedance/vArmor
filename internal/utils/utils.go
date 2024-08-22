@@ -23,6 +23,8 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
+	"strconv"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -31,6 +33,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	types "k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/version"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 
 	varmorconfig "github.com/bytedance/vArmor/internal/config"
@@ -271,4 +274,21 @@ func GinLogger() gin.HandlerFunc {
 		}
 		return ""
 	})
+}
+
+func IsAppArmorGA(versionInfo *version.Info) (bool, error) {
+	major, err := strconv.Atoi(versionInfo.Major)
+	if err != nil {
+		return false, err
+	}
+
+	minor, err := strconv.Atoi(strings.TrimRight(versionInfo.Minor, "+"))
+	if err != nil {
+		return false, err
+	}
+
+	if major <= 1 && minor < 30 {
+		return false, nil
+	}
+	return true, nil
 }

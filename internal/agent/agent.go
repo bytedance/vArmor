@@ -31,7 +31,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/apimachinery/pkg/version"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
@@ -89,7 +88,6 @@ type Agent struct {
 }
 
 func NewAgent(
-	versionInfo *version.Info,
 	podInterface corev1.PodInterface,
 	varmorInterface varmorinterface.CrdV1beta1Interface,
 	apInformer varmorinformer.ArmorProfileInformer,
@@ -165,7 +163,7 @@ func NewAgent(
 		agent.bpfLsmSupported = false
 		log.Info("the BPF enforcer is not enabled (use --enableBpfEnforcer to enable it)")
 	}
-	agent.seccompSupported, err = isSeccompSupported(versionInfo)
+	agent.seccompSupported, err = isSeccompSupported(varmorconfig.ServerVersion)
 	if err != nil {
 		log.Info("the Seccomp enforcer only supports Kubernetes v1.19 and above", "error", err)
 	}

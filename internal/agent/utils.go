@@ -127,7 +127,7 @@ func isSeccompSupported(versionInfo *version.Info) (bool, error) {
 	}
 
 	if major <= 1 && minor < 19 {
-		return false, fmt.Errorf(fmt.Sprintf("The current version of Kubernetes is v%d.%d", major, minor))
+		return false, fmt.Errorf("the current version of Kubernetes is v%d.%d", major, minor)
 	}
 	return true, nil
 }

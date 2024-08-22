@@ -254,12 +254,6 @@ push-dev: ## Push images and chart to the private repository for development.
 	@echo "----------------------------------------"
 	helm push varmor-$(CHART_VERSION_DEV).tgz oci://$(REPO_DEV)
 
-.PHONY: manifests-dev
-manifests-dev:
-	@echo "----------------------------------------"
-	docker tag  $(VARMOR_IMAGE_DEV)-amd64 $(VARMOR_IMAGE_DEV)
-	@echo "----------------------------------------"
-	docker tag  $(CLASSIFIER_IMAGE_DEV)-amd64 $(CLASSIFIER_IMAGE_DEV)
 push: ## Push images and chart to the public repository for release.
 	docker push $(VARMOR_IMAGE_AP)-amd64
 	@echo "----------------------------------------"

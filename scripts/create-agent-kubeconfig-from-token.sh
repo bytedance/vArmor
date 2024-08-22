@@ -17,10 +17,12 @@
 # The script returns a kubeconfig for the service account given
 # you need to have kubectl on PATH with the context set to the cluster you want to create the config for
 
+set -o errexit
+
 # Cosmetics for the created config
 clusterName=kubernetes
 
-# your server address
+# Retrieve server address
 if [ -f ~/.kube/config ]; then
   server=$(cat ~/.kube/config | grep server: | awk '{print $2}')
   ca=$(cat ~/.kube/config | grep certificate-authority-data: | awk '{print $2}')
@@ -32,17 +34,14 @@ else
   exit 1
 fi
 
-# the Namespace and ServiceAccount name that is used for the config
+# The Namespace and ServiceAccount name that is used for the config
 namespace=varmor
 serviceAccount=varmor-agent
 
-######################
-# actual script starts
-set -o errexit
-
+# Create token
 minor_version=$(kubectl version -o json 2>/dev/null | jq -r '.serverVersion.minor')
 if [[ $minor_version == 22* || $minor_version == 3* ]]; then
-  token=$(kubectl --namespace $namespace create token $serviceAccount)
+  token=$(kubectl --namespace $namespace --duration 720h create token $serviceAccount)
 else
   secretName=$(kubectl --namespace $namespace get serviceAccount $serviceAccount -o jsonpath='{.secrets[0].name}')
   if [[ -z $secretName ]]; then
@@ -52,6 +51,7 @@ else
   token=$(kubectl --namespace $namespace get secret/$secretName -o jsonpath='{.data.token}' | base64 --decode)
 fi
 
+# Craft kubeconfig
 echo "
 ---
 apiVersion: v1
