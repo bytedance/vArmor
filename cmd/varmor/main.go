@@ -18,6 +18,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"github.com/bytedance/vArmor/pkg/metrics"
 	"os"
 	"strings"
 	"time"
@@ -146,7 +147,7 @@ func main() {
 	} else {
 		gin.SetMode(gin.ReleaseMode)
 	}
-
+	metricsModule := metrics.NewMetricsModule(log.Log.WithName("METRICS"))
 	if agent {
 		setupLog.Info("vArmor agent startup")
 
@@ -164,6 +165,7 @@ func main() {
 			config.ClassifierServicePort,
 			stopCh,
 			log.Log.WithName("AGENT"),
+			metricsModule,
 		)
 		if err != nil {
 			setupLog.Error(err, "agent.NewAgent()")
@@ -290,6 +292,7 @@ func main() {
 			varmorClient.CrdV1beta1(),
 			kubeClient.AuthenticationV1(),
 			statusUpdateCycle,
+			metricsModule,
 			log.Log.WithName("STATUS-SERVICE"),
 		)
 		if err != nil {

@@ -17,6 +17,8 @@ package statusmanagerv1
 import (
 	"context"
 	"fmt"
+	"github.com/bytedance/vArmor/pkg/metrics"
+	"go.opentelemetry.io/otel/metric"
 	"reflect"
 	"time"
 
@@ -50,35 +52,45 @@ type StatusManager struct {
 	PolicyStatuses map[string]varmortypes.PolicyStatus
 	// Use "namespace/VarmorPolicyName" as key. One VarmorPolicy object corresponds to one ModelingStatus
 	// TODO: Rebuild ModelingStatuses from ArmorProfile object when leader change occurs.
-	ModelingStatuses  map[string]varmortypes.ModelingStatus
-	ResetCh           chan string
-	DeleteCh          chan string
-	UpdateStatusCh    chan string
-	UpdateModeCh      chan string
-	statusQueue       workqueue.RateLimitingInterface
-	dataQueue         workqueue.RateLimitingInterface
-	statusUpdateCycle time.Duration
-	debug             bool
-	log               logr.Logger
+	ModelingStatuses     map[string]varmortypes.ModelingStatus
+	ResetCh              chan string
+	DeleteCh             chan string
+	UpdateStatusCh       chan string
+	UpdateModeCh         chan string
+	statusQueue          workqueue.RateLimitingInterface
+	dataQueue            workqueue.RateLimitingInterface
+	statusUpdateCycle    time.Duration
+	debug                bool
+	log                  logr.Logger
+	profileSuccess       metric.Int64Counter
+	profileFailure       metric.Int64Counter
+	profileChangeCount   metric.Int64Counter
+	profileStatusPerNode metric.Int64Gauge
+	profileLatestStatus  metric.Int64Gauge
 }
 
-func NewStatusManager(coreInterface corev1.CoreV1Interface, appsInterface appsv1.AppsV1Interface, varmorInterface varmorinterface.CrdV1beta1Interface, statusUpdateCycle time.Duration, debug bool, log logr.Logger) *StatusManager {
+func NewStatusManager(coreInterface corev1.CoreV1Interface, appsInterface appsv1.AppsV1Interface, varmorInterface varmorinterface.CrdV1beta1Interface, statusUpdateCycle time.Duration, debug bool, metricsModule *metrics.MetricsModule, log logr.Logger) *StatusManager {
 	m := StatusManager{
-		coreInterface:     coreInterface,
-		appsInterface:     appsInterface,
-		varmorInterface:   varmorInterface,
-		desiredNumber:     0,
-		PolicyStatuses:    make(map[string]varmortypes.PolicyStatus),
-		ModelingStatuses:  make(map[string]varmortypes.ModelingStatus),
-		ResetCh:           make(chan string, 50),
-		DeleteCh:          make(chan string, 50),
-		UpdateStatusCh:    make(chan string, 100),
-		UpdateModeCh:      make(chan string, 50),
-		statusQueue:       workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "status"),
-		dataQueue:         workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "data"),
-		statusUpdateCycle: statusUpdateCycle,
-		debug:             debug,
-		log:               log,
+		coreInterface:        coreInterface,
+		appsInterface:        appsInterface,
+		varmorInterface:      varmorInterface,
+		desiredNumber:        0,
+		PolicyStatuses:       make(map[string]varmortypes.PolicyStatus),
+		ModelingStatuses:     make(map[string]varmortypes.ModelingStatus),
+		ResetCh:              make(chan string, 50),
+		DeleteCh:             make(chan string, 50),
+		UpdateStatusCh:       make(chan string, 100),
+		UpdateModeCh:         make(chan string, 50),
+		statusQueue:          workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "status"),
+		dataQueue:            workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "data"),
+		statusUpdateCycle:    statusUpdateCycle,
+		profileSuccess:       metricsModule.RegisterInt64Counter("profile_processing_success", "Number of successful profile processing"),
+		profileFailure:       metricsModule.RegisterInt64Counter("profile_processing_failure", "Number of failed profile processing"),
+		profileChangeCount:   metricsModule.RegisterInt64Counter("profile_change_count", "Number of profile change"),
+		profileStatusPerNode: metricsModule.RegisterInt64Gauge("profile_status_per_node", "Number of profile status per node"),
+		profileLatestStatus:  metricsModule.RegisterInt64Gauge("profile_latest_status", "Latest profile status"),
+		debug:                debug,
+		log:                  log,
 	}
 	return &m
 }

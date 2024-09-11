@@ -1,31 +1,81 @@
 package metrics
 
 import (
-	"context"
-	"go.opentelemetry.io/otel"
+	"github.com/go-logr/logr"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"go.opentelemetry.io/otel/exporters/prometheus"
 	"go.opentelemetry.io/otel/metric"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"log"
+	"net/http"
 )
 
 const (
 	MeterName = "vArmor"
 )
 
-type Metrics struct {
-	meter metric.Meter
+type MetricsModule struct {
+	meter   metric.Meter
+	enabled bool
+	log     logr.Logger
 }
 
-func NewMetrics() *Metrics {
-	provider := otel.GetMeterProvider()
+func NewMetricsModule(log logr.Logger) *MetricsModule {
+	exporter, err := prometheus.New()
+	if err != nil {
+		log.Error(err, "failed to create Prometheus exporter")
+	}
+	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(exporter))
 	meter := provider.Meter(MeterName)
-	return &Metrics{meter: meter}
+
+	go func() {
+		log.Info("Serving metrics at :8822/metrics")
+		http.Handle("/metrics", promhttp.Handler())
+		err := http.ListenAndServe(":8822", nil)
+		if err != nil {
+			log.Error(err, "failed to start metrics server")
+		}
+	}()
+
+	return &MetricsModule{
+		meter:   meter,
+		enabled: true,
+	}
+}
+func (m *MetricsModule) RegisterCounter(name string, description string) metric.Float64Counter {
+	counter, err := m.meter.Float64Counter(name, metric.WithDescription(description))
+	if err != nil {
+		m.log.Error(err, "failed to create counter")
+	}
+	return counter
+}
+func (m *MetricsModule) RegisterInt64Counter(name string, description string) metric.Int64Counter {
+	counter, err := m.meter.Int64Counter(name, metric.WithDescription(description))
+	if err != nil {
+		m.log.Error(err, "failed to create counter")
+	}
+	return counter
 }
 
-func (m *Metrics) RecordCounter(name string, value int64) {
-	counter := metric.Must(m.meter).NewInt64Counter(name)
-	counter.Add(context.Background(), value)
+func (m *MetricsModule) RegisterGauge(name string, description string) metric.Float64Gauge {
+	gauge, err := m.meter.Float64Gauge(name, metric.WithDescription(description))
+	if err != nil {
+		log.Fatalf("failed to create gauge: %v", err)
+	}
+	return gauge
 }
 
-func (m *Metrics) RecordHistogram(name string, value float64) {
-	histogram := metric.Must(m.meter).NewFloat64Histogram(name)
-	histogram.Record(context.Background(), value)
+func (m *MetricsModule) RegisterInt64Gauge(name string, description string) metric.Int64Gauge {
+	gauge, err := m.meter.Int64Gauge(name, metric.WithDescription(description))
+	if err != nil {
+		log.Fatalf("failed to create gauge: %v", err)
+	}
+	return gauge
+}
+func (m *MetricsModule) RegisterHistogram(name string, description string, buckets ...float64) metric.Float64Histogram {
+	histogram, err := m.meter.Float64Histogram(name, metric.WithDescription(description), metric.WithExplicitBucketBoundaries(buckets...))
+	if err != nil {
+		log.Fatalf("failed to create histogram: %v", err)
+	}
+	return histogram
 }

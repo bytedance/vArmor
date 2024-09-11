@@ -3,8 +3,7 @@ package metrics
 import (
 	"context"
 	"fmt"
-	"time"
-
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -31,8 +30,7 @@ func watchConfigMap(namespace, configMapName string) {
 	ch := watcher.ResultChan()
 	for event := range ch {
 		if event.Type == watch.Modified {
-			// Handle ConfigMap change
-			fmt.Println("ConfigMap modified")
+			fmt.Println("modified")
 		}
 	}
 }

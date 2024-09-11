@@ -18,6 +18,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"github.com/bytedance/vArmor/pkg/metrics"
 	"net/http"
 	"os"
 	"time"
@@ -96,13 +97,14 @@ func NewStatusService(
 	varmorInterface varmorinterface.CrdV1beta1Interface,
 	authInterface authclientv1.AuthenticationV1Interface,
 	statusUpdateCycle time.Duration,
+	metricsModule *metrics.MetricsModule,
 	log logr.Logger) (*StatusService, error) {
 
 	if port > 65535 {
 		return nil, fmt.Errorf("port is illegal")
 	}
 
-	statusManager := statusmanager.NewStatusManager(coreInterface, appsInterface, varmorInterface, statusUpdateCycle, debug, log)
+	statusManager := statusmanager.NewStatusManager(coreInterface, appsInterface, varmorInterface, statusUpdateCycle, debug, metricsModule, log)
 
 	s := StatusService{
 		StatusManager: statusManager,

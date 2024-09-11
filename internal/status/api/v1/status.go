@@ -15,8 +15,11 @@
 package statusmanagerv1
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 	"net/http"
 	"time"
 
@@ -60,6 +63,36 @@ func (m *StatusManager) Status(c *gin.Context) {
 
 	logger.V(3).Info("enqueue ProfileStatus from agent")
 	m.statusQueue.Add(profileStatus)
+	go m.HandleProfileStatusUpdate(profileStatus)
+}
+func (m *StatusManager) HandleProfileStatusUpdate(status varmortypes.ProfileStatus) {
+	ctx := context.Background()
+	// 标签信息
+	labels := []attribute.KeyValue{
+		attribute.String("namespace", status.Namespace),
+		attribute.String("profile_name", status.ProfileName),
+		attribute.String("node_name", status.NodeName),
+	}
+
+	if status.Status == "Success" {
+		m.profileSuccess.Add(ctx, 1, metric.WithAttributes(labels...))
+	} else {
+		m.profileFailure.Add(ctx, 1, metric.WithAttributes(labels...))
+	}
+
+	m.profileChangeCount.Add(ctx, 1, metric.WithAttributes(labels...))
+
+	if status.Status == "Success" {
+		m.profileStatusPerNode.Record(ctx, 1, metric.WithAttributes(labels...)) // 1 表示成功
+	} else {
+		m.profileStatusPerNode.Record(ctx, 0, metric.WithAttributes(labels...)) // 0 表示失败
+	}
+
+	if status.Status == "Success" {
+		m.profileLatestStatus.Record(ctx, 1, metric.WithAttributes(labels...))
+	} else {
+		m.profileLatestStatus.Record(ctx, 0, metric.WithAttributes(labels...))
+	}
 }
 
 // updatePolicyStatus update StatusManager.PolicyStatuses[statusKey] with profileStatus which comes from agent.
