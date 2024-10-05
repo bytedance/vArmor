@@ -57,7 +57,7 @@ vArmor 的策略支持 5 种运行模式：**AlwaysAllow、RuntimeDefault、Enha
 
 
 ## 快速上手
-更多配置项和使用说明详见 [使用说明](docs/usage_instructions.zh_CN.md)。您可以参考 [样例](test/demo) 来了解相关功能的用法，从而辅助策略编写。您也可以尝试使用 [policy-advisor](tools/policy-advisor/README.md) 生成策略模版，并在模版基础上制定最终的策略。
+更多配置项和使用说明详见 [使用说明](docs/usage_instructions.zh_CN.md)。您可以参考 [样例](test/examples) 来了解相关功能的用法，从而辅助策略编写。您也可以尝试使用 [policy-advisor](tools/policy-advisor/README.md) 生成策略模版，并在模版基础上制定最终的策略。
 
 ### Step 1. 拉取 chart 包
 ```
@@ -78,14 +78,14 @@ helm install varmor varmor-0.5.11.tgz \
 kubectl create namespace demo
 
 # 创建 VarmorPolicy，对符合 .spec.target.selector 的 Deployment 开启 AlwaysAllow 模式沙箱
-kubectl create -f test/demo/1-apparmor/vpol-apparmor-alwaysallow.yaml
+kubectl create -f test/examples/1-apparmor/vpol-apparmor-alwaysallow.yaml
 
 # 查看 VarmorPolicy & ArmorProfile 状态
 kubectl get VarmorPolicy -n demo
 kubectl get ArmorProfile -n demo
 
 # 创建 Deployment
-kubectl create -f test/demo/1-apparmor/deploy.yaml
+kubectl create -f test/examples/1-apparmor/deploy.yaml
 
 # 获取 Pod name
 POD_NAME=$(kubectl get Pods -n demo -l app=demo-1 -o name)
@@ -94,14 +94,14 @@ POD_NAME=$(kubectl get Pods -n demo -l app=demo-1 -o name)
 kubectl exec -n demo $POD_NAME -c c1 -- cat /run/secrets/kubernetes.io/serviceaccount/token
 
 # 更新 VarmorPolicy 策略，禁止 Deployment 读取 secret token
-kubectl apply -f test/demo/1-apparmor/vpol-apparmor-enhance.yaml
+kubectl apply -f test/examples/1-apparmor/vpol-apparmor-enhance.yaml
 
 # 在 c1 容器中执行命令，读取 secret token，验证读取行为被禁止
 kubectl exec -n demo $POD_NAME -c c1 -- cat /run/secrets/kubernetes.io/serviceaccount/token
 
 # 删除 VarmorPolicy 和 Deployment
-kubectl delete -f test/demo/1-apparmor/vpol-apparmor-alwaysallow.yaml
-kubectl delete -f test/demo/1-apparmor/deploy.yaml
+kubectl delete -f test/examples/1-apparmor/vpol-apparmor-alwaysallow.yaml
+kubectl delete -f test/examples/1-apparmor/deploy.yaml
 ```
 
 ### Step 4. 卸载
