@@ -1,0 +1,1733 @@
+{
+    "apiVersion": "crd.varmor.org/v1beta1",
+    "data": {
+        "dynamicResult": {
+            "apparmor": {
+                "capabilities": [
+                    "dac_override",
+                    "chown",
+                    "fsetid",
+                    "audit_write",
+                    "sys_ptrace",
+                    "setgid"
+                ],
+                "executions": [
+                    "/usr/bin/mkdir",
+                    "/ml_platform/bin/busybox",
+                    "/usr/bin/ls",
+                    "/usr/bin/cat",
+                    "/usr/bin/cut",
+                    "/ml_platform/customtask/entrypoint/utils/log",
+                    "/usr/bin/env",
+                    "/usr/bin/sort",
+                    "/usr/bin/whoami",
+                    "/usr/bin/chown",
+                    "/usr/bin/rm",
+                    "/usr/bin/passwd",
+                    "/ml_platform/customtask/entrypoint/utils/start_sshd",
+                    "/usr/bin/sleep",
+                    "/usr/bin/mawk",
+                    "/ml_platform/bin/sshd",
+                    "/usr/bin/find",
+                    "/ml_platform/bin/bash",
+                    "/root/miniconda3/bin/torchrun"
+                ],
+                "files": [
+                    {
+                        "oldPath": "/ml_platform/lib/x86_64-linux-gnu/libtinfo.so.6.2",
+                        "owner": true,
+                        "path": "/ml_platform/lib/x86_64-linux-gnu/libtinfo.so.*.*",
+                        "permissions": [
+                            "m",
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/ml_platform/lib/x86_64-linux-gnu/libdl-2.31.so",
+                        "owner": true,
+                        "path": "/ml_platform/lib/x86_64-linux-gnu/libdl-*.*.so",
+                        "permissions": [
+                            "m",
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/ml_platform/lib/x86_64-linux-gnu/libc-2.31.so",
+                        "owner": true,
+                        "path": "/ml_platform/lib/x86_64-linux-gnu/libc-*.*.so",
+                        "permissions": [
+                            "m",
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "",
+                        "owner": true,
+                        "path": "/dev/tty",
+                        "permissions": [
+                            "r",
+                            "w"
+                        ]
+                    },
+                    {
+                        "oldPath": "",
+                        "owner": true,
+                        "path": "/etc/nsswitch.conf",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/ml_platform/lib/x86_64-linux-gnu/libnss_files-2.31.so",
+                        "owner": true,
+                        "path": "/ml_platform/lib/x86_64-linux-gnu/libnss_files-*.*.so",
+                        "permissions": [
+                            "m",
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "",
+                        "owner": true,
+                        "path": "/etc/passwd",
+                        "permissions": [
+                            "r",
+                            "a",
+                            "w"
+                        ]
+                    },
+                    {
+                        "oldPath": "",
+                        "owner": true,
+                        "path": "/ml_platform/customtask/entrypoint/entrypoint.sh",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "",
+                        "owner": true,
+                        "path": "/usr/bin/mkdir",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/usr/lib/x86_64-linux-gnu/ld-2.31.so",
+                        "owner": true,
+                        "path": "/usr/lib/x86_64-linux-gnu/**",
+                        "permissions": [
+                            "m",
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "",
+                        "owner": true,
+                        "path": "/etc/ld.so.cache",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "",
+                        "owner": false,
+                        "path": "/proc/filesystems",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "",
+                        "owner": true,
+                        "path": "/root/logs/syslog/",
+                        "permissions": [
+                            "r",
+                            "w"
+                        ]
+                    },
+                    {
+                        "oldPath": "/proc/1/fd/63",
+                        "owner": true,
+                        "path": "/proc/*/fd/*",
+                        "permissions": [
+                            "w"
+                        ]
+                    },
+                    {
+                        "oldPath": "",
+                        "owner": true,
+                        "path": "/dev/null",
+                        "permissions": [
+                            "r",
+                            "w"
+                        ]
+                    },
+                    {
+                        "oldPath": "",
+                        "owner": true,
+                        "path": "/ml_platform/customtask/entrypoint/bashrc",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "",
+                        "owner": true,
+                        "path": "/ml_platform/bin/busybox",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/ml_platform/lib/x86_64-linux-gnu/ld-2.31.so",
+                        "owner": true,
+                        "path": "/ml_platform/lib/x86_64-linux-gnu/ld-*.*.so",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/ml_platform/lib/x86_64-linux-gnu/libresolv-2.31.so",
+                        "owner": true,
+                        "path": "/ml_platform/lib/x86_64-linux-gnu/libresolv-*.*.so",
+                        "permissions": [
+                            "m",
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "",
+                        "owner": true,
+                        "path": "/root/logs/syslog/stderr.log",
+                        "permissions": [
+                            "w",
+                            "a"
+                        ]
+                    },
+                    {
+                        "oldPath": "",
+                        "owner": true,
+                        "path": "/root/logs/syslog/stdout.log",
+                        "permissions": [
+                            "w",
+                            "a"
+                        ]
+                    },
+                    {
+                        "oldPath": "",
+                        "owner": true,
+                        "path": "/usr/share/zoneinfo/Etc/UTC",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/proc/14/net/route",
+                        "owner": true,
+                        "path": "/proc/*/net/route",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/.volc/..2024_03_01_07_10_21.254687921/mlplatform_mljob_config.sh",
+                        "owner": true,
+                        "path": "/root/.volc/*/mlplatform_mljob_config.sh",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "",
+                        "owner": true,
+                        "path": "/ml_platform/customtask/entrypoint/mlplatform_mljob_config.sh",
+                        "permissions": [
+                            "r",
+                            "w"
+                        ]
+                    },
+                    {
+                        "oldPath": "",
+                        "owner": true,
+                        "path": "/ml_platform/customtask/entrypoint/utils/rack",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "",
+                        "owner": true,
+                        "path": "/ml_platform/customtask/entrypoint/utils/rdma/init",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "",
+                        "owner": true,
+                        "path": "/usr/bin/ls",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "",
+                        "owner": true,
+                        "path": "/sys/class/infiniband/",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/sys/devices/pci0000:64/0000:64:00.0/0000:65:01.0/infiniband/mlx5_1/ports/",
+                        "owner": true,
+                        "path": "/sys/devices/pci0000:*/*:*:*.*/*:*:*.*/infiniband/mlx5_1/ports/",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/sys/devices/pci0000:64/0000:64:00.0/0000:65:01.0/infiniband/mlx5_1/ports/1/gids/",
+                        "owner": true,
+                        "path": "/sys/devices/pci0000:*/*:*:*.*/*:*:*.*/infiniband/mlx5_1/ports/*/gids/",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "",
+                        "owner": true,
+                        "path": "/usr/bin/cat",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "",
+                        "owner": true,
+                        "path": "/usr/bin/cut",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/sys/devices/pci0000:64/0000:64:00.0/0000:65:01.0/infiniband/mlx5_1/ports/1/gids/1",
+                        "owner": true,
+                        "path": "/sys/devices/pci0000:*/*:*:*.*/*:*:*.*/infiniband/mlx5_1/ports/*/gids/*",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/sys/devices/pci0000:66/0000:66:00.0/0000:67:01.0/infiniband/mlx5_2/ports/",
+                        "owner": true,
+                        "path": "/sys/devices/pci0000:*/*:*:*.*/*:*:*.*/infiniband/mlx5_2/ports/",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/sys/devices/pci0000:66/0000:66:00.0/0000:67:01.0/infiniband/mlx5_2/ports/1/gids/",
+                        "owner": true,
+                        "path": "/sys/devices/pci0000:*/*:*:*.*/*:*:*.*/infiniband/mlx5_2/ports/*/gids/",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/sys/devices/pci0000:66/0000:66:00.0/0000:67:01.0/infiniband/mlx5_2/ports/1/gids/1",
+                        "owner": true,
+                        "path": "/sys/devices/pci0000:*/*:*:*.*/*:*:*.*/infiniband/mlx5_2/ports/*/gids/*",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/sys/devices/pci0000:68/0000:68:00.0/0000:69:01.0/infiniband/mlx5_3/ports/",
+                        "owner": true,
+                        "path": "/sys/devices/pci0000:*/*:*:*.*/*:*:*.*/infiniband/mlx5_3/ports/",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/sys/devices/pci0000:68/0000:68:00.0/0000:69:01.0/infiniband/mlx5_3/ports/1/gids/0",
+                        "owner": true,
+                        "path": "/sys/devices/pci0000:*/*:*:*.*/*:*:*.*/infiniband/mlx5_3/ports/*/gids/*",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/sys/devices/pci0000:6a/0000:6a:00.0/0000:6b:01.0/infiniband/mlx5_4/ports/",
+                        "owner": true,
+                        "path": "/sys/devices/pci0000:6a/*:6a:*.*/*:6b:*.*/infiniband/mlx5_4/ports/",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/sys/devices/pci0000:6a/0000:6a:00.0/0000:6b:01.0/infiniband/mlx5_4/ports/1/gids/",
+                        "owner": true,
+                        "path": "/sys/devices/pci0000:6a/*:6a:*.*/*:6b:*.*/infiniband/mlx5_4/ports/*/gids/",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/sys/devices/pci0000:6a/0000:6a:00.0/0000:6b:01.0/infiniband/mlx5_4/ports/1/gids/0",
+                        "owner": true,
+                        "path": "/sys/devices/pci0000:6a/*:6a:*.*/*:6b:*.*/infiniband/mlx5_4/ports/*/gids/*",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "",
+                        "owner": true,
+                        "path": "/ml_platform/bin/bash",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "",
+                        "owner": true,
+                        "path": "/ml_platform/customtask/entrypoint/utils/log",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "",
+                        "owner": true,
+                        "path": "/root/logs/syslog/sys.log",
+                        "permissions": [
+                            "w",
+                            "a"
+                        ]
+                    },
+                    {
+                        "oldPath": "",
+                        "owner": true,
+                        "path": "/usr/bin/env",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "",
+                        "owner": true,
+                        "path": "/usr/bin/sort",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "",
+                        "owner": true,
+                        "path": "/ml_platform/customtask/entrypoint/framework/init_env/init",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "",
+                        "owner": true,
+                        "path": "/ml_platform/customtask/entrypoint/utils/init_bashrc",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/proc/1/environ",
+                        "owner": true,
+                        "path": "/proc/*/environ",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "",
+                        "owner": true,
+                        "path": "/ml_platform/customtask/entrypoint/bashrc.env",
+                        "permissions": [
+                            "a",
+                            "w"
+                        ]
+                    },
+                    {
+                        "oldPath": "/etc/bash.bashrcGgMMVL",
+                        "owner": true,
+                        "path": "/etc/*",
+                        "permissions": [
+                            "r",
+                            "w"
+                        ]
+                    },
+                    {
+                        "oldPath": "",
+                        "owner": true,
+                        "path": "/etc/bash.bashrc",
+                        "permissions": [
+                            "r",
+                            "w",
+                            "w"
+                        ]
+                    },
+                    {
+                        "oldPath": "",
+                        "owner": true,
+                        "path": "/etc/bash.bashrca43zQM",
+                        "permissions": [
+                            "r",
+                            "w"
+                        ]
+                    },
+                    {
+                        "oldPath": "",
+                        "owner": true,
+                        "path": "/usr/bin/date",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "",
+                        "owner": true,
+                        "path": "/ml_platform/customtask/entrypoint/utils/config_ssh",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "",
+                        "owner": true,
+                        "path": "/ml_platform/customtask/entrypoint/ssh/",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "",
+                        "owner": true,
+                        "path": "/ml_platform/customtask/entrypoint/ssh/passwd",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "",
+                        "owner": true,
+                        "path": "/root/.ssh/passwd",
+                        "permissions": [
+                            "r",
+                            "w"
+                        ]
+                    },
+                    {
+                        "oldPath": "",
+                        "owner": true,
+                        "path": "/root/.ssh/ssh_host_ecdsa_key",
+                        "permissions": [
+                            "r",
+                            "w"
+                        ]
+                    },
+                    {
+                        "oldPath": "",
+                        "owner": true,
+                        "path": "/ml_platform/customtask/entrypoint/ssh/ssh_host_ecdsa_key.pub",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "",
+                        "owner": true,
+                        "path": "/root/.ssh/ssh_host_ecdsa_key.pub",
+                        "permissions": [
+                            "r",
+                            "w"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/.ssh/ssh_host_ed25519_key",
+                        "owner": true,
+                        "path": "/root/.ssh/*",
+                        "permissions": [
+                            "w"
+                        ]
+                    },
+                    {
+                        "oldPath": "/ml_platform/customtask/entrypoint/ssh/ssh_host_ed25519_key.pub",
+                        "owner": true,
+                        "path": "/ml_platform/customtask/entrypoint/ssh/*",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "",
+                        "owner": true,
+                        "path": "/root/.ssh/ssh_host_rsa_key",
+                        "permissions": [
+                            "r",
+                            "w"
+                        ]
+                    },
+                    {
+                        "oldPath": "",
+                        "owner": true,
+                        "path": "/ml_platform/customtask/entrypoint/ssh/ssh_host_rsa_key.pub",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "",
+                        "owner": true,
+                        "path": "/root/.ssh/ssh_host_rsa_key.pub",
+                        "permissions": [
+                            "r",
+                            "w"
+                        ]
+                    },
+                    {
+                        "oldPath": "",
+                        "owner": true,
+                        "path": "/root/.ssh/config",
+                        "permissions": [
+                            "w"
+                        ]
+                    },
+                    {
+                        "oldPath": "",
+                        "owner": true,
+                        "path": "/usr/bin/chown",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "",
+                        "owner": true,
+                        "path": "/etc/group",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "",
+                        "owner": true,
+                        "path": "/root/",
+                        "permissions": [
+                            "w"
+                        ]
+                    },
+                    {
+                        "oldPath": "",
+                        "owner": true,
+                        "path": "/usr/bin/rm",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "",
+                        "owner": true,
+                        "path": "/run/sshd/",
+                        "permissions": [
+                            "w"
+                        ]
+                    },
+                    {
+                        "oldPath": "/proc/4670/loginuid",
+                        "owner": true,
+                        "path": "/proc/*/loginuid",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "",
+                        "owner": true,
+                        "path": "/etc/pam.d/passwd",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "",
+                        "owner": true,
+                        "path": "/etc/pam.d/other",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "",
+                        "owner": true,
+                        "path": "/etc/pam.d/common-account",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "",
+                        "owner": true,
+                        "path": "/etc/pam.d/common-session",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "",
+                        "owner": true,
+                        "path": "/etc/login.defs",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "",
+                        "owner": true,
+                        "path": "/etc/shadow",
+                        "permissions": [
+                            "r",
+                            "w",
+                            "w"
+                        ]
+                    },
+                    {
+                        "oldPath": "",
+                        "owner": true,
+                        "path": "/etc/.pwd.lock",
+                        "permissions": [
+                            "k",
+                            "w"
+                        ]
+                    },
+                    {
+                        "oldPath": "",
+                        "owner": true,
+                        "path": "/dev/urandom",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "",
+                        "owner": true,
+                        "path": "/etc/nshadow",
+                        "permissions": [
+                            "r",
+                            "w"
+                        ]
+                    },
+                    {
+                        "oldPath": "",
+                        "owner": true,
+                        "path": "/proc/1/root1",
+                        "permissions": [
+                            "r",
+                            "w"
+                        ]
+                    },
+                    {
+                        "oldPath": "",
+                        "owner": true,
+                        "path": "/ml_platform/customtask/entrypoint/utils/debug_server/daemon",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "",
+                        "owner": true,
+                        "path": "/ml_platform/customtask/entrypoint/framework/exec/exec.sh",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "",
+                        "owner": true,
+                        "path": "/usr/bin/sleep",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "",
+                        "owner": true,
+                        "path": "/usr/bin/mawk",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "",
+                        "owner": true,
+                        "path": "/proc/",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/proc/1/stat",
+                        "owner": true,
+                        "path": "/proc/*/stat",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "",
+                        "owner": true,
+                        "path": "/ml_platform/customtask/entrypoint/utils/start_sshd",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "",
+                        "owner": true,
+                        "path": "/ml_platform/bin/sshd",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/ml_platform/usr/lib/x86_64-linux-gnu/libwrap.so.0.7.6",
+                        "owner": true,
+                        "path": "/ml_platform/usr/lib/x86_64-linux-gnu/libwrap.so.*.*.*",
+                        "permissions": [
+                            "m",
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/ml_platform/lib/x86_64-linux-gnu/libaudit.so.1.0.0",
+                        "owner": true,
+                        "path": "/ml_platform/lib/x86_64-linux-gnu/libaudit.so.*.*.*",
+                        "permissions": [
+                            "m",
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/ml_platform/lib/x86_64-linux-gnu/libpam.so.0.85.1",
+                        "owner": true,
+                        "path": "/ml_platform/lib/x86_64-linux-gnu/libpam.so.*.*.*",
+                        "permissions": [
+                            "m",
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/ml_platform/usr/lib/x86_64-linux-gnu/libsystemd.so.0.30.0",
+                        "owner": true,
+                        "path": "/ml_platform/usr/lib/x86_64-linux-gnu/libsystemd.so.*.*.*",
+                        "permissions": [
+                            "m",
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "",
+                        "owner": true,
+                        "path": "/ml_platform/customtask/entrypoint/utils/update_log_list",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "",
+                        "owner": true,
+                        "path": "/etc/ssl/openssl.cnf",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "",
+                        "owner": true,
+                        "path": "/root/logs/syslog/.log_filename.log",
+                        "permissions": [
+                            "w",
+                            "r",
+                            "a"
+                        ]
+                    },
+                    {
+                        "oldPath": "/proc/4686/fd/",
+                        "owner": true,
+                        "path": "/proc/*/fd/",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "",
+                        "owner": true,
+                        "path": "/root/logs/syslog/sshd.log",
+                        "permissions": [
+                            "w",
+                            "a"
+                        ]
+                    },
+                    {
+                        "oldPath": "",
+                        "owner": true,
+                        "path": "/etc/gai.conf",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "",
+                        "owner": true,
+                        "path": "/root/logs/",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "",
+                        "owner": true,
+                        "path": "/usr/bin/find",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/bin/python3.10",
+                        "owner": true,
+                        "path": "/root/miniconda3/bin/python3.*",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/usr/lib/locale/C.UTF-8/LC_CTYPE",
+                        "owner": true,
+                        "path": "/usr/lib/locale/C.UTF-*/LC_CTYPE",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/4158/fs/root/miniconda3/lib/python3.10/",
+                        "owner": true,
+                        "path": "/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/*/fs/root/miniconda3/lib/python3.*/",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/encodings/__pycache__/__init__.cpython-310.pyc",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/encodings/__pycache__/__init__.cpython-*.pyc",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/__pycache__/codecs.cpython-310.pyc",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/__pycache__/codecs.cpython-*.pyc",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/encodings/",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/encodings/",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/encodings/__pycache__/aliases.cpython-310.pyc",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/encodings/__pycache__/aliases.cpython-*.pyc",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/__pycache__/io.cpython-310.pyc",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/__pycache__/io.cpython-*.pyc",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/__pycache__/abc.cpython-310.pyc",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/__pycache__/abc.cpython-*.pyc",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/__pycache__/site.cpython-310.pyc",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/__pycache__/site.cpython-*.pyc",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/__pycache__/os.cpython-310.pyc",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/__pycache__/os.cpython-*.pyc",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/__pycache__/stat.cpython-310.pyc",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/__pycache__/stat.cpython-*.pyc",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/__pycache__/_collections_abc.cpython-310.pyc",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/__pycache__/_collections_abc.cpython-*.pyc",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/__pycache__/posixpath.cpython-310.pyc",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/__pycache__/posixpath.cpython-*.pyc",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/__pycache__/_sitebuiltins.cpython-310.pyc",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/__pycache__/_sitebuiltins.cpython-*.pyc",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/4158/fs/root/miniconda3/lib/python3.10/site-packages/",
+                        "owner": true,
+                        "path": "/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/*/fs/root/miniconda3/lib/python3.*/site-packages/",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/site-packages/distutils-precedence.pth",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/site-packages/distutils-precedence.pth",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/lib-dynload/",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/lib-dynload/",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/4146/fs/root/miniconda3/lib/python3.10/lib-dynload/",
+                        "owner": true,
+                        "path": "/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/*/fs/root/miniconda3/lib/python3.*/lib-dynload/",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/site-packages/",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/site-packages/",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/site-packages/_distutils_hack/__pycache__/__init__.cpython-310.pyc",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/site-packages/_distutils_hack/__pycache__/__init__.cpython-*.pyc",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/site-packages/ruamel.yaml-0.17.21-py3.10-nspkg.pth",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/site-packages/ruamel.yaml-*.*.*-py3.*-nspkg.pth",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/__pycache__/types.cpython-310.pyc",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/__pycache__/types.cpython-*.pyc",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/importlib/__pycache__/__init__.cpython-310.pyc",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/importlib/__pycache__/__init__.cpython-*.pyc",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/__pycache__/warnings.cpython-310.pyc",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/__pycache__/warnings.cpython-*.pyc",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/4146/fs/root/miniconda3/lib/python3.10/importlib/",
+                        "owner": true,
+                        "path": "/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/*/fs/root/miniconda3/lib/python3.*/importlib/",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/importlib/__pycache__/_abc.cpython-310.pyc",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/importlib/__pycache__/_abc.cpython-*.pyc",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/__pycache__/contextlib.cpython-310.pyc",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/__pycache__/contextlib.cpython-*.pyc",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/collections/__pycache__/__init__.cpython-310.pyc",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/collections/__pycache__/__init__.cpython-*.pyc",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/__pycache__/keyword.cpython-310.pyc",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/__pycache__/keyword.cpython-*.pyc",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/__pycache__/operator.cpython-310.pyc",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/__pycache__/operator.cpython-*.pyc",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/__pycache__/reprlib.cpython-310.pyc",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/__pycache__/reprlib.cpython-*.pyc",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/__pycache__/functools.cpython-310.pyc",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/__pycache__/functools.cpython-*.pyc",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/importlib/__pycache__/machinery.cpython-310.pyc",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/importlib/__pycache__/machinery.cpython-*.pyc",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "",
+                        "owner": true,
+                        "path": "/root/miniconda3/bin/torchrun",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "",
+                        "owner": true,
+                        "path": "/root/miniconda3/bin/",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/4158/fs/root/miniconda3/bin/",
+                        "owner": true,
+                        "path": "/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/*/fs/root/miniconda3/bin/",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/__pycache__/re.cpython-310.pyc",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/__pycache__/re.cpython-*.pyc",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/__pycache__/enum.cpython-310.pyc",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/__pycache__/enum.cpython-*.pyc",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/__pycache__/sre_parse.cpython-310.pyc",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/__pycache__/sre_parse.cpython-*.pyc",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/__pycache__/copyreg.cpython-310.pyc",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/__pycache__/copyreg.cpython-*.pyc",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/site-packages/torch/__pycache__/__init__.cpython-310.pyc",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/site-packages/torch/__pycache__/__init__.cpython-*.pyc",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/__pycache__/platform.cpython-310.pyc",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/__pycache__/platform.cpython-*.pyc",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/__pycache__/subprocess.cpython-310.pyc",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/__pycache__/subprocess.cpython-*.pyc",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/__pycache__/signal.cpython-310.pyc",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/__pycache__/signal.cpython-*.pyc",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/__pycache__/threading.cpython-310.pyc",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/__pycache__/threading.cpython-*.pyc",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/__pycache__/_weakrefset.cpython-310.pyc",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/__pycache__/_weakrefset.cpython-*.pyc",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/lib-dynload/fcntl.cpython-310-x86_64-linux-gnu.so",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/lib-dynload/fcntl.cpython-*-x86_64-linux-gnu.so",
+                        "permissions": [
+                            "m",
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/lib-dynload/_posixsubprocess.cpython-310-x86_64-linux-gnu.so",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/lib-dynload/_posixsubprocess.cpython-*-x86_64-linux-gnu.so",
+                        "permissions": [
+                            "m",
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/lib-dynload/select.cpython-310-x86_64-linux-gnu.so",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/lib-dynload/select.cpython-*-x86_64-linux-gnu.so",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/__pycache__/selectors.cpython-310.pyc",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/__pycache__/selectors.cpython-*.pyc",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/collections/",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/collections/",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/4146/fs/root/miniconda3/lib/python3.10/collections/",
+                        "owner": true,
+                        "path": "/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/*/fs/root/miniconda3/lib/python3.*/collections/",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/collections/__pycache__/abc.cpython-310.pyc",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/collections/__pycache__/abc.cpython-*.pyc",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/lib-dynload/math.cpython-310-x86_64-linux-gnu.so",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/lib-dynload/math.cpython-*-x86_64-linux-gnu.so",
+                        "permissions": [
+                            "m",
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/__pycache__/textwrap.cpython-310.pyc",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/__pycache__/textwrap.cpython-*.pyc",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/ctypes/__pycache__/__init__.cpython-310.pyc",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/ctypes/__pycache__/__init__.cpython-*.pyc",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/lib-dynload/_ctypes.cpython-310-x86_64-linux-gnu.so",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/lib-dynload/_ctypes.cpython-*-x86_64-linux-gnu.so",
+                        "permissions": [
+                            "m",
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/libffi.so.8.1.2",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/libffi.so.*.*.*",
+                        "permissions": [
+                            "m",
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/__pycache__/struct.cpython-310.pyc",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/__pycache__/struct.cpython-*.pyc",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/lib-dynload/_struct.cpython-310-x86_64-linux-gnu.so",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/lib-dynload/_struct.cpython-*-x86_64-linux-gnu.so",
+                        "permissions": [
+                            "m",
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/ctypes/",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/ctypes/",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/4146/fs/root/miniconda3/lib/python3.10/ctypes/",
+                        "owner": true,
+                        "path": "/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/*/fs/root/miniconda3/lib/python3.*/ctypes/",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/ctypes/__pycache__/_endian.cpython-310.pyc",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/ctypes/__pycache__/_endian.cpython-*.pyc",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/__pycache__/ast.cpython-310.pyc",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/__pycache__/ast.cpython-*.pyc",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/__pycache__/dis.cpython-310.pyc",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/__pycache__/dis.cpython-*.pyc",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/__pycache__/opcode.cpython-310.pyc",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/__pycache__/opcode.cpython-*.pyc",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/lib-dynload/_opcode.cpython-310-x86_64-linux-gnu.so",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/lib-dynload/_opcode.cpython-*-x86_64-linux-gnu.so",
+                        "permissions": [
+                            "m",
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/__pycache__/linecache.cpython-310.pyc",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/__pycache__/linecache.cpython-*.pyc",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/__pycache__/tokenize.cpython-310.pyc",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/__pycache__/tokenize.cpython-*.pyc",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/__pycache__/token.cpython-310.pyc",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/__pycache__/token.cpython-*.pyc",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/site-packages/torch/",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/site-packages/torch/",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/site-packages/torch/__pycache__/_utils.cpython-310.pyc",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/site-packages/torch/__pycache__/_utils.cpython-*.pyc",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/__pycache__/traceback.cpython-310.pyc",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/__pycache__/traceback.cpython-*.pyc",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/__pycache__/typing.cpython-310.pyc",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/__pycache__/typing.cpython-*.pyc",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/site-packages/torch/__pycache__/_utils_internal.cpython-310.pyc",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/site-packages/torch/__pycache__/_utils_internal.cpython-*.pyc",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/__pycache__/tempfile.cpython-310.pyc",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/__pycache__/tempfile.cpython-*.pyc",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/__pycache__/shutil.cpython-310.pyc",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/__pycache__/shutil.cpython-*.pyc",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/__pycache__/fnmatch.cpython-310.pyc",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/__pycache__/fnmatch.cpython-*.pyc",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/lib-dynload/zlib.cpython-310-x86_64-linux-gnu.so",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/lib-dynload/zlib.cpython-*-x86_64-linux-gnu.so",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/libz.so.1.2.13",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/libz.so.*.*.*",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/__pycache__/bz2.cpython-310.pyc",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/__pycache__/bz2.cpython-*.pyc",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/__pycache__/_compression.cpython-310.pyc",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/__pycache__/_compression.cpython-*.pyc",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/lib-dynload/_bz2.cpython-310-x86_64-linux-gnu.so",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/lib-dynload/_bz2.cpython-*-x86_64-linux-gnu.so",
+                        "permissions": [
+                            "m",
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/libbz2.so.1.0.8",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/*",
+                        "permissions": [
+                            "m",
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/__pycache__/lzma.cpython-310.pyc",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/__pycache__/lzma.cpython-*.pyc",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/lib-dynload/_lzma.cpython-310-x86_64-linux-gnu.so",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/lib-dynload/_lzma.cpython-*-x86_64-linux-gnu.so",
+                        "permissions": [
+                            "m",
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/__pycache__/random.cpython-310.pyc",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/__pycache__/random.cpython-*.pyc",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/__pycache__/bisect.cpython-310.pyc",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/__pycache__/bisect.cpython-*.pyc",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/lib-dynload/_bisect.cpython-310-x86_64-linux-gnu.so",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/lib-dynload/_bisect.cpython-*-x86_64-linux-gnu.so",
+                        "permissions": [
+                            "m",
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/lib-dynload/_random.cpython-310-x86_64-linux-gnu.so",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/lib-dynload/_random.cpython-*-x86_64-linux-gnu.so",
+                        "permissions": [
+                            "m",
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/lib-dynload/_sha512.cpython-310-x86_64-linux-gnu.so",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/lib-dynload/_sha512.cpython-*-x86_64-linux-gnu.so",
+                        "permissions": [
+                            "m",
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/site-packages/torch/__pycache__/torch_version.cpython-310.pyc",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/site-packages/torch/__pycache__/torch_version.cpython-*.pyc",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/site-packages/torch/__pycache__/version.cpython-310.pyc",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/site-packages/torch/__pycache__/version.cpython-*.pyc",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/site-packages/torch/__pycache__/_six.cpython-310.pyc",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/site-packages/torch/__pycache__/_six.cpython-*.pyc",
+                        "permissions": [
+                            "r"
+                        ]
+                    },
+                    {
+                        "oldPath": "/root/miniconda3/lib/python3.10/site-packages/torch/lib/libtorch_global_deps.so",
+                        "owner": true,
+                        "path": "/root/miniconda3/lib/python3.*/site-packages/torch/lib/libtorch_global_deps.so",
+                        "permissions": [
+                            "r"
+                        ]
+                    }
+                ],
+                "networks": [
+                    {
+                        "family": "unix",
+                        "protocol": "ip",
+                        "sockType": "stream"
+                    }
+                ],
+                "profiles": [
+                    "varmor-mlplatform-customtask-liuledian-test"
+                ],
+                "ptraces": [
+                    {
+                        "peer": "varmor-mlplatform-customtask-liuledian-test",
+                        "permissions": [
+                            "readby"
+                        ]
+                    }
+                ]
+            },
+            "seccomp": {}
+        },
+        "profile": {
+            "content": "CiMjID09IE1hbmFnZWQgYnkgdkFybW9yID09ICMjCgphYmkgPGFiaS8zLjA+LAojaW5jbHVkZSA8dHVuYWJsZXMvZ2xvYmFsPgoKcHJvZmlsZSB2YXJtb3ItbWxwbGF0Zm9ybS1jdXN0b210YXNrLWxpdWxlZGlhbi10ZXN0IGZsYWdzPShhdHRhY2hfZGlzY29ubmVjdGVkLG1lZGlhdGVfZGVsZXRlZCkgewoKICAjaW5jbHVkZSA8YWJzdHJhY3Rpb25zL2Jhc2U+CgogICMgLS0tLSBFWEVDIC0tLS0KICAvbWxfcGxhdGZvcm0vYmluL2Jhc2ggaXgsCiAgL21sX3BsYXRmb3JtL2Jpbi9idXN5Ym94IGl4LAogIC9tbF9wbGF0Zm9ybS9iaW4vc3NoZCBpeCwKICAvbWxfcGxhdGZvcm0vY3VzdG9tdGFzay9lbnRyeXBvaW50L3V0aWxzL2xvZyBpeCwKICAvbWxfcGxhdGZvcm0vY3VzdG9tdGFzay9lbnRyeXBvaW50L3V0aWxzL3N0YXJ0X3NzaGQgaXgsCiAgL3Jvb3QvbWluaWNvbmRhMy9iaW4vdG9yY2hydW4gaXgsCiAgL3Vzci9iaW4vY2F0IGl4LAogIC91c3IvYmluL2Nob3duIGl4LAogIC91c3IvYmluL2N1dCBpeCwKICAvdXNyL2Jpbi9lbnYgaXgsCiAgL3Vzci9iaW4vZmluZCBpeCwKICAvdXNyL2Jpbi9scyBpeCwKICAvdXNyL2Jpbi9tYXdrIGl4LAogIC91c3IvYmluL21rZGlyIGl4LAogIC91c3IvYmluL3Bhc3N3ZCBpeCwKICAvdXNyL2Jpbi9ybSBpeCwKICAvdXNyL2Jpbi9zbGVlcCBpeCwKICAvdXNyL2Jpbi9zb3J0IGl4LAogIC91c3IvYmluL3dob2FtaSBpeCwKCiAgIyAtLS0tIEZJTEUgLS0tLQogIC9wcm9jL2ZpbGVzeXN0ZW1zIHIsCiAgb3duZXIgL2NvbnRhaW5lcmQvaW8uY29udGFpbmVyZC5zbmFwc2hvdHRlci52MS5vdmVybGF5ZnMvc25hcHNob3RzLyovZnMvcm9vdC9taW5pY29uZGEzL2Jpbi8gciwKICBvd25lciAvY29udGFpbmVyZC9pby5jb250YWluZXJkLnNuYXBzaG90dGVyLnYxLm92ZXJsYXlmcy9zbmFwc2hvdHMvKi9mcy9yb290L21pbmljb25kYTMvbGliL3B5dGhvbjMuKi8gciwKICBvd25lciAvY29udGFpbmVyZC9pby5jb250YWluZXJkLnNuYXBzaG90dGVyLnYxLm92ZXJsYXlmcy9zbmFwc2hvdHMvKi9mcy9yb290L21pbmljb25kYTMvbGliL3B5dGhvbjMuKi9jb2xsZWN0aW9ucy8gciwKICBvd25lciAvY29udGFpbmVyZC9pby5jb250YWluZXJkLnNuYXBzaG90dGVyLnYxLm92ZXJsYXlmcy9zbmFwc2hvdHMvKi9mcy9yb290L21pbmljb25kYTMvbGliL3B5dGhvbjMuKi9jdHlwZXMvIHIsCiAgb3duZXIgL2NvbnRhaW5lcmQvaW8uY29udGFpbmVyZC5zbmFwc2hvdHRlci52MS5vdmVybGF5ZnMvc25hcHNob3RzLyovZnMvcm9vdC9taW5pY29uZGEzL2xpYi9weXRob24zLiovaW1wb3J0bGliLyByLAogIG93bmVyIC9jb250YWluZXJkL2lvLmNvbnRhaW5lcmQuc25hcHNob3R0ZXIudjEub3ZlcmxheWZzL3NuYXBzaG90cy8qL2ZzL3Jvb3QvbWluaWNvbmRhMy9saWIvcHl0aG9uMy4qL2xpYi1keW5sb2FkLyByLAogIG93bmVyIC9jb250YWluZXJkL2lvLmNvbnRhaW5lcmQuc25hcHNob3R0ZXIudjEub3ZlcmxheWZzL3NuYXBzaG90cy8qL2ZzL3Jvb3QvbWluaWNvbmRhMy9saWIvcHl0aG9uMy4qL3NpdGUtcGFja2FnZXMvIHIsCiAgb3duZXIgL2Rldi9udWxsIHJ3LAogIG93bmVyIC9kZXYvdHR5IHJ3LAogIG93bmVyIC9kZXYvdXJhbmRvbSByLAogIG93bmVyIC9ldGMvKiBydywKICBvd25lciAvZXRjLy5wd2QubG9jayBrdywKICBvd25lciAvZXRjL2Jhc2guYmFzaHJjIHJ3dywKICBvd25lciAvZXRjL2Jhc2guYmFzaHJjYTQzelFNIHJ3LAogIG93bmVyIC9ldGMvZ2FpLmNvbmYgciwKICBvd25lciAvZXRjL2dyb3VwIHIsCiAgb3duZXIgL2V0Yy9sZC5zby5jYWNoZSByLAogIG93bmVyIC9ldGMvbG9naW4uZGVmcyByLAogIG93bmVyIC9ldGMvbnNoYWRvdyBydywKICBvd25lciAvZXRjL25zc3dpdGNoLmNvbmYgciwKICBvd25lciAvZXRjL3BhbS5kL2NvbW1vbi1hY2NvdW50IHIsCiAgb3duZXIgL2V0Yy9wYW0uZC9jb21tb24tc2Vzc2lvbiByLAogIG93bmVyIC9ldGMvcGFtLmQvb3RoZXIgciwKICBvd25lciAvZXRjL3BhbS5kL3Bhc3N3ZCByLAogIG93bmVyIC9ldGMvcGFzc3dkIHJ3LAogIG93bmVyIC9ldGMvc2hhZG93IHJ3dywKICBvd25lciAvZXRjL3NzbC9vcGVuc3NsLmNuZiByLAogIG93bmVyIC9tbF9wbGF0Zm9ybS9iaW4vYmFzaCByLAogIG93bmVyIC9tbF9wbGF0Zm9ybS9iaW4vYnVzeWJveCByLAogIG93bmVyIC9tbF9wbGF0Zm9ybS9iaW4vc3NoZCByLAogIG93bmVyIC9tbF9wbGF0Zm9ybS9jdXN0b210YXNrL2VudHJ5cG9pbnQvYmFzaHJjIHIsCiAgb3duZXIgL21sX3BsYXRmb3JtL2N1c3RvbXRhc2svZW50cnlwb2ludC9iYXNocmMuZW52IHcsCiAgb3duZXIgL21sX3BsYXRmb3JtL2N1c3RvbXRhc2svZW50cnlwb2ludC9lbnRyeXBvaW50LnNoIHIsCiAgb3duZXIgL21sX3BsYXRmb3JtL2N1c3RvbXRhc2svZW50cnlwb2ludC9mcmFtZXdvcmsvZXhlYy9leGVjLnNoIHIsCiAgb3duZXIgL21sX3BsYXRmb3JtL2N1c3RvbXRhc2svZW50cnlwb2ludC9mcmFtZXdvcmsvaW5pdF9lbnYvaW5pdCByLAogIG93bmVyIC9tbF9wbGF0Zm9ybS9jdXN0b210YXNrL2VudHJ5cG9pbnQvbWxwbGF0Zm9ybV9tbGpvYl9jb25maWcuc2ggcncsCiAgb3duZXIgL21sX3BsYXRmb3JtL2N1c3RvbXRhc2svZW50cnlwb2ludC9zc2gvIHIsCiAgb3duZXIgL21sX3BsYXRmb3JtL2N1c3RvbXRhc2svZW50cnlwb2ludC9zc2gvKiByLAogIG93bmVyIC9tbF9wbGF0Zm9ybS9jdXN0b210YXNrL2VudHJ5cG9pbnQvc3NoL3Bhc3N3ZCByLAogIG93bmVyIC9tbF9wbGF0Zm9ybS9jdXN0b210YXNrL2VudHJ5cG9pbnQvc3NoL3NzaF9ob3N0X2VjZHNhX2tleS5wdWIgciwKICBvd25lciAvbWxfcGxhdGZvcm0vY3VzdG9tdGFzay9lbnRyeXBvaW50L3NzaC9zc2hfaG9zdF9yc2Ffa2V5LnB1YiByLAogIG93bmVyIC9tbF9wbGF0Zm9ybS9jdXN0b210YXNrL2VudHJ5cG9pbnQvdXRpbHMvY29uZmlnX3NzaCByLAogIG93bmVyIC9tbF9wbGF0Zm9ybS9jdXN0b210YXNrL2VudHJ5cG9pbnQvdXRpbHMvZGVidWdfc2VydmVyL2RhZW1vbiByLAogIG93bmVyIC9tbF9wbGF0Zm9ybS9jdXN0b210YXNrL2VudHJ5cG9pbnQvdXRpbHMvaW5pdF9iYXNocmMgciwKICBvd25lciAvbWxfcGxhdGZvcm0vY3VzdG9tdGFzay9lbnRyeXBvaW50L3V0aWxzL2xvZyByLAogIG93bmVyIC9tbF9wbGF0Zm9ybS9jdXN0b210YXNrL2VudHJ5cG9pbnQvdXRpbHMvcmFjayByLAogIG93bmVyIC9tbF9wbGF0Zm9ybS9jdXN0b210YXNrL2VudHJ5cG9pbnQvdXRpbHMvcmRtYS9pbml0IHIsCiAgb3duZXIgL21sX3BsYXRmb3JtL2N1c3RvbXRhc2svZW50cnlwb2ludC91dGlscy9zdGFydF9zc2hkIHIsCiAgb3duZXIgL21sX3BsYXRmb3JtL2N1c3RvbXRhc2svZW50cnlwb2ludC91dGlscy91cGRhdGVfbG9nX2xpc3QgciwKICBvd25lciAvbWxfcGxhdGZvcm0vbGliL3g4Nl82NC1saW51eC1nbnUvbGQtKi4qLnNvIHIsCiAgb3duZXIgL21sX3BsYXRmb3JtL2xpYi94ODZfNjQtbGludXgtZ251L2xpYmF1ZGl0LnNvLiouKi4qIG1yLAogIG93bmVyIC9tbF9wbGF0Zm9ybS9saWIveDg2XzY0LWxpbnV4LWdudS9saWJjLSouKi5zbyBtciwKICBvd25lciAvbWxfcGxhdGZvcm0vbGliL3g4Nl82NC1saW51eC1nbnUvbGliZGwtKi4qLnNvIG1yLAogIG93bmVyIC9tbF9wbGF0Zm9ybS9saWIveDg2XzY0LWxpbnV4LWdudS9saWJuc3NfZmlsZXMtKi4qLnNvIG1yLAogIG93bmVyIC9tbF9wbGF0Zm9ybS9saWIveDg2XzY0LWxpbnV4LWdudS9saWJwYW0uc28uKi4qLiogbXIsCiAgb3duZXIgL21sX3BsYXRmb3JtL2xpYi94ODZfNjQtbGludXgtZ251L2xpYnJlc29sdi0qLiouc28gbXIsCiAgb3duZXIgL21sX3BsYXRmb3JtL2xpYi94ODZfNjQtbGludXgtZ251L2xpYnRpbmZvLnNvLiouKiBtciwKICBvd25lciAvbWxfcGxhdGZvcm0vdXNyL2xpYi94ODZfNjQtbGludXgtZ251L2xpYnN5c3RlbWQuc28uKi4qLiogbXIsCiAgb3duZXIgL21sX3BsYXRmb3JtL3Vzci9saWIveDg2XzY0LWxpbnV4LWdudS9saWJ3cmFwLnNvLiouKi4qIG1yLAogIG93bmVyIC9wcm9jLyByLAogIG93bmVyIC9wcm9jLyovZW52aXJvbiByLAogIG93bmVyIC9wcm9jLyovZmQvIHIsCiAgb3duZXIgL3Byb2MvKi9mZC8qIHcsCiAgb3duZXIgL3Byb2MvKi9sb2dpbnVpZCByLAogIG93bmVyIC9wcm9jLyovbmV0L3JvdXRlIHIsCiAgb3duZXIgL3Byb2MvKi9zdGF0IHIsCiAgb3duZXIgL3Jvb3QvIHcsCiAgb3duZXIgL3Jvb3QvLnNzaC8qIHcsCiAgb3duZXIgL3Jvb3QvLnNzaC9jb25maWcgdywKICBvd25lciAvcm9vdC8uc3NoL3Bhc3N3ZCBydywKICBvd25lciAvcm9vdC8uc3NoL3NzaF9ob3N0X2VjZHNhX2tleSBydywKICBvd25lciAvcm9vdC8uc3NoL3NzaF9ob3N0X2VjZHNhX2tleS5wdWIgcncsCiAgb3duZXIgL3Jvb3QvLnNzaC9zc2hfaG9zdF9yc2Ffa2V5IHJ3LAogIG93bmVyIC9yb290Ly5zc2gvc3NoX2hvc3RfcnNhX2tleS5wdWIgcncsCiAgb3duZXIgL3Jvb3QvLnNzaC9zc2hkX2NvbmZpZyBydywKICBvd25lciAvcm9vdC8udm9sYy8qL21scGxhdGZvcm1fbWxqb2JfY29uZmlnLnNoIHIsCiAgb3duZXIgL3Jvb3QvbG9ncy8gciwKICBvd25lciAvcm9vdC9sb2dzL3N5c2xvZy8gcncsCiAgb3duZXIgL3Jvb3QvbG9ncy9zeXNsb2cvLmxvZ19maWxlbmFtZS5sb2cgcncsCiAgb3duZXIgL3Jvb3QvbG9ncy9zeXNsb2cvc3NoZC5sb2cgdywKICBvd25lciAvcm9vdC9sb2dzL3N5c2xvZy9zdGRlcnIubG9nIHcsCiAgb3duZXIgL3Jvb3QvbG9ncy9zeXNsb2cvc3Rkb3V0LmxvZyB3LAogIG93bmVyIC9yb290L2xvZ3Mvc3lzbG9nL3N5cy5sb2cgdywKICBvd25lciAvcm9vdC9taW5pY29uZGEzL2Jpbi8gciwKICBvd25lciAvcm9vdC9taW5pY29uZGEzL2Jpbi9weXRob24zLiogciwKICBvd25lciAvcm9vdC9taW5pY29uZGEzL2Jpbi90b3JjaHJ1biByLAogIG93bmVyIC9yb290L21pbmljb25kYTMvbGliLyogbXIsCiAgb3duZXIgL3Jvb3QvbWluaWNvbmRhMy9saWIvbGliZmZpLnNvLiouKi4qIG1yLAogIG93bmVyIC9yb290L21pbmljb25kYTMvbGliL2xpYnouc28uKi4qLiogciwKICBvd25lciAvcm9vdC9taW5pY29uZGEzL2xpYi9weXRob24zLiovIHIsCiAgb3duZXIgL3Jvb3QvbWluaWNvbmRhMy9saWIvcHl0aG9uMy4qL19fcHljYWNoZV9fL19jb2xsZWN0aW9uc19hYmMuY3B5dGhvbi0qLnB5YyByLAogIG93bmVyIC9yb290L21pbmljb25kYTMvbGliL3B5dGhvbjMuKi9fX3B5Y2FjaGVfXy9fY29tcHJlc3Npb24uY3B5dGhvbi0qLnB5YyByLAogIG93bmVyIC9yb290L21pbmljb25kYTMvbGliL3B5dGhvbjMuKi9fX3B5Y2FjaGVfXy9fc2l0ZWJ1aWx0aW5zLmNweXRob24tKi5weWMgciwKICBvd25lciAvcm9vdC9taW5pY29uZGEzL2xpYi9weXRob24zLiovX19weWNhY2hlX18vX3dlYWtyZWZzZXQuY3B5dGhvbi0qLnB5YyByLAogIG93bmVyIC9yb290L21pbmljb25kYTMvbGliL3B5dGhvbjMuKi9fX3B5Y2FjaGVfXy9hYmMuY3B5dGhvbi0qLnB5YyByLAogIG93bmVyIC9yb290L21pbmljb25kYTMvbGliL3B5dGhvbjMuKi9fX3B5Y2FjaGVfXy9hc3QuY3B5dGhvbi0qLnB5YyByLAogIG93bmVyIC9yb290L21pbmljb25kYTMvbGliL3B5dGhvbjMuKi9fX3B5Y2FjaGVfXy9iaXNlY3QuY3B5dGhvbi0qLnB5YyByLAogIG93bmVyIC9yb290L21pbmljb25kYTMvbGliL3B5dGhvbjMuKi9fX3B5Y2FjaGVfXy9iejIuY3B5dGhvbi0qLnB5YyByLAogIG93bmVyIC9yb290L21pbmljb25kYTMvbGliL3B5dGhvbjMuKi9fX3B5Y2FjaGVfXy9jb2RlY3MuY3B5dGhvbi0qLnB5YyByLAogIG93bmVyIC9yb290L21pbmljb25kYTMvbGliL3B5dGhvbjMuKi9fX3B5Y2FjaGVfXy9jb250ZXh0bGliLmNweXRob24tKi5weWMgciwKICBvd25lciAvcm9vdC9taW5pY29uZGEzL2xpYi9weXRob24zLiovX19weWNhY2hlX18vY29weXJlZy5jcHl0aG9uLSoucHljIHIsCiAgb3duZXIgL3Jvb3QvbWluaWNvbmRhMy9saWIvcHl0aG9uMy4qL19fcHljYWNoZV9fL2Rpcy5jcHl0aG9uLSoucHljIHIsCiAgb3duZXIgL3Jvb3QvbWluaWNvbmRhMy9saWIvcHl0aG9uMy4qL19fcHljYWNoZV9fL2VudW0uY3B5dGhvbi0qLnB5YyByLAogIG93bmVyIC9yb290L21pbmljb25kYTMvbGliL3B5dGhvbjMuKi9fX3B5Y2FjaGVfXy9mbm1hdGNoLmNweXRob24tKi5weWMgciwKICBvd25lciAvcm9vdC9taW5pY29uZGEzL2xpYi9weXRob24zLiovX19weWNhY2hlX18vZnVuY3Rvb2xzLmNweXRob24tKi5weWMgciwKICBvd25lciAvcm9vdC9taW5pY29uZGEzL2xpYi9weXRob24zLiovX19weWNhY2hlX18vaW8uY3B5dGhvbi0qLnB5YyByLAogIG93bmVyIC9yb290L21pbmljb25kYTMvbGliL3B5dGhvbjMuKi9fX3B5Y2FjaGVfXy9rZXl3b3JkLmNweXRob24tKi5weWMgciwKICBvd25lciAvcm9vdC9taW5pY29uZGEzL2xpYi9weXRob24zLiovX19weWNhY2hlX18vbGluZWNhY2hlLmNweXRob24tKi5weWMgciwKICBvd25lciAvcm9vdC9taW5pY29uZGEzL2xpYi9weXRob24zLiovX19weWNhY2hlX18vbHptYS5jcHl0aG9uLSoucHljIHIsCiAgb3duZXIgL3Jvb3QvbWluaWNvbmRhMy9saWIvcHl0aG9uMy4qL19fcHljYWNoZV9fL29wY29kZS5jcHl0aG9uLSoucHljIHIsCiAgb3duZXIgL3Jvb3QvbWluaWNvbmRhMy9saWIvcHl0aG9uMy4qL19fcHljYWNoZV9fL29wZXJhdG9yLmNweXRob24tKi5weWMgciwKICBvd25lciAvcm9vdC9taW5pY29uZGEzL2xpYi9weXRob24zLiovX19weWNhY2hlX18vb3MuY3B5dGhvbi0qLnB5YyByLAogIG93bmVyIC9yb290L21pbmljb25kYTMvbGliL3B5dGhvbjMuKi9fX3B5Y2FjaGVfXy9wbGF0Zm9ybS5jcHl0aG9uLSoucHljIHIsCiAgb3duZXIgL3Jvb3QvbWluaWNvbmRhMy9saWIvcHl0aG9uMy4qL19fcHljYWNoZV9fL3Bvc2l4cGF0aC5jcHl0aG9uLSoucHljIHIsCiAgb3duZXIgL3Jvb3QvbWluaWNvbmRhMy9saWIvcHl0aG9uMy4qL19fcHljYWNoZV9fL3JhbmRvbS5jcHl0aG9uLSoucHljIHIsCiAgb3duZXIgL3Jvb3QvbWluaWNvbmRhMy9saWIvcHl0aG9uMy4qL19fcHljYWNoZV9fL3JlLmNweXRob24tKi5weWMgciwKICBvd25lciAvcm9vdC9taW5pY29uZGEzL2xpYi9weXRob24zLiovX19weWNhY2hlX18vcmVwcmxpYi5jcHl0aG9uLSoucHljIHIsCiAgb3duZXIgL3Jvb3QvbWluaWNvbmRhMy9saWIvcHl0aG9uMy4qL19fcHljYWNoZV9fL3NlbGVjdG9ycy5jcHl0aG9uLSoucHljIHIsCiAgb3duZXIgL3Jvb3QvbWluaWNvbmRhMy9saWIvcHl0aG9uMy4qL19fcHljYWNoZV9fL3NodXRpbC5jcHl0aG9uLSoucHljIHIsCiAgb3duZXIgL3Jvb3QvbWluaWNvbmRhMy9saWIvcHl0aG9uMy4qL19fcHljYWNoZV9fL3NpZ25hbC5jcHl0aG9uLSoucHljIHIsCiAgb3duZXIgL3Jvb3QvbWluaWNvbmRhMy9saWIvcHl0aG9uMy4qL19fcHljYWNoZV9fL3NpdGUuY3B5dGhvbi0qLnB5YyByLAogIG93bmVyIC9yb290L21pbmljb25kYTMvbGliL3B5dGhvbjMuKi9fX3B5Y2FjaGVfXy9zcmVfcGFyc2UuY3B5dGhvbi0qLnB5YyByLAogIG93bmVyIC9yb290L21pbmljb25kYTMvbGliL3B5dGhvbjMuKi9fX3B5Y2FjaGVfXy9zdGF0LmNweXRob24tKi5weWMgciwKICBvd25lciAvcm9vdC9taW5pY29uZGEzL2xpYi9weXRob24zLiovX19weWNhY2hlX18vc3RydWN0LmNweXRob24tKi5weWMgciwKICBvd25lciAvcm9vdC9taW5pY29uZGEzL2xpYi9weXRob24zLiovX19weWNhY2hlX18vc3VicHJvY2Vzcy5jcHl0aG9uLSoucHljIHIsCiAgb3duZXIgL3Jvb3QvbWluaWNvbmRhMy9saWIvcHl0aG9uMy4qL19fcHljYWNoZV9fL3RlbXBmaWxlLmNweXRob24tKi5weWMgciwKICBvd25lciAvcm9vdC9taW5pY29uZGEzL2xpYi9weXRob24zLiovX19weWNhY2hlX18vdGV4dHdyYXAuY3B5dGhvbi0qLnB5YyByLAogIG93bmVyIC9yb290L21pbmljb25kYTMvbGliL3B5dGhvbjMuKi9fX3B5Y2FjaGVfXy90aHJlYWRpbmcuY3B5dGhvbi0qLnB5YyByLAogIG93bmVyIC9yb290L21pbmljb25kYTMvbGliL3B5dGhvbjMuKi9fX3B5Y2FjaGVfXy90b2tlbi5jcHl0aG9uLSoucHljIHIsCiAgb3duZXIgL3Jvb3QvbWluaWNvbmRhMy9saWIvcHl0aG9uMy4qL19fcHljYWNoZV9fL3Rva2VuaXplLmNweXRob24tKi5weWMgciwKICBvd25lciAvcm9vdC9taW5pY29uZGEzL2xpYi9weXRob24zLiovX19weWNhY2hlX18vdHJhY2ViYWNrLmNweXRob24tKi5weWMgciwKICBvd25lciAvcm9vdC9taW5pY29uZGEzL2xpYi9weXRob24zLiovX19weWNhY2hlX18vdHlwZXMuY3B5dGhvbi0qLnB5YyByLAogIG93bmVyIC9yb290L21pbmljb25kYTMvbGliL3B5dGhvbjMuKi9fX3B5Y2FjaGVfXy90eXBpbmcuY3B5dGhvbi0qLnB5YyByLAogIG93bmVyIC9yb290L21pbmljb25kYTMvbGliL3B5dGhvbjMuKi9fX3B5Y2FjaGVfXy93YXJuaW5ncy5jcHl0aG9uLSoucHljIHIsCiAgb3duZXIgL3Jvb3QvbWluaWNvbmRhMy9saWIvcHl0aG9uMy4qL2NvbGxlY3Rpb25zLyByLAogIG93bmVyIC9yb290L21pbmljb25kYTMvbGliL3B5dGhvbjMuKi9jb2xsZWN0aW9ucy9fX3B5Y2FjaGVfXy9fX2luaXRfXy5jcHl0aG9uLSoucHljIHIsCiAgb3duZXIgL3Jvb3QvbWluaWNvbmRhMy9saWIvcHl0aG9uMy4qL2NvbGxlY3Rpb25zL19fcHljYWNoZV9fL2FiYy5jcHl0aG9uLSoucHljIHIsCiAgb3duZXIgL3Jvb3QvbWluaWNvbmRhMy9saWIvcHl0aG9uMy4qL2N0eXBlcy8gciwKICBvd25lciAvcm9vdC9taW5pY29uZGEzL2xpYi9weXRob24zLiovY3R5cGVzL19fcHljYWNoZV9fL19faW5pdF9fLmNweXRob24tKi5weWMgciwKICBvd25lciAvcm9vdC9taW5pY29uZGEzL2xpYi9weXRob24zLiovY3R5cGVzL19fcHljYWNoZV9fL19lbmRpYW4uY3B5dGhvbi0qLnB5YyByLAogIG93bmVyIC9yb290L21pbmljb25kYTMvbGliL3B5dGhvbjMuKi9lbmNvZGluZ3MvIHIsCiAgb3duZXIgL3Jvb3QvbWluaWNvbmRhMy9saWIvcHl0aG9uMy4qL2VuY29kaW5ncy9fX3B5Y2FjaGVfXy9fX2luaXRfXy5jcHl0aG9uLSoucHljIHIsCiAgb3duZXIgL3Jvb3QvbWluaWNvbmRhMy9saWIvcHl0aG9uMy4qL2VuY29kaW5ncy9fX3B5Y2FjaGVfXy9hbGlhc2VzLmNweXRob24tKi5weWMgciwKICBvd25lciAvcm9vdC9taW5pY29uZGEzL2xpYi9weXRob24zLiovaW1wb3J0bGliL19fcHljYWNoZV9fL19faW5pdF9fLmNweXRob24tKi5weWMgciwKICBvd25lciAvcm9vdC9taW5pY29uZGEzL2xpYi9weXRob24zLiovaW1wb3J0bGliL19fcHljYWNoZV9fL19hYmMuY3B5dGhvbi0qLnB5YyByLAogIG93bmVyIC9yb290L21pbmljb25kYTMvbGliL3B5dGhvbjMuKi9pbXBvcnRsaWIvX19weWNhY2hlX18vbWFjaGluZXJ5LmNweXRob24tKi5weWMgciwKICBvd25lciAvcm9vdC9taW5pY29uZGEzL2xpYi9weXRob24zLiovbGliLWR5bmxvYWQvIHIsCiAgb3duZXIgL3Jvb3QvbWluaWNvbmRhMy9saWIvcHl0aG9uMy4qL2xpYi1keW5sb2FkL19iaXNlY3QuY3B5dGhvbi0qLXg4Nl82NC1saW51eC1nbnUuc28gbXIsCiAgb3duZXIgL3Jvb3QvbWluaWNvbmRhMy9saWIvcHl0aG9uMy4qL2xpYi1keW5sb2FkL19iejIuY3B5dGhvbi0qLXg4Nl82NC1saW51eC1nbnUuc28gbXIsCiAgb3duZXIgL3Jvb3QvbWluaWNvbmRhMy9saWIvcHl0aG9uMy4qL2xpYi1keW5sb2FkL19jdHlwZXMuY3B5dGhvbi0qLXg4Nl82NC1saW51eC1nbnUuc28gbXIsCiAgb3duZXIgL3Jvb3QvbWluaWNvbmRhMy9saWIvcHl0aG9uMy4qL2xpYi1keW5sb2FkL19sem1hLmNweXRob24tKi14ODZfNjQtbGludXgtZ251LnNvIG1yLAogIG93bmVyIC9yb290L21pbmljb25kYTMvbGliL3B5dGhvbjMuKi9saWItZHlubG9hZC9fb3Bjb2RlLmNweXRob24tKi14ODZfNjQtbGludXgtZ251LnNvIG1yLAogIG93bmVyIC9yb290L21pbmljb25kYTMvbGliL3B5dGhvbjMuKi9saWItZHlubG9hZC9fcG9zaXhzdWJwcm9jZXNzLmNweXRob24tKi14ODZfNjQtbGludXgtZ251LnNvIG1yLAogIG93bmVyIC9yb290L21pbmljb25kYTMvbGliL3B5dGhvbjMuKi9saWItZHlubG9hZC9fcmFuZG9tLmNweXRob24tKi14ODZfNjQtbGludXgtZ251LnNvIG1yLAogIG93bmVyIC9yb290L21pbmljb25kYTMvbGliL3B5dGhvbjMuKi9saWItZHlubG9hZC9fc2hhNTEyLmNweXRob24tKi14ODZfNjQtbGludXgtZ251LnNvIG1yLAogIG93bmVyIC9yb290L21pbmljb25kYTMvbGliL3B5dGhvbjMuKi9saWItZHlubG9hZC9fc3RydWN0LmNweXRob24tKi14ODZfNjQtbGludXgtZ251LnNvIG1yLAogIG93bmVyIC9yb290L21pbmljb25kYTMvbGliL3B5dGhvbjMuKi9saWItZHlubG9hZC9mY250bC5jcHl0aG9uLSoteDg2XzY0LWxpbnV4LWdudS5zbyBtciwKICBvd25lciAvcm9vdC9taW5pY29uZGEzL2xpYi9weXRob24zLiovbGliLWR5bmxvYWQvbWF0aC5jcHl0aG9uLSoteDg2XzY0LWxpbnV4LWdudS5zbyBtciwKICBvd25lciAvcm9vdC9taW5pY29uZGEzL2xpYi9weXRob24zLiovbGliLWR5bmxvYWQvc2VsZWN0LmNweXRob24tKi14ODZfNjQtbGludXgtZ251LnNvIHIsCiAgb3duZXIgL3Jvb3QvbWluaWNvbmRhMy9saWIvcHl0aG9uMy4qL2xpYi1keW5sb2FkL3psaWIuY3B5dGhvbi0qLXg4Nl82NC1saW51eC1nbnUuc28gciwKICBvd25lciAvcm9vdC9taW5pY29uZGEzL2xpYi9weXRob24zLiovc2l0ZS1wYWNrYWdlcy8gciwKICBvd25lciAvcm9vdC9taW5pY29uZGEzL2xpYi9weXRob24zLiovc2l0ZS1wYWNrYWdlcy9fZGlzdHV0aWxzX2hhY2svX19weWNhY2hlX18vX19pbml0X18uY3B5dGhvbi0qLnB5YyByLAogIG93bmVyIC9yb290L21pbmljb25kYTMvbGliL3B5dGhvbjMuKi9zaXRlLXBhY2thZ2VzL2Rpc3R1dGlscy1wcmVjZWRlbmNlLnB0aCByLAogIG93bmVyIC9yb290L21pbmljb25kYTMvbGliL3B5dGhvbjMuKi9zaXRlLXBhY2thZ2VzL3J1YW1lbC55YW1sLSouKi4qLXB5My4qLW5zcGtnLnB0aCByLAogIG93bmVyIC9yb290L21pbmljb25kYTMvbGliL3B5dGhvbjMuKi9zaXRlLXBhY2thZ2VzL3RvcmNoLyByLAogIG93bmVyIC9yb290L21pbmljb25kYTMvbGliL3B5dGhvbjMuKi9zaXRlLXBhY2thZ2VzL3RvcmNoL19fcHljYWNoZV9fL19faW5pdF9fLmNweXRob24tKi5weWMgciwKICBvd25lciAvcm9vdC9taW5pY29uZGEzL2xpYi9weXRob24zLiovc2l0ZS1wYWNrYWdlcy90b3JjaC9fX3B5Y2FjaGVfXy9fc2l4LmNweXRob24tKi5weWMgciwKICBvd25lciAvcm9vdC9taW5pY29uZGEzL2xpYi9weXRob24zLiovc2l0ZS1wYWNrYWdlcy90b3JjaC9fX3B5Y2FjaGVfXy9fdXRpbHMuY3B5dGhvbi0qLnB5YyByLAogIG93bmVyIC9yb290L21pbmljb25kYTMvbGliL3B5dGhvbjMuKi9zaXRlLXBhY2thZ2VzL3RvcmNoL19fcHljYWNoZV9fL191dGlsc19pbnRlcm5hbC5jcHl0aG9uLSoucHljIHIsCiAgb3duZXIgL3Jvb3QvbWluaWNvbmRhMy9saWIvcHl0aG9uMy4qL3NpdGUtcGFja2FnZXMvdG9yY2gvX19weWNhY2hlX18vdG9yY2hfdmVyc2lvbi5jcHl0aG9uLSoucHljIHIsCiAgb3duZXIgL3Jvb3QvbWluaWNvbmRhMy9saWIvcHl0aG9uMy4qL3NpdGUtcGFja2FnZXMvdG9yY2gvX19weWNhY2hlX18vdmVyc2lvbi5jcHl0aG9uLSoucHljIHIsCiAgb3duZXIgL3Jvb3QvbWluaWNvbmRhMy9saWIvcHl0aG9uMy4qL3NpdGUtcGFja2FnZXMvdG9yY2gvbGliL2xpYnRvcmNoX2dsb2JhbF9kZXBzLnNvIHIsCiAgb3duZXIgL3J1bi9zc2hkLyB3LAogIG93bmVyIC9zeXMvY2xhc3MvaW5maW5pYmFuZC8gciwKICBvd25lciAvc3lzL2RldmljZXMvcGNpMDAwMDoqLyo6KjoqLiovKjoqOiouKi9pbmZpbmliYW5kL21seDVfMS9wb3J0cy8gciwKICBvd25lciAvc3lzL2RldmljZXMvcGNpMDAwMDoqLyo6KjoqLiovKjoqOiouKi9pbmZpbmliYW5kL21seDVfMS9wb3J0cy8qL2dpZHMvIHIsCiAgb3duZXIgL3N5cy9kZXZpY2VzL3BjaTAwMDA6Ki8qOio6Ki4qLyo6KjoqLiovaW5maW5pYmFuZC9tbHg1XzEvcG9ydHMvKi9naWRzLyogciwKICBvd25lciAvc3lzL2RldmljZXMvcGNpMDAwMDoqLyo6KjoqLiovKjoqOiouKi9pbmZpbmliYW5kL21seDVfMi9wb3J0cy8gciwKICBvd25lciAvc3lzL2RldmljZXMvcGNpMDAwMDoqLyo6KjoqLiovKjoqOiouKi9pbmZpbmliYW5kL21seDVfMi9wb3J0cy8qL2dpZHMvIHIsCiAgb3duZXIgL3N5cy9kZXZpY2VzL3BjaTAwMDA6Ki8qOio6Ki4qLyo6KjoqLiovaW5maW5pYmFuZC9tbHg1XzIvcG9ydHMvKi9naWRzLyogciwKICBvd25lciAvc3lzL2RldmljZXMvcGNpMDAwMDoqLyo6KjoqLiovKjoqOiouKi9pbmZpbmliYW5kL21seDVfMy9wb3J0cy8gciwKICBvd25lciAvc3lzL2RldmljZXMvcGNpMDAwMDoqLyo6KjoqLiovKjoqOiouKi9pbmZpbmliYW5kL21seDVfMy9wb3J0cy8qL2dpZHMvKiByLAogIG93bmVyIC9zeXMvZGV2aWNlcy9wY2kwMDAwOjZhLyo6NmE6Ki4qLyo6NmI6Ki4qL2luZmluaWJhbmQvbWx4NV80L3BvcnRzLyByLAogIG93bmVyIC9zeXMvZGV2aWNlcy9wY2kwMDAwOjZhLyo6NmE6Ki4qLyo6NmI6Ki4qL2luZmluaWJhbmQvbWx4NV80L3BvcnRzLyovZ2lkcy8gciwKICBvd25lciAvc3lzL2RldmljZXMvcGNpMDAwMDo2YS8qOjZhOiouKi8qOjZiOiouKi9pbmZpbmliYW5kL21seDVfNC9wb3J0cy8qL2dpZHMvKiByLAogIG93bmVyIC91c3IvYmluL2NhdCByLAogIG93bmVyIC91c3IvYmluL2Nob3duIHIsCiAgb3duZXIgL3Vzci9iaW4vY3V0IHIsCiAgb3duZXIgL3Vzci9iaW4vZGF0ZSByLAogIG93bmVyIC91c3IvYmluL2VudiByLAogIG93bmVyIC91c3IvYmluL2ZpbmQgciwKICBvd25lciAvdXNyL2Jpbi9scyByLAogIG93bmVyIC91c3IvYmluL21hd2sgciwKICBvd25lciAvdXNyL2Jpbi9ta2RpciByLAogIG93bmVyIC91c3IvYmluL3JtIHIsCiAgb3duZXIgL3Vzci9iaW4vc2xlZXAgciwKICBvd25lciAvdXNyL2Jpbi9zb3J0IHIsCiAgb3duZXIgL3Vzci9saWIvbG9jYWxlL0MuVVRGLSovTENfQ1RZUEUgciwKICBvd25lciAvdXNyL2xpYi94ODZfNjQtbGludXgtZ251LyoqIG1yLAogIG93bmVyIC91c3Ivc2hhcmUvem9uZWluZm8vRXRjL1VUQyByLAoKICAjIC0tLS0gQ0FQQUJJTElUWSAtLS0tCiAgY2FwYWJpbGl0eSBhdWRpdF93cml0ZSwKICBjYXBhYmlsaXR5IGNob3duLAogIGNhcGFiaWxpdHkgZGFjX292ZXJyaWRlLAogIGNhcGFiaWxpdHkgZnNldGlkLAogIGNhcGFiaWxpdHkgc2V0Z2lkLAogIGNhcGFiaWxpdHkgc3lzX3B0cmFjZSwKCiAgIyAtLS0tIE5FVFdPUksgLS0tLQogIG5ldHdvcmssCgogICMgLS0tLSBQVFJBQ0UgLS0tLQogICMjIHN1cHByZXNzIHB0cmFjZSBkZW5pYWxzIHdoZW4gdXNpbmcgJ2RvY2tlciBwcycgb3IgdXNpbmcgJ3BzJyBpbnNpZGUgYSBjb250YWluZXIKICBwdHJhY2UgKHRyYWNlLHJlYWQsdHJhY2VkYnkscmVhZGJ5KSBwZWVyPXZhcm1vci1tbHBsYXRmb3JtLWN1c3RvbXRhc2stbGl1bGVkaWFuLXRlc3QsCgogICMgLS0tLSBTSUdOQUwgLS0tLQogICMjIGhvc3QgKHByaXZpbGVnZWQpIHByb2Nlc3NlcyBtYXkgc2VuZCBzaWduYWxzIHRvIGNvbnRhaW5lciBwcm9jZXNzZXMuCiAgc2lnbmFsIChyZWNlaXZlKSBwZWVyPXVuY29uZmluZWQsCiAgIyMgY29udGFpbmVyIHByb2Nlc3NlcyBtYXkgc2VuZCBzaWduYWxzIGFtb25nc3QgdGhlbXNlbHZlcy4KICBzaWduYWwgKHNlbmQscmVjZWl2ZSkgcGVlcj12YXJtb3ItbWxwbGF0Zm9ybS1jdXN0b210YXNrLWxpdWxlZGlhbi10ZXN0LAoKICAjIC0tLS0gQURESVRJT05BTCAtLS0tCiAgdW1vdW50LAoKfQo=",
+            "enforcer": "",
+            "mode": "",
+            "name": "varmor-mlplatform-customtask-liuledian-test"
+        },
+        "staticResult": {}
+    },
+    "kind": "ArmorProfileModel",
+    "metadata": {
+        "creationTimestamp": "2024-05-29T07:38:16Z",
+        "generation": 1,
+        "name": "varmor-mlplatform-customtask-liuledian-test",
+        "namespace": "mlplatform-customtask",
+        "resourceVersion": "196790351",
+        "uid": "503b1911-1623-48fc-ad28-50b3a0aba668"
+    }
+}
