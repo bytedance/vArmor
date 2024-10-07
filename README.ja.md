@@ -6,6 +6,7 @@
 </div>
 <br>
 
+![BHArsenalUSA2024](.docs/img/BlackHat-Arsenal-USA-2024.svg)
 [![Go Report Card](https://goreportcard.com/badge/github.com/bytedance/vArmor)](https://goreportcard.com/report/github.com/bytedance/vArmor)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![License](https://img.shields.io/badge/license-GPL-blue.svg)](https://opensource.org/license/gpl-2-0)
