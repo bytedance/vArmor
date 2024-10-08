@@ -3,7 +3,7 @@ English | [简体中文](usage_instructions.zh_CN.md)
 
 ## Interface Operations
 
-vArmor provides API interfaces through [VarmorPolicy](./usage_instructions#varmorpolicy) and [VarmorClusterPolicy](./usage_instructions#varmorclusterpolicy) CR. The VarmorClusterPolicy CR have higher priority than VarmorPolicy CR. It means prioritizing the use of VarmorClusterPolicy objects to protect matched workloads. You can create, modify, and delete VarmorPolicy or VarmorClusterPolicy objects in the cluster to protect specified workloads.
+vArmor provides API interfaces through [VarmorPolicy](./usage_instructions.md#varmorpolicy) and [VarmorClusterPolicy](./usage_instructions.md#varmorclusterpolicy) CR. The VarmorClusterPolicy CR have higher priority than VarmorPolicy CR. It means prioritizing the use of VarmorClusterPolicy objects to protect matched workloads. You can create, modify, and delete VarmorPolicy or VarmorClusterPolicy objects in the cluster to protect specified workloads.
 
 vArmor supports performing a rolling restart of existing workloads that meet the matching conditions when a VarmorPolicy or VarmorClusterPolicy object is created or deleted. This rolling restart enables or disables protection for those workloads.
 
@@ -28,7 +28,7 @@ You can leverage logging components for collection and configuring alerts. Such 
 
 ### VarmorPolicy
 * Namespace-scoped resource, consistent with the namespace of the protected object.
-* The VarmorPolicy interface details can be found in [Interface Instructions](interface_instructions).
+* The VarmorPolicy interface details can be found in [Interface Instructions](interface_instructions.md).
 * The definition of VarmorPolicy can be found in [VarmorPolicy CRD](../config/crds/crd.varmor.org_varmorpolicies.yaml).
 * Explanation of `VarmorPolicy/Status`:
 
@@ -48,7 +48,7 @@ You can leverage logging components for collection and configuring alerts. Such 
 
 ### VarmorClusterPolicy
 * Cluster-scoped resource.
-* The VarmorClusterPolicy interface details can be found in [Interface Instructions](interface_instructions)
+* The VarmorClusterPolicy interface details can be found in [Interface Instructions](interface_instructions.md)
 * The definition of VarmorClusterPolicy can be found in [VarmorClusterPolicy CRD](../config/crds/crd.varmor.org_varmorclusterpolicies.yaml)
 * `VarmorClusterPolicy/Status` same as `VarmorPolicy/Status`
 

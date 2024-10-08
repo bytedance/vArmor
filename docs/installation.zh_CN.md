@@ -3,8 +3,6 @@
 
 ## 前置条件
 
-您可以通过策略对象（[VarmorPolicy](usage_instructions.zh_CN.md#varmorpolicy)/[VarmorClusterPolicy](usage_instructions.zh_CN.md#varmorclusterpolicy)）的 `spec.policy.enforcer` 字段来指定 enforcer。另外，您还可以单独、组合使用不同的 enforcer，例如：AppArmorBPF, AppArmorSeccomp, AppArmorBPFSeccomp。
-
 不同 enforcers 所需要的前置条件如下表所示。
 
 |强制访问控制器|要求|推荐|

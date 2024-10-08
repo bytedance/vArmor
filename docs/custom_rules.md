@@ -9,19 +9,19 @@ Note:<br />- The syntax supported by BPF enforcer is still under development.
 
 The AppArmor enforcer supports users in customizing policies based on the syntax of AppArmor.
 
-Please refer to the [syntax](https://manpages.ubuntu.com/manpages/jammy/man5/apparmor.d.5.html) of security profiles for AppArmor to set custom rules in the [`.spec.policy.enhanceProtect.appArmorRawRules`](../../getting_started/interface_instructions) field. Please ensure that each rule ends with a comma.
+Please refer to the [syntax](https://manpages.ubuntu.com/manpages/jammy/man5/apparmor.d.5.html) of security profiles for AppArmor to set custom rules in the [`.spec.policy.enhanceProtect.appArmorRawRules`](interface_instructions.md) field. Please ensure that each rule ends with a comma.
 
 ## Seccomp enforcer
 
 The Seccomp enforcer supports users in customizing policies based on the syntax of OCI specification.
 
-Please refer to this [document](https://github.com/opencontainers/runtime-spec/blob/main/config-linux.md#seccomp) to set custom syscalls blocklist rules in the [`.spec.policy.enhanceProtect.syscallRawRules`](../../getting_started/interface_instructions) field.
+Please refer to this [document](https://github.com/opencontainers/runtime-spec/blob/main/config-linux.md#seccomp) to set custom syscalls blocklist rules in the [`.spec.policy.enhanceProtect.syscallRawRules`](interface_instructions.md) field.
 
 ## BPF enforcer
 
 The BPF enforcer supports users in customizing policies based on the syntax, with an upper limit of 50 rules per rule type. Each node of Kubernetes can enable sandboxing for up to 100 containers.
 
-Please refer to the syntaxes below to set custom rules in the [`.spec.policy.enhanceProtect.bpfRawRules`](../../getting_started/interface_instructions#bpfrawrules) field.
+Please refer to the syntaxes below to set custom rules in the [`.spec.policy.enhanceProtect.bpfRawRules`](interface_instructions.md#bpfrawrules) field.
 
 ### File Permission
   
@@ -42,4 +42,4 @@ Please refer to the syntaxes below to set custom rules in the [`.spec.policy.enh
 ### Network Permission
 * Currently, vArmor supports connection access control for specified IP addresses, IP address blocks (CIDR blocks), and ports.
 * When specific IP addresses or IP address blocks are specified without specifying ports, it defaults to affecting all ports.
-* Please refer to [NetworkEgressRule](./interface_instructions#networkegressrule) for specific details.
+* Please refer to [NetworkEgressRule](interface_instructions.md#networkegressrule) for specific details.

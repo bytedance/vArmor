@@ -44,4 +44,4 @@ BPF enforcer 支持用户根据语法定制策略。每类规则的数量上限�
 ### 网络地址匹配
 * 当前 vArmor 支持对指定的 IP 地址、IP 地址块（CIDR 块）、端口进行外联访问控制
 * 当指定了 IP 地址、IP 地址块，但未指定端口时，默认对所有端口生效
-* 具体请参见 [NetworkEgressRule](./interface_instructions.zh_CN.md#networkegressrule)
+* 具体请参见 [NetworkEgressRule](interface_instructions.zh_CN.md#networkegressrule)
