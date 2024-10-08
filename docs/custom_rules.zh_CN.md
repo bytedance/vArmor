@@ -1,7 +1,7 @@
 # 自定义规则
 [English](custom_rules.md) | 简体中文
 
-vArmor 支持用户基于 enforcer 的语法，在 EhanceProtect 模式的 [VarmorPolicy](interface_specification.zh_CN.md#varmorpolicy) 或 [VarmorClusterPolicy](interface_specification.zh_CN.md#varmorclusterpolicy) 对象中自定义访问控制规则。
+vArmor 支持用户基于 enforcer 的语法，在 EhanceProtect 模式的 [VarmorPolicy](usage_instructions.zh_CN.md#varmorpolicy) 或 [VarmorClusterPolicy](usage_instructions.zh_CN.md#varmorclusterpolicy) 对象中自定义访问控制规则。
 
 注：BPF enforcer 支持的语法在持续开发中。
 
@@ -9,7 +9,7 @@ vArmor 支持用户基于 enforcer 的语法，在 EhanceProtect 模式的 [Varm
 
 AppArmor enforcer 支持用户根据 AppArmor 的语法定制策略。
 
-请参见 [syntax of security profiles for AppArmor](https://manpages.ubuntu.com/manpages/jammy/man5/apparmor.d.5.html) 在 [`.spec.policy.enhanceProtect.appArmorRawRules`](interface_specification.zh_CN.md) 字段中设置自定义规则。请确保每条规则以 ',' 结尾。
+请参见此[文档](https://manpages.ubuntu.com/manpages/jammy/man5/apparmor.d.5.html) 在 [`.spec.policy.enhanceProtect.appArmorRawRules`](interface_specification.zh_CN.md) 字段中设置自定义规则。请确保每条规则以 ',' 结尾。
 
 ## Seccomp enforcer
 
