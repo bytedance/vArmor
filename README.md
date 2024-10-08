@@ -75,7 +75,7 @@ vArmor references part of the code of [kyverno](https://github.com/kyverno/kyver
 
 ## Demo
 Below is a demonstration of using vArmor to harden a Deployment and defend against CVE-2021-22555. (The exploit is modified from [cve-2021-22555](https://github.com/google/security-research/tree/master/pocs/linux/cve-2021-22555))<br>
-![image](test/demo/vulnerability-mitigation/CVE-2021-22555/demo.gif)
+![image](test/demos/CVE-2021-22555/demo.gif)
 
 
 ## 404Starlink

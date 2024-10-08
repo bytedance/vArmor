@@ -75,7 +75,7 @@ vArmor 在研发初期参考了 [Nirmata](https://nirmata.com/) 开发的 [kyver
 
 ## 演示
 下面是一个使用 vArmor 对 Deployment 进行加固，防御 CVE-2021-22555 攻击的演示（Exploit 修改自 [cve-2021-22555](https://github.com/google/security-research/tree/master/pocs/linux/cve-2021-22555)）。<br>
-![image](test/demo/vulnerability-mitigation/CVE-2021-22555/demo.zh_CN.gif)
+![image](test/demos/CVE-2021-22555/demo.zh_CN.gif)
 
 
 ## 404星链计划

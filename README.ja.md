@@ -124,7 +124,7 @@ vArmorは、[Nirmata](https://nirmata.com/)によって開発された[kyverno](
 
 ## デモ
 以下は、vArmorを使用してDeploymentを強化し、CVE-2021-22555に対抗するデモンストレーションです。（エクスプロイトは[cve-2021-22555](https://github.com/google/security-research/tree/master/pocs/linux/cve-2021-22555)から変更されています）<br>
-![image](test/demo/vulnerability-mitigation/CVE-2021-22555/demo.gif)
+![image](test/demos/CVE-2021-22555/demo.gif)
 
 ## 404Starlink
 <img src="https://github.com/knownsec/404StarLink-Project/raw/master/logo.png" width="30%">
