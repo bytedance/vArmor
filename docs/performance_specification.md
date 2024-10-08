@@ -1,17 +1,18 @@
 # The Performance Specification
-
 English | [简体中文](performance_specification.zh_CN.md)
 
 ## Impact Factors
 
-The factors affecting performance for vArmor's user-space and kernel-space components are as shown in the below
+The factors affecting performance for vArmor's user-space and kernel-space components are as shown in the below.
 
-| Factor         | Explanation                                                                                                                                                                                                                                                             |
-| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Cluster scale  | As the cluster size increases, the CPU and memory consumed by the Manager for managing Agents also increase.                                                                                                                                                            |
-| Resource scale | Creating a large number of VarmorPolicy CRs will result in increased CPU and memory consumption for Manager.<br>Frequent creation/modification/deletion of VarmorPolicy CRs will result in increased CPU and memory consumption for both Manager and Agent in response. |
-| AppArmor LSM   | The basic overhead introduced when the kernel enable the AppArmor LSM.<br>The more rules in a profile, the greater the performance impact on processes.                                                                                                                 |
-| BPF LSM        | The basic overhead introduced when the kernel enable the BPF LSM.<br>The more rules in a profile, the greater the performance impact on processes.                                                                                                                      |
+| Factor         | Explanation |
+| -------------- | ----------- |
+| Cluster scale  | As the cluster size increases, the CPU and memory consumed by the Manager for managing Agents also increase.|
+| Resource scale | Creating a large number of VarmorPolicy CRs will result in increased CPU and memory consumption for Manager. Frequent creation/modification/deletion of VarmorPolicy CRs will result in increased CPU and memory consumption for both Manager and Agent in response.|
+| AppArmor LSM   | The basic overhead introduced when the kernel enable the AppArmor LSM.<br />The more rules in a profile, the greater the performance impact on processes.|
+| BPF LSM        | The basic overhead introduced when the kernel enable the BPF LSM.<br />The more rules in a profile, the greater the performance impact on processes.|
+| Seccomp        | The basic overhead introduced when the kernel enable the Seccomp.<br />The more rules in a profile, the greater the performance impact on processes.|
+|PLACEHOLDER||
 
 ## Resource Usage
 

@@ -2,8 +2,7 @@
 # Interface Instructions
 English | [简体中文](interface_instructions.zh_CN.md)
 
-## VarmorPolicy / VarmorClusterPolicy
-### Spec
+## VarmorPolicySpec / VarmorClusterPolicySpec
 
 | Field | Subfield | Subfield | Description |
 |-------|----------|----------|-------------|
@@ -25,7 +24,7 @@ English | [简体中文](interface_instructions.zh_CN.md)
 |updateExistingWorkloads<br>*bool*|-|-|Optional. UpdateExistingWorkloads is used to indicate whether to perform a rolling update on target existing workloads, thus enabling or disabling the protection of the target workloads when policies are created or deleted. (Default: false)<br><br>Note: vArmor only performs a rolling update on Deployment, StatefulSet, or DaemonSet type workloads. If `.spec.target.kind` is Pod, you need to rebuild the Pod yourself to enable or disable protection.
 |      ||PLACEHOLDER_PLACEHOD|
 
-### AttackProtectionRules
+## AttackProtectionRules
 
 | Field | Description |
 |-------|-------------|
@@ -33,7 +32,7 @@ English | [简体中文](interface_instructions.zh_CN.md)
 |targets<br>*string array*|Optional. Targets are used to specify the workloads to which the policy applies. They must be specified as full paths to executable files, and this feature is only effective when using AppArmor as the enforcer.
 |PLACEHOLDER
 
-### BpfRawRules
+## BpfRawRules
 
 | Field | Subfield | Description |
 |-------|----------|-------------|
@@ -49,45 +48,11 @@ English | [简体中文](interface_instructions.zh_CN.md)
 |PLACEHOLDER_|PLACEHOLDER_PLACEHOD|
 
 
-### NetworkEgressRule
+## NetworkEgressRule
+
 | Field | Description |
 |-------|-------------|
 |ipBlock<br>*string*|Optional. IPBlock defines policy on a particular IPBlock with CIDR. If this field is set then neither of the IP field can be. For example: <br>* 192.168.1.1/24 represents IP addresses within the range of 192.168.1.0 to 192.168.1.255.<br>* 2001:db8::/32 represents IP addresses within the range of 2001:db8:: to 2001:db8:ffff:ffff:ffff:ffff:ffff:ffff
 |ip<br>*string*|Optional. IP defines policy on a particular IP. If this field is set then neither of the IPBlock field can be.
 |port<br>*int*|Optional. Port defines policy on a particular port. If this field is zero or missing, this rule matches all ports.<br>Available values: `1 to 65535`
 |PLACEHOLDER|
-
-
-## Syntax
-vArmor also allows users to customize Mandatory Access Control rules in `spec.policy.enhanceProtect.appArmorRawRules` and `spec.policy.enhanceProtect.bpfRawRules` based on the syntax.
-
-### AppArmor enforcer
-The AppArmor enforcer supports users in customizing policies based on the syntax of AppArmor.
-* Refer to the [syntax of security profiles for AppArmor](https://manpages.ubuntu.com/manpages/jammy/man5/apparmor.d.5.html) and [AppArmor_Core_Policy_Reference](https://gitlab.com/apparmor/apparmor/-/wikis/AppArmor_Core_Policy_Reference) for the details.
-* Usage:
-  * Add a custom rule in .spec.policy.enhanceProtect.appArmorRawRules[]
-  * Please ensure that each rule ends with a comma
-
-
-### BPF enforcer (WIP)
-The BPF enforcer supports users in customizing policies based on the syntax, with an upper limit of 50 rules per rule type. Each node of Kubernetes can enable sandboxing for up to 100 containers.
-
-* File Permission
-  
-  | Permission / Permission Abbreviate |  Implied Permissions | Description |
-  |------------------------------------|----------------------|-------------|
-  |read / r|-<br>rename<br>hard link|Restrict read permission.<br>Prohibit abusing 'rename **oldpath** newpath' to bypass read restrictions on oldpath.<br>Prohibit abusing 'ln **TARGET** LINK_NAME' to bypass read restrictions on TARGET.
-  |write / w|-<br>append<br>rename<br>hard link<br>symbol link<br>chmod<br>chown|Restrict write permission.<br>Prohibit using the O_APPEND flag to bypass map_file_to_perms() for append operations.<br>Prohibit abusing 'rename oldpath **newpath**' to bypass write restrictions on newpath.<br>Prohibit abusing 'ln TARGET **LINK_NAME**' to bypass write restrictions on LINK_NAME.<br>Prohibit abusing symlink to bypass write restrictions on the target file.<br>WIP<br>WIP
-  |exec / x|-|Prohibit execution permission.
-  |append / a|-|Prohibit append permission.
-
-* File Globbing Syntax 
-  | Globbing | Description | Examples | Notes |
-  |----------|-------------|----------|-------|
-  |*|- Used only to match file names.<br>- It will match dot files except the special dot files . and ..<br>- Supports only a single *, and does not support \*\* and * appearing together.|- fi\* matches any file name starting with 'fi'.<br>- *le matches any file name ending with 'le'.<br>- *.log matches any file name ending with '.log'|The behavior of this globbing may change in future versions.|
-  |\**|- Match zero, one, or multiple characters in multi-level directories.<br>- It will match dot files except the special dot files . and ..<br>- Supports only a single \*\*, and does not support ** and * appearing together.|- /tmp/\*\*/33 matches any file that starts with /tmp and ends with /33, including /tmp/33.<br>- /tmp/\*\* matches any file or directory that starts with /tmp.<br>- /tm** matches any file or directory that starts with /tm.<br>- /t**/33 matches any file or directory that starts with /t and ends with /33.
-
-* Network Permission
-  * Currently, vArmor supports connection access control for specified IP addresses, IP address blocks (CIDR blocks), and ports.
-  * When specific IP addresses or IP address blocks are specified without specifying ports, it defaults to affecting all ports.
-  * Please refer to [NetworkEgressRule](./interface_instructions.md#networkegressrule) for specific details.
