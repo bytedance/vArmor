@@ -1,7 +1,7 @@
 # 自定义规则
 [English](custom_rules.md) | 简体中文
 
-vArmor 支持用户基于 enforcer 的语法，在 EhanceProtect 模式的 [VarmorPolicy](interface_instructions.zh_CN.md#varmorpolicy) 或 [VarmorClusterPolicy](interface_instructions.zh_CN.md#varmorclusterpolicy) 对象中自定义访问控制规则。
+vArmor 支持用户基于 enforcer 的语法，在 EhanceProtect 模式的 [VarmorPolicy](interface_specification.zh_CN.md#varmorpolicy) 或 [VarmorClusterPolicy](interface_specification.zh_CN.md#varmorclusterpolicy) 对象中自定义访问控制规则。
 
 注：BPF enforcer 支持的语法在持续开发中。
 
@@ -9,19 +9,19 @@ vArmor 支持用户基于 enforcer 的语法，在 EhanceProtect 模式的 [Varm
 
 AppArmor enforcer 支持用户根据 AppArmor 的语法定制策略。
 
-请参见 [syntax of security profiles for AppArmor](https://manpages.ubuntu.com/manpages/jammy/man5/apparmor.d.5.html) 在 [`.spec.policy.enhanceProtect.appArmorRawRules`](interface_instructions.zh_CN.md) 字段中设置自定义规则。请确保每条规则以 ',' 结尾。
+请参见 [syntax of security profiles for AppArmor](https://manpages.ubuntu.com/manpages/jammy/man5/apparmor.d.5.html) 在 [`.spec.policy.enhanceProtect.appArmorRawRules`](interface_specification.zh_CN.md) 字段中设置自定义规则。请确保每条规则以 ',' 结尾。
 
 ## Seccomp enforcer
 
 Seccomp enforcer 支持用户根据 OCI 规范的语法定制策略。
 
-请参见此[文档](https://github.com/opencontainers/runtime-spec/blob/main/config-linux.md#seccomp) 在 [`.spec.policy.enhanceProtect.syscallRawRules`](interface_instructions.zh_CN.md) 字段中设置自定义的系统调用规则。
+请参见此[文档](https://github.com/opencontainers/runtime-spec/blob/main/config-linux.md#seccomp) 在 [`.spec.policy.enhanceProtect.syscallRawRules`](interface_specification.zh_CN.md) 字段中设置自定义的系统调用规则。
 
 ## BPF enforcer
 
 BPF enforcer 支持用户根据语法定制策略。每类规则的数量上限为 50 条。每个节点支持最多对 100 个容器开启沙箱。
 
-请参考以下语法在 [`.spec.policy.enhanceProtect.bpfRawRules`](interface_instructions.zh_CN.md#bpfrawrules) 中设置自定义规则。
+请参考以下语法在 [`.spec.policy.enhanceProtect.bpfRawRules`](interface_specification.zh_CN.md#bpfrawrules) 中设置自定义规则。
 
 ### 文件权限定义
 
@@ -44,4 +44,4 @@ BPF enforcer 支持用户根据语法定制策略。每类规则的数量上限�
 ### 网络地址匹配
 * 当前 vArmor 支持对指定的 IP 地址、IP 地址块（CIDR 块）、端口进行外联访问控制
 * 当指定了 IP 地址、IP 地址块，但未指定端口时，默认对所有端口生效
-* 具体请参见 [NetworkEgressRule](interface_instructions.zh_CN.md#networkegressrule)
+* 具体请参见 [NetworkEgressRule](interface_specification.zh_CN.md#networkegressrule)

@@ -28,7 +28,7 @@ You can leverage logging components for collection and configuring alerts. Such 
 
 ### VarmorPolicy
 * Namespace-scoped resource, consistent with the namespace of the protected object.
-* The VarmorPolicy interface details can be found in [Interface Instructions](interface_instructions.md).
+* The VarmorPolicy interface details can be found in [Interface Specification](interface_specification.md).
 * The definition of VarmorPolicy can be found in [VarmorPolicy CRD](../config/crds/crd.varmor.org_varmorpolicies.yaml).
 * Explanation of `VarmorPolicy/Status`:
 
@@ -48,7 +48,7 @@ You can leverage logging components for collection and configuring alerts. Such 
 
 ### VarmorClusterPolicy
 * Cluster-scoped resource.
-* The VarmorClusterPolicy interface details can be found in [Interface Instructions](interface_instructions.md)
+* The VarmorClusterPolicy interface details can be found in [Interface Specification](interface_specification.md)
 * The definition of VarmorClusterPolicy can be found in [VarmorClusterPolicy CRD](../config/crds/crd.varmor.org_varmorclusterpolicies.yaml)
 * `VarmorClusterPolicy/Status` same as `VarmorPolicy/Status`
 
