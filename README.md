@@ -17,7 +17,7 @@ English | [简体中文](README.zh_CN.md) | [日本語](README.ja.md)
 vArmor is a cloud-native container sandbox system. It leverages Linux's [AppArmor LSM](https://en.wikipedia.org/wiki/AppArmor), [BPF LSM](https://docs.kernel.org/bpf/prog_lsm.html) and [Seccomp](https://en.wikipedia.org/wiki/Seccomp) technologies to implement enforcers. It can be used to strengthen container isolation, reduce the kernel attack surface, and increase the difficulty and cost of container escape or lateral movement attacks. You can leverage vArmor in the following scenarios to provide sandbox protection for containers within a Kubernetes cluster.
 * In multi-tenant environments, hardware-virtualized container solutions cannot be employed due to factors such as cost and technical conditions.
 * You want to enhance the security of critical business containers, making it more difficult for attackers to escalate privileges, escape, or laterally move.
-* When high-risk vulnerabilities are present, but immediate remediation is not possible due to the difficulty or lengthy process of patching. vArmor can be used to mitigate the risks (depending on the vulnerability type or exploitation vector) to block or increase the difficulty of exploitation.
+* When high-risk vulnerabilities are present but immediate remediation is not possible due to the difficulty or lengthy process of patching, vArmor can be used to mitigate the risks (depending on the vulnerability type or exploitation vector) to block or increase the difficulty of exploitation.
 
 *Note: To meet stringent isolation requirements, it is advisable to give priority to utilizing hardware-virtualized containers (e.g., Kata Containers) for compute isolation, in conjunction with network isolation provided by CNI's NetworkPolicy.*
 
@@ -37,25 +37,25 @@ vArmor was created by the **Elkeid Team** of the endpoint security department at
 ## Documentation
 vArmor reference documents are available at [varmor.org](https://varmor.org).
 
-👉 **[Quick Start](https://www.varmor.org/docs/introduction#quick-start)**
+⏩ **[Quick Start](https://www.varmor.org/docs/introduction#quick-start)**
 
-👉 **[Installation](https://www.varmor.org/docs/getting_started/installation)**
+⚙️ **[Installation](https://www.varmor.org/docs/getting_started/installation)**
 
-👉 **[Usage Instructions](https://www.varmor.org/docs/getting_started/usage_instructions)**
+📔 **[Usage Instructions](https://www.varmor.org/docs/getting_started/usage_instructions)**
 
-👉 **[Policies and Rules](https://www.varmor.org/docs/guides/policies_and_rules)**
+📜 **[Policies and Rules](https://www.varmor.org/docs/guides/policies_and_rules)**
 
-👉 **[Performance Specifications](https://www.varmor.org/docs/guides/performance)**
+⏱️ **[Performance Specifications](https://www.varmor.org/docs/guides/performance)**
 
 
 ## Contributing
 Thanks for your interest in contributing to vArmor! Here are some steps to help get you started:
 
-✔ Read and agree to the [code of conduct](./CODE_OF_CONDUCT.md).
+🤝🏻 Read and agree to the [code of conduct](./CODE_OF_CONDUCT.md).
 
-✔ Read the [development guide](docs/development_guide.md).
+🛠️ Read the [development guide](docs/development_guide.md).
 
-✔ Join vArmor [Lark group](https://applink.larkoffice.com/client/chat/chatter/add_by_link?link_token=ae5pfb2d-f8a4-4f0b-b12e-15f24fdaeb24&qr_code=true).
+💬 Join vArmor [Lark group](https://applink.larkoffice.com/client/chat/chatter/add_by_link?link_token=ae5pfb2d-f8a4-4f0b-b12e-15f24fdaeb24&qr_code=true).
 
 
 ## License
