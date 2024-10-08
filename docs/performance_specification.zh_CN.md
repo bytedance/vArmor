@@ -1,17 +1,17 @@
 # 性能说明
-
 [English](performance_specification.md) | 简体中文
 
 ## 影响因素
 
-vArmor 的用户态组件和内核态组件对性能的影响因素如下表所示
+vArmor 的用户态组件和内核态组件对性能的影响因素如下表所示。
 
-| 因素                   | 说明                                                                                                                   |
-| -------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| 集群规模                 | 集群规模越大，Manager 管理 Agent 所消耗的 CPU 和 内存越多                                                                              |
+| 因素 | 说明 |
+| --- | ---- |
+| 集群规模                   | 集群规模越大，Manager 管理 Agent 所消耗的 CPU 和 内存越多 |
 | VarmorPolicy 数量和操作频率 | 大量创建 VarmorPolicy CR 时，Manager 会消耗更多的 CPU 和内存进行响应<br>频繁创建/修改/删除 VarmorPolicy CR 时，Manager 和 Agent 会消耗更多的 CPU 和内存进行响应 |
-| AppArmor LSM         | 开启 AppArmor LSM 为进程引入的基础开销<br>Profile 中的规则越多，对目标进程的性能影响越大                                                            |
-| BPF LSM              | 开启 BPF LSM 为进程引入的基础开销<br>Profile 中的规则越多，对目标进程的性能影响越大                                                                 |
+| AppArmor LSM             | 开启 AppArmor LSM 为进程引入的基础开销<br>Profile 中的规则越多，对目标进程的性能影响越大|
+| BPF LSM                  | 开启 BPF LSM 为进程引入的基础开销<br>Profile 中的规则越多，对目标进程的性能影响越大 |
+| Seccomp                  | 开启 Seccomp 为进程引入的基础开销<br>Profile 中的规则越多，对目标进程的性能影响越大 |
 
 ## 资源占用
 

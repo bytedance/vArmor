@@ -1,5 +1,5 @@
 # Policy Advisor
-This program can help you generate a [`.spec.policy`](../../docs/interface_instructions.md#spec) template in the EnhanceProtect mode with built-in rules. The template can be a good start to craft the final policy.
+This program can help you generate a [`.spec.policy`](../../docs/interface_specification.md#spec) template in the EnhanceProtect mode with built-in rules. The template can be a good start to craft the final policy.
 
 You can provide the context information and the behavior model data of the target application to make the template more precise. 
 Please use the `-f FEATURES` and `-c CAPABILITIES` arguments to specify the context information. The `-f FEATURES` argument used to describe the application features. The `-c CAPABILITIES` argument used to describe the capabilities required by application explicitly. The behavior model data file is passed by the `-m BEHAVIOR_MODEL` argument. It's an ArmorProfileModel object that is generated with [the BehaviorModeling Mode](../../docs/behavior_modeling.md).
