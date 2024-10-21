@@ -132,7 +132,7 @@ ifeq (, $(shell which goimports))
 	@{ \
 	echo "goimports not found!";\
 	echo "installing goimports...";\
-	go install golang.org/x/tools/cmd/goimports;\
+	go install golang.org/x/tools/cmd/goimports@latest
 	}
 else
 GO_IMPORTS=$(shell which goimports)
