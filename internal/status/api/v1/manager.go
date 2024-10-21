@@ -421,7 +421,7 @@ func (m *StatusManager) reconcileStatus(stopCh <-chan struct{}) {
 			var ok bool
 
 			if policyStatus, ok = m.PolicyStatuses[statusKey]; !ok {
-				logger.Error(fmt.Errorf("m.PolicyStatuses[statusKey] doesn't exist"), "fatal error")
+				logger.Error(fmt.Errorf("m.PolicyStatuses[%s] doesn't exist", statusKey), "fatal error")
 				break
 			}
 
@@ -441,8 +441,8 @@ func (m *StatusManager) reconcileStatus(stopCh <-chan struct{}) {
 
 			// Reset DesiredNumber when ArmorProfile was created or updated.
 			// The DesiredNumber used for determining the status of the policy,
-			// and the status of VarmorPolicy is READY when the number of loaded
-			// profile is equal with the number of agents.
+			// and the status of VarmorPolicy will be set to READY when the
+			// number of loaded profiles is equal with the number of agents.
 			if m.UpdateDesiredNumber {
 				err = m.retrieveDesiredNumber()
 				if err != nil {
