@@ -101,8 +101,8 @@ func (enforcer *BpfEnforcer) initBPF() error {
 		Name:       "v_file_inner_",
 		Type:       ebpf.Hash,
 		KeySize:    4,
-		ValueSize:  4*2 + uint32(varmortypes.MaxFilePathPatternLength)*2,
-		MaxEntries: uint32(varmortypes.MaxBpfFileRuleCount),
+		ValueSize:  PathRuleSize,
+		MaxEntries: MaxBpfFileRuleCount,
 	}
 	collectionSpec.Maps["v_file_outer"].InnerMap = &fileInnerMap
 
@@ -111,8 +111,8 @@ func (enforcer *BpfEnforcer) initBPF() error {
 		Name:       "v_bprm_inner_",
 		Type:       ebpf.Hash,
 		KeySize:    4,
-		ValueSize:  4*2 + uint32(varmortypes.MaxFilePathPatternLength)*2,
-		MaxEntries: uint32(varmortypes.MaxBpfBprmRuleCount),
+		ValueSize:  PathRuleSize,
+		MaxEntries: MaxBpfFileRuleCount,
 	}
 	collectionSpec.Maps["v_bprm_outer"].InnerMap = &bprmInnerMap
 
@@ -121,8 +121,8 @@ func (enforcer *BpfEnforcer) initBPF() error {
 		Name:       "v_net_inner_",
 		Type:       ebpf.Hash,
 		KeySize:    4,
-		ValueSize:  4*2 + 16*2,
-		MaxEntries: uint32(varmortypes.MaxBpfNetworkRuleCount),
+		ValueSize:  NetRuleSize,
+		MaxEntries: MaxBpfNetworkRuleCount,
 	}
 	collectionSpec.Maps["v_net_outer"].InnerMap = &netInnerMap
 
@@ -130,8 +130,8 @@ func (enforcer *BpfEnforcer) initBPF() error {
 		Name:       "v_mount_inner_",
 		Type:       ebpf.Hash,
 		KeySize:    4,
-		ValueSize:  4*3 + uint32(varmortypes.MaxFileSystemTypeLength) + uint32(varmortypes.MaxFilePathPatternLength)*2,
-		MaxEntries: uint32(varmortypes.MaxBpfMountRuleCount),
+		ValueSize:  MountRuleSize,
+		MaxEntries: MaxBpfMountRuleCount,
 	}
 	collectionSpec.Maps["v_mount_outer"].InnerMap = &mountInnerMap
 

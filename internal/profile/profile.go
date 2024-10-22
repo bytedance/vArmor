@@ -92,7 +92,7 @@ func GenerateProfile(policy varmor.Policy, name string, namespace string, varmor
 		// BPF
 		if (e & varmortypes.BPF) != 0 {
 			var bpfContent varmor.BpfContent
-			err = bpfprofile.GenerateRuntimeDefaultProfile(&bpfContent)
+			err = bpfprofile.GenerateRuntimeDefaultProfile(&bpfContent, bpfprofile.EnforceMode)
 			if err != nil {
 				return nil, err
 			}

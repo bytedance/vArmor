@@ -14,29 +14,33 @@
 
 package bpfenforcer
 
-import varmortypes "github.com/bytedance/vArmor/pkg/types"
-
 type pathPattern struct {
 	Flags  uint32
-	Prefix [varmortypes.MaxFilePathPatternLength]byte
-	Suffix [varmortypes.MaxFilePathPatternLength]byte
+	Prefix [MaxFilePathPatternLength]byte
+	Suffix [MaxFilePathPatternLength]byte
 }
 
+// bpfPathRule is the rule definition of file policy primitive
 type bpfPathRule struct {
+	Mode        uint32
 	Permissions uint32
 	Pattern     pathPattern
 }
 
+// bpfNetworkRule is the rule definition of network policy primitive
 type bpfNetworkRule struct {
+	Mode    uint32
 	Flags   uint32
-	Address [16]byte
-	Mask    [16]byte
+	Address [IpAddressSize]byte
+	Mask    [IpAddressSize]byte
 	Port    uint32
 }
 
+// bpfMountRule is the rule definition of mount policy primitive
 type bpfMountRule struct {
+	Mode              uint32
 	MountFlags        uint32
 	ReverseMountFlags uint32
-	Fstype            [varmortypes.MaxFileSystemTypeLength]byte
+	Fstype            [MaxFileSystemTypeLength]byte
 	Pattern           pathPattern
 }
