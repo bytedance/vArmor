@@ -42,6 +42,7 @@ import (
 	varmorconfig "github.com/bytedance/vArmor/internal/config"
 	varmortypes "github.com/bytedance/vArmor/internal/types"
 	varmorutils "github.com/bytedance/vArmor/internal/utils"
+	varmoraudit "github.com/bytedance/vArmor/pkg/audit"
 	varmorinterface "github.com/bytedance/vArmor/pkg/client/clientset/versioned/typed/varmor/v1beta1"
 	varmorinformer "github.com/bytedance/vArmor/pkg/client/informers/externalversions/varmor/v1beta1"
 	varmorlister "github.com/bytedance/vArmor/pkg/client/listers/varmor/v1beta1"
@@ -68,6 +69,7 @@ type Agent struct {
 	appArmorProfileDir       string
 	seccompProfileDir        string
 	bpfEnforcer              *varmorbpfenforcer.BpfEnforcer
+	auditor                  *varmoraudit.ViolationsAuditor
 	monitor                  *varmorruntime.RuntimeMonitor
 	waitExistingApSync       sync.WaitGroup
 	existingApCount          int
@@ -227,6 +229,10 @@ func NewAgent(
 	if agent.bpfLsmSupported {
 		log.Info("initialize the BPF LSM")
 		agent.bpfEnforcer, err = varmorbpfenforcer.NewBpfEnforcer(log.WithName("BPF-ENFORCER"))
+		if err != nil {
+			return nil, err
+		}
+		agent.auditor, err = varmoraudit.NewViolationsAuditor(log.WithName("AUDIT-VIOLATIONS"))
 		if err != nil {
 			return nil, err
 		}
@@ -631,6 +637,7 @@ func (agent *Agent) Run(workers int, stopCh <-chan struct{}) {
 
 	if agent.bpfLsmSupported {
 		go agent.bpfEnforcer.Run(stopCh)
+		go agent.auditor.Run()
 
 		// Wait for all existing ArmorProfile objects have been processed.
 		if agent.existingApCount > 0 {
@@ -669,6 +676,7 @@ func (agent *Agent) CleanUp() {
 	}
 
 	if agent.bpfLsmSupported {
+		agent.auditor.Close()
 		agent.bpfEnforcer.Close()
 	}
 }

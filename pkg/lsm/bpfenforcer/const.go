@@ -56,4 +56,47 @@ const (
 	// MountRuleSize is the size of `struct mount_rule` in BPF code, it's
 	// also the value size of the inner map for mount access control.
 	MountRuleSize = 4*3 + MaxFileSystemTypeLength + PathPatternSize
+
+	// PinPath is the path we want to pin the maps
+	PinPath = "/sys/fs/bpf/varmor"
+
+	// AuditRingBufPinPath is the path we pin the audit ringbuf
+	AuditRingBufPinPath = "/sys/fs/bpf/varmor/v_audit_rb"
+
+	// BPF enforcer running mode.
+	EnforceMode  = 0x00000001
+	AuditMode    = 0x00000002
+	ComplainMode = 0x00000004
+
+	// Matching Flags
+	PreciseMatch = 0x00000001
+	GreedyMatch  = 0x00000002
+	PrefixMatch  = 0x00000004
+	SuffixMatch  = 0x00000008
+	CidrMatch    = 0x00000020
+	Ipv4Match    = 0x00000040
+	Ipv6Match    = 0x00000080
+	PortMatch    = 0x00000100
+
+	// Matching Permissions
+	AaMayExec     = 0x00000001
+	AaMayWrite    = 0x00000002
+	AaMayRead     = 0x00000004
+	AaMayAppend   = 0x00000008
+	AaPtraceTrace = 0x00000002
+	AaPtraceRead  = 0x00000004
+	AaMayBeTraced = 0x00000008
+	AaMayBeRead   = 0x00000010
+	AaMayUmount   = 0x00000200
+
+	// EventHeaderSize is the size of bpf audit event header
+	EventHeaderSize = 24
+
+	// Event type
+	CapabilityType = 0x00000001
+	FileType       = 0x00000002
+	BprmType       = 0x00000004
+	NetworkType    = 0x00000008
+	PtraceType     = 0x00000010
+	MountType      = 0x00000020
 )

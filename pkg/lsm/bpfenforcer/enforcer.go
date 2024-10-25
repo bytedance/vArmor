@@ -16,6 +16,7 @@ package bpfenforcer
 
 import (
 	"fmt"
+	"os"
 	"reflect"
 	"strings"
 
@@ -145,8 +146,15 @@ func (enforcer *BpfEnforcer) initBPF() error {
 	})
 
 	// Load pre-compiled programs and maps into the kernel.
+	if err := os.MkdirAll(PinPath, os.ModePerm); err != nil {
+		return fmt.Errorf("failed to create bpf fs subpath: %+v", err)
+	}
 	enforcer.log.Info("load ebpf program and maps into the kernel")
-	err = collectionSpec.LoadAndAssign(&enforcer.objs, nil)
+	err = collectionSpec.LoadAndAssign(&enforcer.objs, &ebpf.CollectionOptions{
+		Maps: ebpf.MapOptions{
+			PinPath: PinPath,
+		},
+	})
 	if err != nil {
 		return err
 	}
@@ -268,7 +276,10 @@ func (enforcer *BpfEnforcer) Close() {
 	enforcer.mountLink.Close()
 	enforcer.moveMountLink.Close()
 	enforcer.umountLink.Close()
+	enforcer.objs.V_auditRb.Unpin()
+	os.RemoveAll(PinPath)
 	enforcer.objs.Close()
+
 }
 
 func (enforcer *BpfEnforcer) eventHandler(stopCh <-chan struct{}) {

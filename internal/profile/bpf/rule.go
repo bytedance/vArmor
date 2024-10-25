@@ -1,3 +1,17 @@
+// Copyright 2024 vArmor Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package bpf
 
 import (
@@ -80,30 +94,30 @@ func newBpfPathRule(mode uint32, pattern string, permissions uint32) (*varmor.Fi
 
 		if len(stringList[0]) > 0 {
 			pathRule.Pattern.Prefix = stringList[0]
-			flags |= PrefixMatch
+			flags |= bpfenforcer.PrefixMatch
 		}
 
 		if len(stringList[1]) > 0 {
 			pathRule.Pattern.Suffix = reverseString(stringList[1])
-			flags |= SuffixMatch
+			flags |= bpfenforcer.SuffixMatch
 		}
 	} else if strings.Contains(pattern, "**") {
-		flags |= GreedyMatch
+		flags |= bpfenforcer.GreedyMatch
 
 		stringList := strings.Split(pattern, "**")
 
 		if len(stringList[0]) > 0 {
 			pathRule.Pattern.Prefix = stringList[0]
-			flags |= PrefixMatch
+			flags |= bpfenforcer.PrefixMatch
 		}
 
 		if len(stringList[1]) > 0 {
 			pathRule.Pattern.Suffix = reverseString(stringList[1])
-			flags |= SuffixMatch
+			flags |= bpfenforcer.SuffixMatch
 		}
 	} else {
 		pathRule.Pattern.Prefix = pattern
-		flags |= PreciseMatch | PrefixMatch
+		flags |= bpfenforcer.PreciseMatch | bpfenforcer.PrefixMatch
 	}
 
 	if len(pathRule.Pattern.Prefix) >= bpfenforcer.MaxFilePathPatternLength {
@@ -138,7 +152,7 @@ func newBpfNetworkRule(mode uint32, cidr string, ipAddress string, port uint32) 
 	networkRule.Mode = mode
 
 	if cidr != "" {
-		networkRule.Flags |= CidrMatch
+		networkRule.Flags |= bpfenforcer.CidrMatch
 
 		_, ipNet, err := net.ParseCIDR(cidr)
 		if err != nil {
@@ -148,14 +162,14 @@ func newBpfNetworkRule(mode uint32, cidr string, ipAddress string, port uint32) 
 		networkRule.Address = ipNet.IP.String()
 		networkRule.CIDR = ipNet.String()
 		if ipNet.IP.To4() != nil {
-			networkRule.Flags |= Ipv4Match
+			networkRule.Flags |= bpfenforcer.Ipv4Match
 		} else {
-			networkRule.Flags |= Ipv6Match
+			networkRule.Flags |= bpfenforcer.Ipv6Match
 		}
 	}
 
 	if ipAddress != "" {
-		networkRule.Flags |= PreciseMatch
+		networkRule.Flags |= bpfenforcer.PreciseMatch
 
 		ip := net.ParseIP(ipAddress)
 		if ip == nil {
@@ -164,14 +178,14 @@ func newBpfNetworkRule(mode uint32, cidr string, ipAddress string, port uint32) 
 
 		networkRule.Address = ip.String()
 		if ip.To4() != nil {
-			networkRule.Flags |= Ipv4Match
+			networkRule.Flags |= bpfenforcer.Ipv4Match
 		} else {
-			networkRule.Flags |= Ipv6Match
+			networkRule.Flags |= bpfenforcer.Ipv6Match
 		}
 	}
 
 	if port != 0 {
-		networkRule.Flags |= PortMatch
+		networkRule.Flags |= bpfenforcer.PortMatch
 		networkRule.Port = port
 	}
 
@@ -213,30 +227,30 @@ func newBpfMountRule(mode uint32, sourcePattern string, fstype string, mountFlag
 
 		if len(stringList[0]) > 0 {
 			mountRule.Pattern.Prefix = stringList[0]
-			flags |= PrefixMatch
+			flags |= bpfenforcer.PrefixMatch
 		}
 
 		if len(stringList[1]) > 0 {
 			mountRule.Pattern.Suffix = reverseString(stringList[1])
-			flags |= SuffixMatch
+			flags |= bpfenforcer.SuffixMatch
 		}
 	} else if strings.Contains(sourcePattern, "**") {
-		flags |= GreedyMatch
+		flags |= bpfenforcer.GreedyMatch
 
 		stringList := strings.Split(sourcePattern, "**")
 
 		if len(stringList[0]) > 0 {
 			mountRule.Pattern.Prefix = stringList[0]
-			flags |= PrefixMatch
+			flags |= bpfenforcer.PrefixMatch
 		}
 
 		if len(stringList[1]) > 0 {
 			mountRule.Pattern.Suffix = reverseString(stringList[1])
-			flags |= SuffixMatch
+			flags |= bpfenforcer.SuffixMatch
 		}
 	} else {
 		mountRule.Pattern.Prefix = sourcePattern
-		flags |= PreciseMatch | PrefixMatch
+		flags |= bpfenforcer.PreciseMatch | bpfenforcer.PrefixMatch
 	}
 
 	if len(mountRule.Pattern.Prefix) >= bpfenforcer.MaxFilePathPatternLength {

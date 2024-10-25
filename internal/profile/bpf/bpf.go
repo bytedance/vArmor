@@ -27,55 +27,55 @@ import (
 func GenerateRuntimeDefaultProfile(bpfContent *varmor.BpfContent, mode uint32) error {
 	var err error
 
-	fileContent, err := newBpfPathRule(mode, "/proc/sysrq-trigger", AaMayRead|AaMayWrite|AaMayAppend)
+	fileContent, err := newBpfPathRule(mode, "/proc/sysrq-trigger", bpfenforcer.AaMayRead|bpfenforcer.AaMayWrite|bpfenforcer.AaMayAppend)
 	if err != nil {
 		return err
 	}
 	bpfContent.Files = append(bpfContent.Files, *fileContent)
 
-	fileContent, err = newBpfPathRule(mode, "/proc/**/mem", AaMayRead|AaMayWrite|AaMayAppend)
+	fileContent, err = newBpfPathRule(mode, "/proc/**/mem", bpfenforcer.AaMayRead|bpfenforcer.AaMayWrite|bpfenforcer.AaMayAppend)
 	if err != nil {
 		return err
 	}
 	bpfContent.Files = append(bpfContent.Files, *fileContent)
 
-	fileContent, err = newBpfPathRule(mode, "/proc/kmem", AaMayRead|AaMayWrite|AaMayAppend)
+	fileContent, err = newBpfPathRule(mode, "/proc/kmem", bpfenforcer.AaMayRead|bpfenforcer.AaMayWrite|bpfenforcer.AaMayAppend)
 	if err != nil {
 		return err
 	}
 	bpfContent.Files = append(bpfContent.Files, *fileContent)
 
-	fileContent, err = newBpfPathRule(mode, "/proc/kcore", AaMayRead|AaMayWrite|AaMayAppend)
+	fileContent, err = newBpfPathRule(mode, "/proc/kcore", bpfenforcer.AaMayRead|bpfenforcer.AaMayWrite|bpfenforcer.AaMayAppend)
 	if err != nil {
 		return err
 	}
 	bpfContent.Files = append(bpfContent.Files, *fileContent)
 
-	fileContent, err = newBpfPathRule(mode, "/sys/firmware/**", AaMayRead|AaMayWrite|AaMayAppend)
+	fileContent, err = newBpfPathRule(mode, "/sys/firmware/**", bpfenforcer.AaMayRead|bpfenforcer.AaMayWrite|bpfenforcer.AaMayAppend)
 	if err != nil {
 		return err
 	}
 	bpfContent.Files = append(bpfContent.Files, *fileContent)
 
-	fileContent, err = newBpfPathRule(mode, "/sys/devices/virtual/powercap/**", AaMayRead|AaMayWrite|AaMayAppend)
+	fileContent, err = newBpfPathRule(mode, "/sys/devices/virtual/powercap/**", bpfenforcer.AaMayRead|bpfenforcer.AaMayWrite|bpfenforcer.AaMayAppend)
 	if err != nil {
 		return err
 	}
 	bpfContent.Files = append(bpfContent.Files, *fileContent)
 
-	fileContent, err = newBpfPathRule(mode, "/sys/kernel/security/**", AaMayRead|AaMayWrite|AaMayAppend)
+	fileContent, err = newBpfPathRule(mode, "/sys/kernel/security/**", bpfenforcer.AaMayRead|bpfenforcer.AaMayWrite|bpfenforcer.AaMayAppend)
 	if err != nil {
 		return err
 	}
 	bpfContent.Files = append(bpfContent.Files, *fileContent)
 
-	mountContent, err := newBpfMountRule(mode, "**", "*", 0xFFFFFFFF&^AaMayUmount, 0xFFFFFFFF)
+	mountContent, err := newBpfMountRule(mode, "**", "*", 0xFFFFFFFF&^bpfenforcer.AaMayUmount, 0xFFFFFFFF)
 	if err != nil {
 		return err
 	}
 	bpfContent.Mounts = append(bpfContent.Mounts, *mountContent)
 
-	setBpfPtraceRule(bpfContent, mode, AaPtraceTrace|AaPtraceRead, PreciseMatch)
+	setBpfPtraceRule(bpfContent, mode, bpfenforcer.AaPtraceTrace|bpfenforcer.AaPtraceRead, bpfenforcer.PreciseMatch)
 
 	return nil
 }
@@ -88,7 +88,7 @@ func generateHardeningRules(content *varmor.BpfContent, mode uint32, privileged 
 	//// 1. Blocking escape vectors from privileged container
 	// disallow write core_pattern
 	case "disallow-write-core-pattern":
-		fileContent, err := newBpfPathRule(mode, "/proc/sys/kernel/core_pattern", AaMayWrite|AaMayAppend)
+		fileContent, err := newBpfPathRule(mode, "/proc/sys/kernel/core_pattern", bpfenforcer.AaMayWrite|bpfenforcer.AaMayAppend)
 		if err != nil {
 			return err
 		}
@@ -101,7 +101,7 @@ func generateHardeningRules(content *varmor.BpfContent, mode uint32, privileged 
 
 			// mount new
 			flags := 0xFFFFFFFF &^ unix.MS_REMOUNT &^ unix.MS_BIND &^ unix.MS_SHARED &^
-				unix.MS_PRIVATE &^ unix.MS_SLAVE &^ unix.MS_UNBINDABLE &^ unix.MS_MOVE &^ AaMayUmount
+				unix.MS_PRIVATE &^ unix.MS_SLAVE &^ unix.MS_UNBINDABLE &^ unix.MS_MOVE &^ bpfenforcer.AaMayUmount
 			mountContent, err := newBpfMountRule(mode, "**", "securityfs", uint32(flags), 0xFFFFFFFF)
 			if err != nil {
 				return err
@@ -116,7 +116,7 @@ func generateHardeningRules(content *varmor.BpfContent, mode uint32, privileged 
 
 			// mount new
 			flags := 0xFFFFFFFF &^ unix.MS_REMOUNT &^ unix.MS_BIND &^ unix.MS_SHARED &^
-				unix.MS_PRIVATE &^ unix.MS_SLAVE &^ unix.MS_UNBINDABLE &^ unix.MS_MOVE &^ AaMayUmount
+				unix.MS_PRIVATE &^ unix.MS_SLAVE &^ unix.MS_UNBINDABLE &^ unix.MS_MOVE &^ bpfenforcer.AaMayUmount
 			mountContent, err := newBpfMountRule(mode, "**", "proc", uint32(flags), 0xFFFFFFFF)
 			if err != nil {
 				return err
@@ -124,7 +124,7 @@ func generateHardeningRules(content *varmor.BpfContent, mode uint32, privileged 
 			content.Mounts = append(content.Mounts, *mountContent)
 		}
 		// bind, rbind, remount, move, umount
-		flags := unix.MS_BIND | unix.MS_REC | unix.MS_REMOUNT | unix.MS_MOVE | AaMayUmount
+		flags := unix.MS_BIND | unix.MS_REC | unix.MS_REMOUNT | unix.MS_MOVE | bpfenforcer.AaMayUmount
 		mountContent, err := newBpfMountRule(mode, "/proc**", "none", uint32(flags), 0)
 		if err != nil {
 			return err
@@ -132,7 +132,7 @@ func generateHardeningRules(content *varmor.BpfContent, mode uint32, privileged 
 		content.Mounts = append(content.Mounts, *mountContent)
 	// disallow write release_agent
 	case "disallow-write-release-agent":
-		fileContent, err := newBpfPathRule(mode, "/sys/fs/cgroup/**/release_agent", AaMayWrite|AaMayAppend)
+		fileContent, err := newBpfPathRule(mode, "/sys/fs/cgroup/**/release_agent", bpfenforcer.AaMayWrite|bpfenforcer.AaMayAppend)
 		if err != nil {
 			return err
 		}
@@ -145,7 +145,7 @@ func generateHardeningRules(content *varmor.BpfContent, mode uint32, privileged 
 
 			// mount new
 			flags := 0xFFFFFFFF &^ unix.MS_REMOUNT &^ unix.MS_BIND &^ unix.MS_SHARED &^
-				unix.MS_PRIVATE &^ unix.MS_SLAVE &^ unix.MS_UNBINDABLE &^ unix.MS_MOVE &^ AaMayUmount
+				unix.MS_PRIVATE &^ unix.MS_SLAVE &^ unix.MS_UNBINDABLE &^ unix.MS_MOVE &^ bpfenforcer.AaMayUmount
 			mountContent, err := newBpfMountRule(mode, "**", "cgroup", uint32(flags), 0xFFFFFFFF)
 			if err != nil {
 				return err
@@ -153,7 +153,7 @@ func generateHardeningRules(content *varmor.BpfContent, mode uint32, privileged 
 			content.Mounts = append(content.Mounts, *mountContent)
 		}
 		// bind, rbind, remount, move, umount
-		flags := unix.MS_BIND | unix.MS_REC | unix.MS_REMOUNT | unix.MS_MOVE | AaMayUmount
+		flags := unix.MS_BIND | unix.MS_REC | unix.MS_REMOUNT | unix.MS_MOVE | bpfenforcer.AaMayUmount
 		mountContent, err := newBpfMountRule(mode, "/sys**", "none", uint32(flags), 0)
 		if err != nil {
 			return err
@@ -161,7 +161,7 @@ func generateHardeningRules(content *varmor.BpfContent, mode uint32, privileged 
 		content.Mounts = append(content.Mounts, *mountContent)
 	// disallow debug disk devices
 	case "disallow-debug-disk-device":
-		fileContent, err := newBpfPathRule(mode, "{{.DiskDevices}}", AaMayRead|AaMayWrite|AaMayAppend)
+		fileContent, err := newBpfPathRule(mode, "{{.DiskDevices}}", bpfenforcer.AaMayRead|bpfenforcer.AaMayWrite|bpfenforcer.AaMayAppend)
 		if err != nil {
 			return err
 		}
@@ -173,7 +173,7 @@ func generateHardeningRules(content *varmor.BpfContent, mode uint32, privileged 
 			// We will enforce the rule only if `.spec.policy.enhanceProtect.privileged` is set to true.
 
 			// mount new
-			mountContent, err := newBpfMountRule(mode, "{{.DiskDevices}}", "*", 0xFFFFFFFF&^AaMayUmount, 0xFFFFFFFF)
+			mountContent, err := newBpfMountRule(mode, "{{.DiskDevices}}", "*", 0xFFFFFFFF&^bpfenforcer.AaMayUmount, 0xFFFFFFFF)
 			if err != nil {
 				return err
 			}
@@ -186,7 +186,7 @@ func generateHardeningRules(content *varmor.BpfContent, mode uint32, privileged 
 			// We will enforce the rule only if `.spec.policy.enhanceProtect.privileged` is set to true.
 
 			// mount new
-			mountContent, err := newBpfMountRule(mode, "**", "*", 0xFFFFFFFF&^AaMayUmount, 0xFFFFFFFF)
+			mountContent, err := newBpfMountRule(mode, "**", "*", 0xFFFFFFFF&^bpfenforcer.AaMayUmount, 0xFFFFFFFF)
 			if err != nil {
 				return err
 			}
@@ -194,7 +194,7 @@ func generateHardeningRules(content *varmor.BpfContent, mode uint32, privileged 
 		}
 	// disable umount operations
 	case "disallow-umount":
-		mountContent, err := newBpfMountRule(mode, "**", "none", AaMayUmount, 0)
+		mountContent, err := newBpfMountRule(mode, "**", "none", bpfenforcer.AaMayUmount, 0)
 		if err != nil {
 			return err
 		}
@@ -207,10 +207,10 @@ func generateHardeningRules(content *varmor.BpfContent, mode uint32, privileged 
 		setBpfCapabilityRule(content, mode, (1<<unix.CAP_SYS_ADMIN)|(1<<unix.CAP_BPF))
 	// disallow access to the root of the task through procfs
 	case "disallow-access-procfs-root":
-		setBpfPtraceRule(content, mode, AaPtraceRead, PreciseMatch)
+		setBpfPtraceRule(content, mode, bpfenforcer.AaPtraceRead, bpfenforcer.PreciseMatch)
 	// disallow access /proc/kallsyms
 	case "disallow-access-kallsyms":
-		fileContent, err := newBpfPathRule(mode, "/proc/kallsyms", AaMayRead)
+		fileContent, err := newBpfPathRule(mode, "/proc/kallsyms", bpfenforcer.AaMayRead)
 		if err != nil {
 			return err
 		}
@@ -353,31 +353,31 @@ func generateVulMitigationRules(content *varmor.BpfContent, mode uint32, rule st
 
 	switch rule {
 	case "cgroups-lxcfs-escape-mitigation":
-		fileContent, err := newBpfPathRule(mode, "/**/release_agent", AaMayWrite|AaMayAppend)
+		fileContent, err := newBpfPathRule(mode, "/**/release_agent", bpfenforcer.AaMayWrite|bpfenforcer.AaMayAppend)
 		if err != nil {
 			return err
 		}
 		content.Files = append(content.Files, *fileContent)
 
-		fileContent, err = newBpfPathRule(mode, "/**/devices.allow", AaMayWrite|AaMayAppend)
+		fileContent, err = newBpfPathRule(mode, "/**/devices.allow", bpfenforcer.AaMayWrite|bpfenforcer.AaMayAppend)
 		if err != nil {
 			return err
 		}
 		content.Files = append(content.Files, *fileContent)
 
-		fileContent, err = newBpfPathRule(mode, "/**/cgroup.procs", AaMayWrite|AaMayAppend)
+		fileContent, err = newBpfPathRule(mode, "/**/cgroup.procs", bpfenforcer.AaMayWrite|bpfenforcer.AaMayAppend)
 		if err != nil {
 			return err
 		}
 		content.Files = append(content.Files, *fileContent)
 
-		fileContent, err = newBpfPathRule(mode, "/**/devices/tasks", AaMayWrite|AaMayAppend)
+		fileContent, err = newBpfPathRule(mode, "/**/devices/tasks", bpfenforcer.AaMayWrite|bpfenforcer.AaMayAppend)
 		if err != nil {
 			return err
 		}
 		content.Files = append(content.Files, *fileContent)
 	case "runc-override-mitigation":
-		fileContent, err := newBpfPathRule(mode, "/**/runc", AaMayWrite|AaMayAppend)
+		fileContent, err := newBpfPathRule(mode, "/**/runc", bpfenforcer.AaMayWrite|bpfenforcer.AaMayAppend)
 		if err != nil {
 			return err
 		}
@@ -398,43 +398,43 @@ func generateAttackProtectionRules(content *varmor.BpfContent, mode uint32, rule
 	switch rule {
 	//// 4. Mitigate container information leakage
 	case "mitigate-sa-leak":
-		fileContent, err = newBpfPathRule(mode, "/run/secrets/kubernetes.io/serviceaccount/**", AaMayRead)
+		fileContent, err = newBpfPathRule(mode, "/run/secrets/kubernetes.io/serviceaccount/**", bpfenforcer.AaMayRead)
 		if err != nil {
 			return err
 		}
 		content.Files = append(content.Files, *fileContent)
 
-		fileContent, err = newBpfPathRule(mode, "/var/run/secrets/kubernetes.io/serviceaccount/**", AaMayRead)
+		fileContent, err = newBpfPathRule(mode, "/var/run/secrets/kubernetes.io/serviceaccount/**", bpfenforcer.AaMayRead)
 		if err != nil {
 			return err
 		}
 		content.Files = append(content.Files, *fileContent)
 	case "mitigate-disk-device-number-leak":
-		fileContent, err = newBpfPathRule(mode, "/proc/partitions", AaMayRead)
+		fileContent, err = newBpfPathRule(mode, "/proc/partitions", bpfenforcer.AaMayRead)
 		if err != nil {
 			return err
 		}
 		content.Files = append(content.Files, *fileContent)
 
-		fileContent, err = newBpfPathRule(mode, "/proc/**/mountinfo", AaMayRead)
+		fileContent, err = newBpfPathRule(mode, "/proc/**/mountinfo", bpfenforcer.AaMayRead)
 		if err != nil {
 			return err
 		}
 		content.Files = append(content.Files, *fileContent)
 	case "mitigate-overlayfs-leak":
-		fileContent, err = newBpfPathRule(mode, "/proc/**/mounts", AaMayRead)
+		fileContent, err = newBpfPathRule(mode, "/proc/**/mounts", bpfenforcer.AaMayRead)
 		if err != nil {
 			return err
 		}
 		content.Files = append(content.Files, *fileContent)
 
-		fileContent, err = newBpfPathRule(mode, "/proc/**/mountinfo", AaMayRead)
+		fileContent, err = newBpfPathRule(mode, "/proc/**/mountinfo", bpfenforcer.AaMayRead)
 		if err != nil {
 			return err
 		}
 		content.Files = append(content.Files, *fileContent)
 	case "mitigate-host-ip-leak":
-		fileContent, err = newBpfPathRule(mode, "/proc/**/net/arp", AaMayRead)
+		fileContent, err = newBpfPathRule(mode, "/proc/**/net/arp", bpfenforcer.AaMayRead)
 		if err != nil {
 			return err
 		}
@@ -454,19 +454,19 @@ func generateAttackProtectionRules(content *varmor.BpfContent, mode uint32, rule
 		}
 		content.Networks = append(content.Networks, *networkContent)
 	case "disallow-access-k8s-sensitive-files":
-		fileContent, err = newBpfPathRule(mode, "**/etc/kubernetes", AaMayRead)
+		fileContent, err = newBpfPathRule(mode, "**/etc/kubernetes", bpfenforcer.AaMayRead)
 		if err != nil {
 			return err
 		}
 		content.Files = append(content.Files, *fileContent)
 
-		fileContent, err = newBpfPathRule(mode, "**/.kube/config", AaMayRead)
+		fileContent, err = newBpfPathRule(mode, "**/.kube/config", bpfenforcer.AaMayRead)
 		if err != nil {
 			return err
 		}
 		content.Files = append(content.Files, *fileContent)
 
-		fileContent, err = newBpfPathRule(mode, "**/volumes/kubernetes.io~secret", AaMayRead)
+		fileContent, err = newBpfPathRule(mode, "**/volumes/kubernetes.io~secret", bpfenforcer.AaMayRead)
 		if err != nil {
 			return err
 		}
@@ -474,63 +474,63 @@ func generateAttackProtectionRules(content *varmor.BpfContent, mode uint32, rule
 
 	//// 5. Restrict the sensitive operations inside the container
 	case "disable-write-etc":
-		fileContent, err = newBpfPathRule(mode, "/etc/**", AaMayWrite|AaMayAppend)
+		fileContent, err = newBpfPathRule(mode, "/etc/**", bpfenforcer.AaMayWrite|bpfenforcer.AaMayAppend)
 		if err != nil {
 			return err
 		}
 		content.Files = append(content.Files, *fileContent)
 
 	case "disable-busybox":
-		fileContent, err = newBpfPathRule(mode, "/**/busybox", AaMayExec)
+		fileContent, err = newBpfPathRule(mode, "/**/busybox", bpfenforcer.AaMayExec)
 		if err != nil {
 			return err
 		}
 		content.Processes = append(content.Processes, *fileContent)
 
 	case "disable-shell":
-		fileContent, err = newBpfPathRule(mode, "/**/sh", AaMayExec)
+		fileContent, err = newBpfPathRule(mode, "/**/sh", bpfenforcer.AaMayExec)
 		if err != nil {
 			return err
 		}
 		content.Processes = append(content.Processes, *fileContent)
 
-		fileContent, err = newBpfPathRule(mode, "/**/bash", AaMayExec)
+		fileContent, err = newBpfPathRule(mode, "/**/bash", bpfenforcer.AaMayExec)
 		if err != nil {
 			return err
 		}
 		content.Processes = append(content.Processes, *fileContent)
 
-		fileContent, err = newBpfPathRule(mode, "/**/dash", AaMayExec)
+		fileContent, err = newBpfPathRule(mode, "/**/dash", bpfenforcer.AaMayExec)
 		if err != nil {
 			return err
 		}
 		content.Processes = append(content.Processes, *fileContent)
 	case "disable-wget":
-		fileContent, err = newBpfPathRule(mode, "/**/wget", AaMayExec)
+		fileContent, err = newBpfPathRule(mode, "/**/wget", bpfenforcer.AaMayExec)
 		if err != nil {
 			return err
 		}
 		content.Processes = append(content.Processes, *fileContent)
 	case "disable-curl":
-		fileContent, err = newBpfPathRule(mode, "/**/curl", AaMayExec)
+		fileContent, err = newBpfPathRule(mode, "/**/curl", bpfenforcer.AaMayExec)
 		if err != nil {
 			return err
 		}
 		content.Processes = append(content.Processes, *fileContent)
 	case "disable-chmod":
-		fileContent, err = newBpfPathRule(mode, "/**/chmod", AaMayExec)
+		fileContent, err = newBpfPathRule(mode, "/**/chmod", bpfenforcer.AaMayExec)
 		if err != nil {
 			return err
 		}
 		content.Processes = append(content.Processes, *fileContent)
 	case "disable-su-sudo":
-		fileContent, err = newBpfPathRule(mode, "/**/su", AaMayExec)
+		fileContent, err = newBpfPathRule(mode, "/**/su", bpfenforcer.AaMayExec)
 		if err != nil {
 			return err
 		}
 		content.Processes = append(content.Processes, *fileContent)
 
-		fileContent, err = newBpfPathRule(mode, "/**/sudo", AaMayExec)
+		fileContent, err = newBpfPathRule(mode, "/**/sudo", bpfenforcer.AaMayExec)
 		if err != nil {
 			return err
 		}
@@ -545,12 +545,12 @@ func generateRawFileRule(bpfContent *varmor.BpfContent, mode uint32, rule varmor
 	for _, permission := range rule.Permissions {
 		switch strings.ToLower(permission) {
 		case "read", "r":
-			permissions |= AaMayRead
+			permissions |= bpfenforcer.AaMayRead
 		case "write", "w":
-			permissions |= AaMayWrite
-			permissions |= AaMayAppend
+			permissions |= bpfenforcer.AaMayWrite
+			permissions |= bpfenforcer.AaMayAppend
 		case "append", "a":
-			permissions |= AaMayAppend
+			permissions |= bpfenforcer.AaMayAppend
 		}
 	}
 
@@ -573,7 +573,7 @@ func generateRawProcessRule(bpfContent *varmor.BpfContent, mode uint32, rule var
 	for _, permission := range rule.Permissions {
 		switch strings.ToLower(permission) {
 		case "exec", "x":
-			permissions |= AaMayExec
+			permissions |= bpfenforcer.AaMayExec
 		}
 	}
 
@@ -606,21 +606,21 @@ func generateRawPtraceRule(bpfContent *varmor.BpfContent, mode uint32, rule varm
 	for _, permission := range rule.Permissions {
 		switch strings.ToLower(permission) {
 		case "trace":
-			permissions |= AaPtraceTrace
+			permissions |= bpfenforcer.AaPtraceTrace
 		case "read":
-			permissions |= AaPtraceRead
+			permissions |= bpfenforcer.AaPtraceRead
 		case "traceby":
-			permissions |= AaMayBeTraced
+			permissions |= bpfenforcer.AaMayBeTraced
 		case "readby":
-			permissions |= AaMayBeRead
+			permissions |= bpfenforcer.AaMayBeRead
 		}
 	}
 
 	if permissions != 0 {
 		if rule.StrictMode {
-			setBpfPtraceRule(bpfContent, mode, permissions, GreedyMatch)
+			setBpfPtraceRule(bpfContent, mode, permissions, bpfenforcer.GreedyMatch)
 		} else {
-			setBpfPtraceRule(bpfContent, mode, permissions, PreciseMatch)
+			setBpfPtraceRule(bpfContent, mode, permissions, bpfenforcer.PreciseMatch)
 		}
 	}
 
@@ -723,7 +723,7 @@ func generateRawMountRule(bpfContent *varmor.BpfContent, mode uint32, rule varmo
 			reverseMountFlags |= unix.MS_STRICTATIME
 		// Custom Flags
 		case "umount":
-			mountFlags |= AaMayUmount
+			mountFlags |= bpfenforcer.AaMayUmount
 		}
 	}
 
@@ -741,9 +741,9 @@ func GenerateEnhanceProtectProfile(enhanceProtect *varmor.EnhanceProtect, bpfCon
 	var mode uint32
 
 	if enhanceProtect.AuditViolations {
-		mode = AuditMode
+		mode = bpfenforcer.AuditMode
 	} else {
-		mode = EnforceMode
+		mode = bpfenforcer.EnforceMode
 	}
 
 	// Add default rules for unprivileged containers (securityContext.privileged:true) based on the rules of the RuntimeDefault mode
