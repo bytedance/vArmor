@@ -144,11 +144,23 @@ spec:
                   bpfContent:
                     properties:
                       capabilities:
-                        format: int64
-                        type: integer
+                        properties:
+                          capabilities:
+                            format: int64
+                            type: integer
+                          mode:
+                            format: int32
+                            type: integer
+                        required:
+                        - capabilities
+                        - mode
+                        type: object
                       files:
                         items:
                           properties:
+                            mode:
+                              format: int32
+                              type: integer
                             pattern:
                               properties:
                                 flags:
@@ -165,6 +177,7 @@ spec:
                               format: int32
                               type: integer
                           required:
+                          - mode
                           - pattern
                           - permissions
                           type: object
@@ -174,6 +187,9 @@ spec:
                           properties:
                             fstype:
                               type: string
+                            mode:
+                              format: int32
+                              type: integer
                             mountFlags:
                               format: int32
                               type: integer
@@ -194,6 +210,7 @@ spec:
                               type: integer
                           required:
                           - fstype
+                          - mode
                           - mountFlags
                           - pattern
                           - reverseMountflags
@@ -209,16 +226,23 @@ spec:
                             flags:
                               format: int32
                               type: integer
+                            mode:
+                              format: int32
+                              type: integer
                             port:
                               format: int32
                               type: integer
                           required:
                           - flags
+                          - mode
                           type: object
                         type: array
                       processes:
                         items:
                           properties:
+                            mode:
+                              format: int32
+                              type: integer
                             pattern:
                               properties:
                                 flags:
@@ -235,6 +259,7 @@ spec:
                               format: int32
                               type: integer
                           required:
+                          - mode
                           - pattern
                           - permissions
                           type: object
@@ -244,9 +269,14 @@ spec:
                           flags:
                             format: int32
                             type: integer
+                          mode:
+                            format: int32
+                            type: integer
                           permissions:
                             format: int32
                             type: integer
+                        required:
+                        - mode
                         type: object
                     type: object
                   content:
