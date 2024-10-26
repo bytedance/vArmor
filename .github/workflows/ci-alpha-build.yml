@@ -81,11 +81,11 @@ jobs:
       - name: Setup a Kubernetes environment
         run: ./.github/scripts/create-k3s-cluster.sh ${{ matrix.k8s_version }}
       - name: Download Helm Chart Artifact
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v4
         with:
           name: helm-chart
       - name: Download Docker images
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v4
         with:
           name: docker-images
       - name: Load Docker images
