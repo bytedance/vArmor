@@ -29,33 +29,33 @@ import (
 	bpfenforcer "github.com/bytedance/vArmor/pkg/lsm/bpfenforcer"
 )
 
-type ViolationsAuditor struct {
+type Auditor struct {
 	auditRbMap *ebpf.Map
 	log        logr.Logger
 }
 
-func NewViolationsAuditor(log logr.Logger) (*ViolationsAuditor, error) {
+func NewAuditor(log logr.Logger) (*Auditor, error) {
 	m, err := ebpf.LoadPinnedMap(bpfenforcer.AuditRingBufPinPath, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	auditor := ViolationsAuditor{
+	auditor := Auditor{
 		auditRbMap: m,
 		log:        log,
 	}
 	return &auditor, nil
 }
 
-func (auditor *ViolationsAuditor) Run() {
+func (auditor *Auditor) Run() {
 	auditor.readFromAuditEventRingBuf()
 }
 
-func (auditor *ViolationsAuditor) Close() {
+func (auditor *Auditor) Close() {
 	auditor.auditRbMap.Close()
 }
 
-func (auditor *ViolationsAuditor) readFromAuditEventRingBuf() {
+func (auditor *Auditor) readFromAuditEventRingBuf() {
 	rd, err := ringbuf.NewReader(auditor.auditRbMap)
 	if err != nil {
 		auditor.log.Error(err, "ringbuf.NewReader() failed")

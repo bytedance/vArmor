@@ -69,7 +69,7 @@ type Agent struct {
 	appArmorProfileDir       string
 	seccompProfileDir        string
 	bpfEnforcer              *varmorbpfenforcer.BpfEnforcer
-	auditor                  *varmoraudit.ViolationsAuditor
+	auditor                  *varmoraudit.Auditor
 	monitor                  *varmorruntime.RuntimeMonitor
 	waitExistingApSync       sync.WaitGroup
 	existingApCount          int
@@ -232,7 +232,7 @@ func NewAgent(
 		if err != nil {
 			return nil, err
 		}
-		agent.auditor, err = varmoraudit.NewViolationsAuditor(log.WithName("AUDIT-VIOLATIONS"))
+		agent.auditor, err = varmoraudit.NewAuditor(log.WithName("AUDIT-VIOLATIONS"))
 		if err != nil {
 			return nil, err
 		}
