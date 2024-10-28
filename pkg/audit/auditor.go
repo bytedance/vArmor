@@ -27,13 +27,21 @@ import (
 	"golang.org/x/sys/unix"
 
 	bpfenforcer "github.com/bytedance/vArmor/pkg/lsm/bpfenforcer"
+	varmortypes "github.com/bytedance/vArmor/pkg/types"
+	varmorutils "github.com/bytedance/vArmor/pkg/utils"
 )
 
 type Auditor struct {
-	auditRbMap *ebpf.Map
-	log        logr.Logger
+	auditRbMap       *ebpf.Map
+	TaskCreateCh     chan varmortypes.ContainerInfo
+	TaskDeleteCh     chan varmortypes.ContainerInfo
+	TaskDeleteSyncCh chan bool
+	mntNsIDCache     map[uint32]uint32                    // key: The init PID of contaienr
+	containerCache   map[uint32]varmortypes.ContainerInfo // key: The mnt ns id of container
+	log              logr.Logger
 }
 
+// NewAuditor creates an auditor to audit the violations of target containers
 func NewAuditor(log logr.Logger) (*Auditor, error) {
 	m, err := ebpf.LoadPinnedMap(bpfenforcer.AuditRingBufPinPath, nil)
 	if err != nil {
@@ -41,18 +49,64 @@ func NewAuditor(log logr.Logger) (*Auditor, error) {
 	}
 
 	auditor := Auditor{
-		auditRbMap: m,
-		log:        log,
+		auditRbMap:       m,
+		TaskCreateCh:     make(chan varmortypes.ContainerInfo, 100),
+		TaskDeleteCh:     make(chan varmortypes.ContainerInfo, 100),
+		TaskDeleteSyncCh: make(chan bool, 1),
+		mntNsIDCache:     make(map[uint32]uint32, 100),
+		containerCache:   make(map[uint32]varmortypes.ContainerInfo, 100),
+		log:              log,
 	}
 	return &auditor, nil
 }
 
-func (auditor *Auditor) Run() {
+func (auditor *Auditor) Run(stopCh <-chan struct{}) {
+	go auditor.eventHandler(stopCh)
 	auditor.readFromAuditEventRingBuf()
 }
 
 func (auditor *Auditor) Close() {
 	auditor.auditRbMap.Close()
+}
+
+func (auditor *Auditor) eventHandler(stopCh <-chan struct{}) {
+	logger := auditor.log.WithName("eventHandler()")
+	logger.Info("start handle the containerd events")
+
+	for {
+		select {
+		case info := <-auditor.TaskCreateCh:
+			// Handle the creation event of target container
+			auditor.mntNsIDCache[info.PID] = info.MntNsID
+			auditor.containerCache[info.MntNsID] = info
+		case info := <-auditor.TaskDeleteCh:
+			// Handle the deletion event of target container
+			if mntNsID, ok := auditor.mntNsIDCache[info.PID]; ok {
+				delete(auditor.containerCache, mntNsID)
+				delete(auditor.mntNsIDCache, info.PID)
+			}
+		case <-auditor.TaskDeleteSyncCh:
+			// Handle those containers that exit while the monitor was offline
+			for pid, mntNsID := range auditor.mntNsIDCache {
+				id, err := varmorutils.ReadMntNsID(pid)
+				if err != nil || mntNsID != id {
+					// maybe the container had already exited
+					logger.Info("the target container exited while the monitor was offline",
+						"container id", auditor.containerCache[mntNsID].ContainerID,
+						"container name", auditor.containerCache[mntNsID].ContainerName,
+						"pod name", auditor.containerCache[mntNsID].PodName,
+						"pod namespace", auditor.containerCache[mntNsID].PodNamespace,
+						"pod uid", auditor.containerCache[mntNsID].PodUID,
+						"pid", auditor.containerCache[mntNsID].PID)
+					delete(auditor.containerCache, mntNsID)
+					delete(auditor.mntNsIDCache, pid)
+				}
+			}
+		case <-stopCh:
+			logger.Info("stop handle the containerd events")
+			return
+		}
+	}
 }
 
 func (auditor *Auditor) readFromAuditEventRingBuf() {
@@ -95,6 +149,11 @@ func (auditor *Auditor) readFromAuditEventRingBuf() {
 				}
 
 				auditor.log.V(3).Info("audit event",
+					"container id", auditor.containerCache[eventHeader.MntNs].ContainerID,
+					"container name", auditor.containerCache[eventHeader.MntNs].ContainerName,
+					"pod name", auditor.containerCache[eventHeader.MntNs].PodName,
+					"pod namespace", auditor.containerCache[eventHeader.MntNs].PodNamespace,
+					"pod uid", auditor.containerCache[eventHeader.MntNs].PodUID,
 					"pid", eventHeader.Tgid, "ktime", eventHeader.Ktime, "mnt ns", eventHeader.MntNs,
 					"capability", event.Capability)
 
@@ -108,6 +167,11 @@ func (auditor *Auditor) readFromAuditEventRingBuf() {
 				}
 
 				auditor.log.V(3).Info("audit event",
+					"container id", auditor.containerCache[eventHeader.MntNs].ContainerID,
+					"container name", auditor.containerCache[eventHeader.MntNs].ContainerName,
+					"pod name", auditor.containerCache[eventHeader.MntNs].PodName,
+					"pod namespace", auditor.containerCache[eventHeader.MntNs].PodNamespace,
+					"pod uid", auditor.containerCache[eventHeader.MntNs].PodUID,
 					"pid", eventHeader.Tgid, "ktime", eventHeader.Ktime, "mnt ns", eventHeader.MntNs,
 					"path", unix.ByteSliceToString(event.Path[:]), "permissions", event.Permissions)
 
@@ -121,6 +185,11 @@ func (auditor *Auditor) readFromAuditEventRingBuf() {
 				}
 
 				auditor.log.V(3).Info("audit event",
+					"container id", auditor.containerCache[eventHeader.MntNs].ContainerID,
+					"container name", auditor.containerCache[eventHeader.MntNs].ContainerName,
+					"pod name", auditor.containerCache[eventHeader.MntNs].PodName,
+					"pod namespace", auditor.containerCache[eventHeader.MntNs].PodNamespace,
+					"pod uid", auditor.containerCache[eventHeader.MntNs].PodUID,
 					"pid", eventHeader.Tgid, "ktime", eventHeader.Ktime, "mnt ns", eventHeader.MntNs,
 					"path", unix.ByteSliceToString(event.Path[:]), "permissions", event.Permissions)
 
@@ -140,6 +209,11 @@ func (auditor *Auditor) readFromAuditEventRingBuf() {
 					ip = net.IP(event.Sin6Addr[:])
 				}
 				auditor.log.V(3).Info("audit event",
+					"container id", auditor.containerCache[eventHeader.MntNs].ContainerID,
+					"container name", auditor.containerCache[eventHeader.MntNs].ContainerName,
+					"pod name", auditor.containerCache[eventHeader.MntNs].PodName,
+					"pod namespace", auditor.containerCache[eventHeader.MntNs].PodNamespace,
+					"pod uid", auditor.containerCache[eventHeader.MntNs].PodUID,
 					"pid", eventHeader.Tgid, "ktime", eventHeader.Ktime, "mnt ns", eventHeader.MntNs,
 					"address", ip.String(), "port", event.Port)
 
@@ -153,6 +227,11 @@ func (auditor *Auditor) readFromAuditEventRingBuf() {
 				}
 
 				auditor.log.V(3).Info("audit event",
+					"container id", auditor.containerCache[eventHeader.MntNs].ContainerID,
+					"container name", auditor.containerCache[eventHeader.MntNs].ContainerName,
+					"pod name", auditor.containerCache[eventHeader.MntNs].PodName,
+					"pod namespace", auditor.containerCache[eventHeader.MntNs].PodNamespace,
+					"pod uid", auditor.containerCache[eventHeader.MntNs].PodUID,
 					"pid", eventHeader.Tgid, "ktime", eventHeader.Ktime, "mnt ns", eventHeader.MntNs,
 					"permissions", event.Permissions, "externel", event.External)
 
@@ -166,6 +245,11 @@ func (auditor *Auditor) readFromAuditEventRingBuf() {
 				}
 
 				auditor.log.V(3).Info("audit event",
+					"container id", auditor.containerCache[eventHeader.MntNs].ContainerID,
+					"container name", auditor.containerCache[eventHeader.MntNs].ContainerName,
+					"pod name", auditor.containerCache[eventHeader.MntNs].PodName,
+					"pod namespace", auditor.containerCache[eventHeader.MntNs].PodNamespace,
+					"pod uid", auditor.containerCache[eventHeader.MntNs].PodUID,
 					"pid", eventHeader.Tgid, "ktime", eventHeader.Ktime, "mnt ns", eventHeader.MntNs,
 					"Device Name:", unix.ByteSliceToString(event.DevName[:]),
 					"FileSystem Type:", unix.ByteSliceToString(event.Type[:]), "Flags:", event.Flags)

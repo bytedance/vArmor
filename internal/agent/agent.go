@@ -237,10 +237,9 @@ func NewAgent(
 			return nil, err
 		}
 
-		agent.monitor.SetTaskNotifyChs(
-			agent.bpfEnforcer.TaskCreateCh,
-			agent.bpfEnforcer.TaskDeleteCh,
-			agent.bpfEnforcer.TaskDeleteSyncCh)
+		// Subscribe to the monitor
+		agent.monitor.AddTaskNotifyChs("BPF-ENFORCER", agent.bpfEnforcer.TaskCreateCh, agent.bpfEnforcer.TaskDeleteCh, agent.bpfEnforcer.TaskDeleteSyncCh)
+		agent.monitor.AddTaskNotifyChs("AUDIT-VIOLATIONS", agent.auditor.TaskCreateCh, agent.auditor.TaskDeleteCh, agent.auditor.TaskDeleteSyncCh)
 
 		// Retrieve the count of existing ArmorProfile objects.
 		apList, err := agent.varmorInterface.ArmorProfiles(metav1.NamespaceAll).List(context.Background(), metav1.ListOptions{ResourceVersion: "0"})
@@ -637,7 +636,7 @@ func (agent *Agent) Run(workers int, stopCh <-chan struct{}) {
 
 	if agent.bpfLsmSupported {
 		go agent.bpfEnforcer.Run(stopCh)
-		go agent.auditor.Run()
+		go agent.auditor.Run(stopCh)
 
 		// Wait for all existing ArmorProfile objects have been processed.
 		if agent.existingApCount > 0 {

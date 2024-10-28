@@ -37,7 +37,7 @@ func Test_createRuntimeMonitor(t *testing.T) {
 	}
 	defer monitor.Close()
 
-	monitor.SetTaskNotifyChs(startCh, deleteCh, syncCh)
+	monitor.AddTaskNotifyChs("test", startCh, deleteCh, syncCh)
 }
 
 func Test_watchContainerdEvents(t *testing.T) {
@@ -52,7 +52,7 @@ func Test_watchContainerdEvents(t *testing.T) {
 	}
 	defer monitor.Close()
 
-	monitor.SetTaskNotifyChs(startCh, deleteCh, syncCh)
+	monitor.AddTaskNotifyChs("test", startCh, deleteCh, syncCh)
 
 	log.Log.Info("monitoring")
 	go monitor.Run(nil)
@@ -91,7 +91,7 @@ func Test_CollectExistingTargetContainers(t *testing.T) {
 	}
 	defer monitor.Close()
 
-	monitor.SetTaskNotifyChs(startCh, deleteCh, syncCh)
+	monitor.AddTaskNotifyChs("test", startCh, deleteCh, syncCh)
 	log.Log.Info("monitoring")
 	go monitor.Run(nil)
 
