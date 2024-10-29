@@ -39,7 +39,9 @@ type AuditWriter struct {
 
 func (writer *AuditWriter) Write(p []byte) (int, error) {
 	content := string(p)
-	if strings.Contains(content, "type=1400") || strings.Contains(content, "type=AVC") {
+	if (strings.Contains(content, "type=1400") || strings.Contains(content, "type=AVC")) &&
+		strings.Contains(content, "apparmor=\"DENIED\"") {
+
 		index := strings.Index(content, "type=1400 audit")
 		if index != -1 {
 			content = strings.Replace(content[index:], "type=1400 audit", "type=AVC msg=audit", 1)
@@ -65,7 +67,7 @@ func (writer *AuditWriter) Write(p []byte) (int, error) {
 		}
 
 		info := writer.auditor.containerCache[mntNsID]
-		writer.log.Info("audit event",
+		writer.log.V(3).Info("audit event",
 			"container id", info.ContainerID,
 			"container name", info.ContainerName,
 			"pod name", info.PodName,
