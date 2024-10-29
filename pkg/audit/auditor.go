@@ -15,16 +15,11 @@
 package audit
 
 import (
-	"bytes"
-	"encoding/binary"
-	"net"
-	"os"
+	"time"
 
 	"github.com/cilium/ebpf"
-	"github.com/cilium/ebpf/ringbuf"
+	"github.com/coreos/go-systemd/v22/sdjournal"
 	"github.com/go-logr/logr"
-
-	"golang.org/x/sys/unix"
 
 	bpfenforcer "github.com/bytedance/vArmor/pkg/lsm/bpfenforcer"
 	varmortypes "github.com/bytedance/vArmor/pkg/types"
@@ -32,51 +27,68 @@ import (
 )
 
 type Auditor struct {
-	auditRbMap       *ebpf.Map
-	TaskCreateCh     chan varmortypes.ContainerInfo
-	TaskDeleteCh     chan varmortypes.ContainerInfo
-	TaskDeleteSyncCh chan bool
-	mntNsIDCache     map[uint32]uint32                    // key: The init PID of contaienr
-	containerCache   map[uint32]varmortypes.ContainerInfo // key: The mnt ns id of container
-	log              logr.Logger
+	appArmorSupported    bool
+	bpfLsmSupported      bool
+	journalReader        *sdjournal.JournalReader
+	journalReaderTimeout chan time.Time
+	auditRbMap           *ebpf.Map
+	TaskStartCh          chan varmortypes.ContainerInfo
+	TaskDeleteCh         chan varmortypes.ContainerInfo
+	TaskDeleteSyncCh     chan bool
+	mntNsIDCache         map[uint32]uint32                    // key: The init PID of contaienr
+	containerCache       map[uint32]varmortypes.ContainerInfo // key: The mnt ns id of container
+	log                  logr.Logger
 }
 
 // NewAuditor creates an auditor to audit the violations of target containers
-func NewAuditor(log logr.Logger) (*Auditor, error) {
-	m, err := ebpf.LoadPinnedMap(bpfenforcer.AuditRingBufPinPath, nil)
-	if err != nil {
-		return nil, err
-	}
-
+func NewAuditor(appArmorSupported, bpfLsmSupported bool, log logr.Logger) (*Auditor, error) {
 	auditor := Auditor{
-		auditRbMap:       m,
-		TaskCreateCh:     make(chan varmortypes.ContainerInfo, 100),
-		TaskDeleteCh:     make(chan varmortypes.ContainerInfo, 100),
-		TaskDeleteSyncCh: make(chan bool, 1),
-		mntNsIDCache:     make(map[uint32]uint32, 100),
-		containerCache:   make(map[uint32]varmortypes.ContainerInfo, 100),
-		log:              log,
+		appArmorSupported: appArmorSupported,
+		bpfLsmSupported:   bpfLsmSupported,
+		TaskStartCh:       make(chan varmortypes.ContainerInfo, 100),
+		TaskDeleteCh:      make(chan varmortypes.ContainerInfo, 100),
+		TaskDeleteSyncCh:  make(chan bool, 1),
+		mntNsIDCache:      make(map[uint32]uint32, 100),
+		containerCache:    make(map[uint32]varmortypes.ContainerInfo, 100),
+		log:               log,
 	}
+
+	if appArmorSupported {
+		r, err := sdjournal.NewJournalReader(sdjournal.JournalReaderConfig{
+			Since: time.Duration(-5) * time.Second,
+			Matches: []sdjournal.Match{
+				{
+					Field: sdjournal.SD_JOURNAL_FIELD_TRANSPORT,
+					Value: "kernel",
+				},
+			}})
+		if err != nil {
+			return nil, err
+		}
+		auditor.journalReader = r
+		auditor.journalReaderTimeout = make(chan time.Time)
+	}
+
+	if bpfLsmSupported {
+		m, err := ebpf.LoadPinnedMap(bpfenforcer.AuditRingBufPinPath, nil)
+		if err != nil {
+			return nil, err
+		}
+		auditor.auditRbMap = m
+	}
+
 	return &auditor, nil
-}
-
-func (auditor *Auditor) Run(stopCh <-chan struct{}) {
-	go auditor.eventHandler(stopCh)
-	auditor.readFromAuditEventRingBuf()
-}
-
-func (auditor *Auditor) Close() {
-	auditor.auditRbMap.Close()
 }
 
 func (auditor *Auditor) eventHandler(stopCh <-chan struct{}) {
 	logger := auditor.log.WithName("eventHandler()")
-	logger.Info("start handle the containerd events")
+	logger.Info("start handling the containerd events")
 
 	for {
 		select {
-		case info := <-auditor.TaskCreateCh:
+		case info := <-auditor.TaskStartCh:
 			// Handle the creation event of target container
+			auditor.log.Info("auditor.TaskStartCh", "info", info)
 			auditor.mntNsIDCache[info.PID] = info.MntNsID
 			auditor.containerCache[info.MntNsID] = info
 		case info := <-auditor.TaskDeleteCh:
@@ -103,157 +115,28 @@ func (auditor *Auditor) eventHandler(stopCh <-chan struct{}) {
 				}
 			}
 		case <-stopCh:
-			logger.Info("stop handle the containerd events")
+			logger.Info("stop handling the containerd events")
 			return
 		}
 	}
 }
 
-func (auditor *Auditor) readFromAuditEventRingBuf() {
-	rd, err := ringbuf.NewReader(auditor.auditRbMap)
-	if err != nil {
-		auditor.log.Error(err, "ringbuf.NewReader() failed")
-		return
+func (auditor *Auditor) Run(stopCh <-chan struct{}) {
+	if auditor.appArmorSupported {
+		go auditor.readFromSystemdJournald()
 	}
+	if auditor.bpfLsmSupported {
+		go auditor.readFromAuditEventRingBuf()
+	}
+	auditor.eventHandler(stopCh)
+}
 
-	auditor.log.V(1).Info("waiting for audit events...")
-
-	var eventHeader bpfenforcer.BpfEventHeader
-	for {
-		// Read audit event from the bpf ringbuf
-		record, err := rd.Read()
-		if err != nil {
-			if err != os.ErrClosed {
-				auditor.log.Error(err, "rd.Read() failed")
-			}
-			break
-		}
-		auditor.log.V(3).Info("read success", "remaining bytes", record.Remaining)
-
-		// Parse the header of audit event
-		if err := binary.Read(bytes.NewBuffer(record.RawSample[:bpfenforcer.EventHeaderSize]), binary.LittleEndian, &eventHeader); err != nil {
-			auditor.log.Error(err, "parsing event header failed", "event", record.RawSample)
-			continue
-		}
-
-		// Process the body of audit event
-		if eventHeader.Mode == bpfenforcer.AuditMode {
-			switch eventHeader.Type {
-			case bpfenforcer.CapabilityType:
-				// Parse the event body of capability
-				var event bpfenforcer.BpfCapabilityEvent
-				err := binary.Read(bytes.NewBuffer(record.RawSample[bpfenforcer.EventHeaderSize:]), binary.LittleEndian, &event)
-				if err != nil {
-					auditor.log.Error(err, "parsing capability event failed", "event", record.RawSample)
-					continue
-				}
-
-				auditor.log.V(3).Info("audit event",
-					"container id", auditor.containerCache[eventHeader.MntNs].ContainerID,
-					"container name", auditor.containerCache[eventHeader.MntNs].ContainerName,
-					"pod name", auditor.containerCache[eventHeader.MntNs].PodName,
-					"pod namespace", auditor.containerCache[eventHeader.MntNs].PodNamespace,
-					"pod uid", auditor.containerCache[eventHeader.MntNs].PodUID,
-					"pid", eventHeader.Tgid, "ktime", eventHeader.Ktime, "mnt ns", eventHeader.MntNs,
-					"capability", event.Capability)
-
-			case bpfenforcer.FileType:
-				// Parse the event body of file operation
-				var event bpfenforcer.BpfPathEvent
-				err := binary.Read(bytes.NewBuffer(record.RawSample[bpfenforcer.EventHeaderSize:]), binary.LittleEndian, &event)
-				if err != nil {
-					auditor.log.Error(err, "parsing file operation event failed", "event", record.RawSample)
-					continue
-				}
-
-				auditor.log.V(3).Info("audit event",
-					"container id", auditor.containerCache[eventHeader.MntNs].ContainerID,
-					"container name", auditor.containerCache[eventHeader.MntNs].ContainerName,
-					"pod name", auditor.containerCache[eventHeader.MntNs].PodName,
-					"pod namespace", auditor.containerCache[eventHeader.MntNs].PodNamespace,
-					"pod uid", auditor.containerCache[eventHeader.MntNs].PodUID,
-					"pid", eventHeader.Tgid, "ktime", eventHeader.Ktime, "mnt ns", eventHeader.MntNs,
-					"path", unix.ByteSliceToString(event.Path[:]), "permissions", event.Permissions)
-
-			case bpfenforcer.BprmType:
-				// Parse the event body of execution file
-				var event bpfenforcer.BpfPathEvent
-				err := binary.Read(bytes.NewBuffer(record.RawSample[bpfenforcer.EventHeaderSize:]), binary.LittleEndian, &event)
-				if err != nil {
-					auditor.log.Error(err, "parsing execution file event failed", "event", record.RawSample)
-					continue
-				}
-
-				auditor.log.V(3).Info("audit event",
-					"container id", auditor.containerCache[eventHeader.MntNs].ContainerID,
-					"container name", auditor.containerCache[eventHeader.MntNs].ContainerName,
-					"pod name", auditor.containerCache[eventHeader.MntNs].PodName,
-					"pod namespace", auditor.containerCache[eventHeader.MntNs].PodNamespace,
-					"pod uid", auditor.containerCache[eventHeader.MntNs].PodUID,
-					"pid", eventHeader.Tgid, "ktime", eventHeader.Ktime, "mnt ns", eventHeader.MntNs,
-					"path", unix.ByteSliceToString(event.Path[:]), "permissions", event.Permissions)
-
-			case bpfenforcer.NetworkType:
-				// Parse the event body of network egress
-				var event bpfenforcer.BpfNetworkEvent
-				err := binary.Read(bytes.NewBuffer(record.RawSample[bpfenforcer.EventHeaderSize:]), binary.LittleEndian, &event)
-				if err != nil {
-					auditor.log.Error(err, "parsing network egress event failed", "event", record.RawSample)
-					continue
-				}
-
-				var ip net.IP
-				if event.SaFamily == unix.AF_INET {
-					ip = net.IPv4(byte(event.SinAddr), byte(event.SinAddr>>8), byte(event.SinAddr>>16), byte(event.SinAddr>>24))
-				} else {
-					ip = net.IP(event.Sin6Addr[:])
-				}
-				auditor.log.V(3).Info("audit event",
-					"container id", auditor.containerCache[eventHeader.MntNs].ContainerID,
-					"container name", auditor.containerCache[eventHeader.MntNs].ContainerName,
-					"pod name", auditor.containerCache[eventHeader.MntNs].PodName,
-					"pod namespace", auditor.containerCache[eventHeader.MntNs].PodNamespace,
-					"pod uid", auditor.containerCache[eventHeader.MntNs].PodUID,
-					"pid", eventHeader.Tgid, "ktime", eventHeader.Ktime, "mnt ns", eventHeader.MntNs,
-					"address", ip.String(), "port", event.Port)
-
-			case bpfenforcer.PtraceType:
-				// Parse the event body of ptrace operation
-				var event bpfenforcer.BpfPtraceEvent
-				err := binary.Read(bytes.NewBuffer(record.RawSample[bpfenforcer.EventHeaderSize:]), binary.LittleEndian, &event)
-				if err != nil {
-					auditor.log.Error(err, "parsing ptrace operation event failed", "event", record.RawSample)
-					continue
-				}
-
-				auditor.log.V(3).Info("audit event",
-					"container id", auditor.containerCache[eventHeader.MntNs].ContainerID,
-					"container name", auditor.containerCache[eventHeader.MntNs].ContainerName,
-					"pod name", auditor.containerCache[eventHeader.MntNs].PodName,
-					"pod namespace", auditor.containerCache[eventHeader.MntNs].PodNamespace,
-					"pod uid", auditor.containerCache[eventHeader.MntNs].PodUID,
-					"pid", eventHeader.Tgid, "ktime", eventHeader.Ktime, "mnt ns", eventHeader.MntNs,
-					"permissions", event.Permissions, "externel", event.External)
-
-			case bpfenforcer.MountType:
-				// Parse the event body of mount operation
-				var event bpfenforcer.BpfMountEvent
-				err := binary.Read(bytes.NewBuffer(record.RawSample[bpfenforcer.EventHeaderSize:]), binary.LittleEndian, &event)
-				if err != nil {
-					auditor.log.Error(err, "parsing mount operation event failed", "event", record.RawSample)
-					continue
-				}
-
-				auditor.log.V(3).Info("audit event",
-					"container id", auditor.containerCache[eventHeader.MntNs].ContainerID,
-					"container name", auditor.containerCache[eventHeader.MntNs].ContainerName,
-					"pod name", auditor.containerCache[eventHeader.MntNs].PodName,
-					"pod namespace", auditor.containerCache[eventHeader.MntNs].PodNamespace,
-					"pod uid", auditor.containerCache[eventHeader.MntNs].PodUID,
-					"pid", eventHeader.Tgid, "ktime", eventHeader.Ktime, "mnt ns", eventHeader.MntNs,
-					"Device Name:", unix.ByteSliceToString(event.DevName[:]),
-					"FileSystem Type:", unix.ByteSliceToString(event.Type[:]), "Flags:", event.Flags)
-			}
-		}
+func (auditor *Auditor) Close() {
+	if auditor.appArmorSupported {
+		auditor.journalReaderTimeout <- time.Now()
+		auditor.journalReader.Close()
+	}
+	if auditor.bpfLsmSupported {
+		auditor.auditRbMap.Close()
 	}
 }

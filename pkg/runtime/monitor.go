@@ -43,7 +43,6 @@ type RuntimeMonitor struct {
 	taskStartChs      map[string]chan<- varmortypes.ContainerInfo
 	taskDeleteChs     map[string]chan<- varmortypes.ContainerInfo
 	taskDeleteSyncChs map[string]chan<- bool
-	modellerChs       map[string]chan<- uint32
 	log               logr.Logger
 }
 
@@ -54,7 +53,6 @@ func NewRuntimeMonitor(log logr.Logger) (*RuntimeMonitor, error) {
 		taskStartChs:      make(map[string]chan<- varmortypes.ContainerInfo),
 		taskDeleteChs:     make(map[string]chan<- varmortypes.ContainerInfo),
 		taskDeleteSyncChs: make(map[string]chan<- bool),
-		modellerChs:       make(map[string]chan<- uint32),
 		log:               log,
 	}
 
@@ -80,27 +78,25 @@ func (monitor *RuntimeMonitor) Close() {
 
 func (monitor *RuntimeMonitor) AddTaskNotifyChs(
 	subscriber string,
-	startCh chan varmortypes.ContainerInfo,
-	deleteCh chan varmortypes.ContainerInfo,
-	deleteSynCh chan bool) {
+	startCh *chan varmortypes.ContainerInfo,
+	deleteCh *chan varmortypes.ContainerInfo,
+	deleteSynCh *chan bool) {
 
-	monitor.taskStartChs[subscriber] = startCh
-	monitor.taskDeleteChs[subscriber] = deleteCh
-	monitor.taskDeleteSyncChs[subscriber] = deleteSynCh
+	if startCh != nil {
+		monitor.taskStartChs[subscriber] = *startCh
+	}
+	if deleteCh != nil {
+		monitor.taskDeleteChs[subscriber] = *deleteCh
+	}
+	if deleteSynCh != nil {
+		monitor.taskDeleteSyncChs[subscriber] = *deleteSynCh
+	}
 }
 
 func (monitor *RuntimeMonitor) DeleteTaskNotifyChs(subscriber string) {
 	delete(monitor.taskStartChs, subscriber)
 	delete(monitor.taskDeleteChs, subscriber)
 	delete(monitor.taskDeleteSyncChs, subscriber)
-}
-
-func (monitor *RuntimeMonitor) AddModellerChs(profileName string, ch chan uint32) {
-	monitor.modellerChs[profileName] = ch
-}
-
-func (monitor *RuntimeMonitor) DeleteModellerChs(profileName string) {
-	delete(monitor.modellerChs, profileName)
 }
 
 func (monitor *RuntimeMonitor) retrieveContainerInfo(containerInfo *varmortypes.ContainerInfo) error {
@@ -170,7 +166,25 @@ func (monitor *RuntimeMonitor) retrievePodInfo(containerInfo *varmortypes.Contai
 	return nil
 }
 
-// eventHandler monitor the start and delete events of containerd and send them to the enforcer to handle
+func shouldNotifySubscriber(info varmortypes.ContainerInfo) bool {
+	keys := []string{
+		fmt.Sprintf("container.bpf.security.beta.varmor.org/%s", info.ContainerName),
+		fmt.Sprintf("container.apparmor.security.beta.kubernetes.io/%s", info.ContainerName),
+		fmt.Sprintf("container.apparmor.security.beta.varmor.org/%s", info.ContainerName),
+		fmt.Sprintf("container.seccomp.security.beta.varmor.org/%s", info.ContainerName),
+	}
+
+	for _, key := range keys {
+		if value, ok := info.PodAnnotations[key]; ok {
+			if strings.HasPrefix(value, "localhost/") {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// eventHandler monitor the start and delete events of containerd and send them to subscribers to handle
 func (monitor *RuntimeMonitor) eventHandler(stopCh <-chan struct{}) {
 	logger := monitor.log.WithName("eventHandler()")
 	logger.Info("start watching the containerd events")
@@ -225,34 +239,10 @@ func (monitor *RuntimeMonitor) eventHandler(stopCh <-chan struct{}) {
 					continue
 				}
 
-				key := fmt.Sprintf("container.bpf.security.beta.varmor.org/%s", info.ContainerName)
-				if value, ok := info.PodAnnotations[key]; ok {
-					if strings.HasPrefix(value, "localhost/") {
-						logger.V(3).Info("notify subscribers of the '/tasks/start'", "info", info)
-						for _, ch := range monitor.taskStartChs {
-							ch <- info
-						}
-					}
-				}
-
-				key = fmt.Sprintf("container.apparmor.security.beta.kubernetes.io/%s", info.ContainerName)
-				if value, ok := info.PodAnnotations[key]; ok {
-					if strings.HasPrefix(value, "localhost/") {
-						profileName := value[len("localhost/"):]
-						if ch, ok := monitor.modellerChs[profileName]; ok {
-							ch <- info.PID
-							continue // Seccomp and AppArmor share a common channel.
-						}
-					}
-				}
-
-				key = fmt.Sprintf("container.seccomp.security.beta.varmor.org/%s", info.ContainerName)
-				if value, ok := info.PodAnnotations[key]; ok {
-					if strings.HasPrefix(value, "localhost/") {
-						profileName := value[len("localhost/"):]
-						if ch, ok := monitor.modellerChs[profileName]; ok {
-							ch <- info.PID
-						}
+				if shouldNotifySubscriber(info) {
+					logger.V(3).Info("notify subscribers of the '/tasks/start'", "info", info)
+					for _, ch := range monitor.taskStartChs {
+						ch <- info
 					}
 				}
 
@@ -322,7 +312,7 @@ func (monitor *RuntimeMonitor) IsMonitoring() (bool, error) {
 }
 
 // CollectExistingTargetContainers collects all existing containers that should be protected
-// and sends them to the enforcer
+// and sends them to subscribers
 func (monitor *RuntimeMonitor) CollectExistingTargetContainers() error {
 	logger := monitor.log.WithName("CollectExistingTargetContainers()")
 	logger.Info("start collecting the existing containers")
@@ -366,12 +356,9 @@ func (monitor *RuntimeMonitor) CollectExistingTargetContainers() error {
 			continue
 		}
 
-		key := fmt.Sprintf("container.bpf.security.beta.varmor.org/%s", info.ContainerName)
-		if value, ok := info.PodAnnotations[key]; ok {
-			if strings.HasPrefix(value, "localhost/") {
-				for _, ch := range monitor.taskStartChs {
-					ch <- info
-				}
+		if shouldNotifySubscriber(info) {
+			for _, ch := range monitor.taskStartChs {
+				ch <- info
 			}
 		}
 	}

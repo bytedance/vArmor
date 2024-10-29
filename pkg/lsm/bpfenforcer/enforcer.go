@@ -41,7 +41,7 @@ type bpfProfile struct {
 }
 
 type BpfEnforcer struct {
-	TaskCreateCh     chan varmortypes.ContainerInfo
+	TaskStartCh      chan varmortypes.ContainerInfo
 	TaskDeleteCh     chan varmortypes.ContainerInfo
 	TaskDeleteSyncCh chan bool
 	objs             bpfObjects
@@ -64,7 +64,7 @@ type BpfEnforcer struct {
 // NewBpfEnforcer creates a BpfEnforcer, and initialize the BPF settings and resources
 func NewBpfEnforcer(log logr.Logger) (*BpfEnforcer, error) {
 	enforcer := BpfEnforcer{
-		TaskCreateCh:     make(chan varmortypes.ContainerInfo, 100),
+		TaskStartCh:      make(chan varmortypes.ContainerInfo, 100),
 		TaskDeleteCh:     make(chan varmortypes.ContainerInfo, 100),
 		TaskDeleteSyncCh: make(chan bool, 1),
 		objs:             bpfObjects{},
@@ -283,14 +283,18 @@ func (enforcer *BpfEnforcer) Close() {
 
 func (enforcer *BpfEnforcer) eventHandler(stopCh <-chan struct{}) {
 	logger := enforcer.log.WithName("eventHandler()")
-	logger.Info("start handle the containerd events")
+	logger.Info("start handling the containerd events")
 
 	for {
 		select {
-		case info := <-enforcer.TaskCreateCh:
+		case info := <-enforcer.TaskStartCh:
 			// Handle the creation event of target container
 			key := fmt.Sprintf("container.bpf.security.beta.varmor.org/%s", info.ContainerName)
-			value := info.PodAnnotations[key]
+			value, ok := info.PodAnnotations[key]
+			if !ok {
+				break
+			}
+
 			profileName := value[len("localhost/"):]
 			if profile, ok := enforcer.bpfProfileCache[profileName]; ok {
 				logger.Info("target container was created",
@@ -376,7 +380,7 @@ func (enforcer *BpfEnforcer) eventHandler(stopCh <-chan struct{}) {
 			}
 
 		case <-stopCh:
-			logger.Info("stop handle the containerd events")
+			logger.Info("stop handling the containerd events")
 			return
 		}
 	}
