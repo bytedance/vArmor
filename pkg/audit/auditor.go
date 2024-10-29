@@ -88,7 +88,6 @@ func (auditor *Auditor) eventHandler(stopCh <-chan struct{}) {
 		select {
 		case info := <-auditor.TaskStartCh:
 			// Handle the creation event of target container
-			auditor.log.Info("auditor.TaskStartCh", "info", info)
 			auditor.mntNsIDCache[info.PID] = info.MntNsID
 			auditor.containerCache[info.MntNsID] = info
 		case info := <-auditor.TaskDeleteCh:

@@ -46,7 +46,7 @@ func (auditor *Auditor) readFromAuditEventRingBuf() {
 			break
 		}
 
-		auditor.log.V(3).Info("receive an BPF audit event", "remaining bytes", record.Remaining, "content", record.RawSample)
+		auditor.log.V(3).Info("receive an BPF audit event", "remaining bytes", record.Remaining)
 
 		// Parse the header of audit event
 		if err := binary.Read(bytes.NewBuffer(record.RawSample[:bpfenforcer.EventHeaderSize]), binary.LittleEndian, &eventHeader); err != nil {

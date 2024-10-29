@@ -19,13 +19,14 @@ import (
 	"time"
 
 	"gotest.tools/assert"
-	"k8s.io/klog/v2/klogr"
-	log "sigs.k8s.io/controller-runtime/pkg/log"
+	"k8s.io/klog/v2/textlogger"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 func Test_SystemdJournald(t *testing.T) {
 
-	log.SetLogger(klogr.New())
+	c := textlogger.NewConfig()
+	log.SetLogger(textlogger.NewLogger(c))
 	a, err := NewAuditor(true, false, log.Log.WithName("AUDIT-VIOLATIONS"))
 	assert.NilError(t, err)
 
