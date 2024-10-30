@@ -93,7 +93,7 @@ vArmor 用户态组件默认使用下表所示的值进行资源申请
 * EnhanceProtect
 
   使用 EnhanceProtect Mode 进行测试，开启如下 rules
-  - disable-cap-privilege
+  - disable-cap-privileged
   - disallow-umount
   - disallow-access-procfs-root
   - mitigate-disk-device-number-leak
