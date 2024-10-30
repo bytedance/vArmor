@@ -15,7 +15,7 @@
 |      ||attackProtectionRules<br>*[AttackProtectionRules](interface_specification.zh_CN.md#attackprotectionrules) array*|可选字段，用于指定要使用的内置规则。
 |      ||vulMitigationRules<br>*string array*|可选字段，用于指定要使用的内置规则。
 |      ||appArmorRawRules<br>*string array*|可选字段，用于设置自定义的 AppArmor 黑名单规则。
-|      ||bpfRawRules<br>*[BpfRawRules](interface_specification.zh_CN.md#bpfrawrules) array*|可选字段，用于支持用户设置自定义的 BPF 黑名单规则。
+|      ||bpfRawRules<br>*[BpfRawRules](interface_specification.zh_CN.md#bpfrawrules)*|可选字段，用于支持用户设置自定义的 BPF 黑名单规则。
 |      ||syscallRawRules<br>*[LinuxSyscall](https://pkg.go.dev/github.com/opencontainers/runtime-spec@v1.1.0/specs-go#LinuxSyscall) array*|可选字段，用于支持用户使用 Seccomp enforcer 设置自定义的 Syscall 黑名单规则。
 |      ||privileged<br>*bool*|可选字段，若要对特权容器进行加固，请务必将此值设置为 true。若为 `false`，将在 **RuntimeDefault** 模式的基础上构造 AppArmor/BPF Profiles。若为 `ture`，则在 **AlwaysAllow** 模式的基础上构造 AppArmor/BPF Profiles。<br><br>注意：当为 `true` 时，vArmor 不会为目标构造 Seccomp Profiles。（默认值：false）
 |      ||auditViolations<br>*bool*|可选字段. 用于审计违反沙箱策略的行为。此特性当前仅支持 AppArmor enforcer，任何违反沙箱策略的行为都会被记录到系统的审计日志中。若您使用 syslog 或 rsyslog，日志文件的默认路径为 `/var/log/kern.log`。（默认值：false）
