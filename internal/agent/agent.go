@@ -238,7 +238,7 @@ func NewAgent(
 	}
 
 	// Create an auditor to audit violation behaviors for AppArmor & BPF enforcers
-	agent.auditor, err = varmoraudit.NewAuditor(agent.appArmorSupported, agent.bpfLsmSupported, log.WithName("AUDIT-VIOLATIONS"))
+	agent.auditor, err = varmoraudit.NewAuditor(agent.nodeName, agent.appArmorSupported, agent.bpfLsmSupported, log.WithName("AUDIT-VIOLATIONS"))
 	if err != nil {
 		return nil, err
 	}

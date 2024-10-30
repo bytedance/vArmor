@@ -15,42 +15,62 @@
 package audit
 
 import (
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/cilium/ebpf"
 	"github.com/coreos/go-systemd/v22/sdjournal"
 	"github.com/go-logr/logr"
+	"github.com/rs/zerolog"
+	"gopkg.in/natefinch/lumberjack.v2"
 
 	bpfenforcer "github.com/bytedance/vArmor/pkg/lsm/bpfenforcer"
 	varmortypes "github.com/bytedance/vArmor/pkg/types"
 	varmorutils "github.com/bytedance/vArmor/pkg/utils"
 )
 
+const (
+	logDirectory = "/var/log/varmor"
+)
+
 type Auditor struct {
+	nodeName             string
+	bootTimestamp        uint64
 	appArmorSupported    bool
 	bpfLsmSupported      bool
-	journalReader        *sdjournal.JournalReader
-	journalReaderTimeout chan time.Time
-	auditRbMap           *ebpf.Map
 	TaskStartCh          chan varmortypes.ContainerInfo
 	TaskDeleteCh         chan varmortypes.ContainerInfo
 	TaskDeleteSyncCh     chan bool
 	mntNsIDCache         map[uint32]uint32                    // key: The init PID of contaienr
 	containerCache       map[uint32]varmortypes.ContainerInfo // key: The mnt ns id of container
+	journalReader        *sdjournal.JournalReader
+	journalReaderTimeout chan time.Time
+	auditRbMap           *ebpf.Map
+	capabilityMap        map[uint32]string
+	filePermissionMap    map[uint32]string
+	ptracePermissionMap  map[uint32]string
+	mountFlagMap         map[uint32]string
+	auditLog             zerolog.Logger
 	log                  logr.Logger
 }
 
 // NewAuditor creates an auditor to audit the violations of target containers
-func NewAuditor(appArmorSupported, bpfLsmSupported bool, log logr.Logger) (*Auditor, error) {
+func NewAuditor(nodeName string, appArmorSupported, bpfLsmSupported bool, log logr.Logger) (*Auditor, error) {
 	auditor := Auditor{
-		appArmorSupported: appArmorSupported,
-		bpfLsmSupported:   bpfLsmSupported,
-		TaskStartCh:       make(chan varmortypes.ContainerInfo, 100),
-		TaskDeleteCh:      make(chan varmortypes.ContainerInfo, 100),
-		TaskDeleteSyncCh:  make(chan bool, 1),
-		mntNsIDCache:      make(map[uint32]uint32, 100),
-		containerCache:    make(map[uint32]varmortypes.ContainerInfo, 100),
-		log:               log,
+		nodeName:            nodeName,
+		appArmorSupported:   appArmorSupported,
+		bpfLsmSupported:     bpfLsmSupported,
+		TaskStartCh:         make(chan varmortypes.ContainerInfo, 100),
+		TaskDeleteCh:        make(chan varmortypes.ContainerInfo, 100),
+		TaskDeleteSyncCh:    make(chan bool, 1),
+		mntNsIDCache:        make(map[uint32]uint32, 100),
+		containerCache:      make(map[uint32]varmortypes.ContainerInfo, 100),
+		capabilityMap:       initCapabilityMap(),
+		filePermissionMap:   initFilePermissionMap(),
+		ptracePermissionMap: initPtracePermissionMap(),
+		mountFlagMap:        initMountFlagMap(),
+		log:                 log,
 	}
 
 	if appArmorSupported {
@@ -76,6 +96,21 @@ func NewAuditor(appArmorSupported, bpfLsmSupported bool, log logr.Logger) (*Audi
 		}
 		auditor.auditRbMap = m
 	}
+
+	btime, err := readBootTime()
+	if err != nil {
+		return nil, err
+	}
+	auditor.bootTimestamp = btime
+
+	if err := os.MkdirAll(logDirectory, os.ModePerm); err != nil {
+		return nil, err
+	}
+	auditor.auditLog = zerolog.New(&lumberjack.Logger{
+		Filename:   filepath.Join(logDirectory, "violations.log"),
+		MaxSize:    10,
+		MaxBackups: 3,
+	}).With().Timestamp().Logger()
 
 	return &auditor, nil
 }
