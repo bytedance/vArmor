@@ -39,8 +39,8 @@
 |                             |permissions<br>*string array*|禁止使用的权限，其中 write 权限隐式包含 append, rename, hard link, symbol link 权限。<br>可用值：`read(r), write(w), append(a), exec(e)`
 |processes<br>*FileRule array*|-|同上
 |network<br>*NetworkRule*     |egresses<br>*[NetworkEgressRule](interface_specification.zh_CN.md#networkegressrule) array*|对外联请求进行访问控制。
-|ptrace<br>*PtraceRule*       |strictMode<br>*bool*|可选字段，true 代表对所有（目标、来源）进程进行限制，false 代表仅对容器外的（目标、来源）进程进行限制。（默认值：false）
-|                             |permissions<br>*string array*|禁止使用的权限，可用值: `trace, read, traceby, readby`<br>- `trace`: 禁止 trace 其他目标进程<br>- `read`: 禁止 read 其他目标进程<br>- `traceby`: 禁止被其他来源进程 trace（宿主机进程除外）<br>- `readby`: 禁止被其他来源进程 read（宿主机进程除外）
+|ptrace<br>*PtraceRule*       |strictMode<br>*bool*|可选字段，如果设置为 false，同一容器内的进程将不受限制。如果将设置为 true，即使是同一容器内的进程也将受到限制。（默认值：false）
+|                             |permissions<br>*string array*|禁止使用的权限，可用值: `trace, read, traceby, readby`<br>- `trace`: 禁止进程跟踪其他进程<br>- `read`: 禁止进程读取其他进程<br>- `traceby`: 禁止进程被其他进程跟踪，宿主机进程除外<br>- `readby`: 禁止进程被其他进程读取，宿主机进程除外
 |mounts<br>*MountRule array*  |sourcePattern<br>*string*|任意符合策略语法的文件路径字符串（最大长度 128 bytes），用于匹配 [MOUNT(2)](https://man7.org/linux/man-pages/man2/mount.2.html) 的 source，[UMOUNT(2)](https://man7.org/linux/man-pages/man2/umount.2.html) 的 target，以及 MOVE_MOUNT(2) 的 from_pathname。
 |                             |fstype<br>*string*|任意字符串（最大长度 16 bytes），用于匹配文件系统类型，`*` 代表匹配任意文件系统。
 |                             |flags<br>*string array*|禁止使用的 mount flags，它们与 AppArmor 的 [MOUNT FLAGS](https://manpages.ubuntu.com/manpages/focal/man5/apparmor.d.5.html) 类似，其中 `all` 代表匹配所有 flags。<br>可用值：`all, ro(r, read-only), rw(w), suid, nosuid, dev, nodev, exec, noexec, sync, async, mand, nomand, dirsync, atime, noatime, diratime, nodiratime, silent, loud, relatime, norelatime, iversion, noiversion, strictatime, nostrictatime, remount, bind(B), move(M), rbind(R), make-unbindable, make-private(private), make-slave(slave), make-shared(shared), make-runbindable, make-rprivate, make-rslave, make-rshared, umount`
