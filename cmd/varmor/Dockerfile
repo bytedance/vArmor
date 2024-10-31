@@ -95,7 +95,5 @@ RUN if [ ${TARGETARCH} = "arm64" ]; then \
         cp /usr/lib/libseccomp.* /usr/lib/x86_64-linux-gnu/; \
     fi
 
-# Copy systemd libraries to the image
-
 USER 10001:10001
 WORKDIR /varmor
