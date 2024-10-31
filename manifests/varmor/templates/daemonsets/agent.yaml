@@ -23,6 +23,7 @@ spec:
       serviceAccountName: {{ include "varmor.agent.serviceAccountName" . }}
       securityContext:
         {{- toYaml .Values.agent.podSecurityContext | nindent 8 }}
+      hostPID: true
       containers:
       - name: {{ .Values.agent.name }}
         image: "{{ .Values.image.registry }}/{{ .Values.image.namespace }}/{{ .Values.agent.image.name }}:{{ .Values.agent.image.tag | default .Chart.AppVersion }}"
@@ -63,6 +64,12 @@ spec:
           name: securityfs
         - mountPath: /var/lib/kubelet/seccomp
           name: seccomp-dir
+        - mountPath: /run/containerd
+          name: containerd
+        - mountPath: /var/log
+          name: var-log-dir
+        - mountPath: /run/log
+          name: run-log-dir
         - mountPath: /var/run/secrets/tokens
           name: bound-token
         {{- if .Values.appArmorLsmEnforcer.enabled }}
@@ -103,6 +110,18 @@ spec:
           path: /var/lib/kubelet/seccomp
           type: DirectoryOrCreate
         name: seccomp-dir
+      - hostPath:
+          path: /run/containerd
+          type: Directory
+        name: containerd
+      - hostPath:
+          path: /var/log
+          type: Directory
+        name: var-log-dir
+      - hostPath:
+          path: /run/log
+          type: Directory
+        name: run-log-dir
       - projected:
           sources:
           - serviceAccountToken:
