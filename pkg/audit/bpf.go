@@ -271,7 +271,7 @@ func (auditor *Auditor) readFromAuditEventRingBuf() {
 				Uint32("mntNsID", eventHeader.MntNs).
 				Uint64("eventTimestamp", eventHeader.Ktime/uint64(time.Second)+auditor.bootTimestamp).
 				Str("eventType", "BPF").
-				Interface("event", e).Msg("Process in target container triggers a violation event.")
+				Interface("event", e).Msg("violation event")
 		}
 	}
 }

@@ -148,7 +148,7 @@ func (writer *AuditWriter) Write(p []byte) (int, error) {
 			Uint32("mntNsID", mntNsID).
 			Uint64("eventTimestamp", uint64(e.Epoch)).
 			Str("eventType", "AppArmor").
-			Interface("event", e).Msg("Process in target container triggers a violation event.")
+			Interface("event", e).Msg("violation event")
 	}
 	return len(p), nil
 }
