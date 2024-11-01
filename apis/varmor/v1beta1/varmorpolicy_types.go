@@ -160,9 +160,8 @@ type EnhanceProtect struct {
 	// +optional
 	Privileged bool `json:"privileged,omitempty"`
 	// AuditViolations determines whether to audit the actions that violate the mandatory access
-	// control rules. Currently, this feature supports only the AppArmor enforcer. Any detected
-	// violation will be logged to the system's audit file. If you are using syslog or rsyslog,
-	// the default log path is `/var/log/kern.log`.
+	// control rules. Currently, this feature supports AppArmor and BPF enforcers. Any detected
+	// violation will be logged to `/var/log/varmor/violations.log` file in the host.
 	//
 	// Default is false.
 	// +optional
