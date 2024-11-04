@@ -16,30 +16,31 @@ const (
 
 type MetricsModule struct {
 	meter   metric.Meter
-	enabled bool
+	Enabled bool
 	log     logr.Logger
 }
 
-func NewMetricsModule(log logr.Logger) *MetricsModule {
+func NewMetricsModule(log logr.Logger, enabled bool) *MetricsModule {
 	exporter, err := prometheus.New()
 	if err != nil {
 		log.Error(err, "failed to create Prometheus exporter")
 	}
 	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(exporter))
 	meter := provider.Meter(MeterName)
-
-	go func() {
-		log.Info("Serving metrics at :8822/metrics")
-		http.Handle("/metrics", promhttp.Handler())
-		err := http.ListenAndServe(":8822", nil)
-		if err != nil {
-			log.Error(err, "failed to start metrics server")
-		}
-	}()
+	if enabled == true {
+		go func() {
+			log.Info("Serving metrics at :8822/metrics")
+			http.Handle("/metrics", promhttp.Handler())
+			err := http.ListenAndServe(":8822", nil)
+			if err != nil {
+				log.Error(err, "failed to start metrics server")
+			}
+		}()
+	}
 
 	return &MetricsModule{
 		meter:   meter,
-		enabled: true,
+		Enabled: enabled,
 	}
 }
 func (m *MetricsModule) RegisterCounter(name string, description string) metric.Float64Counter {

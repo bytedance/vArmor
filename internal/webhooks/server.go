@@ -18,6 +18,8 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"github.com/bytedance/vArmor/pkg/metrics"
+	"go.opentelemetry.io/otel/metric"
 	"net/http"
 	"time"
 
@@ -43,12 +45,17 @@ import (
 
 // WebhookServer contains configured TLS server with MutationWebhook.
 type WebhookServer struct {
-	server           *http.Server
-	webhookRegister  *webhookconfig.Register
-	policyCacher     *policycacher.PolicyCacher
-	deserializer     runtime.Decoder
-	bpfExclusiveMode bool
-	log              logr.Logger
+	server             *http.Server
+	webhookRegister    *webhookconfig.Register
+	policyCacher       *policycacher.PolicyCacher
+	deserializer       runtime.Decoder
+	bpfExclusiveMode   bool
+	metricsModule      *metrics.MetricsModule
+	admissionRequests  metric.Int64Counter
+	mutatedRequests    metric.Int64Counter
+	nonMutatedRequests metric.Int64Counter
+	webhookLatency     metric.Float64Histogram
+	log                logr.Logger
 }
 
 func NewWebhookServer(
@@ -58,6 +65,7 @@ func NewWebhookServer(
 	addr string,
 	port int,
 	bpfExclusiveMode bool,
+	metricsModule *metrics.MetricsModule,
 	log logr.Logger,
 ) (*WebhookServer, error) {
 
@@ -65,9 +73,15 @@ func NewWebhookServer(
 		webhookRegister:  webhookRegister,
 		policyCacher:     policyCacher,
 		bpfExclusiveMode: bpfExclusiveMode,
+		metricsModule:    metricsModule,
 		log:              log,
 	}
-
+	if metricsModule.Enabled {
+		ws.admissionRequests = metricsModule.RegisterInt64Counter("admission_requests_total", "Total number of admission requests")
+		ws.mutatedRequests = metricsModule.RegisterInt64Counter("mutated_requests", "Number of requests that were mutated")
+		ws.nonMutatedRequests = metricsModule.RegisterInt64Counter("non_mutated_requests", "Number of requests that were not mutated")
+		ws.webhookLatency = metricsModule.RegisterHistogram("webhook_latency", "Latency of webhook processing", 0.1, 0.5, 1, 2, 5)
+	}
 	scheme := runtime.NewScheme()
 	codecs := serializer.NewCodecFactory(scheme)
 	ws.deserializer = codecs.UniversalDeserializer()
@@ -114,8 +128,12 @@ func NewWebhookServer(
 
 func (ws *WebhookServer) handlerFunc(handler func(request *admissionv1.AdmissionRequest) *admissionv1.AdmissionResponse) http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
+		ctx := context.Background()
 		startTime := time.Now()
 
+		if ws.admissionRequests != nil {
+			ws.admissionRequests.Add(ctx, 1)
+		}
 		admissionReview := bodyToAdmissionReview(r, rw, ws.log)
 		if admissionReview == nil {
 			ws.log.Error(fmt.Errorf("failed to parse admission review request"), "request", r)
@@ -136,8 +154,20 @@ func (ws *WebhookServer) handlerFunc(handler func(request *admissionv1.Admission
 			"operation", request.Operation)
 
 		admissionReview.Response = handler(request)
+		if admissionReview.Response.Patch != nil && len(admissionReview.Response.Patch) > 0 {
+			if ws.mutatedRequests != nil {
+				ws.mutatedRequests.Add(ctx, 1)
+			}
+		} else {
+			if ws.nonMutatedRequests != nil {
+				ws.nonMutatedRequests.Add(ctx, 1)
+			}
+		}
 		writeResponse(rw, admissionReview)
 
+		if ws.webhookLatency != nil {
+			ws.webhookLatency.Record(ctx, time.Since(startTime).Seconds())
+		}
 		logger.V(3).Info("AdmissionRequest processed", "time", time.Since(startTime).String())
 	}
 }

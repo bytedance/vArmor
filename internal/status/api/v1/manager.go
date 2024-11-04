@@ -62,35 +62,37 @@ type StatusManager struct {
 	statusUpdateCycle    time.Duration
 	debug                bool
 	log                  logr.Logger
+	metricsModule        *metrics.MetricsModule
 	profileSuccess       metric.Int64Counter
 	profileFailure       metric.Int64Counter
 	profileChangeCount   metric.Int64Counter
 	profileStatusPerNode metric.Int64Gauge
-	profileLatestStatus  metric.Int64Gauge
 }
 
 func NewStatusManager(coreInterface corev1.CoreV1Interface, appsInterface appsv1.AppsV1Interface, varmorInterface varmorinterface.CrdV1beta1Interface, statusUpdateCycle time.Duration, debug bool, metricsModule *metrics.MetricsModule, log logr.Logger) *StatusManager {
 	m := StatusManager{
-		coreInterface:        coreInterface,
-		appsInterface:        appsInterface,
-		varmorInterface:      varmorInterface,
-		desiredNumber:        0,
-		PolicyStatuses:       make(map[string]varmortypes.PolicyStatus),
-		ModelingStatuses:     make(map[string]varmortypes.ModelingStatus),
-		ResetCh:              make(chan string, 50),
-		DeleteCh:             make(chan string, 50),
-		UpdateStatusCh:       make(chan string, 100),
-		UpdateModeCh:         make(chan string, 50),
-		statusQueue:          workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "status"),
-		dataQueue:            workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "data"),
-		statusUpdateCycle:    statusUpdateCycle,
-		profileSuccess:       metricsModule.RegisterInt64Counter("profile_processing_success", "Number of successful profile processing"),
-		profileFailure:       metricsModule.RegisterInt64Counter("profile_processing_failure", "Number of failed profile processing"),
-		profileChangeCount:   metricsModule.RegisterInt64Counter("profile_change_count", "Number of profile change"),
-		profileStatusPerNode: metricsModule.RegisterInt64Gauge("profile_status_per_node", "Number of profile status per node"),
-		profileLatestStatus:  metricsModule.RegisterInt64Gauge("profile_latest_status", "Latest profile status"),
-		debug:                debug,
-		log:                  log,
+		coreInterface:     coreInterface,
+		appsInterface:     appsInterface,
+		varmorInterface:   varmorInterface,
+		desiredNumber:     0,
+		PolicyStatuses:    make(map[string]varmortypes.PolicyStatus),
+		ModelingStatuses:  make(map[string]varmortypes.ModelingStatus),
+		ResetCh:           make(chan string, 50),
+		DeleteCh:          make(chan string, 50),
+		UpdateStatusCh:    make(chan string, 100),
+		UpdateModeCh:      make(chan string, 50),
+		statusQueue:       workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "status"),
+		dataQueue:         workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "data"),
+		statusUpdateCycle: statusUpdateCycle,
+		metricsModule:     metricsModule,
+		debug:             debug,
+		log:               log,
+	}
+	if metricsModule.Enabled {
+		m.profileSuccess = metricsModule.RegisterInt64Counter("profile_processing_success", "Number of successful profile processing")
+		m.profileFailure = metricsModule.RegisterInt64Counter("profile_processing_failure", "Number of failed profile processing")
+		m.profileChangeCount = metricsModule.RegisterInt64Counter("profile_change_count", "Number of profile change")
+		m.profileStatusPerNode = metricsModule.RegisterInt64Gauge("profile_status_per_node", "Number of profile status per node")
 	}
 	return &m
 }

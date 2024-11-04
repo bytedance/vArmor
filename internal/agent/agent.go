@@ -19,7 +19,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/bytedance/vArmor/pkg/metrics"
-	"go.opentelemetry.io/otel/metric"
 	"os/exec"
 	"path/filepath"
 	"reflect"
@@ -87,10 +86,6 @@ type Agent struct {
 	classifierPort           int
 	stopCh                   <-chan struct{}
 	log                      logr.Logger
-	admissionRequests        metric.Int64Counter
-	mutatedRequests          metric.Int64Counter
-	nonMutatedRequests       metric.Int64Counter
-	webhookLatency           metric.Float64Histogram
 }
 
 func NewAgent(
@@ -106,8 +101,9 @@ func NewAgent(
 	managerPort int,
 	classifierPort int,
 	stopCh <-chan struct{},
+	metricsModule *metrics.MetricsModule,
 	log logr.Logger,
-	metricsModule *metrics.MetricsModule) (*Agent, error) {
+) (*Agent, error) {
 
 	var err error
 
@@ -132,10 +128,6 @@ func NewAgent(
 		classifierPort:           classifierPort,
 		stopCh:                   stopCh,
 		log:                      log,
-		admissionRequests:        metricsModule.RegisterInt64Counter("admission_requests_total", "Total number of admission requests"),
-		mutatedRequests:          metricsModule.RegisterInt64Counter("mutated_requests", "Number of requests that were mutated"),
-		nonMutatedRequests:       metricsModule.RegisterInt64Counter("non_mutated_requests", "Number of requests that were not mutated"),
-		webhookLatency:           metricsModule.RegisterHistogram("webhook_latency", "Latency of webhook processing", 0.1, 0.5, 1, 2, 5),
 	}
 
 	if !debug {

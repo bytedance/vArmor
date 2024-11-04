@@ -63,11 +63,13 @@ func (m *StatusManager) Status(c *gin.Context) {
 
 	logger.V(3).Info("enqueue ProfileStatus from agent")
 	m.statusQueue.Add(profileStatus)
-	go m.HandleProfileStatusUpdate(profileStatus)
+	if m.metricsModule.Enabled == true {
+		go m.HandleProfileStatusUpdate(profileStatus)
+	}
 }
 func (m *StatusManager) HandleProfileStatusUpdate(status varmortypes.ProfileStatus) {
 	ctx := context.Background()
-	// 标签信息
+	// label info
 	labels := []attribute.KeyValue{
 		attribute.String("namespace", status.Namespace),
 		attribute.String("profile_name", status.ProfileName),
@@ -83,16 +85,11 @@ func (m *StatusManager) HandleProfileStatusUpdate(status varmortypes.ProfileStat
 	m.profileChangeCount.Add(ctx, 1, metric.WithAttributes(labels...))
 
 	if status.Status == "Success" {
-		m.profileStatusPerNode.Record(ctx, 1, metric.WithAttributes(labels...)) // 1 表示成功
+		m.profileStatusPerNode.Record(ctx, 1, metric.WithAttributes(labels...)) // 1 mean success
 	} else {
-		m.profileStatusPerNode.Record(ctx, 0, metric.WithAttributes(labels...)) // 0 表示失败
+		m.profileStatusPerNode.Record(ctx, 0, metric.WithAttributes(labels...)) // 0 mean failure
 	}
 
-	if status.Status == "Success" {
-		m.profileLatestStatus.Record(ctx, 1, metric.WithAttributes(labels...))
-	} else {
-		m.profileLatestStatus.Record(ctx, 0, metric.WithAttributes(labels...))
-	}
 }
 
 // updatePolicyStatus update StatusManager.PolicyStatuses[statusKey] with profileStatus which comes from agent.

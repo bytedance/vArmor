@@ -65,6 +65,7 @@ var (
 	managerIP                string
 	webhookMatchLabel        string
 	bpfExclusiveMode         bool
+	enableMetrics            bool
 	statusUpdateCycle        time.Duration
 	setupLog                 = log.Log.WithName("SETUP")
 )
@@ -87,7 +88,7 @@ func main() {
 	flag.StringVar(&webhookMatchLabel, "webhookMatchLabel", "sandbox.varmor.org/enable=true", "Configure the matchLabel of webhook configuration, the valid format is key=value or nil")
 	flag.BoolVar(&bpfExclusiveMode, "bpfExclusiveMode", false, "Set this flag to enable exclusive mode for the BPF enforcer. It will disable the AppArmor confinement when using the BPF enforcer.")
 	flag.DurationVar(&statusUpdateCycle, "statusUpdateCycle", time.Hour*2, "Configure the status update cycle for VarmorPolicy and ArmorProfile")
-
+	flag.BoolVar(&enableMetrics, "enableMetrics", false, "Set this flag to enable metrics.")
 	if err := flag.Set("v", "2"); err != nil {
 		setupLog.Error(err, "flag.Set()")
 		os.Exit(1)
@@ -147,7 +148,11 @@ func main() {
 	} else {
 		gin.SetMode(gin.ReleaseMode)
 	}
-	metricsModule := metrics.NewMetricsModule(log.Log.WithName("METRICS"))
+	// metric init
+	var metricsModule *metrics.MetricsModule
+
+	metricsModule = metrics.NewMetricsModule(log.Log.WithName("METRICS"), enableMetrics)
+
 	if agent {
 		setupLog.Info("vArmor agent startup")
 
@@ -164,8 +169,8 @@ func main() {
 			config.StatusServicePort,
 			config.ClassifierServicePort,
 			stopCh,
-			log.Log.WithName("AGENT"),
 			metricsModule,
+			log.Log.WithName("AGENT"),
 		)
 		if err != nil {
 			setupLog.Error(err, "agent.NewAgent()")
@@ -274,6 +279,7 @@ func main() {
 			managerIP,
 			config.WebhookServicePort,
 			bpfExclusiveMode,
+			metricsModule,
 			log.Log.WithName("WEBHOOK-SERVER"))
 		if err != nil {
 			setupLog.Error(err, "Failed to create webhook webhookServer")
