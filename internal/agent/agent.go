@@ -182,23 +182,11 @@ func NewAgent(
 	}
 	log.Info("NewAgent", "nodeName", agent.nodeName)
 
-	// Initialize the runtime monitor for BehaviorModeling mode or BPF enforcer.
-	if agent.enableBehaviorModeling || agent.bpfLsmSupported {
-		log.Info("initialize the RuntimeMonitor")
-		agent.monitor, err = varmorruntime.NewRuntimeMonitor(log.WithName("RUNTIME-MONITOR"))
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	// [Experimental feature] Initialize the tracer for BehaviorModeling mode.
-	// It only works with AppArmor LSM and Seccomp for now.
-	if agent.enableBehaviorModeling {
-		log.Info("initialize the tracer for BehaviorModeling mode")
-		agent.tracer, err = varmortracer.NewTracer(log.WithName("TRACER"))
-		if err != nil {
-			return nil, err
-		}
+	// Initialize the runtime monitor
+	log.Info("initialize the RuntimeMonitor")
+	agent.monitor, err = varmorruntime.NewRuntimeMonitor(log.WithName("RUNTIME-MONITOR"))
+	if err != nil {
+		return nil, err
 	}
 
 	// AppArmor LSM initialization
@@ -232,15 +220,9 @@ func NewAgent(
 		if err != nil {
 			return nil, err
 		}
-		agent.auditor, err = varmoraudit.NewAuditor(log.WithName("AUDIT-VIOLATIONS"))
-		if err != nil {
-			return nil, err
-		}
 
-		agent.monitor.SetTaskNotifyChs(
-			agent.bpfEnforcer.TaskCreateCh,
-			agent.bpfEnforcer.TaskDeleteCh,
-			agent.bpfEnforcer.TaskDeleteSyncCh)
+		// Subscribe BPF enforcer to the monitor
+		agent.monitor.AddTaskNotifyChs("BPF-ENFORCER", &agent.bpfEnforcer.TaskStartCh, &agent.bpfEnforcer.TaskDeleteCh, &agent.bpfEnforcer.TaskDeleteSyncCh)
 
 		// Retrieve the count of existing ArmorProfile objects.
 		apList, err := agent.varmorInterface.ArmorProfiles(metav1.NamespaceAll).List(context.Background(), metav1.ListOptions{ResourceVersion: "0"})
@@ -252,6 +234,25 @@ func NewAgent(
 		// Initialize the WaitGroup.
 		if agent.existingApCount > 0 {
 			agent.waitExistingApSync.Add(1)
+		}
+	}
+
+	// Create an auditor to audit violation behaviors for AppArmor & BPF enforcers
+	agent.auditor, err = varmoraudit.NewAuditor(agent.nodeName, agent.appArmorSupported, agent.bpfLsmSupported, log.WithName("AUDIT-VIOLATIONS"))
+	if err != nil {
+		return nil, err
+	}
+
+	// Subscribe auditor to the monitor
+	agent.monitor.AddTaskNotifyChs("AUDIT-VIOLATIONS", &agent.auditor.TaskStartCh, &agent.auditor.TaskDeleteCh, &agent.auditor.TaskDeleteSyncCh)
+
+	// [Experimental feature] Initialize the tracer for BehaviorModeling mode.
+	// It only works with AppArmor LSM and Seccomp for now.
+	if agent.enableBehaviorModeling {
+		log.Info("initialize the tracer for BehaviorModeling mode")
+		agent.tracer, err = varmortracer.NewTracer(log.WithName("TRACER"))
+		if err != nil {
+			return nil, err
 		}
 	}
 
@@ -631,21 +632,24 @@ func (agent *Agent) Run(workers int, stopCh <-chan struct{}) {
 		go wait.Until(agent.worker, time.Second, stopCh)
 	}
 
-	if agent.enableBehaviorModeling || agent.bpfLsmSupported {
-		go agent.monitor.Run(stopCh)
-	}
-
+	// Run bpf enforcer if BPF LSM is supported.
 	if agent.bpfLsmSupported {
 		go agent.bpfEnforcer.Run(stopCh)
-		go agent.auditor.Run()
+	}
 
-		// Wait for all existing ArmorProfile objects have been processed.
-		if agent.existingApCount > 0 {
-			agent.waitExistingApSync.Wait()
-			err := agent.monitor.CollectExistingTargetContainers()
-			if err != nil {
-				logger.Error(err, "CollectExistingTargetContainers() failed")
-			}
+	// Run auditor to record violation behaviors
+	go agent.auditor.Run(stopCh)
+
+	// Run runtime monitor to watch container events and send them to subscribers
+	go agent.monitor.Run(stopCh)
+
+	// Wait for all existing ArmorProfile objects have been processed.
+	if agent.existingApCount > 0 {
+		agent.waitExistingApSync.Wait()
+		// Gather all existing target containers and send them to subscribers
+		err := agent.monitor.CollectExistingTargetContainers()
+		if err != nil {
+			logger.Error(err, "CollectExistingTargetContainers() failed")
 		}
 	}
 
@@ -656,8 +660,10 @@ func (agent *Agent) CleanUp() {
 	agent.log.Info("cleaning up")
 	varmorutils.SetAgentUnready()
 	agent.queue.ShutDown()
+	agent.monitor.Close()
+	agent.auditor.Close()
 
-	if agent.appArmorSupported && agent.enableBehaviorModeling {
+	if agent.enableBehaviorModeling {
 		agent.tracer.Close()
 	}
 
@@ -671,12 +677,7 @@ func (agent *Agent) CleanUp() {
 		varmorseccomp.RemoveAllSeccompProfiles(agent.seccompProfileDir)
 	}
 
-	if agent.enableBehaviorModeling || agent.bpfLsmSupported {
-		agent.monitor.Close()
-	}
-
 	if agent.bpfLsmSupported {
-		agent.auditor.Close()
 		agent.bpfEnforcer.Close()
 	}
 }

@@ -206,10 +206,6 @@ agent:
       name: bpffs
     - mountPath: /sys/kernel/btf/vmlinux
       name: btf
-    - mountPath: /run/containerd/
-      name: containerd    
-    - mountPath: /proc
-      name: procfs
     volumes:
     - hostPath:
         path: /sys/fs/bpf
@@ -219,14 +215,6 @@ agent:
         path: /sys/kernel/btf/vmlinux
         type: File
       name: btf
-    - hostPath:
-        path: /run/containerd/
-        type: Directory
-      name: containerd
-    - hostPath:
-        path: /proc
-        type: Directory
-      name: procfs
 
   nodeSelector: {}
 

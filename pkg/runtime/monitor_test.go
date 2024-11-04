@@ -19,8 +19,8 @@ import (
 	"time"
 
 	"gotest.tools/assert"
-	"k8s.io/klog/v2/klogr"
-	log "sigs.k8s.io/controller-runtime/pkg/log"
+	"k8s.io/klog/v2/textlogger"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	varmortypes "github.com/bytedance/vArmor/pkg/types"
 )
@@ -30,14 +30,15 @@ func Test_createRuntimeMonitor(t *testing.T) {
 	deleteCh := make(chan varmortypes.ContainerInfo, 100)
 	syncCh := make(chan bool, 1)
 
-	log.SetLogger(klogr.New())
+	c := textlogger.NewConfig()
+	log.SetLogger(textlogger.NewLogger(c))
 	monitor, err := NewRuntimeMonitor(log.Log.WithName("TEST"))
 	if err != nil {
 		return
 	}
 	defer monitor.Close()
 
-	monitor.SetTaskNotifyChs(startCh, deleteCh, syncCh)
+	monitor.AddTaskNotifyChs("test", &startCh, &deleteCh, &syncCh)
 }
 
 func Test_watchContainerdEvents(t *testing.T) {
@@ -45,14 +46,15 @@ func Test_watchContainerdEvents(t *testing.T) {
 	deleteCh := make(chan varmortypes.ContainerInfo, 100)
 	syncCh := make(chan bool, 1)
 
-	log.SetLogger(klogr.New())
+	c := textlogger.NewConfig()
+	log.SetLogger(textlogger.NewLogger(c))
 	monitor, err := NewRuntimeMonitor(log.Log.WithName("TEST_RUNTIME_MONITOR"))
 	if err != nil {
 		return
 	}
 	defer monitor.Close()
 
-	monitor.SetTaskNotifyChs(startCh, deleteCh, syncCh)
+	monitor.AddTaskNotifyChs("test", &startCh, &deleteCh, &syncCh)
 
 	log.Log.Info("monitoring")
 	go monitor.Run(nil)
@@ -84,14 +86,15 @@ func Test_CollectExistingTargetContainers(t *testing.T) {
 	deleteCh := make(chan varmortypes.ContainerInfo, 100)
 	syncCh := make(chan bool, 1)
 
-	log.SetLogger(klogr.New())
+	c := textlogger.NewConfig()
+	log.SetLogger(textlogger.NewLogger(c))
 	monitor, err := NewRuntimeMonitor(log.Log.WithName("TEST"))
 	if err != nil {
 		return
 	}
 	defer monitor.Close()
 
-	monitor.SetTaskNotifyChs(startCh, deleteCh, syncCh)
+	monitor.AddTaskNotifyChs("test", &startCh, &deleteCh, &syncCh)
 	log.Log.Info("monitoring")
 	go monitor.Run(nil)
 

@@ -93,10 +93,10 @@ const (
 	EventHeaderSize = 24
 
 	// Event type
-	CapabilityType = 0x00000001
-	FileType       = 0x00000002
-	BprmType       = 0x00000004
-	NetworkType    = 0x00000008
-	PtraceType     = 0x00000010
-	MountType      = 0x00000020
+	CapabilityType EventType = 0x00000001
+	FileType       EventType = 0x00000002
+	BprmType       EventType = 0x00000004
+	NetworkType    EventType = 0x00000008
+	PtraceType     EventType = 0x00000010
+	MountType      EventType = 0x00000020
 )

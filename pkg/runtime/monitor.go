@@ -30,29 +30,30 @@ import (
 	"google.golang.org/grpc"
 	runtimeapi "k8s.io/cri-api/pkg/apis/runtime/v1"
 
-	varmorutils "github.com/bytedance/vArmor/internal/utils"
 	varmortypes "github.com/bytedance/vArmor/pkg/types"
+	varmorutils "github.com/bytedance/vArmor/pkg/utils"
 )
 
 type RuntimeMonitor struct {
-	containerdClient *containerd.Client
-	runtimeClient    runtimeapi.RuntimeServiceClient
-	runtimeConn      *grpc.ClientConn
-	running          bool
-	status           error
-	taskStartCh      chan<- varmortypes.ContainerInfo
-	taskDeleteCh     chan<- varmortypes.ContainerInfo
-	taskDeleteSyncCh chan<- bool
-	modellerChs      map[string]chan<- uint32
-	log              logr.Logger
+	containerdClient  *containerd.Client
+	runtimeClient     runtimeapi.RuntimeServiceClient
+	runtimeConn       *grpc.ClientConn
+	running           bool
+	status            error
+	taskStartChs      map[string]chan<- varmortypes.ContainerInfo
+	taskDeleteChs     map[string]chan<- varmortypes.ContainerInfo
+	taskDeleteSyncChs map[string]chan<- bool
+	log               logr.Logger
 }
 
 func NewRuntimeMonitor(log logr.Logger) (*RuntimeMonitor, error) {
 	var err error
 
 	monitor := RuntimeMonitor{
-		modellerChs: make(map[string]chan<- uint32),
-		log:         log,
+		taskStartChs:      make(map[string]chan<- varmortypes.ContainerInfo),
+		taskDeleteChs:     make(map[string]chan<- varmortypes.ContainerInfo),
+		taskDeleteSyncChs: make(map[string]chan<- bool),
+		log:               log,
 	}
 
 	monitor.containerdClient, err = newContainerdClient(varmortypes.RuntimeEndpoint, varmortypes.RuntimeTimeout)
@@ -75,21 +76,27 @@ func (monitor *RuntimeMonitor) Close() {
 	monitor.runtimeConn.Close()
 }
 
-func (monitor *RuntimeMonitor) SetTaskNotifyChs(
-	startCh chan varmortypes.ContainerInfo,
-	deleteCh chan varmortypes.ContainerInfo,
-	deleteSynCh chan bool) {
-	monitor.taskStartCh = startCh
-	monitor.taskDeleteCh = deleteCh
-	monitor.taskDeleteSyncCh = deleteSynCh
+func (monitor *RuntimeMonitor) AddTaskNotifyChs(
+	subscriber string,
+	startCh *chan varmortypes.ContainerInfo,
+	deleteCh *chan varmortypes.ContainerInfo,
+	deleteSynCh *chan bool) {
+
+	if startCh != nil {
+		monitor.taskStartChs[subscriber] = *startCh
+	}
+	if deleteCh != nil {
+		monitor.taskDeleteChs[subscriber] = *deleteCh
+	}
+	if deleteSynCh != nil {
+		monitor.taskDeleteSyncChs[subscriber] = *deleteSynCh
+	}
 }
 
-func (monitor *RuntimeMonitor) AddModellerChs(profileName string, ch chan uint32) {
-	monitor.modellerChs[profileName] = ch
-}
-
-func (monitor *RuntimeMonitor) DeleteModellerChs(profileName string) {
-	delete(monitor.modellerChs, profileName)
+func (monitor *RuntimeMonitor) DeleteTaskNotifyChs(subscriber string) {
+	delete(monitor.taskStartChs, subscriber)
+	delete(monitor.taskDeleteChs, subscriber)
+	delete(monitor.taskDeleteSyncChs, subscriber)
 }
 
 func (monitor *RuntimeMonitor) retrieveContainerInfo(containerInfo *varmortypes.ContainerInfo) error {
@@ -159,7 +166,25 @@ func (monitor *RuntimeMonitor) retrievePodInfo(containerInfo *varmortypes.Contai
 	return nil
 }
 
-// eventHandler monitor the start and delete events of containerd and send them to the enforcer to handle
+func shouldNotifySubscriber(info varmortypes.ContainerInfo) bool {
+	keys := []string{
+		fmt.Sprintf("container.bpf.security.beta.varmor.org/%s", info.ContainerName),
+		fmt.Sprintf("container.apparmor.security.beta.kubernetes.io/%s", info.ContainerName),
+		fmt.Sprintf("container.apparmor.security.beta.varmor.org/%s", info.ContainerName),
+		fmt.Sprintf("container.seccomp.security.beta.varmor.org/%s", info.ContainerName),
+	}
+
+	for _, key := range keys {
+		if value, ok := info.PodAnnotations[key]; ok {
+			if strings.HasPrefix(value, "localhost/") {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// eventHandler monitor the start and delete events of containerd and send them to subscribers to handle
 func (monitor *RuntimeMonitor) eventHandler(stopCh <-chan struct{}) {
 	logger := monitor.log.WithName("eventHandler()")
 	logger.Info("start watching the containerd events")
@@ -195,10 +220,16 @@ func (monitor *RuntimeMonitor) eventHandler(stopCh <-chan struct{}) {
 
 				err = monitor.retrieveContainerInfo(&info)
 				if err != nil {
-					logger.Error(err, "monitor.retrieveContainerInfo() failed", "container id", startEvent.ContainerID, "pid", startEvent.Pid)
+					logger.Error(err, "monitor.retrieveContainerInfo() failed", "container id", info.ContainerID, "pid", info.PID)
 					continue
 				} else if info.PodID == "" {
 					logger.V(3).Info("sandbox was started, just ignore it")
+					continue
+				}
+
+				info.MntNsID, err = varmorutils.ReadMntNsID(info.PID)
+				if err != nil {
+					logger.Error(err, "varmorutils.ReadMntNsID() failed", "container id", info.ContainerID, "pid", info.PID)
 					continue
 				}
 
@@ -208,33 +239,10 @@ func (monitor *RuntimeMonitor) eventHandler(stopCh <-chan struct{}) {
 					continue
 				}
 
-				logger.V(3).Info("/tasks/start event", "info", info)
-
-				key := fmt.Sprintf("container.bpf.security.beta.varmor.org/%s", info.ContainerName)
-				if _, ok := info.PodAnnotations[key]; ok {
-					if monitor.taskStartCh != nil {
-						monitor.taskStartCh <- info
-					}
-				}
-
-				key = fmt.Sprintf("container.apparmor.security.beta.kubernetes.io/%s", info.ContainerName)
-				if value, ok := info.PodAnnotations[key]; ok {
-					if strings.HasPrefix(value, "localhost/") {
-						profileName := value[len("localhost/"):]
-						if ch, ok := monitor.modellerChs[profileName]; ok {
-							ch <- info.PID
-							continue // Seccomp and AppArmor share a common channel.
-						}
-					}
-				}
-
-				key = fmt.Sprintf("container.seccomp.security.beta.varmor.org/%s", info.ContainerName)
-				if value, ok := info.PodAnnotations[key]; ok {
-					if strings.HasPrefix(value, "localhost/") {
-						profileName := value[len("localhost/"):]
-						if ch, ok := monitor.modellerChs[profileName]; ok {
-							ch <- info.PID
-						}
+				if shouldNotifySubscriber(info) {
+					logger.V(3).Info("notify subscribers of the '/tasks/start'", "info", info)
+					for _, ch := range monitor.taskStartChs {
+						ch <- info
 					}
 				}
 
@@ -251,14 +259,13 @@ func (monitor *RuntimeMonitor) eventHandler(stopCh <-chan struct{}) {
 					ContainerID: deleteEvent.ContainerID,
 				}
 
-				logger.V(3).Info("/tasks/delete event", "info", info)
-				if monitor.taskDeleteCh != nil {
-					monitor.taskDeleteCh <- info
+				logger.V(3).Info("notify subscribers of the '/tasks/delete' event", "info", info)
+				for _, ch := range monitor.taskDeleteChs {
+					ch <- info
 				}
 			}
 
 		case err := <-errCh:
-			varmorutils.SetAgentUnready()
 			logger.Error(err, "receive an error from the containerd, waiting for it to resume serving")
 			monitor.running = false
 			monitor.status = err
@@ -273,17 +280,17 @@ func (monitor *RuntimeMonitor) eventHandler(stopCh <-chan struct{}) {
 				time.Sleep(time.Second * 3)
 
 				logger.Info("restart watching the containerd events")
-				varmorutils.SetAgentReady()
 				eventsService = monitor.containerdClient.EventService()
 				eventsCh, errCh = eventsService.Subscribe(ctx, eventsFilter...)
 				monitor.running = true
 				monitor.status = nil
 
-				if monitor.taskDeleteSyncCh != nil {
-					logger.V(3).Info("notify the enforcer to handle the containers that exit or are created while the monitor is offline")
-					monitor.taskDeleteSyncCh <- true
-					monitor.CollectExistingTargetContainers()
+				logger.V(3).Info("notify subscribers to handle the containers that exit or are created while the monitor is offline")
+				for _, ch := range monitor.taskDeleteSyncChs {
+					ch <- true
 				}
+				monitor.CollectExistingTargetContainers()
+
 			} else {
 				logger.Info("the containerd isn't serving")
 				return
@@ -305,7 +312,7 @@ func (monitor *RuntimeMonitor) IsMonitoring() (bool, error) {
 }
 
 // CollectExistingTargetContainers collects all existing containers that should be protected
-// and sends them to the enforcer
+// and sends them to subscribers
 func (monitor *RuntimeMonitor) CollectExistingTargetContainers() error {
 	logger := monitor.log.WithName("CollectExistingTargetContainers()")
 	logger.Info("start collecting the existing containers")
@@ -337,16 +344,21 @@ func (monitor *RuntimeMonitor) CollectExistingTargetContainers() error {
 			continue
 		}
 
+		info.MntNsID, err = varmorutils.ReadMntNsID(info.PID)
+		if err != nil {
+			logger.Error(err, "varmorutils.ReadMntNsID() failed", "container id", info.ContainerID, "pid", info.PID)
+			continue
+		}
+
 		err = monitor.retrievePodInfo(&info)
 		if err != nil {
 			logger.Error(err, "monitor.retrievePodInfo() failed", "pod id", info.PodID)
 			continue
 		}
 
-		key := fmt.Sprintf("container.bpf.security.beta.varmor.org/%s", info.ContainerName)
-		if _, ok := info.PodAnnotations[key]; ok {
-			if monitor.taskStartCh != nil {
-				monitor.taskStartCh <- info
+		if shouldNotifySubscriber(info) {
+			for _, ch := range monitor.taskStartChs {
+				ch <- info
 			}
 		}
 	}

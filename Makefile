@@ -28,9 +28,6 @@ CHART_APP_VERSION_DEV := $(GIT_VERSION)
 CHART_VERSION := $(shell echo $(CHART_APP_VERSION)| sed 's/^v//')
 CHART_VERSION_DEV := $(shell echo $(CHART_APP_VERSION_DEV)| sed 's/^v//')
 
-# ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
-ENVTEST_K8S_VERSION = 1.20
-
 KERNEL_RELEASE = $(shell uname -r)
 APPARMOR_ABI_NAME = kernel-$(KERNEL_RELEASE)
 
@@ -207,6 +204,7 @@ docker-build-classifier-amd64-dev:
 docker-build-classifier-arm64-dev:
 	@echo "[+] Build classifier-arm64 image for the development version"
 	@docker buildx build --file $(PWD)/$(CLASSIFIER_PATH)/Dockerfile --tag $(CLASSIFIER_IMAGE_DEV)-arm64 --platform linux/arm64 --load .
+
 docker-save-ci-dev:
 	@docker tag  $(VARMOR_IMAGE_DEV)-amd64 $(VARMOR_IMAGE_DEV)
 	@docker tag  $(CLASSIFIER_IMAGE_DEV)-amd64 $(CLASSIFIER_IMAGE_DEV)

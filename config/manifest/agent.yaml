@@ -18,6 +18,7 @@ spec:
         app: varmor
         app.kubernetes.io/name: varmor-agent
     spec:
+      hostPID: true
       serviceAccountName: varmor-agent
       imagePullSecrets:
       - name: varmor-image-pull-secret
@@ -39,11 +40,8 @@ spec:
           name: apparmor
         - mountPath: /etc/apparmor.d
           name: apparmor-dir
-        - mountPath: /run/containerd/containerd.sock
-          name: containerd-sock
-        - mountPath: /proc
-          name: procfs
-          readOnly: true
+        - mountPath: /run/containerd
+          name: containerd
         - mountPath: /var/run/varmor/audit
           name: audit-dir
         - mountPath: /sys/fs/bpf
@@ -52,6 +50,13 @@ spec:
           name: btf
         - mountPath: /var/lib/kubelet/seccomp
           name: seccomp-dir
+        - mountPath: /var/log
+          name: var-log-dir
+        - mountPath: /run/log
+          name: run-log-dir
+        - mountPath: /etc/machine-id
+          name: machine-id
+          readOnly: true
         - mountPath: /var/run/secrets/tokens
           name: bound-token
         readinessProbe:
@@ -74,9 +79,9 @@ spec:
           type: DirectoryOrCreate
         name: apparmor-dir
       - hostPath:
-          path: /run/containerd/containerd.sock
-          type: Socket
-        name: containerd-sock
+          path: /run/containerd
+          type: Directory
+        name: containerd
       - hostPath:
           path: /proc
           type: Directory
@@ -97,6 +102,18 @@ spec:
           path: /var/lib/kubelet/seccomp
           type: DirectoryOrCreate
         name: seccomp-dir
+      - hostPath:
+          path: /var/log
+          type: Directory
+        name: var-log-dir
+      - hostPath:
+          path: /run/log
+          type: Directory
+        name: run-log-dir
+      - hostPath:
+          path: /etc/machine-id
+          type: File
+        name: machine-id
       - projected:
           sources:
           - serviceAccountToken:

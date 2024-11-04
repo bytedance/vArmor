@@ -15,6 +15,8 @@
 package behavior
 
 import (
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -24,7 +26,7 @@ import (
 	varmortracer "github.com/bytedance/vArmor/internal/behavior/tracer"
 	varmorutils "github.com/bytedance/vArmor/internal/utils"
 	varmormonitor "github.com/bytedance/vArmor/pkg/runtime"
-	"github.com/bytedance/vArmor/pkg/utils"
+	varmortypes "github.com/bytedance/vArmor/pkg/types"
 )
 
 type BehaviorModeller struct {
@@ -37,7 +39,7 @@ type BehaviorModeller struct {
 	startTime      time.Time
 	duration       time.Duration
 	modeling       bool
-	initPIDsCh     chan uint32
+	TaskStartCh    chan varmortypes.ContainerInfo
 	targetPIDs     map[uint32]struct{}
 	targetMnts     map[uint32]struct{}
 	auditRecorder  *varmorrecorder.AuditRecorder
@@ -80,7 +82,7 @@ func NewBehaviorModeller(
 		startTime:      startTime,
 		duration:       duration,
 		modeling:       false,
-		initPIDsCh:     make(chan uint32, 30),
+		TaskStartCh:    make(chan varmortypes.ContainerInfo, 100),
 		targetPIDs:     make(map[uint32]struct{}, 500),
 		targetMnts:     make(map[uint32]struct{}, 30),
 		ModellerStopCh: make(chan bool, 1),
@@ -149,6 +151,25 @@ func (modeller *BehaviorModeller) IsModeling() bool {
 	return modeller.modeling
 }
 
+func (modeller *BehaviorModeller) shouldCacheContainer(info varmortypes.ContainerInfo) bool {
+	keys := []string{
+		fmt.Sprintf("container.apparmor.security.beta.kubernetes.io/%s", info.ContainerName),
+		fmt.Sprintf("container.apparmor.security.beta.varmor.org/%s", info.ContainerName),
+		fmt.Sprintf("container.seccomp.security.beta.varmor.org/%s", info.ContainerName),
+	}
+	for _, key := range keys {
+		if value, ok := info.PodAnnotations[key]; ok {
+			if strings.HasPrefix(value, "localhost/") {
+				profileName := value[len("localhost/"):]
+				if profileName == modeller.name {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
 func (modeller *BehaviorModeller) eventHandler() {
 	ticker := time.NewTicker(30 * time.Second)
 
@@ -176,13 +197,12 @@ func (modeller *BehaviorModeller) eventHandler() {
 				return
 			}
 
-		case pid := <-modeller.initPIDsCh:
-			modeller.log.Info("the init process of the target container is created",
-				"pid", pid, "profile name", modeller.name, "profile namespace", modeller.namespace)
-			modeller.targetPIDs[pid] = struct{}{}
-			nsID, err := utils.ReadMntNsID(pid)
-			if err == nil {
-				modeller.targetMnts[nsID] = struct{}{}
+		case info := <-modeller.TaskStartCh:
+			if modeller.shouldCacheContainer(info) {
+				modeller.log.Info("the init process of the target container is created",
+					"pid", info.PID, "profile name", modeller.name, "profile namespace", modeller.namespace)
+				modeller.targetPIDs[info.PID] = struct{}{}
+				modeller.targetMnts[info.MntNsID] = struct{}{}
 			}
 
 		case <-modeller.stopCh:
@@ -221,14 +241,14 @@ func (modeller *BehaviorModeller) Run() {
 	modeller.bpfRecorder.Run()
 	go modeller.eventHandler()
 
-	modeller.monitor.AddModellerChs(modeller.name, modeller.initPIDsCh)
+	modeller.monitor.AddTaskNotifyChs("MODELLER", &modeller.TaskStartCh, nil, nil)
 	modeller.tracer.AddEventCh(modeller.name, modeller.bpfRecorder.BpfEventCh, modeller.auditRecorder.AuditEventCh)
 
 	modeller.modeling = true
 }
 
 func (modeller *BehaviorModeller) stop() {
-	modeller.monitor.DeleteModellerChs(modeller.name)
+	modeller.monitor.DeleteTaskNotifyChs("MODELLER")
 	modeller.tracer.DeleteEventCh(modeller.name)
 	modeller.modeling = false
 }

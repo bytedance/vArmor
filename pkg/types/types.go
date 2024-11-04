@@ -33,6 +33,7 @@ const (
 // ContainerInfo describes the information collected by the runtime monitor
 type ContainerInfo struct {
 	PID            uint32
+	MntNsID        uint32
 	ContainerID    string
 	ContainerName  string
 	PodID          string

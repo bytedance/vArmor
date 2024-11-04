@@ -56,7 +56,7 @@ COPY --from=vArmor-ebpf-builder /varmor/vArmor-ebpf/pkg/bpfenforcer/bpf_bpfel.go
 COPY --from=vArmor-ebpf-builder /varmor/vArmor-ebpf/pkg/bpfenforcer/bpf_bpfel.o /varmor/pkg/lsm/bpfenforcer
 
 RUN apt-get update
-RUN apt-get install -y libseccomp2 libseccomp-dev
+RUN apt-get install -y libseccomp2 libseccomp-dev libsystemd-dev
 RUN export GOOS=$(echo ${TARGETPLATFORM} | cut -d / -f1) && \
     export GOARCH=$(echo ${TARGETPLATFORM} | cut -d / -f2)
 RUN go env

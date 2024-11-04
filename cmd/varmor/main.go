@@ -27,9 +27,8 @@ import (
 	kubeinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/util/retry"
-	"k8s.io/klog/v2"
-	"k8s.io/klog/v2/klogr"
-	log "sigs.k8s.io/controller-runtime/pkg/log"
+	"k8s.io/klog/v2/textlogger"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	varmoragent "github.com/bytedance/vArmor/internal/agent"
 	"github.com/bytedance/vArmor/internal/config"
@@ -69,8 +68,9 @@ var (
 )
 
 func main() {
-	klog.InitFlags(nil)
-	log.SetLogger(klogr.New())
+	c := textlogger.NewConfig()
+	c.AddFlags(flag.CommandLine)
+	log.SetLogger(textlogger.NewLogger(c))
 
 	flag.StringVar(&kubeconfig, "kubeconfig", "", "Path to a kubeconfig. Only required if out-of-cluster.")
 	flag.IntVar(&webhookTimeout, "webhookTimeout", int(config.WebhookTimeout), "Timeout for webhook configurations.")
@@ -86,11 +86,6 @@ func main() {
 	flag.StringVar(&webhookMatchLabel, "webhookMatchLabel", "sandbox.varmor.org/enable=true", "Configure the matchLabel of webhook configuration, the valid format is key=value or nil")
 	flag.BoolVar(&bpfExclusiveMode, "bpfExclusiveMode", false, "Set this flag to enable exclusive mode for the BPF enforcer. It will disable the AppArmor confinement when using the BPF enforcer.")
 	flag.DurationVar(&statusUpdateCycle, "statusUpdateCycle", time.Hour*2, "Configure the status update cycle for VarmorPolicy and ArmorProfile")
-
-	if err := flag.Set("v", "2"); err != nil {
-		setupLog.Error(err, "flag.Set()")
-		os.Exit(1)
-	}
 	flag.Parse()
 
 	// Set the webhook matchLabels configuration.
