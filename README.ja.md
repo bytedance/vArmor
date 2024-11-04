@@ -6,6 +6,7 @@
 </div>
 <br>
 
+![BHArsenalUSA2024](docs/img/BlackHat-Arsenal-USA-2024.svg)
 [![Go Report Card](https://goreportcard.com/badge/github.com/bytedance/vArmor)](https://goreportcard.com/report/github.com/bytedance/vArmor)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![License](https://img.shields.io/badge/license-GPL-blue.svg)](https://opensource.org/license/gpl-2-0)
@@ -53,7 +54,7 @@ vArmorポリシーは、**AlwaysAllow、RuntimeDefault、EnhanceProtect、Behavi
 
 ## クイックスタート
 
-詳細な設定オプションと使用手順については、[使用手順](docs/usage_instructions.md)を参照してください。関連機能の使用方法とポリシーの作成方法を理解するために、[例](test/demo)を参照できます。また、[policy-advisor](tools/policy-advisor/README.md)を使用してポリシーテンプレートを生成し、それに基づいて最終的なポリシーを作成することもできます。
+詳細な設定オプションと使用手順については、[使用手順](docs/usage_instructions.md)を参照してください。関連機能の使用方法とポリシーの作成方法を理解するために、[例](test/examples)を参照できます。また、[policy-advisor](tools/policy-advisor/README.md)を使用してポリシーテンプレートを生成し、それに基づいて最終的なポリシーを作成することもできます。
 
 ### ステップ1. チャートの取得
 ```
@@ -74,14 +75,14 @@ helm install varmor varmor-0.5.11.tgz \
 kubectl create namespace demo
 
 # VarmorPolicyオブジェクトを作成し、.spec.target.selectorに一致するDeploymentにAlwaysAllowモードのサンドボックスを有効にする
-kubectl create -f test/demo/1-apparmor/vpol-apparmor-alwaysallow.yaml
+kubectl create -f test/examples/1-apparmor/vpol-apparmor-alwaysallow.yaml
 
 # VarmorPolicy & ArmorProfileオブジェクトのステータスを表示
 kubectl get VarmorPolicy -n demo
 kubectl get ArmorProfile -n demo
 
 # 対象のDeploymentオブジェクトを作成
-kubectl create -f test/demo/1-apparmor/deploy.yaml
+kubectl create -f test/examples/1-apparmor/deploy.yaml
 
 # 対象のDeploymentオブジェクトのPod名を取得
 POD_NAME=$(kubectl get Pods -n demo -l app=demo-1 -o name)
@@ -90,14 +91,14 @@ POD_NAME=$(kubectl get Pods -n demo -l app=demo-1 -o name)
 kubectl exec -n demo $POD_NAME -c c1 -- cat /run/secrets/kubernetes.io/serviceaccount/token
 
 # VarmorPolicyオブジェクトを更新して、コンテナc1がシークレットトークンを読み取るのを禁止する
-kubectl apply -f test/demo/1-apparmor/vpol-apparmor-enhance.yaml
+kubectl apply -f test/examples/1-apparmor/vpol-apparmor-enhance.yaml
 
 # コンテナc1でコマンドを実行してシークレットトークンを読み取ることが禁止されていることを確認
 kubectl exec -n demo $POD_NAME -c c1 -- cat /run/secrets/kubernetes.io/serviceaccount/token
 
 # VarmorPolicyおよびDeploymentオブジェクトを削除
-kubectl delete -f test/demo/1-apparmor/vpol-apparmor-alwaysallow.yaml
-kubectl delete -f test/demo/1-apparmor/deploy.yaml
+kubectl delete -f test/examples/1-apparmor/vpol-apparmor-alwaysallow.yaml
+kubectl delete -f test/examples/1-apparmor/deploy.yaml
 ```
 
 ### ステップ4. アンインストール
@@ -123,7 +124,7 @@ vArmorは、[Nirmata](https://nirmata.com/)によって開発された[kyverno](
 
 ## デモ
 以下は、vArmorを使用してDeploymentを強化し、CVE-2021-22555に対抗するデモンストレーションです。（エクスプロイトは[cve-2021-22555](https://github.com/google/security-research/tree/master/pocs/linux/cve-2021-22555)から変更されています）<br>
-![image](test/demo/vulnerability-mitigation/CVE-2021-22555/demo.gif)
+![image](test/demos/CVE-2021-22555/demo.gif)
 
 ## 404Starlink
 <img src="https://github.com/knownsec/404StarLink-Project/raw/master/logo.png" width="30%">

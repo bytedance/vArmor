@@ -47,13 +47,13 @@ jobs:
         run: make helm-package-dev
 
       - name: Upload Helm Chart as Artifact
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: helm-chart
           path: varmor-*.tgz
 
       - name: Upload Docker images as artifacts
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: docker-images
           path: |
@@ -81,11 +81,11 @@ jobs:
       - name: Setup a Kubernetes environment
         run: ./.github/scripts/create-k3s-cluster.sh ${{ matrix.k8s_version }}
       - name: Download Helm Chart Artifact
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v4
         with:
           name: helm-chart
       - name: Download Docker images
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v4
         with:
           name: docker-images
       - name: Load Docker images
@@ -104,9 +104,10 @@ jobs:
               --namespace varmor --create-namespace \
               --set image.registry="elkeid-ap-southeast-1.cr.volces.com" \
               --set bpfLsmEnforcer.enabled=true \
-              --set "agent.bpfRelated.volumes[0].hostPath.type=File,agent.bpfRelated.volumes[0].hostPath.path=/sys/kernel/btf/vmlinux,agent.bpfRelated.volumes[0].name=btf" \
-              --set "agent.bpfRelated.volumes[1].hostPath.type=Directory,agent.bpfRelated.volumes[1].hostPath.path=/run/k3s/containerd/,agent.bpfRelated.volumes[1].name=containerd" \
-              --set "agent.bpfRelated.volumes[2].hostPath.type=Directory,agent.bpfRelated.volumes[2].hostPath.path=/proc,agent.bpfRelated.volumes[2].name=procfs" \
+              --set "agent.bpfRelated.volumes[0].hostPath.type=Directory,agent.bpfRelated.volumes[0].hostPath.path=/sys/fs/bpf,agent.bpfRelated.volumes[0].name=bpffs" \
+              --set "agent.bpfRelated.volumes[1].hostPath.type=File,agent.bpfRelated.volumes[1].hostPath.path=/sys/kernel/btf/vmlinux,agent.bpfRelated.volumes[1].name=btf" \
+              --set "agent.bpfRelated.volumes[2].hostPath.type=Directory,agent.bpfRelated.volumes[2].hostPath.path=/run/k3s/containerd/,agent.bpfRelated.volumes[2].name=containerd" \
+              --set "agent.bpfRelated.volumes[3].hostPath.type=Directory,agent.bpfRelated.volumes[3].hostPath.path=/proc,agent.bpfRelated.volumes[3].name=procfs" \
               --set image.namespace="varmor-test" \
               --set manager.image.pullPolicy="Never" \
               --set agent.image.pullPolicy="Never" \

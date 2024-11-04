@@ -202,6 +202,8 @@ agent:
 
   bpfRelated:
     volumeMounts:
+    - mountPath: /sys/fs/bpf
+      name: bpffs
     - mountPath: /sys/kernel/btf/vmlinux
       name: btf
     - mountPath: /run/containerd/
@@ -209,6 +211,10 @@ agent:
     - mountPath: /proc
       name: procfs
     volumes:
+    - hostPath:
+        path: /sys/fs/bpf
+        type: Directory
+      name: bpffs
     - hostPath:
         path: /sys/kernel/btf/vmlinux
         type: File

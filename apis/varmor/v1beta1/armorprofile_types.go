@@ -24,6 +24,11 @@ import (
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
+type CapabilitiesContent struct {
+	Mode         uint32 `json:"mode"`
+	Capabilities uint64 `json:"capabilities"`
+}
+
 type PathPattern struct {
 	Flags  uint32 `json:"flags"`
 	Prefix string `json:"prefix,omitempty"`
@@ -31,11 +36,13 @@ type PathPattern struct {
 }
 
 type FileContent struct {
+	Mode        uint32      `json:"mode"`
 	Permissions uint32      `json:"permissions"`
 	Pattern     PathPattern `json:"pattern"`
 }
 
 type NetworkContent struct {
+	Mode    uint32 `json:"mode"`
 	Flags   uint32 `json:"flags"`
 	Address string `json:"address,omitempty"`
 	CIDR    string `json:"cidr,omitempty"`
@@ -43,24 +50,26 @@ type NetworkContent struct {
 }
 
 type PtraceContent struct {
+	Mode        uint32 `json:"mode"`
 	Permissions uint32 `json:"permissions,omitempty"`
 	Flags       uint32 `json:"flags,omitempty"`
 }
 
 type MountContent struct {
+	Mode              uint32      `json:"mode"`
 	MountFlags        uint32      `json:"mountFlags"`
 	ReverseMountflags uint32      `json:"reverseMountflags"`
-	Fstype            string      `json:"fstype"`
 	Pattern           PathPattern `json:"pattern"`
+	Fstype            string      `json:"fstype"`
 }
 
 type BpfContent struct {
-	Capabilities uint64           `json:"capabilities,omitempty"`
-	Files        []FileContent    `json:"files,omitempty"`
-	Processes    []FileContent    `json:"processes,omitempty"`
-	Networks     []NetworkContent `json:"networks,omitempty"`
-	Ptrace       *PtraceContent   `json:"ptrace,omitempty"`
-	Mounts       []MountContent   `json:"mounts,omitempty"`
+	Capabilities *CapabilitiesContent `json:"capabilities,omitempty"`
+	Files        []FileContent        `json:"files,omitempty"`
+	Processes    []FileContent        `json:"processes,omitempty"`
+	Networks     []NetworkContent     `json:"networks,omitempty"`
+	Ptrace       *PtraceContent       `json:"ptrace,omitempty"`
+	Mounts       []MountContent       `json:"mounts,omitempty"`
 }
 
 type Profile struct {

@@ -28,7 +28,7 @@ RUN ./autogen.sh && ./configure --prefix=/usr && \
 
 
 ## Building vArmor-ebpf
-FROM ghcr.io/cilium/ebpf-builder:1695900694 as vArmor-ebpf-builder
+FROM ghcr.io/cilium/ebpf-builder:1726131844 as vArmor-ebpf-builder
 
 RUN update-alternatives --install /usr/bin/clang clang /usr/bin/clang-17 90
 RUN update-alternatives --install /usr/bin/llvm-strip llvm-strip /usr/bin/llvm-strip-17 90

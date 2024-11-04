@@ -28,6 +28,7 @@ import (
 	seccompprofile "github.com/bytedance/vArmor/internal/profile/seccomp"
 	varmortypes "github.com/bytedance/vArmor/internal/types"
 	varmorinterface "github.com/bytedance/vArmor/pkg/client/clientset/versioned/typed/varmor/v1beta1"
+	bpfenforcer "github.com/bytedance/vArmor/pkg/lsm/bpfenforcer"
 )
 
 // profileNameTemplate is the name of ArmorProfile object in k8s and AppArmor profile in host machine.
@@ -92,7 +93,7 @@ func GenerateProfile(policy varmor.Policy, name string, namespace string, varmor
 		// BPF
 		if (e & varmortypes.BPF) != 0 {
 			var bpfContent varmor.BpfContent
-			err = bpfprofile.GenerateRuntimeDefaultProfile(&bpfContent)
+			err = bpfprofile.GenerateRuntimeDefaultProfile(&bpfContent, bpfenforcer.EnforceMode)
 			if err != nil {
 				return nil, err
 			}
