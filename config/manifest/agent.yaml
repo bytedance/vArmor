@@ -54,6 +54,9 @@ spec:
           name: var-log-dir
         - mountPath: /run/log
           name: run-log-dir
+        - mountPath: /etc/machine-id
+          name: machine-id
+          readOnly: true
         - mountPath: /var/run/secrets/tokens
           name: bound-token
         readinessProbe:
@@ -107,6 +110,10 @@ spec:
           path: /run/log
           type: Directory
         name: run-log-dir
+      - hostPath:
+          path: /etc/machine-id
+          type: File
+        name: machine-id
       - projected:
           sources:
           - serviceAccountToken:
