@@ -59,14 +59,14 @@ func GenerateBehaviorModelingProfile() string {
 	return base64.StdEncoding.EncodeToString(p)
 }
 
-func GenerateProfileWithBehaviorModel(dynamicResult *varmor.DynamicResult) (string, error) {
-	if len(dynamicResult.Seccomp.Syscalls) == 0 {
+func GenerateProfileWithBehaviorModel(seccomp *varmor.Seccomp) (string, error) {
+	if len(seccomp.Syscalls) == 0 {
 		return "", nil
 	}
 
 	syscall := specs.LinuxSyscall{
 		Action: specs.ActAllow,
-		Names:  dynamicResult.Seccomp.Syscalls,
+		Names:  seccomp.Syscalls,
 	}
 
 	profile := specs.LinuxSeccomp{

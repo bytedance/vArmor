@@ -111,14 +111,19 @@ func GenerateProfile(policy varmor.Policy, name string, namespace string, varmor
 		if e == varmortypes.Unknown {
 			return nil, fmt.Errorf("unknown enforcer")
 		}
+
+		if policy.EnhanceProtect == nil {
+			return nil, fmt.Errorf("the EnhanceProtect field is nil")
+		}
+
 		// AppArmor
 		if (e & varmortypes.AppArmor) != 0 {
-			profile.Content = apparmorprofile.GenerateEnhanceProtectProfile(&policy.EnhanceProtect, name)
+			profile.Content = apparmorprofile.GenerateEnhanceProtectProfile(policy.EnhanceProtect, name)
 		}
 		// BPF
 		if (e & varmortypes.BPF) != 0 {
 			var bpfContent varmor.BpfContent
-			err = bpfprofile.GenerateEnhanceProtectProfile(&policy.EnhanceProtect, &bpfContent)
+			err = bpfprofile.GenerateEnhanceProtectProfile(policy.EnhanceProtect, &bpfContent)
 			if err != nil {
 				return nil, err
 			}
@@ -126,7 +131,7 @@ func GenerateProfile(policy varmor.Policy, name string, namespace string, varmor
 		}
 		// Seccomp
 		if (e & varmortypes.Seccomp) != 0 {
-			profile.SeccompContent, err = seccompprofile.GenerateEnhanceProtectProfile(&policy.EnhanceProtect, name)
+			profile.SeccompContent, err = seccompprofile.GenerateEnhanceProtectProfile(policy.EnhanceProtect, name)
 			if err != nil {
 				return nil, err
 			}

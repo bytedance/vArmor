@@ -124,11 +124,11 @@ type MountRule struct {
 }
 
 type BpfRawRules struct {
-	Files     []FileRule  `json:"files,omitempty"`
-	Processes []FileRule  `json:"processes,omitempty"`
-	Network   NetworkRule `json:"network,omitempty"`
-	Ptrace    PtraceRule  `json:"ptrace,omitempty"`
-	Mounts    []MountRule `json:"mounts,omitempty"`
+	Files     []FileRule   `json:"files,omitempty"`
+	Processes []FileRule   `json:"processes,omitempty"`
+	Network   *NetworkRule `json:"network,omitempty"`
+	Ptrace    *PtraceRule  `json:"ptrace,omitempty"`
+	Mounts    []MountRule  `json:"mounts,omitempty"`
 }
 
 type EnhanceProtect struct {
@@ -146,7 +146,7 @@ type EnhanceProtect struct {
 	AppArmorRawRules []string `json:"appArmorRawRules,omitempty"`
 	// BpfRawRules is used to set native BPF rules
 	// +optional
-	BpfRawRules BpfRawRules `json:"bpfRawRules,omitempty"`
+	BpfRawRules *BpfRawRules `json:"bpfRawRules,omitempty"`
 	// SyscallRawRules is used to set the syscalls blocklist rules with Seccomp enforcer.
 	// +optional
 	SyscallRawRules []specs.LinuxSyscall `json:"syscallRawRules,omitempty"`
@@ -187,10 +187,10 @@ type Policy struct {
 	Mode VarmorPolicyMode `json:"mode"`
 	// EnhanceProtect is used to specify which built-in or custom rules are employed to protect the target workloads.
 	// +optional
-	EnhanceProtect EnhanceProtect `json:"enhanceProtect,omitempty"`
+	EnhanceProtect *EnhanceProtect `json:"enhanceProtect,omitempty"`
 	// ModelingOptions is used for the modeling settings.
 	// +optional
-	ModelingOptions ModelingOptions `json:"modelingOptions,omitempty"`
+	ModelingOptions *ModelingOptions `json:"modelingOptions,omitempty"`
 }
 
 // VarmorPolicySpec defines the desired state of VarmorPolicy or VarmorClusterPolicy
