@@ -78,15 +78,12 @@ func NewDataPreprocessor(
 		log:             log,
 	}
 
-	p.behaviorData.DynamicResult.AppArmor.Profiles = make([]string, 0)
-	p.behaviorData.DynamicResult.AppArmor.Executions = make([]string, 0)
-	p.behaviorData.DynamicResult.AppArmor.Files = make([]varmor.File, 0)
-	p.behaviorData.DynamicResult.AppArmor.Capabilities = make([]string, 0)
-	p.behaviorData.DynamicResult.AppArmor.Networks = make([]varmor.Network, 0)
-	p.behaviorData.DynamicResult.AppArmor.Ptraces = make([]varmor.Ptrace, 0)
-	p.behaviorData.DynamicResult.AppArmor.Signals = make([]varmor.Signal, 0)
-	p.behaviorData.DynamicResult.AppArmor.Unhandled = make([]string, 0)
-	p.behaviorData.DynamicResult.Seccomp.Syscalls = make([]string, 0)
+	if p.enforcer&varmortypes.AppArmor != 0 {
+		p.behaviorData.DynamicResult.AppArmor = &varmor.AppArmor{}
+	}
+	if p.enforcer&varmortypes.Seccomp != 0 {
+		p.behaviorData.DynamicResult.Seccomp = &varmor.Seccomp{}
+	}
 	p.behaviorData.Namespace = namespace
 	p.behaviorData.NodeName = nodeName
 	p.behaviorData.ProfileName = name
@@ -273,9 +270,15 @@ func (p *DataPreprocessor) Process() []byte {
 		return []byte(defaultData)
 	}
 
-	p.log.Info("data preprocess completed",
-		"apparmor profiles num", len(p.behaviorData.DynamicResult.AppArmor.Profiles),
-		"seccomp num", len(p.behaviorData.DynamicResult.Seccomp.Syscalls))
+	if p.behaviorData.DynamicResult.AppArmor != nil {
+		p.log.Info("apparmor data preprocess completed",
+			"apparmor profile num", len(p.behaviorData.DynamicResult.AppArmor.Profiles))
+	}
+
+	if p.behaviorData.DynamicResult.Seccomp != nil {
+		p.log.Info("seccomp data preprocess completed",
+			"seccomp syscall num", len(p.behaviorData.DynamicResult.Seccomp.Syscalls))
+	}
 
 	p.behaviorData.Status = varmortypes.Succeeded
 	p.behaviorData.Message = ""

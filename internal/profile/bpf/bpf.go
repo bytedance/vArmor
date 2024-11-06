@@ -600,7 +600,7 @@ func generateRawNetworkRule(bpfContent *varmor.BpfContent, mode uint32, rule var
 	return nil
 }
 
-func generateRawPtraceRule(bpfContent *varmor.BpfContent, mode uint32, rule varmor.PtraceRule) error {
+func generateRawPtraceRule(bpfContent *varmor.BpfContent, mode uint32, rule *varmor.PtraceRule) error {
 	var permissions uint32
 
 	for _, permission := range rule.Permissions {
@@ -736,6 +736,58 @@ func generateRawMountRule(bpfContent *varmor.BpfContent, mode uint32, rule varmo
 	return nil
 }
 
+func generateCustomRules(enhanceProtect *varmor.EnhanceProtect, bpfContent *varmor.BpfContent, mode uint32) error {
+	for _, rule := range enhanceProtect.BpfRawRules.Files {
+		err := generateRawFileRule(bpfContent, mode, rule)
+		if err != nil {
+			return err
+		}
+
+		err = generateRawProcessRule(bpfContent, mode, rule)
+		if err != nil {
+			return err
+		}
+	}
+
+	for _, rule := range enhanceProtect.BpfRawRules.Processes {
+		err := generateRawFileRule(bpfContent, mode, rule)
+		if err != nil {
+			return err
+		}
+
+		err = generateRawProcessRule(bpfContent, mode, rule)
+		if err != nil {
+			return err
+		}
+	}
+
+	if enhanceProtect.BpfRawRules.Network != nil {
+		for _, egressRule := range enhanceProtect.BpfRawRules.Network.Egresses {
+			err := generateRawNetworkRule(bpfContent, mode, egressRule)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	if enhanceProtect.BpfRawRules.Ptrace != nil {
+		err := generateRawPtraceRule(bpfContent, mode, enhanceProtect.BpfRawRules.Ptrace)
+		if err != nil {
+			return err
+		}
+	}
+
+	if enhanceProtect.Privileged {
+		for _, rule := range enhanceProtect.BpfRawRules.Mounts {
+			err := generateRawMountRule(bpfContent, mode, rule)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 func GenerateEnhanceProtectProfile(enhanceProtect *varmor.EnhanceProtect, bpfContent *varmor.BpfContent) error {
 	var err error
 	var mode uint32
@@ -783,50 +835,10 @@ func GenerateEnhanceProtectProfile(enhanceProtect *varmor.EnhanceProtect, bpfCon
 	}
 
 	// Custom
-	for _, rule := range enhanceProtect.BpfRawRules.Files {
-		err := generateRawFileRule(bpfContent, mode, rule)
+	if enhanceProtect.BpfRawRules != nil {
+		err := generateCustomRules(enhanceProtect, bpfContent, mode)
 		if err != nil {
 			return err
-		}
-
-		err = generateRawProcessRule(bpfContent, mode, rule)
-		if err != nil {
-			return err
-		}
-	}
-
-	for _, rule := range enhanceProtect.BpfRawRules.Processes {
-		err := generateRawFileRule(bpfContent, mode, rule)
-		if err != nil {
-			return err
-		}
-
-		err = generateRawProcessRule(bpfContent, mode, rule)
-		if err != nil {
-			return err
-		}
-	}
-
-	for _, egressRule := range enhanceProtect.BpfRawRules.Network.Egresses {
-		err := generateRawNetworkRule(bpfContent, mode, egressRule)
-		if err != nil {
-			return err
-		}
-	}
-
-	if len(enhanceProtect.BpfRawRules.Ptrace.Permissions) != 0 {
-		err = generateRawPtraceRule(bpfContent, mode, enhanceProtect.BpfRawRules.Ptrace)
-		if err != nil {
-			return err
-		}
-	}
-
-	if enhanceProtect.Privileged {
-		for _, rule := range enhanceProtect.BpfRawRules.Mounts {
-			err := generateRawMountRule(bpfContent, mode, rule)
-			if err != nil {
-				return err
-			}
 		}
 	}
 

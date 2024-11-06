@@ -64,8 +64,8 @@ type Seccomp struct {
 }
 
 type DynamicResult struct {
-	AppArmor AppArmor `json:"apparmor,omitempty"`
-	Seccomp  Seccomp  `json:"seccomp,omitempty"`
+	AppArmor *AppArmor `json:"apparmor,omitempty"`
+	Seccomp  *Seccomp  `json:"seccomp,omitempty"`
 }
 
 type StaticResult struct {
