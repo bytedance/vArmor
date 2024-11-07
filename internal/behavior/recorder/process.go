@@ -29,7 +29,7 @@ import (
 type ProcessRecorder struct {
 	profileName           string
 	stopCh                <-chan struct{}
-	ProcessEventCh        chan varmortracer.BpfTraceEvent
+	ProcessEventCh        chan varmortracer.BpfProcessEvent
 	recordPath            string
 	recordDebugPath       string
 	recordFile            *os.File
@@ -45,7 +45,7 @@ func NewProcessRecorder(profileName string, stopCh <-chan struct{}, debug bool, 
 	r := ProcessRecorder{
 		profileName:     profileName,
 		stopCh:          stopCh,
-		ProcessEventCh:  make(chan varmortracer.BpfTraceEvent, 500),
+		ProcessEventCh:  make(chan varmortracer.BpfProcessEvent, 500),
 		recordPath:      fmt.Sprintf("%s_process_records.log", profileName),
 		recordDebugPath: fmt.Sprintf("%s_process_records_debug.log", profileName),
 		debug:           debug,

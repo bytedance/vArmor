@@ -1,6 +1,6 @@
 package tracer
 
-type BpfTraceEvent struct {
+type BpfProcessEvent struct {
 	Type       uint32
 	ParentPid  uint32
 	ParentTgid uint32

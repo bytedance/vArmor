@@ -31,14 +31,14 @@ type ProcessTracer struct {
 	execLink        link.Link
 	forkLink        link.Link
 	reader          *perf.Reader
-	processEventChs map[string]chan<- BpfTraceEvent
+	processEventChs map[string]chan<- BpfProcessEvent
 	log             logr.Logger
 }
 
 func NewProcessTracer(log logr.Logger) (*ProcessTracer, error) {
 	tracer := ProcessTracer{
 		bpfObjs:         bpfObjects{},
-		processEventChs: make(map[string]chan<- BpfTraceEvent),
+		processEventChs: make(map[string]chan<- BpfProcessEvent),
 		log:             log,
 	}
 
@@ -71,7 +71,7 @@ func (tracer *ProcessTracer) Close() {
 	tracer.bpfObjs.Close()
 }
 
-func (tracer *ProcessTracer) AddProcessEventNotifyCh(subscriber string, processEventCh chan BpfTraceEvent) {
+func (tracer *ProcessTracer) AddProcessEventNotifyCh(subscriber string, processEventCh chan BpfProcessEvent) {
 	tracer.processEventChs[subscriber] = processEventCh
 
 	if len(tracer.processEventChs) == 1 {
@@ -100,7 +100,7 @@ func (tracer *ProcessTracer) startTracing() error {
 		return fmt.Errorf("createBpfEventsReader() failed: %v", err)
 	}
 
-	// Handle bpf trace events.
+	// Handle bpf process events.
 	go tracer.handleBpfEvents()
 
 	tracer.log.Info("start tracing")
@@ -152,7 +152,7 @@ func (tracer *ProcessTracer) unattachBpfToTracepoint() {
 
 // createBpfEventsReader open a perf event reader from kernel space on the BPF_MAP_TYPE_PERF_EVENT_ARRAY map.
 func (tracer *ProcessTracer) createBpfEventsReader() error {
-	reader, err := perf.NewReader(tracer.bpfObjs.Events, 8192*128)
+	reader, err := perf.NewReader(tracer.bpfObjs.ProcessEvents, 8192*128)
 	if err != nil {
 		return err
 	}
@@ -167,7 +167,7 @@ func (tracer *ProcessTracer) closeBpfEventsReader() {
 }
 
 func (tracer *ProcessTracer) handleBpfEvents() {
-	var event BpfTraceEvent
+	var event BpfProcessEvent
 	for {
 		record, err := tracer.reader.Read()
 		if err != nil {

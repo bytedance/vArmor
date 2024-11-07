@@ -126,7 +126,7 @@ func (p *DataPreprocessor) gatherTargetPIDs() {
 	decoder := gob.NewDecoder(file)
 
 	for {
-		var event varmortracer.BpfTraceEvent
+		var event varmortracer.BpfProcessEvent
 		err := decoder.Decode(&event)
 		if err != nil {
 			break

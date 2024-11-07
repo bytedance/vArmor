@@ -12,7 +12,7 @@ import (
 	"github.com/cilium/ebpf"
 )
 
-type bpfEvent struct {
+type bpfProcessEvent struct {
 	Type       uint32
 	ParentPid  uint32
 	ParentTgid uint32
@@ -73,7 +73,7 @@ type bpfProgramSpecs struct {
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type bpfMapSpecs struct {
-	Events *ebpf.MapSpec `ebpf:"events"`
+	ProcessEvents *ebpf.MapSpec `ebpf:"process_events"`
 }
 
 // bpfObjects contains all objects after they have been loaded into the kernel.
@@ -95,12 +95,12 @@ func (o *bpfObjects) Close() error {
 //
 // It can be passed to loadBpfObjects or ebpf.CollectionSpec.LoadAndAssign.
 type bpfMaps struct {
-	Events *ebpf.Map `ebpf:"events"`
+	ProcessEvents *ebpf.Map `ebpf:"process_events"`
 }
 
 func (m *bpfMaps) Close() error {
 	return _BpfClose(
-		m.Events,
+		m.ProcessEvents,
 	)
 }
 
