@@ -24,6 +24,7 @@ import "C"
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"unsafe"
 
@@ -33,9 +34,82 @@ import (
 	varmorutils "github.com/bytedance/vArmor/pkg/utils"
 )
 
-type AuditWriter struct {
+type AaSeccompEventWriter struct {
 	auditor *Auditor
 	log     logr.Logger
+}
+
+func (writer *AaSeccompEventWriter) Write(p []byte) (int, error) {
+	event := string(p)
+
+	// AppArmor audit event
+	if strings.Contains(event, "type=1400") || strings.Contains(event, "type=AVC") {
+
+		if strings.Contains(event, "apparmor=\"DENIED\"") {
+			// Write violation event to log file
+			index := strings.Index(event, "type=1400 audit")
+			if index != -1 {
+				event = strings.Replace(event[index:], "type=1400 audit", "type=AVC msg=audit", 1)
+			}
+
+			writer.log.V(3).Info("receive an AppArmor audit event", "event", strings.TrimSpace(event))
+
+			// Call parse_record() of libapparmor.so to parse the event,
+			// and convert it to AppArmorEvent object
+			e, err := writer.auditor.convertAppArmorEvent(event)
+			if err != nil {
+				writer.log.Error(err, "writer.auditor.convertAppArmorEvent() failed")
+				return len(p), nil
+			}
+
+			// Try to read the process' mnt ns id from the proc filesystem.
+			// Note:
+			//   This might fail if the process has already been destroyed.
+			//   If so, we can't associate container information for violations.
+			var mntNsID uint32
+			var ok bool
+			if mntNsID, ok = writer.auditor.mntNsIDCache[uint32(e.PID)]; !ok {
+				mntNsID, _ = varmorutils.ReadMntNsID(uint32(e.PID))
+			}
+
+			info := writer.auditor.containerCache[mntNsID]
+			writer.log.V(3).Info("audit event",
+				"container id", info.ContainerID,
+				"container name", info.ContainerName,
+				"pod name", info.PodName,
+				"pod namespace", info.PodNamespace,
+				"pod uid", info.PodUID,
+				"pid", e.PID, "time", int64(e.Epoch), "event", strings.TrimSpace(event))
+
+			writer.auditor.violationLogger.Warn().
+				Str("nodeName", writer.auditor.nodeName).
+				Str("containerID", info.ContainerID).
+				Str("containerName", info.ContainerName).
+				Str("podName", info.PodName).
+				Str("podNamespace", info.PodNamespace).
+				Str("podUID", info.PodUID).
+				Uint32("pid", uint32(e.PID)).
+				Uint32("mntNsID", mntNsID).
+				Uint64("eventTimestamp", uint64(e.Epoch)).
+				Str("eventType", "AppArmor").
+				Interface("event", e).Msg("violation event")
+		} else {
+			// Send behavior event to subscribers
+			for _, ch := range writer.auditor.auditEventChs {
+				ch <- event
+			}
+		}
+	}
+
+	// Seccomp audit event
+	if strings.Contains(event, "type=1326") || strings.Contains(event, "type=SECCOMP") {
+		// Send behavior event to subscribers
+		for _, ch := range writer.auditor.auditEventChs {
+			ch <- event
+		}
+	}
+
+	return len(p), nil
 }
 
 func (auditor *Auditor) convertAppArmorEvent(e string) (*AppArmorEvent, error) {
@@ -97,66 +171,10 @@ func (auditor *Auditor) convertAppArmorEvent(e string) (*AppArmorEvent, error) {
 	return &event, nil
 }
 
-func (writer *AuditWriter) Write(p []byte) (int, error) {
-	event := string(p)
-	if (strings.Contains(event, "type=1400") || strings.Contains(event, "type=AVC")) &&
-		strings.Contains(event, "apparmor=\"DENIED\"") {
-
-		index := strings.Index(event, "type=1400 audit")
-		if index != -1 {
-			event = strings.Replace(event[index:], "type=1400 audit", "type=AVC msg=audit", 1)
-		}
-
-		writer.log.V(3).Info("receive an AppArmor audit event", "event", strings.TrimSpace(event))
-
-		// Call parse_record() of libapparmor.so to parse the event,
-		// and convert it to AppArmorEvent object
-		e, err := writer.auditor.convertAppArmorEvent(event)
-		if err != nil {
-			writer.log.Error(err, "writer.auditor.convertAppArmorEvent() failed")
-			return len(p), nil
-		}
-
-		// Try to read the process' mnt ns id from the proc filesystem.
-		// Note:
-		//   This might fail if the process has already been destroyed.
-		//   If so, we can't associate container information for violations.
-		var mntNsID uint32
-		var ok bool
-		if mntNsID, ok = writer.auditor.mntNsIDCache[uint32(e.PID)]; !ok {
-			mntNsID, _ = varmorutils.ReadMntNsID(uint32(e.PID))
-		}
-
-		info := writer.auditor.containerCache[mntNsID]
-		writer.log.V(3).Info("audit event",
-			"container id", info.ContainerID,
-			"container name", info.ContainerName,
-			"pod name", info.PodName,
-			"pod namespace", info.PodNamespace,
-			"pod uid", info.PodUID,
-			"pid", e.PID, "time", int64(e.Epoch), "event", strings.TrimSpace(event))
-
-		// Write to log file
-		writer.auditor.auditLog.Warn().
-			Str("nodeName", writer.auditor.nodeName).
-			Str("containerID", info.ContainerID).
-			Str("containerName", info.ContainerName).
-			Str("podName", info.PodName).
-			Str("podNamespace", info.PodNamespace).
-			Str("podUID", info.PodUID).
-			Uint32("pid", uint32(e.PID)).
-			Uint32("mntNsID", mntNsID).
-			Uint64("eventTimestamp", uint64(e.Epoch)).
-			Str("eventType", "AppArmor").
-			Interface("event", e).Msg("violation event")
-	}
-	return len(p), nil
-}
-
 func (auditor *Auditor) readFromSystemdJournald() {
 	auditor.log.Info("start reading from systemd-journald")
 
-	writer := &AuditWriter{
+	writer := &AaSeccompEventWriter{
 		auditor: auditor,
 		log:     auditor.log,
 	}
@@ -165,4 +183,28 @@ func (auditor *Auditor) readFromSystemdJournald() {
 	if err != sdjournal.ErrExpired {
 		auditor.log.Error(err, "auditor.sdjournalReader.Follow()")
 	}
+}
+
+// setRateLimit set the printk_ratelimit to 0 for recording the audit logs of AppArmor and Seccomp.
+func (auditor *Auditor) setRateLimit() error {
+	rateLimit, err := sysctl_read(ratelimitSysctl)
+	if err != nil {
+		return err
+	}
+	auditor.savedRateLimit, err = strconv.ParseUint(rateLimit, 10, 0)
+	if err != nil {
+		return err
+	}
+	if auditor.savedRateLimit != 0 {
+		return sysctl_write(ratelimitSysctl, 0)
+	}
+	return nil
+}
+
+// restoreRateLimit recover the printk_ratelimit to previous value.
+func (auditor *Auditor) restoreRateLimit() error {
+	if auditor.savedRateLimit != 0 {
+		return sysctl_write(ratelimitSysctl, auditor.savedRateLimit)
+	}
+	return nil
 }

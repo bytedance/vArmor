@@ -31,7 +31,8 @@ import (
 )
 
 const (
-	logDirectory = "/var/log/varmor"
+	logDirectory    = "/var/log/varmor"
+	ratelimitSysctl = "/proc/sys/kernel/printk_ratelimit"
 )
 
 type Auditor struct {
@@ -42,16 +43,19 @@ type Auditor struct {
 	TaskStartCh          chan varmortypes.ContainerInfo
 	TaskDeleteCh         chan varmortypes.ContainerInfo
 	TaskDeleteSyncCh     chan bool
-	mntNsIDCache         map[uint32]uint32                    // key: The init PID of contaienr
-	containerCache       map[uint32]varmortypes.ContainerInfo // key: The mnt ns id of container
+	mntNsIDCache         map[uint32]uint32                      // key: The init PID of contaienr, value: The mnt ns id
+	containerCache       map[uint32]varmortypes.ContainerInfo   // key: The mnt ns id of container, value: The container information
+	auditEventChs        map[string]chan<- string               // auditEventChs used for sending apparmor & seccomp behavior event to subscribers
+	bpfEventChs          map[string]chan<- bpfenforcer.BpfEvent // bpfEventChs used for sending bpf behavior event to subscribers
 	journalReader        *sdjournal.JournalReader
 	journalReaderTimeout chan time.Time
+	savedRateLimit       uint64
 	auditRbMap           *ebpf.Map
 	capabilityMap        map[uint32]string
 	filePermissionMap    map[uint32]string
 	ptracePermissionMap  map[uint32]string
 	mountFlagMap         map[uint32]string
-	auditLog             zerolog.Logger
+	violationLogger      zerolog.Logger
 	log                  logr.Logger
 }
 
@@ -66,6 +70,9 @@ func NewAuditor(nodeName string, appArmorSupported, bpfLsmSupported bool, log lo
 		TaskDeleteSyncCh:    make(chan bool, 1),
 		mntNsIDCache:        make(map[uint32]uint32, 100),
 		containerCache:      make(map[uint32]varmortypes.ContainerInfo, 100),
+		auditEventChs:       make(map[string]chan<- string),
+		bpfEventChs:         make(map[string]chan<- bpfenforcer.BpfEvent),
+		savedRateLimit:      0,
 		capabilityMap:       initCapabilityMap(),
 		filePermissionMap:   initFilePermissionMap(),
 		ptracePermissionMap: initPtracePermissionMap(),
@@ -73,6 +80,7 @@ func NewAuditor(nodeName string, appArmorSupported, bpfLsmSupported bool, log lo
 		log:                 log,
 	}
 
+	// Create a systemd-journald reader to read the kernel events
 	if appArmorSupported {
 		r, err := sdjournal.NewJournalReader(sdjournal.JournalReaderConfig{
 			Since: time.Duration(-5) * time.Second,
@@ -89,6 +97,7 @@ func NewAuditor(nodeName string, appArmorSupported, bpfLsmSupported bool, log lo
 		auditor.journalReaderTimeout = make(chan time.Time)
 	}
 
+	// Load the ringbuf map of BPF enforcer
 	if bpfLsmSupported {
 		m, err := ebpf.LoadPinnedMap(bpfenforcer.AuditRingBufPinPath, nil)
 		if err != nil {
@@ -97,16 +106,18 @@ func NewAuditor(nodeName string, appArmorSupported, bpfLsmSupported bool, log lo
 		auditor.auditRbMap = m
 	}
 
+	// Retrieve the boot timestamp of host
 	btime, err := readBootTime()
 	if err != nil {
 		return nil, err
 	}
 	auditor.bootTimestamp = btime
 
+	// Initialize the log file for saving the violation events
 	if err := os.MkdirAll(logDirectory, os.ModePerm); err != nil {
 		return nil, err
 	}
-	auditor.auditLog = zerolog.New(&lumberjack.Logger{
+	auditor.violationLogger = zerolog.New(&lumberjack.Logger{
 		Filename:   filepath.Join(logDirectory, "violations.log"),
 		MaxSize:    10,
 		MaxBackups: 3,
@@ -151,6 +162,34 @@ func (auditor *Auditor) eventHandler(stopCh <-chan struct{}) {
 		case <-stopCh:
 			logger.Info("stop handling the containerd events")
 			return
+		}
+	}
+}
+
+func (auditor *Auditor) AddBehaviorEventNotifyChs(subscriber string, auditEventCh *chan string, bpfEventCh *chan bpfenforcer.BpfEvent) {
+	if bpfEventCh != nil {
+		auditor.bpfEventChs[subscriber] = *bpfEventCh
+	}
+	if auditEventCh != nil {
+		auditor.auditEventChs[subscriber] = *auditEventCh
+	}
+
+	if len(auditor.auditEventChs) == 1 {
+		err := auditor.setRateLimit()
+		if err != nil {
+			auditor.log.Error(err, "auditor.setRateLimit()")
+		}
+	}
+}
+
+func (auditor *Auditor) DeleteBehaviorEventNotifyCh(subscriber string) {
+	delete(auditor.bpfEventChs, subscriber)
+	delete(auditor.auditEventChs, subscriber)
+
+	if len(auditor.auditEventChs) == 0 {
+		err := auditor.restoreRateLimit()
+		if err != nil {
+			auditor.log.Error(err, "auditor.restoreRateLimit()")
 		}
 	}
 }

@@ -50,8 +50,8 @@ COPY --from=apparmor-libseccomp-builder /usr/lib/libseccomp.* /usr/lib/
 COPY --from=apparmor-libseccomp-builder /usr/include/seccomp* /usr/include/
 COPY --from=apparmor-libseccomp-builder /usr/lib/libapparmor.* /usr/lib/
 COPY --from=apparmor-libseccomp-builder /usr/include/aalogparse /usr/include/aalogparse
-COPY --from=vArmor-ebpf-builder /varmor/vArmor-ebpf/pkg/tracer/bpf_bpfel.go /varmor/internal/behavior/tracer
-COPY --from=vArmor-ebpf-builder /varmor/vArmor-ebpf/pkg/tracer/bpf_bpfel.o /varmor/internal/behavior/tracer
+COPY --from=vArmor-ebpf-builder /varmor/vArmor-ebpf/pkg/processtracer/bpf_bpfel.go /varmor/pkg/processtracer
+COPY --from=vArmor-ebpf-builder /varmor/vArmor-ebpf/pkg/processtracer/bpf_bpfel.o /varmor/pkg/processtracer
 COPY --from=vArmor-ebpf-builder /varmor/vArmor-ebpf/pkg/bpfenforcer/bpf_bpfel.go /varmor/pkg/lsm/bpfenforcer
 COPY --from=vArmor-ebpf-builder /varmor/vArmor-ebpf/pkg/bpfenforcer/bpf_bpfel.o /varmor/pkg/lsm/bpfenforcer
 

@@ -47,6 +47,24 @@ func readBootTime() (uint64, error) {
 	return 0, fmt.Errorf("btime not found")
 }
 
+func sysctl_read(path string) (string, error) {
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	return strings.Trim(string(content), "\n"), nil
+}
+
+func sysctl_write(path string, value uint64) error {
+	file, err := os.OpenFile(path, os.O_WRONLY, 0)
+	if err != nil {
+		return err
+	}
+
+	_, err = file.WriteString(fmt.Sprintf("%d", value))
+	return err
+}
+
 func initCapabilityMap() map[uint32]string {
 	return map[uint32]string{
 		unix.CAP_AUDIT_CONTROL:      "CAP_AUDIT_CONTROL",

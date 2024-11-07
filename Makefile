@@ -119,8 +119,8 @@ build-ebpf: ## Generate the ebpf code and lib.
 .PHONY: copy-ebpf
 copy-ebpf: ## Copy the ebpf code and lib.
 	@echo "[+] Copy the ebpf code and lib."
-	cp vArmor-ebpf/pkg/tracer/bpf_bpfel.go internal/behavior/tracer
-	cp vArmor-ebpf/pkg/tracer/bpf_bpfel.o internal/behavior/tracer
+	cp vArmor-ebpf/pkg/processtracer/bpf_bpfel.go pkg/processtracer
+	cp vArmor-ebpf/pkg/processtracer/bpf_bpfel.o pkg/processtracer
 	cp vArmor-ebpf/pkg/bpfenforcer/bpf_bpfel.go pkg/lsm/bpfenforcer
 	cp vArmor-ebpf/pkg/bpfenforcer/bpf_bpfel.o pkg/lsm/bpfenforcer
 

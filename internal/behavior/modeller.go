@@ -23,38 +23,41 @@ import (
 
 	varmorpreprocessor "github.com/bytedance/vArmor/internal/behavior/preprocessor"
 	varmorrecorder "github.com/bytedance/vArmor/internal/behavior/recorder"
-	varmortracer "github.com/bytedance/vArmor/internal/behavior/tracer"
 	varmorutils "github.com/bytedance/vArmor/internal/utils"
+	varmorauditor "github.com/bytedance/vArmor/pkg/auditor"
+	varmorptracer "github.com/bytedance/vArmor/pkg/processtracer"
 	varmormonitor "github.com/bytedance/vArmor/pkg/runtime"
 	varmortypes "github.com/bytedance/vArmor/pkg/types"
 )
 
 type BehaviorModeller struct {
-	tracer         *varmortracer.Tracer
-	monitor        *varmormonitor.RuntimeMonitor
-	nodeName       string
-	namespace      string
-	name           string
-	enforcer       string
-	startTime      time.Time
-	duration       time.Duration
-	modeling       bool
-	TaskStartCh    chan varmortypes.ContainerInfo
-	targetPIDs     map[uint32]struct{}
-	targetMnts     map[uint32]struct{}
-	auditRecorder  *varmorrecorder.AuditRecorder
-	bpfRecorder    *varmorrecorder.BpfRecorder
-	ModellerStopCh chan bool
-	stopCh         <-chan struct{}
-	managerIP      string
-	managerPort    int
-	classifierPort int
-	debug          bool
-	log            logr.Logger
+	auditor         *varmorauditor.Auditor
+	ptracer         *varmorptracer.ProcessTracer
+	monitor         *varmormonitor.RuntimeMonitor
+	nodeName        string
+	namespace       string
+	name            string
+	enforcer        string
+	startTime       time.Time
+	duration        time.Duration
+	modeling        bool
+	TaskStartCh     chan varmortypes.ContainerInfo
+	targetPIDs      map[uint32]struct{}
+	targetMnts      map[uint32]struct{}
+	auditRecorder   *varmorrecorder.AuditRecorder
+	processRecorder *varmorrecorder.ProcessRecorder
+	ModellerStopCh  chan bool
+	stopCh          <-chan struct{}
+	managerIP       string
+	managerPort     int
+	classifierPort  int
+	debug           bool
+	log             logr.Logger
 }
 
 func NewBehaviorModeller(
-	tracer *varmortracer.Tracer,
+	auditor *varmorauditor.Auditor,
+	ptracer *varmorptracer.ProcessTracer,
 	monitor *varmormonitor.RuntimeMonitor,
 	nodeName string,
 	namespace string,
@@ -73,7 +76,8 @@ func NewBehaviorModeller(
 		"duration", duration.String(), "profile name", name)
 
 	modeller := BehaviorModeller{
-		tracer:         tracer,
+		auditor:        auditor,
+		ptracer:        ptracer,
 		monitor:        monitor,
 		nodeName:       nodeName,
 		namespace:      namespace,
@@ -101,9 +105,9 @@ func NewBehaviorModeller(
 		return nil
 	}
 
-	bpfRecorder := varmorrecorder.NewBpfRecorder(name, stopCh, debug, log.WithName("BPF-RECORDER"))
-	if bpfRecorder != nil {
-		modeller.bpfRecorder = bpfRecorder
+	ProcessRecorder := varmorrecorder.NewProcessRecorder(name, stopCh, debug, log.WithName("BPF-RECORDER"))
+	if ProcessRecorder != nil {
+		modeller.processRecorder = ProcessRecorder
 	} else {
 		return nil
 	}
@@ -186,14 +190,14 @@ func (modeller *BehaviorModeller) eventHandler() {
 				)
 				modeller.stop()
 				modeller.auditRecorder.Close()
-				modeller.bpfRecorder.Close()
+				modeller.processRecorder.Close()
 
 				// Sync data to manager after modeling completed.
 				modeller.PreprocessAndSendBehaviorData()
 				modeller.targetPIDs = make(map[uint32]struct{}, 0)
 				modeller.targetMnts = make(map[uint32]struct{}, 0)
 				modeller.auditRecorder.CleanUp()
-				modeller.bpfRecorder.CleanUp()
+				modeller.processRecorder.CleanUp()
 				return
 			}
 
@@ -214,8 +218,8 @@ func (modeller *BehaviorModeller) eventHandler() {
 			modeller.stop()
 			modeller.auditRecorder.Close()
 			modeller.auditRecorder.CleanUp()
-			modeller.bpfRecorder.Close()
-			modeller.bpfRecorder.CleanUp()
+			modeller.processRecorder.Close()
+			modeller.processRecorder.CleanUp()
 			modeller.log.Info("behavioral data collection is stopped", "profile name", modeller.name)
 			return
 		}
@@ -231,24 +235,25 @@ func (modeller *BehaviorModeller) Run() {
 		return
 	}
 
-	err = modeller.bpfRecorder.Init()
+	err = modeller.processRecorder.Init()
 	if err != nil {
-		modeller.log.Error(err, "modeller.bpfRecorder.Init()")
+		modeller.log.Error(err, "modeller.ProcessRecorder.Init()")
 		return
 	}
 
 	modeller.auditRecorder.Run()
-	modeller.bpfRecorder.Run()
+	modeller.processRecorder.Run()
 	go modeller.eventHandler()
 
-	modeller.monitor.AddTaskNotifyChs("MODELLER", &modeller.TaskStartCh, nil, nil)
-	modeller.tracer.AddEventCh(modeller.name, modeller.bpfRecorder.BpfEventCh, modeller.auditRecorder.AuditEventCh)
-
+	modeller.monitor.AddTaskNotifyChs(modeller.name, &modeller.TaskStartCh, nil, nil)
+	modeller.ptracer.AddProcessEventNotifyCh(modeller.name, modeller.processRecorder.ProcessEventCh)
+	modeller.auditor.AddBehaviorEventNotifyChs(modeller.name, &modeller.auditRecorder.AuditEventCh, nil)
 	modeller.modeling = true
 }
 
 func (modeller *BehaviorModeller) stop() {
-	modeller.monitor.DeleteTaskNotifyChs("MODELLER")
-	modeller.tracer.DeleteEventCh(modeller.name)
+	modeller.monitor.DeleteTaskNotifyChs(modeller.name)
+	modeller.ptracer.DeleteProcessEventNotifyCh(modeller.name)
+	modeller.auditor.DeleteBehaviorEventNotifyCh(modeller.name)
 	modeller.modeling = false
 }

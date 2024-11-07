@@ -27,6 +27,7 @@ import (
 
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
 	varmortypes "github.com/bytedance/vArmor/internal/types"
+	varmortracer "github.com/bytedance/vArmor/pkg/processtracer"
 )
 
 type DataPreprocessor struct {
@@ -69,7 +70,7 @@ func NewDataPreprocessor(
 		targetPIDs:      targetPIDs,
 		targetMnts:      targetMnts,
 		auditRecordPath: fmt.Sprintf("%s_audit_records.log", name),
-		bpfRecordPath:   fmt.Sprintf("%s_bpf_records.log", name),
+		bpfRecordPath:   fmt.Sprintf("%s_process_records.log", name),
 		debugFilePath:   fmt.Sprintf("%s_preprocessor_debug.log", name),
 		syscall:         make(map[string]struct{}, 0),
 		mlIP:            mlIP,
@@ -125,7 +126,7 @@ func (p *DataPreprocessor) gatherTargetPIDs() {
 	decoder := gob.NewDecoder(file)
 
 	for {
-		var event varmortypes.BpfTraceEvent
+		var event varmortracer.BpfProcessEvent
 		err := decoder.Decode(&event)
 		if err != nil {
 			break
@@ -169,9 +170,8 @@ func (p *DataPreprocessor) processAuditRecords() error {
 			}
 		}
 
-		isAaEvent := strings.Contains(line, "type=1400") || strings.Contains(line, "type=AVC")
-
-		if (p.enforcer&varmortypes.AppArmor != 0) && isAaEvent {
+		if (p.enforcer&varmortypes.AppArmor != 0) &&
+			(strings.Contains(line, "type=1400") || strings.Contains(line, "type=AVC")) {
 			// process AppArmor event
 			event, err := parseAppArmorEvent(line)
 			if err != nil {
@@ -204,7 +204,8 @@ func (p *DataPreprocessor) processAuditRecords() error {
 			}
 		}
 
-		if (p.enforcer&varmortypes.Seccomp != 0) && !isAaEvent {
+		if (p.enforcer&varmortypes.Seccomp != 0) &&
+			(strings.Contains(line, "type=1326") || strings.Contains(line, "type=SECCOMP")) {
 			// process Seccomp event
 			event, err := parseSeccompEvent(line)
 			if err != nil {

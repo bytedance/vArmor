@@ -23,12 +23,13 @@ import (
 	"github.com/go-logr/logr"
 
 	varmortypes "github.com/bytedance/vArmor/internal/types"
+	varmortracer "github.com/bytedance/vArmor/pkg/processtracer"
 )
 
-type BpfRecorder struct {
+type ProcessRecorder struct {
 	profileName           string
 	stopCh                <-chan struct{}
-	BpfEventCh            chan varmortypes.BpfTraceEvent
+	ProcessEventCh        chan varmortracer.BpfProcessEvent
 	recordPath            string
 	recordDebugPath       string
 	recordFile            *os.File
@@ -40,13 +41,13 @@ type BpfRecorder struct {
 	log                   logr.Logger
 }
 
-func NewBpfRecorder(profileName string, stopCh <-chan struct{}, debug bool, log logr.Logger) *BpfRecorder {
-	r := BpfRecorder{
+func NewProcessRecorder(profileName string, stopCh <-chan struct{}, debug bool, log logr.Logger) *ProcessRecorder {
+	r := ProcessRecorder{
 		profileName:     profileName,
 		stopCh:          stopCh,
-		BpfEventCh:      make(chan varmortypes.BpfTraceEvent, 500),
-		recordPath:      fmt.Sprintf("%s_bpf_records.log", profileName),
-		recordDebugPath: fmt.Sprintf("%s_bpf_records_debug.log", profileName),
+		ProcessEventCh:  make(chan varmortracer.BpfProcessEvent, 500),
+		recordPath:      fmt.Sprintf("%s_process_records.log", profileName),
+		recordDebugPath: fmt.Sprintf("%s_process_records_debug.log", profileName),
 		debug:           debug,
 		log:             log,
 	}
@@ -54,8 +55,8 @@ func NewBpfRecorder(profileName string, stopCh <-chan struct{}, debug bool, log 
 	return &r
 }
 
-// Init create the record file to save AppArmor audit event
-func (r *BpfRecorder) Init() error {
+// Init create the record file to save the process creation events
+func (r *ProcessRecorder) Init() error {
 	var err error
 
 	r.recordFile, err = os.Create(r.recordPath)
@@ -77,7 +78,7 @@ func (r *BpfRecorder) Init() error {
 	return nil
 }
 
-func (r *BpfRecorder) Close() {
+func (r *ProcessRecorder) Close() {
 	if r.recordFile != nil {
 		r.recordFile.Close()
 	}
@@ -102,11 +103,11 @@ func indexOfZero(array []uint8) int {
 	return 0
 }
 
-// EventHandler records the bpf event that comes from the BPF tracer
-func (r *BpfRecorder) eventHandler() {
+// EventHandler records the process event that comes from the process tracer
+func (r *ProcessRecorder) eventHandler() {
 	for {
 		select {
-		case event := <-r.BpfEventCh:
+		case event := <-r.ProcessEventCh:
 			r.recordFileEncoder.Encode(event)
 
 			if r.debug {
@@ -142,11 +143,11 @@ func (r *BpfRecorder) eventHandler() {
 	}
 }
 
-func (r *BpfRecorder) Run() {
+func (r *ProcessRecorder) Run() {
 	go r.eventHandler()
 }
 
-func (r *BpfRecorder) CleanUp() {
+func (r *ProcessRecorder) CleanUp() {
 	_, err := os.Stat(r.recordPath)
 	if err == nil {
 		os.Remove(r.recordPath)

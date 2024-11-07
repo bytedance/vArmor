@@ -48,6 +48,11 @@ type bpfMountRule struct {
 // Audit Event
 type EventType uint32
 
+type BpfEvent struct {
+	Header BpfEventHeader
+	Body   interface{}
+}
+
 type BpfEventHeader struct {
 	Mode  uint32
 	Type  EventType

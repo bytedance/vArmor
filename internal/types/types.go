@@ -142,18 +142,6 @@ type SeccompLogRecord struct {
 	Syscall string
 }
 
-type BpfTraceEvent struct {
-	Type       uint32
-	ParentPid  uint32
-	ParentTgid uint32
-	ChildPid   uint32
-	ChildTgid  uint32
-	MntNsId    uint32
-	ParentTask [16]uint8
-	ChildTask  [16]uint8
-	Filename   [64]uint8
-}
-
 var enforcerMap = map[string]Enforcer{
 	"apparmor":           AppArmor,
 	"bpf":                BPF,
