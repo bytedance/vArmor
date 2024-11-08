@@ -35,7 +35,6 @@ import (
 const (
 	logDirectory    = "/var/log/varmor"
 	ratelimitSysctl = "/proc/sys/kernel/printk_ratelimit"
-	auditLogPaths   = "/var/log/audit/audit.log|/var/log/kern.log"
 )
 
 type Auditor struct {
@@ -64,7 +63,7 @@ type Auditor struct {
 }
 
 // NewAuditor creates an auditor to audit the violations of target containers
-func NewAuditor(nodeName string, appArmorSupported, bpfLsmSupported, enableBehaviorModeling bool, log logr.Logger) (*Auditor, error) {
+func NewAuditor(nodeName string, appArmorSupported, bpfLsmSupported, enableBehaviorModeling bool, auditLogPaths string, log logr.Logger) (*Auditor, error) {
 	auditor := Auditor{
 		nodeName:               nodeName,
 		appArmorSupported:      appArmorSupported,
@@ -95,7 +94,7 @@ func NewAuditor(nodeName string, appArmorSupported, bpfLsmSupported, enableBehav
 			}
 		}
 		if auditor.auditLogPath == "" {
-			return nil, fmt.Errorf("please specify the correct file path that stores the audit logs for AppArmor and Seccomp")
+			return nil, fmt.Errorf("please use --auditLogPaths command line parameter to specify the correct file paths that stores the audit logs for AppArmor and Seccomp")
 		}
 		t, err := tail.TailFile(auditor.auditLogPath,
 			tail.Config{

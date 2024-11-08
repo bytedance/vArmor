@@ -101,6 +101,7 @@ func NewAgent(
 	managerIP string,
 	managerPort int,
 	classifierPort int,
+	auditLogPaths string,
 	stopCh <-chan struct{},
 	log logr.Logger) (*Agent, error) {
 
@@ -238,7 +239,9 @@ func NewAgent(
 	}
 
 	// Create an auditor to audit violation and behavior events for AppArmor, Seccomp and BPF enforcers
-	agent.auditor, err = varmorauditor.NewAuditor(agent.nodeName, agent.appArmorSupported, agent.bpfLsmSupported, agent.enableBehaviorModeling, log.WithName("AUDITOR"))
+	agent.auditor, err = varmorauditor.NewAuditor(agent.nodeName,
+		agent.appArmorSupported, agent.bpfLsmSupported, agent.enableBehaviorModeling,
+		auditLogPaths, log.WithName("AUDITOR"))
 	if err != nil {
 		return nil, err
 	}
