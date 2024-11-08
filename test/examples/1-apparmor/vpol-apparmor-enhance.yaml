@@ -4,6 +4,9 @@ metadata:
   name: demo-1
   namespace: demo
 spec:
+  # Perform a rolling update on existing workloads.
+  # It's disabled by default.
+  updateExistingWorkloads: true
   target:
     # The policy protects all the containers by default if the .spec.target.containers is nil.
     kind: Deployment
@@ -18,9 +21,15 @@ spec:
     enforcer: AppArmor
     mode: EnhanceProtect
     enhanceProtect:
+      # Audit the actions that violate the mandatory access control rules.
+      # Any detected violation will be logged to /var/log/varmor/violations.log file in the host.
+      # It's disabled by default.
+      auditViolations: true
       hardeningRules:
       - disable-cap-net-raw
       attackProtectionRules:
       - rules:
         - disable-write-etc
         - mitigate-sa-leak
+      appArmorRawRules:
+      - "deny /etc/hosts r,"

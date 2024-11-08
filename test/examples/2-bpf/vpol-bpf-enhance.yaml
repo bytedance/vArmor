@@ -4,6 +4,9 @@ metadata:
   name: demo-2
   namespace: demo
 spec:
+  # Perform a rolling update on existing workloads.
+  # It's disabled by default.
+  updateExistingWorkloads: true
   target:
     # The policy protects all the containers by default if the .spec.target.containers is nil.
     kind: Deployment
@@ -18,10 +21,24 @@ spec:
     enforcer: BPF
     mode: EnhanceProtect
     enhanceProtect:
+      # Audit the actions that violate the mandatory access control rules.
+      # Any detected violation will be logged to /var/log/varmor/violations.log file in the host.
+      # It's disabled by default.
+      auditViolations: true
       hardeningRules:
-      - disable-cap-net-raw
+      - disable-cap-privileged
       - disallow-access-procfs-root
       attackProtectionRules:
       - rules:
         - disable-write-etc
         - mitigate-sa-leak
+      bpfRawRules:
+        processes:
+        - pattern: "**ping"
+          permissions:
+          - exec
+        network:
+          egresses:
+          - ip: fdbd:dc01:ff:307:9329:268d:3a27:2ca7
+          - ipBlock: 192.168.1.1/24 # 192.168.1.0 to 192.168.1.255
+            port: 80
