@@ -15,12 +15,15 @@
 package statusmanagerv1
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 
 	varmortypes "github.com/bytedance/vArmor/internal/types"
@@ -60,6 +63,34 @@ func (m *StatusManager) Status(c *gin.Context) {
 
 	logger.V(3).Info("enqueue ProfileStatus from agent")
 	m.statusQueue.Add(profileStatus)
+
+	if m.metricsModule.Enabled {
+		go m.HandleProfileStatusUpdate(profileStatus)
+	}
+}
+
+func (m *StatusManager) HandleProfileStatusUpdate(status varmortypes.ProfileStatus) {
+	ctx := context.Background()
+	// label info
+	labels := []attribute.KeyValue{
+		attribute.String("namespace", status.Namespace),
+		attribute.String("profile_name", status.ProfileName),
+		attribute.String("node_name", status.NodeName),
+	}
+
+	if status.Status == varmortypes.Succeeded {
+		m.profileSuccess.Add(ctx, 1, metric.WithAttributes(labels...))
+	} else {
+		m.profileFailure.Add(ctx, 1, metric.WithAttributes(labels...))
+	}
+
+	m.profileChangeCount.Add(ctx, 1, metric.WithAttributes(labels...))
+
+	if status.Status == varmortypes.Succeeded {
+		m.profileStatusPerNode.Record(ctx, 1, metric.WithAttributes(labels...)) // 1 mean success
+	} else {
+		m.profileStatusPerNode.Record(ctx, 0, metric.WithAttributes(labels...)) // 0 mean failure
+	}
 }
 
 // updatePolicyStatus update StatusManager.PolicyStatuses[statusKey] with profileStatus which comes from agent.

@@ -23,6 +23,8 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/julienschmidt/httprouter"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 	admissionv1 "k8s.io/api/admission/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -39,16 +41,22 @@ import (
 	varmorprofile "github.com/bytedance/vArmor/internal/profile"
 	varmortls "github.com/bytedance/vArmor/internal/tls"
 	"github.com/bytedance/vArmor/internal/webhookconfig"
+	"github.com/bytedance/vArmor/pkg/metrics"
 )
 
 // WebhookServer contains configured TLS server with MutationWebhook.
 type WebhookServer struct {
-	server           *http.Server
-	webhookRegister  *webhookconfig.Register
-	policyCacher     *policycacher.PolicyCacher
-	deserializer     runtime.Decoder
-	bpfExclusiveMode bool
-	log              logr.Logger
+	server             *http.Server
+	webhookRegister    *webhookconfig.Register
+	policyCacher       *policycacher.PolicyCacher
+	deserializer       runtime.Decoder
+	bpfExclusiveMode   bool
+	metricsModule      *metrics.MetricsModule
+	admissionRequests  metric.Float64Counter
+	mutatedRequests    metric.Float64Counter
+	nonMutatedRequests metric.Float64Counter
+	webhookLatency     metric.Float64Histogram
+	log                logr.Logger
 }
 
 func NewWebhookServer(
@@ -58,6 +66,7 @@ func NewWebhookServer(
 	addr string,
 	port int,
 	bpfExclusiveMode bool,
+	metricsModule *metrics.MetricsModule,
 	log logr.Logger,
 ) (*WebhookServer, error) {
 
@@ -65,7 +74,15 @@ func NewWebhookServer(
 		webhookRegister:  webhookRegister,
 		policyCacher:     policyCacher,
 		bpfExclusiveMode: bpfExclusiveMode,
+		metricsModule:    metricsModule,
 		log:              log,
+	}
+
+	if metricsModule.Enabled {
+		ws.admissionRequests = metricsModule.RegisterFloat64Counter("admission_requests_total", "Total number of admission requests")
+		ws.mutatedRequests = metricsModule.RegisterFloat64Counter("mutated_requests", "Number of requests that were mutated")
+		ws.nonMutatedRequests = metricsModule.RegisterFloat64Counter("non_mutated_requests", "Number of requests that were not mutated")
+		ws.webhookLatency = metricsModule.RegisterHistogram("webhook_latency", "Latency of webhook processing", 0.1, 0.5, 1, 2, 5)
 	}
 
 	scheme := runtime.NewScheme()
@@ -114,8 +131,12 @@ func NewWebhookServer(
 
 func (ws *WebhookServer) handlerFunc(handler func(request *admissionv1.AdmissionRequest) *admissionv1.AdmissionResponse) http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
+		ctx := context.Background()
 		startTime := time.Now()
 
+		if ws.admissionRequests != nil {
+			ws.admissionRequests.Add(ctx, 1)
+		}
 		admissionReview := bodyToAdmissionReview(r, rw, ws.log)
 		if admissionReview == nil {
 			ws.log.Error(fmt.Errorf("failed to parse admission review request"), "request", r)
@@ -136,8 +157,28 @@ func (ws *WebhookServer) handlerFunc(handler func(request *admissionv1.Admission
 			"operation", request.Operation)
 
 		admissionReview.Response = handler(request)
+		if admissionReview.Response.Patch != nil && len(admissionReview.Response.Patch) > 0 {
+			if ws.mutatedRequests != nil {
+				ws.mutatedRequests.Add(ctx, 1)
+			}
+		} else {
+			if ws.nonMutatedRequests != nil {
+				ws.nonMutatedRequests.Add(ctx, 1)
+			}
+		}
 		writeResponse(rw, admissionReview)
 
+		if ws.webhookLatency != nil {
+			keyValues := []attribute.KeyValue{
+				attribute.String("uid", string(request.UID)),
+				attribute.String("kind", request.Kind.String()),
+				attribute.String("namespace", request.Namespace),
+				attribute.String("name", request.Name),
+				attribute.String("operation", string(request.Operation)),
+				attribute.String("allowed", fmt.Sprintf("%t", admissionReview.Response.Allowed)),
+			}
+			ws.webhookLatency.Record(ctx, time.Since(startTime).Seconds(), metric.WithAttributes(keyValues...))
+		}
 		logger.V(3).Info("AdmissionRequest processed", "time", time.Since(startTime).String())
 	}
 }

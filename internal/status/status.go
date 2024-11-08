@@ -35,6 +35,7 @@ import (
 	varmortls "github.com/bytedance/vArmor/internal/tls"
 	varmorutils "github.com/bytedance/vArmor/internal/utils"
 	varmorinterface "github.com/bytedance/vArmor/pkg/client/clientset/versioned/typed/varmor/v1beta1"
+	"github.com/bytedance/vArmor/pkg/metrics"
 )
 
 const managerAudience = "varmor-manager"
@@ -96,13 +97,14 @@ func NewStatusService(
 	varmorInterface varmorinterface.CrdV1beta1Interface,
 	authInterface authclientv1.AuthenticationV1Interface,
 	statusUpdateCycle time.Duration,
+	metricsModule *metrics.MetricsModule,
 	log logr.Logger) (*StatusService, error) {
 
 	if port > 65535 {
 		return nil, fmt.Errorf("port is illegal")
 	}
 
-	statusManager := statusmanager.NewStatusManager(coreInterface, appsInterface, varmorInterface, statusUpdateCycle, debug, log)
+	statusManager := statusmanager.NewStatusManager(coreInterface, appsInterface, varmorInterface, statusUpdateCycle, debug, metricsModule, log)
 
 	s := StatusService{
 		StatusManager: statusManager,

@@ -41,6 +41,7 @@ import (
 	"github.com/bytedance/vArmor/internal/webhooks"
 	varmorclient "github.com/bytedance/vArmor/pkg/client/clientset/versioned"
 	varmorinformer "github.com/bytedance/vArmor/pkg/client/informers/externalversions"
+	"github.com/bytedance/vArmor/pkg/metrics"
 	"github.com/bytedance/vArmor/pkg/signal"
 )
 
@@ -63,6 +64,7 @@ var (
 	managerIP                string
 	webhookMatchLabel        string
 	bpfExclusiveMode         bool
+	enableMetrics            bool
 	statusUpdateCycle        time.Duration
 	auditLogPaths            string
 	setupLog                 = log.Log.WithName("SETUP")
@@ -88,6 +90,7 @@ func main() {
 	flag.BoolVar(&bpfExclusiveMode, "bpfExclusiveMode", false, "Set this flag to enable exclusive mode for the BPF enforcer. It will disable the AppArmor confinement when using the BPF enforcer.")
 	flag.DurationVar(&statusUpdateCycle, "statusUpdateCycle", time.Hour*2, "Configure the status update cycle for VarmorPolicy and ArmorProfile")
 	flag.StringVar(&auditLogPaths, "auditLogPaths", "/var/log/audit/audit.log|/var/log/kern.log", "Configure the file search list to select the audit log file and read the AppArmor and Seccomp audit events. Please use a vertical bar to separate the file paths, the first valid file will be used to track the audit events.")
+	flag.BoolVar(&enableMetrics, "enableMetrics", false, "Set this flag to enable metrics.")
 	flag.Parse()
 
 	// Set the webhook matchLabels configuration.
@@ -144,6 +147,9 @@ func main() {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
+	// init a metrics
+	metricsModule := metrics.NewMetricsModule(log.Log.WithName("METRICS"), enableMetrics)
+
 	if agent {
 		setupLog.Info("vArmor agent startup")
 
@@ -161,6 +167,7 @@ func main() {
 			config.ClassifierServicePort,
 			auditLogPaths,
 			stopCh,
+			metricsModule,
 			log.Log.WithName("AGENT"),
 		)
 		if err != nil {
@@ -270,6 +277,7 @@ func main() {
 			managerIP,
 			config.WebhookServicePort,
 			bpfExclusiveMode,
+			metricsModule,
 			log.Log.WithName("WEBHOOK-SERVER"))
 		if err != nil {
 			setupLog.Error(err, "Failed to create webhook webhookServer")
@@ -288,6 +296,7 @@ func main() {
 			varmorClient.CrdV1beta1(),
 			kubeClient.AuthenticationV1(),
 			statusUpdateCycle,
+			metricsModule,
 			log.Log.WithName("STATUS-SERVICE"),
 		)
 		if err != nil {
