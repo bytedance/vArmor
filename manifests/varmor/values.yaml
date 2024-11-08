@@ -15,7 +15,7 @@ appArmorLsmEnforcer:
 bpfLsmEnforcer:
   enabled: false
 
-enableMetrics:
+metrics:
   enabled: false
   serviceMonitorEnabled: false
 
@@ -93,6 +93,10 @@ manager:
     args:
     - --bpfExclusiveMode
 
+  metrics:
+    args:
+    - --enableMetrics
+
   resources:
     limits:
       cpu: 200m
@@ -100,9 +104,7 @@ manager:
     requests:
       cpu: 100m
       memory: 200Mi
-  enableMetrics:
-    args:
-      - --enableMetrics
+
   autoscaling:
     enabled: false
     minReplicas: 3
