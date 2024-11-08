@@ -52,11 +52,6 @@ spec:
           name: seccomp-dir
         - mountPath: /var/log
           name: var-log-dir
-        - mountPath: /run/log
-          name: run-log-dir
-        - mountPath: /etc/machine-id
-          name: machine-id
-          readOnly: true
         - mountPath: /var/run/secrets/tokens
           name: bound-token
         readinessProbe:
@@ -83,10 +78,6 @@ spec:
           type: Directory
         name: containerd
       - hostPath:
-          path: /proc
-          type: Directory
-        name: procfs
-      - hostPath:
           path: /var/run/varmor/audit
           type: DirectoryOrCreate
         name: audit-dir
@@ -106,14 +97,6 @@ spec:
           path: /var/log
           type: Directory
         name: var-log-dir
-      - hostPath:
-          path: /run/log
-          type: Directory
-        name: run-log-dir
-      - hostPath:
-          path: /etc/machine-id
-          type: File
-        name: machine-id
       - projected:
           sources:
           - serviceAccountToken:

@@ -7,13 +7,13 @@ require (
 	github.com/cilium/ebpf v0.16.0
 	github.com/containerd/containerd v1.7.5
 	github.com/containerd/typeurl/v2 v2.1.1
-	github.com/coreos/go-systemd/v22 v22.5.0
 	github.com/dlclark/regexp2 v1.9.0
 	github.com/gin-gonic/gin v1.9.1
 	github.com/go-logr/logr v1.4.2
 	github.com/hashicorp/go-version v1.6.0
 	github.com/julienschmidt/httprouter v1.3.0
 	github.com/kyverno/kyverno v1.7.4
+	github.com/nxadm/tail v1.4.11
 	github.com/opencontainers/runtime-spec v1.1.0
 	github.com/pkg/errors v0.9.1
 	github.com/rs/zerolog v1.33.0
@@ -46,6 +46,7 @@ require (
 	github.com/docker/go-events v0.0.0-20190806004212-e31b211e4f1c // indirect
 	github.com/emicklei/go-restful/v3 v3.11.0 // indirect
 	github.com/evanphx/json-patch v4.12.0+incompatible // indirect
+	github.com/fsnotify/fsnotify v1.6.0 // indirect
 	github.com/fxamacker/cbor/v2 v2.7.0 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.2 // indirect
 	github.com/gin-contrib/sse v0.1.0 // indirect
@@ -111,6 +112,7 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240318140521-94a12d6c2237 // indirect
 	google.golang.org/protobuf v1.34.2 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
+	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	k8s.io/kube-openapi v0.0.0-20240228011516-70dd3763d340 // indirect
 	k8s.io/utils v0.0.0-20240711033017-18e509b52bc8 // indirect

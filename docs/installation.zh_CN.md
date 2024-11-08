@@ -7,8 +7,8 @@
 
 |强制访问控制器|要求|推荐|
 |------------|--------------------------------------------|--------|
-|AppArmor    |1. Linux Kernel 4.15 及以上版本<br>2. 系统需开启 AppArmor LSM|GKE with Container-Optimized OS<br>AKS with Ubuntu 22.04 LTS<br>[VKE](https://www.volcengine.com/product/vke) with veLinux 1.0<br>Debian 10 及以上版本<br>Ubuntu 18.04.0 LTS 及以上版本<br>[veLinux 1.0](https://www.volcengine.com/docs/6396/74967) 等
-|BPF         |1. Linux Kernel 5.10 及以上版本 (x86_64)<br>2. containerd v1.6.0 及以上版本<br>3. 系统需开启 BPF LSM|EKS with Amazon Linux 2<br>GKE with Container-Optimized OS<br>[VKE](https://www.volcengine.com/product/vke) with veLinux 1.0 (with 5.10 kernel)<br>AKS with Ubuntu 22.04 LTS <sup>\*</sup><br>ACK with Alibaba Cloud Linux 3 <sup>\*</sup><br>OpenSUSE 15.4  <sup>\*</sup><br>Debian 11 <sup>\*</sup><br>Fedora 37<br>[veLinux 1.0 with 5.10 kernel](https://www.volcengine.com/docs/6396/74967) 等<br><br>* *需手动启用节点的 BPF LSM*
+|AppArmor    |1. Linux Kernel 4.15 及以上版本<br />2. 系统需开启 AppArmor LSM|GKE with Container-Optimized OS<br />AKS with Ubuntu 22.04 LTS<br />[VKE](https://www.volcengine.com/product/vke) with veLinux 1.0<br />Debian 10 及以上版本<br />Ubuntu 18.04.0 LTS 及以上版本<br />[veLinux 1.0](https://www.volcengine.com/docs/6396/74967) 等
+|BPF         |1. Linux Kernel 5.10 及以上版本 (x86_64)<br />2. containerd v1.6.0 及以上版本<br />3. 系统需开启 BPF LSM|EKS with Amazon Linux 2<br />GKE with Container-Optimized OS<br />[VKE](https://www.volcengine.com/product/vke) with veLinux 1.0 (with 5.10 kernel)<br />AKS with Ubuntu 22.04 LTS <sup>\*</sup><br />ACK with Alibaba Cloud Linux 3 <sup>\*</sup><br />OpenSUSE 15.4  <sup>\*</sup><br />Debian 11 <sup>\*</sup><br />Fedora 37<br />[veLinux 1.0 with 5.10 kernel](https://www.volcengine.com/docs/6396/74967) 等<br /><br />* *需手动启用节点的 BPF LSM*
 |Seccomp     |1. Kubernetes v1.19 及以上版本|所有 Linux 发行版
 
 ## 安装
@@ -41,6 +41,7 @@ helm install varmor varmor-0.5.11.tgz \
 | `--set removeAllSeccompProfiles.enabled=true` | 默认关闭；开启后，Agent 退出时，将会删除所有由 vArmor 创建的 Seccomp Profile。
 | `--set "manager.args={--webhookMatchLabel=KEY=VALUE}"` | 默认值为：`sandbox.varmor.org/enable=true`。vArmor 只会对包含此 label 的 Workloads 开启沙箱防护。你可以使用 `--set 'manager.args={--webhookMatchLabel=}'` 关闭此特性。
 | `--set behaviorModeling.enabled=true` | 默认关闭；此为实验功能，仅 AppArmor/Seccomp enforcer 支持 BehaviorModeling 模式。请参见 [The BehaviorModeling Mode](behavior_modeling.md)。
+| `--set "agent.args={--auditLogPaths=FILE_PATH\|FILE_PATH}"` | 默认值为：`/var/log/audit/audit.log\|/var/log/kern.log`。vArmor 会按顺序搜索审计日志文件，并监控第一个有效的文件来消费 AppArmor 和 Seccomp 的审计事件，用于违规审计和行为建模。请使用`|`分隔文件路径。
 
 ## 更新
 

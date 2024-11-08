@@ -15,13 +15,15 @@
 package audit
 
 import (
+	"fmt"
+	"io"
 	"os"
 	"path/filepath"
-	"time"
+	"strings"
 
 	"github.com/cilium/ebpf"
-	"github.com/coreos/go-systemd/v22/sdjournal"
 	"github.com/go-logr/logr"
+	"github.com/nxadm/tail"
 	"github.com/rs/zerolog"
 	"gopkg.in/natefinch/lumberjack.v2"
 
@@ -36,65 +38,76 @@ const (
 )
 
 type Auditor struct {
-	nodeName             string
-	bootTimestamp        uint64
-	appArmorSupported    bool
-	bpfLsmSupported      bool
-	TaskStartCh          chan varmortypes.ContainerInfo
-	TaskDeleteCh         chan varmortypes.ContainerInfo
-	TaskDeleteSyncCh     chan bool
-	mntNsIDCache         map[uint32]uint32                      // key: The init PID of contaienr, value: The mnt ns id
-	containerCache       map[uint32]varmortypes.ContainerInfo   // key: The mnt ns id of container, value: The container information
-	auditEventChs        map[string]chan<- string               // auditEventChs used for sending apparmor & seccomp behavior event to subscribers
-	bpfEventChs          map[string]chan<- bpfenforcer.BpfEvent // bpfEventChs used for sending bpf behavior event to subscribers
-	journalReader        *sdjournal.JournalReader
-	journalReaderTimeout chan time.Time
-	savedRateLimit       uint64
-	auditRbMap           *ebpf.Map
-	capabilityMap        map[uint32]string
-	filePermissionMap    map[uint32]string
-	ptracePermissionMap  map[uint32]string
-	mountFlagMap         map[uint32]string
-	violationLogger      zerolog.Logger
-	log                  logr.Logger
+	nodeName               string
+	bootTimestamp          uint64
+	appArmorSupported      bool
+	bpfLsmSupported        bool
+	enableBehaviorModeling bool
+	TaskStartCh            chan varmortypes.ContainerInfo
+	TaskDeleteCh           chan varmortypes.ContainerInfo
+	TaskDeleteSyncCh       chan bool
+	mntNsIDCache           map[uint32]uint32                      // key: The init PID of contaienr, value: The mnt ns id
+	containerCache         map[uint32]varmortypes.ContainerInfo   // key: The mnt ns id of container, value: The container information
+	auditEventChs          map[string]chan<- string               // auditEventChs used for sending apparmor & seccomp behavior event to subscribers
+	bpfEventChs            map[string]chan<- bpfenforcer.BpfEvent // bpfEventChs used for sending bpf behavior event to subscribers
+	auditLogPath           string
+	auditLogTail           *tail.Tail
+	savedRateLimit         uint64
+	auditRbMap             *ebpf.Map
+	capabilityMap          map[uint32]string
+	filePermissionMap      map[uint32]string
+	ptracePermissionMap    map[uint32]string
+	mountFlagMap           map[uint32]string
+	violationLogger        zerolog.Logger
+	log                    logr.Logger
 }
 
 // NewAuditor creates an auditor to audit the violations of target containers
-func NewAuditor(nodeName string, appArmorSupported, bpfLsmSupported bool, log logr.Logger) (*Auditor, error) {
+func NewAuditor(nodeName string, appArmorSupported, bpfLsmSupported, enableBehaviorModeling bool, auditLogPaths string, log logr.Logger) (*Auditor, error) {
 	auditor := Auditor{
-		nodeName:            nodeName,
-		appArmorSupported:   appArmorSupported,
-		bpfLsmSupported:     bpfLsmSupported,
-		TaskStartCh:         make(chan varmortypes.ContainerInfo, 100),
-		TaskDeleteCh:        make(chan varmortypes.ContainerInfo, 100),
-		TaskDeleteSyncCh:    make(chan bool, 1),
-		mntNsIDCache:        make(map[uint32]uint32, 100),
-		containerCache:      make(map[uint32]varmortypes.ContainerInfo, 100),
-		auditEventChs:       make(map[string]chan<- string),
-		bpfEventChs:         make(map[string]chan<- bpfenforcer.BpfEvent),
-		savedRateLimit:      0,
-		capabilityMap:       initCapabilityMap(),
-		filePermissionMap:   initFilePermissionMap(),
-		ptracePermissionMap: initPtracePermissionMap(),
-		mountFlagMap:        initMountFlagMap(),
-		log:                 log,
+		nodeName:               nodeName,
+		appArmorSupported:      appArmorSupported,
+		bpfLsmSupported:        bpfLsmSupported,
+		enableBehaviorModeling: enableBehaviorModeling,
+		TaskStartCh:            make(chan varmortypes.ContainerInfo, 100),
+		TaskDeleteCh:           make(chan varmortypes.ContainerInfo, 100),
+		TaskDeleteSyncCh:       make(chan bool, 1),
+		mntNsIDCache:           make(map[uint32]uint32, 100),
+		containerCache:         make(map[uint32]varmortypes.ContainerInfo, 100),
+		auditEventChs:          make(map[string]chan<- string),
+		bpfEventChs:            make(map[string]chan<- bpfenforcer.BpfEvent),
+		savedRateLimit:         0,
+		capabilityMap:          initCapabilityMap(),
+		filePermissionMap:      initFilePermissionMap(),
+		ptracePermissionMap:    initPtracePermissionMap(),
+		mountFlagMap:           initMountFlagMap(),
+		log:                    log,
 	}
 
-	// Create a systemd-journald reader to read the kernel events
-	if appArmorSupported {
-		r, err := sdjournal.NewJournalReader(sdjournal.JournalReaderConfig{
-			Since: time.Duration(-5) * time.Second,
-			Matches: []sdjournal.Match{
-				{
-					Field: sdjournal.SD_JOURNAL_FIELD_TRANSPORT,
-					Value: "kernel",
-				},
-			}})
+	// Create a tail reader to read the audit events
+	if appArmorSupported || enableBehaviorModeling {
+		for _, path := range strings.Split(auditLogPaths, "|") {
+			_, err := os.Stat(path)
+			if err == nil {
+				auditor.auditLogPath = path
+				break
+			}
+		}
+		if auditor.auditLogPath == "" {
+			return nil, fmt.Errorf("please use --auditLogPaths command line parameter to specify the correct file paths that stores the audit logs for AppArmor and Seccomp")
+		}
+		t, err := tail.TailFile(auditor.auditLogPath,
+			tail.Config{
+				Location:      &tail.SeekInfo{Offset: 0, Whence: io.SeekEnd},
+				ReOpen:        true,
+				Follow:        true,
+				CompleteLines: true,
+			})
 		if err != nil {
 			return nil, err
 		}
-		auditor.journalReader = r
-		auditor.journalReaderTimeout = make(chan time.Time)
+		auditor.auditLogTail = t
+		auditor.log.Info("start tailing audit log", "path", auditor.auditLogPath)
 	}
 
 	// Load the ringbuf map of BPF enforcer
@@ -195,8 +208,8 @@ func (auditor *Auditor) DeleteBehaviorEventNotifyCh(subscriber string) {
 }
 
 func (auditor *Auditor) Run(stopCh <-chan struct{}) {
-	if auditor.appArmorSupported {
-		go auditor.readFromSystemdJournald()
+	if auditor.appArmorSupported || auditor.enableBehaviorModeling {
+		go auditor.readFromAuditLogFile()
 	}
 	if auditor.bpfLsmSupported {
 		go auditor.readFromAuditEventRingBuf()
@@ -205,9 +218,9 @@ func (auditor *Auditor) Run(stopCh <-chan struct{}) {
 }
 
 func (auditor *Auditor) Close() {
-	if auditor.appArmorSupported {
-		auditor.journalReaderTimeout <- time.Now()
-		auditor.journalReader.Close()
+	if auditor.appArmorSupported || auditor.enableBehaviorModeling {
+		auditor.auditLogTail.Stop()
+		auditor.auditLogTail.Cleanup()
 	}
 	if auditor.bpfLsmSupported {
 		auditor.auditRbMap.Close()
