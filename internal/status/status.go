@@ -18,7 +18,6 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"github.com/bytedance/vArmor/pkg/metrics"
 	"net/http"
 	"os"
 	"time"
@@ -36,6 +35,7 @@ import (
 	varmortls "github.com/bytedance/vArmor/internal/tls"
 	varmorutils "github.com/bytedance/vArmor/internal/utils"
 	varmorinterface "github.com/bytedance/vArmor/pkg/client/clientset/versioned/typed/varmor/v1beta1"
+	"github.com/bytedance/vArmor/pkg/metrics"
 )
 
 const managerAudience = "varmor-manager"

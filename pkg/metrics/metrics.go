@@ -1,13 +1,14 @@
 package metrics
 
 import (
+	"log"
+	"net/http"
+
 	"github.com/go-logr/logr"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.opentelemetry.io/otel/exporters/prometheus"
 	"go.opentelemetry.io/otel/metric"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
-	"log"
-	"net/http"
 )
 
 const (
@@ -27,7 +28,7 @@ func NewMetricsModule(log logr.Logger, enabled bool) *MetricsModule {
 	}
 	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(exporter))
 	meter := provider.Meter(MeterName)
-	if enabled == true {
+	if enabled {
 		go func() {
 			log.Info("Serving metrics at :8081/metrics")
 			http.Handle("/metrics", promhttp.Handler())
@@ -43,6 +44,7 @@ func NewMetricsModule(log logr.Logger, enabled bool) *MetricsModule {
 		Enabled: enabled,
 	}
 }
+
 func (m *MetricsModule) RegisterInt64Counter(name string, description string) metric.Int64Counter {
 	counter, err := m.meter.Int64Counter(name, metric.WithDescription(description))
 	if err != nil {
@@ -50,6 +52,7 @@ func (m *MetricsModule) RegisterInt64Counter(name string, description string) me
 	}
 	return counter
 }
+
 func (m *MetricsModule) RegisterFloat64Counter(name string, description string) metric.Float64Counter {
 	counter, err := m.meter.Float64Counter(name, metric.WithDescription(description))
 	if err != nil {
@@ -73,6 +76,7 @@ func (m *MetricsModule) RegisterFloat64Gauge(name string, description string) me
 	}
 	return gauge
 }
+
 func (m *MetricsModule) RegisterFloat64ObservableGauge(name string, options ...metric.Float64ObservableGaugeOption) metric.Float64ObservableGauge {
 	gauge, err := m.meter.Float64ObservableGauge(name, options...)
 	if err != nil {
@@ -80,6 +84,7 @@ func (m *MetricsModule) RegisterFloat64ObservableGauge(name string, options ...m
 	}
 	return gauge
 }
+
 func (m *MetricsModule) RegisterHistogram(name string, description string, buckets ...float64) metric.Float64Histogram {
 	histogram, err := m.meter.Float64Histogram(name, metric.WithDescription(description), metric.WithExplicitBucketBoundaries(buckets...))
 	if err != nil {

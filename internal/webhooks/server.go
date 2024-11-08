@@ -18,14 +18,13 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"github.com/bytedance/vArmor/pkg/metrics"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/metric"
 	"net/http"
 	"time"
 
 	"github.com/go-logr/logr"
 	"github.com/julienschmidt/httprouter"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 	admissionv1 "k8s.io/api/admission/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -42,6 +41,7 @@ import (
 	varmorprofile "github.com/bytedance/vArmor/internal/profile"
 	varmortls "github.com/bytedance/vArmor/internal/tls"
 	"github.com/bytedance/vArmor/internal/webhookconfig"
+	"github.com/bytedance/vArmor/pkg/metrics"
 )
 
 // WebhookServer contains configured TLS server with MutationWebhook.
@@ -77,12 +77,14 @@ func NewWebhookServer(
 		metricsModule:    metricsModule,
 		log:              log,
 	}
+
 	if metricsModule.Enabled {
 		ws.admissionRequests = metricsModule.RegisterFloat64Counter("admission_requests_total", "Total number of admission requests")
 		ws.mutatedRequests = metricsModule.RegisterFloat64Counter("mutated_requests", "Number of requests that were mutated")
 		ws.nonMutatedRequests = metricsModule.RegisterFloat64Counter("non_mutated_requests", "Number of requests that were not mutated")
 		ws.webhookLatency = metricsModule.RegisterHistogram("webhook_latency", "Latency of webhook processing", 0.1, 0.5, 1, 2, 5)
 	}
+
 	scheme := runtime.NewScheme()
 	codecs := serializer.NewCodecFactory(scheme)
 	ws.deserializer = codecs.UniversalDeserializer()

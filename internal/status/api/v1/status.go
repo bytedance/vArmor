@@ -18,12 +18,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/metric"
 	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 
 	varmortypes "github.com/bytedance/vArmor/internal/types"
@@ -63,10 +63,12 @@ func (m *StatusManager) Status(c *gin.Context) {
 
 	logger.V(3).Info("enqueue ProfileStatus from agent")
 	m.statusQueue.Add(profileStatus)
-	if m.metricsModule.Enabled == true {
+
+	if m.metricsModule.Enabled {
 		go m.HandleProfileStatusUpdate(profileStatus)
 	}
 }
+
 func (m *StatusManager) HandleProfileStatusUpdate(status varmortypes.ProfileStatus) {
 	ctx := context.Background()
 	// label info
@@ -89,7 +91,6 @@ func (m *StatusManager) HandleProfileStatusUpdate(status varmortypes.ProfileStat
 	} else {
 		m.profileStatusPerNode.Record(ctx, 0, metric.WithAttributes(labels...)) // 0 mean failure
 	}
-
 }
 
 // updatePolicyStatus update StatusManager.PolicyStatuses[statusKey] with profileStatus which comes from agent.

@@ -18,7 +18,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"github.com/bytedance/vArmor/pkg/metrics"
 	"os"
 	"strings"
 	"time"
@@ -42,6 +41,7 @@ import (
 	"github.com/bytedance/vArmor/internal/webhooks"
 	varmorclient "github.com/bytedance/vArmor/pkg/client/clientset/versioned"
 	varmorinformer "github.com/bytedance/vArmor/pkg/client/informers/externalversions"
+	"github.com/bytedance/vArmor/pkg/metrics"
 	"github.com/bytedance/vArmor/pkg/signal"
 )
 
@@ -146,10 +146,9 @@ func main() {
 	} else {
 		gin.SetMode(gin.ReleaseMode)
 	}
-	// metric init
-	var metricsModule *metrics.MetricsModule
 
-	metricsModule = metrics.NewMetricsModule(log.Log.WithName("METRICS"), enableMetrics)
+	// init a metrics
+	metricsModule := metrics.NewMetricsModule(log.Log.WithName("METRICS"), enableMetrics)
 
 	if agent {
 		setupLog.Info("vArmor agent startup")

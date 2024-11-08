@@ -18,7 +18,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/bytedance/vArmor/pkg/metrics"
 	"os/exec"
 	"path/filepath"
 	"reflect"
@@ -48,6 +47,7 @@ import (
 	varmorlister "github.com/bytedance/vArmor/pkg/client/listers/varmor/v1beta1"
 	varmorapparmor "github.com/bytedance/vArmor/pkg/lsm/apparmor"
 	varmorbpfenforcer "github.com/bytedance/vArmor/pkg/lsm/bpfenforcer"
+	varmormetrics "github.com/bytedance/vArmor/pkg/metrics"
 	varmorptracer "github.com/bytedance/vArmor/pkg/processtracer"
 	varmorruntime "github.com/bytedance/vArmor/pkg/runtime"
 	varmorseccomp "github.com/bytedance/vArmor/pkg/seccomp"
@@ -104,7 +104,7 @@ func NewAgent(
 	classifierPort int,
 	auditLogPaths string,
 	stopCh <-chan struct{},
-	metricsModule *metrics.MetricsModule,
+	metricsModule *varmormetrics.MetricsModule,
 	log logr.Logger,
 ) (*Agent, error) {
 

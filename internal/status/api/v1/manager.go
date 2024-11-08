@@ -17,12 +17,11 @@ package statusmanagerv1
 import (
 	"context"
 	"fmt"
-	"github.com/bytedance/vArmor/pkg/metrics"
-	"go.opentelemetry.io/otel/metric"
 	"reflect"
 	"time"
 
 	"github.com/go-logr/logr"
+	"go.opentelemetry.io/otel/metric"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -39,6 +38,7 @@ import (
 	varmortypes "github.com/bytedance/vArmor/internal/types"
 	varmorutils "github.com/bytedance/vArmor/internal/utils"
 	varmorinterface "github.com/bytedance/vArmor/pkg/client/clientset/versioned/typed/varmor/v1beta1"
+	varmormetrics "github.com/bytedance/vArmor/pkg/metrics"
 )
 
 type StatusManager struct {
@@ -62,14 +62,20 @@ type StatusManager struct {
 	statusUpdateCycle    time.Duration
 	debug                bool
 	log                  logr.Logger
-	metricsModule        *metrics.MetricsModule
+	metricsModule        *varmormetrics.MetricsModule
 	profileSuccess       metric.Float64Counter
 	profileFailure       metric.Float64Counter
 	profileChangeCount   metric.Float64Counter
 	profileStatusPerNode metric.Float64Gauge
 }
 
-func NewStatusManager(coreInterface corev1.CoreV1Interface, appsInterface appsv1.AppsV1Interface, varmorInterface varmorinterface.CrdV1beta1Interface, statusUpdateCycle time.Duration, debug bool, metricsModule *metrics.MetricsModule, log logr.Logger) *StatusManager {
+func NewStatusManager(coreInterface corev1.CoreV1Interface,
+	appsInterface appsv1.AppsV1Interface,
+	varmorInterface varmorinterface.CrdV1beta1Interface,
+	statusUpdateCycle time.Duration, debug bool,
+	metricsModule *varmormetrics.MetricsModule,
+	log logr.Logger) *StatusManager {
+
 	m := StatusManager{
 		coreInterface:     coreInterface,
 		appsInterface:     appsInterface,
@@ -88,12 +94,14 @@ func NewStatusManager(coreInterface corev1.CoreV1Interface, appsInterface appsv1
 		debug:             debug,
 		log:               log,
 	}
+
 	if metricsModule.Enabled {
 		m.profileSuccess = metricsModule.RegisterFloat64Counter("profile_processing_success", "Number of successful profile processing")
 		m.profileFailure = metricsModule.RegisterFloat64Counter("profile_processing_failure", "Number of failed profile processing")
 		m.profileChangeCount = metricsModule.RegisterFloat64Counter("profile_change_count", "Number of profile change")
 		m.profileStatusPerNode = metricsModule.RegisterFloat64Gauge("profile_status_per_node", "Profile status per node (1=success, 0=failure)")
 	}
+
 	return &m
 }
 
