@@ -151,7 +151,7 @@ func NewAgent(
 
 	go func() {
 		if err := r.Run(fmt.Sprintf(":%d", varmorconfig.AgentServicePort)); err != nil {
-			panic(err)
+			log.Error(err, "fatal error: agent service failed to start")
 		}
 	}()
 
