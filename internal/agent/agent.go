@@ -39,16 +39,16 @@ import (
 	// listerv1 "k8s.io/client-go/listers/core/v1"
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
 	varmorbehavior "github.com/bytedance/vArmor/internal/behavior"
-	varmortracer "github.com/bytedance/vArmor/internal/behavior/tracer"
 	varmorconfig "github.com/bytedance/vArmor/internal/config"
 	varmortypes "github.com/bytedance/vArmor/internal/types"
 	varmorutils "github.com/bytedance/vArmor/internal/utils"
-	varmoraudit "github.com/bytedance/vArmor/pkg/audit"
+	varmorauditor "github.com/bytedance/vArmor/pkg/auditor"
 	varmorinterface "github.com/bytedance/vArmor/pkg/client/clientset/versioned/typed/varmor/v1beta1"
 	varmorinformer "github.com/bytedance/vArmor/pkg/client/informers/externalversions/varmor/v1beta1"
 	varmorlister "github.com/bytedance/vArmor/pkg/client/listers/varmor/v1beta1"
 	varmorapparmor "github.com/bytedance/vArmor/pkg/lsm/apparmor"
 	varmorbpfenforcer "github.com/bytedance/vArmor/pkg/lsm/bpfenforcer"
+	varmorptracer "github.com/bytedance/vArmor/pkg/processtracer"
 	varmorruntime "github.com/bytedance/vArmor/pkg/runtime"
 	varmorseccomp "github.com/bytedance/vArmor/pkg/seccomp"
 )
@@ -70,7 +70,7 @@ type Agent struct {
 	appArmorProfileDir       string
 	seccompProfileDir        string
 	bpfEnforcer              *varmorbpfenforcer.BpfEnforcer
-	auditor                  *varmoraudit.Auditor
+	auditor                  *varmorauditor.Auditor
 	monitor                  *varmorruntime.RuntimeMonitor
 	waitExistingApSync       sync.WaitGroup
 	existingApCount          int
@@ -79,7 +79,7 @@ type Agent struct {
 	enableBpfEnforcer        bool
 	unloadAllAaProfiles      bool
 	removeAllSeccompProfiles bool
-	tracer                   *varmortracer.Tracer
+	ptracer                  *varmorptracer.ProcessTracer
 	modellers                map[string]*varmorbehavior.BehaviorModeller
 	nodeName                 string
 	debug                    bool
@@ -102,6 +102,7 @@ func NewAgent(
 	managerIP string,
 	managerPort int,
 	classifierPort int,
+	auditLogPaths string,
 	stopCh <-chan struct{},
 	metricsModule *metrics.MetricsModule,
 	log logr.Logger,
@@ -185,23 +186,11 @@ func NewAgent(
 	}
 	log.Info("NewAgent", "nodeName", agent.nodeName)
 
-	// Initialize the runtime monitor for BehaviorModeling mode or BPF enforcer.
-	if agent.enableBehaviorModeling || agent.bpfLsmSupported {
-		log.Info("initialize the RuntimeMonitor")
-		agent.monitor, err = varmorruntime.NewRuntimeMonitor(log.WithName("RUNTIME-MONITOR"))
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	// [Experimental feature] Initialize the tracer for BehaviorModeling mode.
-	// It only works with AppArmor LSM and Seccomp for now.
-	if agent.enableBehaviorModeling {
-		log.Info("initialize the tracer for BehaviorModeling mode")
-		agent.tracer, err = varmortracer.NewTracer(log.WithName("TRACER"))
-		if err != nil {
-			return nil, err
-		}
+	// Initialize the runtime monitor
+	log.Info("initialize the RuntimeMonitor")
+	agent.monitor, err = varmorruntime.NewRuntimeMonitor(log.WithName("RUNTIME-MONITOR"))
+	if err != nil {
+		return nil, err
 	}
 
 	// AppArmor LSM initialization
@@ -235,15 +224,9 @@ func NewAgent(
 		if err != nil {
 			return nil, err
 		}
-		agent.auditor, err = varmoraudit.NewAuditor(log.WithName("AUDIT-VIOLATIONS"))
-		if err != nil {
-			return nil, err
-		}
 
-		agent.monitor.SetTaskNotifyChs(
-			agent.bpfEnforcer.TaskCreateCh,
-			agent.bpfEnforcer.TaskDeleteCh,
-			agent.bpfEnforcer.TaskDeleteSyncCh)
+		// Subscribe BPF enforcer to the monitor
+		agent.monitor.AddTaskNotifyChs("BPF-ENFORCER", &agent.bpfEnforcer.TaskStartCh, &agent.bpfEnforcer.TaskDeleteCh, &agent.bpfEnforcer.TaskDeleteSyncCh)
 
 		// Retrieve the count of existing ArmorProfile objects.
 		apList, err := agent.varmorInterface.ArmorProfiles(metav1.NamespaceAll).List(context.Background(), metav1.ListOptions{ResourceVersion: "0"})
@@ -255,6 +238,29 @@ func NewAgent(
 		// Initialize the WaitGroup.
 		if agent.existingApCount > 0 {
 			agent.waitExistingApSync.Add(1)
+		}
+	}
+
+	// Create an auditor to audit violation and behavior events for AppArmor, Seccomp and BPF enforcers
+	agent.auditor, err = varmorauditor.NewAuditor(agent.nodeName,
+		agent.appArmorSupported, agent.bpfLsmSupported, agent.enableBehaviorModeling,
+		auditLogPaths, log.WithName("AUDITOR"))
+	if err != nil {
+		return nil, err
+	}
+
+	// Subscribe auditor to the monitor
+	agent.monitor.AddTaskNotifyChs("AUDITOR", &agent.auditor.TaskStartCh, &agent.auditor.TaskDeleteCh, &agent.auditor.TaskDeleteSyncCh)
+
+	// [Experimental feature]
+	//     Initialize the process tracer for BehaviorModeling mode.
+	//     It only works with AppArmor and Seccomp enforcers for now.
+	// TODO: Support BPF enforcer
+	if agent.enableBehaviorModeling {
+		log.Info("initialize the process tracer for BehaviorModeling mode")
+		agent.ptracer, err = varmorptracer.NewProcessTracer(log.WithName("TRACER"))
+		if err != nil {
+			return nil, err
 		}
 	}
 
@@ -400,9 +406,10 @@ func (agent *Agent) handleCreateOrUpdateArmorProfile(ap *varmor.ArmorProfile, ke
 				modeller.PreprocessAndSendBehaviorData()
 			}
 		} else {
-			// Create a new modeller and start modeling.
+			// Create a new modeller and start modeling for the ArmorProfile object.
 			modeller := varmorbehavior.NewBehaviorModeller(
-				agent.tracer,
+				agent.auditor,
+				agent.ptracer,
 				agent.monitor,
 				agent.nodeName,
 				ap.Namespace,
@@ -634,21 +641,24 @@ func (agent *Agent) Run(workers int, stopCh <-chan struct{}) {
 		go wait.Until(agent.worker, time.Second, stopCh)
 	}
 
-	if agent.enableBehaviorModeling || agent.bpfLsmSupported {
-		go agent.monitor.Run(stopCh)
-	}
-
+	// Run bpf enforcer if BPF LSM is supported.
 	if agent.bpfLsmSupported {
 		go agent.bpfEnforcer.Run(stopCh)
-		go agent.auditor.Run()
+	}
 
-		// Wait for all existing ArmorProfile objects have been processed.
-		if agent.existingApCount > 0 {
-			agent.waitExistingApSync.Wait()
-			err := agent.monitor.CollectExistingTargetContainers()
-			if err != nil {
-				logger.Error(err, "CollectExistingTargetContainers() failed")
-			}
+	// Run auditor to record violation behaviors
+	go agent.auditor.Run(stopCh)
+
+	// Run runtime monitor to watch container events and send them to subscribers
+	go agent.monitor.Run(stopCh)
+
+	// Wait for all existing ArmorProfile objects have been processed.
+	if agent.existingApCount > 0 {
+		agent.waitExistingApSync.Wait()
+		// Gather all existing target containers and send them to subscribers
+		err := agent.monitor.CollectExistingTargetContainers()
+		if err != nil {
+			logger.Error(err, "CollectExistingTargetContainers() failed")
 		}
 	}
 
@@ -659,9 +669,11 @@ func (agent *Agent) CleanUp() {
 	agent.log.Info("cleaning up")
 	varmorutils.SetAgentUnready()
 	agent.queue.ShutDown()
+	agent.monitor.Close()
+	agent.auditor.Close()
 
-	if agent.appArmorSupported && agent.enableBehaviorModeling {
-		agent.tracer.Close()
+	if agent.enableBehaviorModeling {
+		agent.ptracer.Close()
 	}
 
 	if agent.appArmorSupported && agent.unloadAllAaProfiles {
@@ -674,12 +686,7 @@ func (agent *Agent) CleanUp() {
 		varmorseccomp.RemoveAllSeccompProfiles(agent.seccompProfileDir)
 	}
 
-	if agent.enableBehaviorModeling || agent.bpfLsmSupported {
-		agent.monitor.Close()
-	}
-
 	if agent.bpfLsmSupported {
-		agent.auditor.Close()
 		agent.bpfEnforcer.Close()
 	}
 }

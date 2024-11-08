@@ -80,7 +80,6 @@ spec:
                             type: integer
                         required:
                         - capabilities
-                        - mode
                         type: object
                       files:
                         items:
@@ -104,7 +103,6 @@ spec:
                               format: int32
                               type: integer
                           required:
-                          - mode
                           - pattern
                           - permissions
                           type: object
@@ -137,7 +135,6 @@ spec:
                               type: integer
                           required:
                           - fstype
-                          - mode
                           - mountFlags
                           - pattern
                           - reverseMountflags
@@ -161,7 +158,6 @@ spec:
                               type: integer
                           required:
                           - flags
-                          - mode
                           type: object
                         type: array
                       processes:
@@ -186,7 +182,6 @@ spec:
                               format: int32
                               type: integer
                           required:
-                          - mode
                           - pattern
                           - permissions
                           type: object
@@ -202,8 +197,6 @@ spec:
                           permissions:
                             format: int32
                             type: integer
-                        required:
-                        - mode
                         type: object
                     type: object
                   content:

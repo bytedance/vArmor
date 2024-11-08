@@ -13,3 +13,20 @@ __pycache__
 venv
 coverage.out
 .DS_Store
+
+# website
+# Dependencies
+/website/node_modules
+/website/build
+/website/.docusaurus
+/website/.cache-loader
+
+/website/.DS_Store
+/website/.env.local
+/website/.env.development.local
+/website/.env.test.local
+/website/.env.production.local
+
+/website/npm-debug.log*
+/website/yarn-debug.log*
+/website/yarn-error.log*

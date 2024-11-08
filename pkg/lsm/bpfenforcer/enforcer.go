@@ -18,7 +18,6 @@ import (
 	"fmt"
 	"os"
 	"reflect"
-	"strings"
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
@@ -42,7 +41,7 @@ type bpfProfile struct {
 }
 
 type BpfEnforcer struct {
-	TaskCreateCh     chan varmortypes.ContainerInfo
+	TaskStartCh      chan varmortypes.ContainerInfo
 	TaskDeleteCh     chan varmortypes.ContainerInfo
 	TaskDeleteSyncCh chan bool
 	objs             bpfObjects
@@ -62,10 +61,10 @@ type BpfEnforcer struct {
 	log              logr.Logger
 }
 
-// NewBpfEnforcer create a BpfEnforcer, and initialize the BPF settings and resources
+// NewBpfEnforcer creates a BpfEnforcer, and initialize the BPF settings and resources
 func NewBpfEnforcer(log logr.Logger) (*BpfEnforcer, error) {
 	enforcer := BpfEnforcer{
-		TaskCreateCh:     make(chan varmortypes.ContainerInfo, 100),
+		TaskStartCh:      make(chan varmortypes.ContainerInfo, 100),
 		TaskDeleteCh:     make(chan varmortypes.ContainerInfo, 100),
 		TaskDeleteSyncCh: make(chan bool, 1),
 		objs:             bpfObjects{},
@@ -81,7 +80,7 @@ func NewBpfEnforcer(log logr.Logger) (*BpfEnforcer, error) {
 	return &enforcer, nil
 }
 
-// initBPF initialize the BPF settings and resources
+// initBPF initializes the BPF settings and resources
 func (enforcer *BpfEnforcer) initBPF() error {
 	// Allow the current process to lock memory for eBPF resources
 	enforcer.log.Info("remove memory lock")
@@ -284,15 +283,15 @@ func (enforcer *BpfEnforcer) Close() {
 
 func (enforcer *BpfEnforcer) eventHandler(stopCh <-chan struct{}) {
 	logger := enforcer.log.WithName("eventHandler()")
-	logger.Info("start handle the containerd events")
+	logger.Info("start handling the containerd events")
 
 	for {
 		select {
-		case info := <-enforcer.TaskCreateCh:
+		case info := <-enforcer.TaskStartCh:
+			// Handle the creation event of target container
 			key := fmt.Sprintf("container.bpf.security.beta.varmor.org/%s", info.ContainerName)
-			value := info.PodAnnotations[key]
-
-			if !strings.HasPrefix(value, "localhost/") {
+			value, ok := info.PodAnnotations[key]
+			if !ok {
 				break
 			}
 
@@ -304,7 +303,7 @@ func (enforcer *BpfEnforcer) eventHandler(stopCh <-chan struct{}) {
 					"pod name", info.PodName,
 					"container name", info.ContainerName,
 					"container id", info.ContainerID,
-					"pid", info.PID)
+					"pid", info.PID, "mnt ns id", info.MntNsID)
 
 				// create an enforceID
 				enforceID, err := enforcer.newEnforceID(info.PID)
@@ -313,7 +312,7 @@ func (enforcer *BpfEnforcer) eventHandler(stopCh <-chan struct{}) {
 					break
 				}
 
-				// nothing needs to change when the container was been protected
+				// nothing needs to change if the container has been protected
 				if oldEnforceID, ok := enforcer.containerCache[info.ContainerID]; ok {
 					if reflect.DeepEqual(oldEnforceID, enforceID) {
 						break
@@ -334,6 +333,7 @@ func (enforcer *BpfEnforcer) eventHandler(stopCh <-chan struct{}) {
 			}
 
 		case info := <-enforcer.TaskDeleteCh:
+			// Handle the deletion event of target container
 			if enforceID, ok := enforcer.containerCache[info.ContainerID]; ok {
 				logger.Info("target container was deleted",
 					"container id", info.ContainerID,
@@ -380,7 +380,7 @@ func (enforcer *BpfEnforcer) eventHandler(stopCh <-chan struct{}) {
 			}
 
 		case <-stopCh:
-			logger.Info("stop handle the containerd events")
+			logger.Info("stop handling the containerd events")
 			return
 		}
 	}

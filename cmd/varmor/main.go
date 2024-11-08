@@ -28,9 +28,8 @@ import (
 	kubeinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/util/retry"
-	"k8s.io/klog/v2"
-	"k8s.io/klog/v2/klogr"
-	log "sigs.k8s.io/controller-runtime/pkg/log"
+	"k8s.io/klog/v2/textlogger"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	varmoragent "github.com/bytedance/vArmor/internal/agent"
 	"github.com/bytedance/vArmor/internal/config"
@@ -67,12 +66,14 @@ var (
 	bpfExclusiveMode         bool
 	enableMetrics            bool
 	statusUpdateCycle        time.Duration
+	auditLogPaths            string
 	setupLog                 = log.Log.WithName("SETUP")
 )
 
 func main() {
-	klog.InitFlags(nil)
-	log.SetLogger(klogr.New())
+	c := textlogger.NewConfig()
+	c.AddFlags(flag.CommandLine)
+	log.SetLogger(textlogger.NewLogger(c))
 
 	flag.StringVar(&kubeconfig, "kubeconfig", "", "Path to a kubeconfig. Only required if out-of-cluster.")
 	flag.IntVar(&webhookTimeout, "webhookTimeout", int(config.WebhookTimeout), "Timeout for webhook configurations.")
@@ -88,11 +89,8 @@ func main() {
 	flag.StringVar(&webhookMatchLabel, "webhookMatchLabel", "sandbox.varmor.org/enable=true", "Configure the matchLabel of webhook configuration, the valid format is key=value or nil")
 	flag.BoolVar(&bpfExclusiveMode, "bpfExclusiveMode", false, "Set this flag to enable exclusive mode for the BPF enforcer. It will disable the AppArmor confinement when using the BPF enforcer.")
 	flag.DurationVar(&statusUpdateCycle, "statusUpdateCycle", time.Hour*2, "Configure the status update cycle for VarmorPolicy and ArmorProfile")
+	flag.StringVar(&auditLogPaths, "auditLogPaths", "/var/log/audit/audit.log|/var/log/kern.log", "Configure the file search list to select the audit log file and read the AppArmor and Seccomp audit events. Please use a vertical bar to separate the file paths, the first valid file will be used to track the audit events.")
 	flag.BoolVar(&enableMetrics, "enableMetrics", false, "Set this flag to enable metrics.")
-	if err := flag.Set("v", "2"); err != nil {
-		setupLog.Error(err, "flag.Set()")
-		os.Exit(1)
-	}
 	flag.Parse()
 
 	// Set the webhook matchLabels configuration.
@@ -168,6 +166,7 @@ func main() {
 			managerIP,
 			config.StatusServicePort,
 			config.ClassifierServicePort,
+			auditLogPaths,
 			stopCh,
 			metricsModule,
 			log.Log.WithName("AGENT"),

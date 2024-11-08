@@ -228,17 +228,14 @@ func (c *ClusterPolicyController) updateVarmorClusterPolicyStatus(
 	return err
 }
 
-func (c *ClusterPolicyController) ignoreAdd(vcp *varmor.VarmorClusterPolicy, logger logr.Logger) bool {
+func (c *ClusterPolicyController) ignoreAdd(vcp *varmor.VarmorClusterPolicy, logger logr.Logger) (bool, error) {
 	if vcp.Spec.Target.Kind != "Deployment" && vcp.Spec.Target.Kind != "StatefulSet" && vcp.Spec.Target.Kind != "DaemonSet" && vcp.Spec.Target.Kind != "Pod" {
 		err := fmt.Errorf("Target.Kind is not supported")
 		logger.Error(err, "update VarmorClusterPolicy/status with forbidden info")
 		err = c.updateVarmorClusterPolicyStatus(vcp, "", false, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyCreated, apicorev1.ConditionFalse,
 			"Forbidden",
 			"This kind of target is not supported.")
-		if err != nil {
-			logger.Error(err, "updateVarmorClusterPolicyStatus()")
-		}
-		return true
+		return true, err
 	}
 
 	if vcp.Spec.Target.Name == "" && vcp.Spec.Target.Selector == nil {
@@ -247,10 +244,7 @@ func (c *ClusterPolicyController) ignoreAdd(vcp *varmor.VarmorClusterPolicy, log
 		err = c.updateVarmorClusterPolicyStatus(vcp, "", false, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyCreated, apicorev1.ConditionFalse,
 			"Forbidden",
 			"You should specify the target workload by name or selector.")
-		if err != nil {
-			logger.Error(err, "updateVarmorClusterPolicyStatus()")
-		}
-		return true
+		return true, err
 	}
 
 	if vcp.Spec.Target.Name != "" && vcp.Spec.Target.Selector != nil {
@@ -259,10 +253,16 @@ func (c *ClusterPolicyController) ignoreAdd(vcp *varmor.VarmorClusterPolicy, log
 		err = c.updateVarmorClusterPolicyStatus(vcp, "", false, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyCreated, apicorev1.ConditionFalse,
 			"Forbidden",
 			"You shouldn't specify the target workload by both name and selector.")
-		if err != nil {
-			logger.Error(err, "updateVarmorClusterPolicyStatus()")
-		}
-		return true
+		return true, err
+	}
+
+	if vcp.Spec.Policy.Mode == varmortypes.EnhanceProtectMode && vcp.Spec.Policy.EnhanceProtect == nil {
+		err := fmt.Errorf("the EnhanceProtect field is not set when running with EnhanceProtect mode")
+		logger.Error(err, "update VarmorClusterPolicy/status with forbidden info")
+		err = c.updateVarmorClusterPolicyStatus(vcp, "", false, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyCreated, apicorev1.ConditionFalse,
+			"Forbidden",
+			"The EnhanceProtect field should be set when running with EnhanceProtect mode.")
+		return true, err
 	}
 
 	if !c.enableBehaviorModeling && vcp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode {
@@ -271,10 +271,16 @@ func (c *ClusterPolicyController) ignoreAdd(vcp *varmor.VarmorClusterPolicy, log
 		err = c.updateVarmorClusterPolicyStatus(vcp, "", false, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyCreated, apicorev1.ConditionFalse,
 			"Forbidden",
 			"The BehaviorModeling feature is not enabled.")
-		if err != nil {
-			logger.Error(err, "updateVarmorClusterPolicyStatus()")
-		}
-		return true
+		return true, err
+	}
+
+	if c.enableBehaviorModeling && vcp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode && vcp.Spec.Policy.ModelingOptions == nil {
+		err := fmt.Errorf("the ModelingOptions field is not set when running with BehaviorModeling mode")
+		logger.Error(err, "update VarmorClusterPolicy/status with forbidden info")
+		err = c.updateVarmorClusterPolicyStatus(vcp, "", false, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyCreated, apicorev1.ConditionFalse,
+			"Forbidden",
+			"The ModelingOptions field should be set when running with BehaviorModeling mode.")
+		return true, err
 	}
 
 	// Do not exceed the length of a standard Kubernetes name (63 characters)
@@ -287,13 +293,10 @@ func (c *ClusterPolicyController) ignoreAdd(vcp *varmor.VarmorClusterPolicy, log
 		err = c.updateVarmorClusterPolicyStatus(vcp, "", false, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyCreated, apicorev1.ConditionFalse,
 			"Forbidden",
 			msg)
-		if err != nil {
-			logger.Error(err, "updateVarmorClusterPolicyStatus()")
-		}
-		return true
+		return true, err
 	}
 
-	return false
+	return false, nil
 }
 
 func (c *ClusterPolicyController) handleAddVarmorClusterPolicy(vcp *varmor.VarmorClusterPolicy) error {
@@ -301,13 +304,16 @@ func (c *ClusterPolicyController) handleAddVarmorClusterPolicy(vcp *varmor.Varmo
 
 	logger.Info("VarmorClusterPolicy created", "name", vcp.Name, "labels", vcp.Labels, "target", vcp.Spec.Target)
 
-	if c.ignoreAdd(vcp, logger) {
-		return nil
+	if ignore, err := c.ignoreAdd(vcp, logger); ignore {
+		if err != nil {
+			logger.Error(err, "ignoreAdd()")
+		}
+		return err
 	}
 
 	ap, err := varmorprofile.NewArmorProfile(vcp, c.varmorInterface, true)
 	if err != nil {
-		logger.Error(err, "NewArmorProfile() failed")
+		logger.Error(err, "NewArmorProfile()")
 		err = c.updateVarmorClusterPolicyStatus(vcp, "", false, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyCreated, apicorev1.ConditionFalse,
 			"Error",
 			err.Error())
@@ -413,10 +419,22 @@ func (c *ClusterPolicyController) ignoreUpdate(newVp *varmor.VarmorClusterPolicy
 		return true, err
 	}
 
+	// Make sure the EnhanceProtect field has been set when running with EnhanceProtect mode.
+	if newVp.Spec.Policy.Mode == varmortypes.EnhanceProtectMode &&
+		newVp.Spec.Policy.EnhanceProtect == nil {
+		err := fmt.Errorf("the EnhanceProtect field is not set when running with EnhanceProtect mode")
+		logger.Error(err, "update VarmorClusterPolicy/status with forbidden info")
+		err = c.updateVarmorClusterPolicyStatus(newVp, "", false, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyCreated, apicorev1.ConditionFalse,
+			"Forbidden",
+			"The EnhanceProtect field should be set when running with EnhanceProtect mode.")
+		return true, err
+	}
+
 	// Disallow modifying the VarmorClusterPolicy that run as BehaviorModeling mode and already completed.
 	if newVp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode &&
 		newVp.Status.Phase == varmortypes.VarmorPolicyCompleted {
-		if newVp.Spec.Policy.ModelingOptions.Duration != oldAp.Spec.BehaviorModeling.Duration {
+		if newVp.Spec.Policy.ModelingOptions == nil ||
+			newVp.Spec.Policy.ModelingOptions.Duration != oldAp.Spec.BehaviorModeling.Duration {
 			err := fmt.Errorf("disallow modifying the VarmorClusterPolicy that run as BehaviorModeling mode and already completed")
 			logger.Error(err, "update VarmorClusterPolicy/status with forbidden info")
 			err = c.updateVarmorClusterPolicyStatus(newVp, "", false, varmortypes.VarmorPolicyUnchanged, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionFalse,
@@ -427,6 +445,17 @@ func (c *ClusterPolicyController) ignoreUpdate(newVp *varmor.VarmorClusterPolicy
 			err := c.updateVarmorClusterPolicyStatus(newVp, "", true, varmortypes.VarmorPolicyUnchanged, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionTrue, "", "")
 			return true, err
 		}
+	}
+
+	// Make sure the ModelingOptions field has been set.
+	if newVp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode &&
+		newVp.Spec.Policy.ModelingOptions == nil {
+		err := fmt.Errorf("the ModelingOptions field is not set when running with BehaviorModeling mode")
+		logger.Error(err, "update VarmorClusterPolicy/status with forbidden info")
+		err = c.updateVarmorClusterPolicyStatus(newVp, "", false, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyCreated, apicorev1.ConditionFalse,
+			"Forbidden",
+			"The ModelingOptions field should be set when running with BehaviorModeling mode.")
+		return true, err
 	}
 
 	return false, nil
@@ -456,7 +485,7 @@ func (c *ClusterPolicyController) handleUpdateVarmorClusterPolicy(newVp *varmor.
 	newApSpec := oldAp.Spec.DeepCopy()
 	newProfile, err := varmorprofile.GenerateProfile(newVp.Spec.Policy, oldAp.Name, varmorconfig.Namespace, c.varmorInterface, false)
 	if err != nil {
-		logger.Error(err, "GenerateProfile() failed")
+		logger.Error(err, "GenerateProfile()")
 		err = c.updateVarmorClusterPolicyStatus(newVp, "", false, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyCreated, apicorev1.ConditionFalse,
 			"Error",
 			err.Error())

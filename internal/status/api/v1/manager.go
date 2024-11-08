@@ -503,7 +503,7 @@ func (m *StatusManager) reconcileStatus(stopCh <-chan struct{}) {
 			}
 			phase := varmortypes.VarmorPolicyProtecting
 			complete := false
-			if vSpec.Policy.Mode == varmortypes.BehaviorModelingMode {
+			if vSpec.Policy.Mode == varmortypes.BehaviorModelingMode && vSpec.Policy.ModelingOptions != nil {
 				phase = varmortypes.VarmorPolicyModeling
 
 				if modelingStatus, ok := m.ModelingStatuses[statusKey]; ok {

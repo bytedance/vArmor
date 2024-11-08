@@ -124,11 +124,11 @@ type MountRule struct {
 }
 
 type BpfRawRules struct {
-	Files     []FileRule  `json:"files,omitempty"`
-	Processes []FileRule  `json:"processes,omitempty"`
-	Network   NetworkRule `json:"network,omitempty"`
-	Ptrace    PtraceRule  `json:"ptrace,omitempty"`
-	Mounts    []MountRule `json:"mounts,omitempty"`
+	Files     []FileRule   `json:"files,omitempty"`
+	Processes []FileRule   `json:"processes,omitempty"`
+	Network   *NetworkRule `json:"network,omitempty"`
+	Ptrace    *PtraceRule  `json:"ptrace,omitempty"`
+	Mounts    []MountRule  `json:"mounts,omitempty"`
 }
 
 type EnhanceProtect struct {
@@ -146,7 +146,7 @@ type EnhanceProtect struct {
 	AppArmorRawRules []string `json:"appArmorRawRules,omitempty"`
 	// BpfRawRules is used to set native BPF rules
 	// +optional
-	BpfRawRules BpfRawRules `json:"bpfRawRules,omitempty"`
+	BpfRawRules *BpfRawRules `json:"bpfRawRules,omitempty"`
 	// SyscallRawRules is used to set the syscalls blocklist rules with Seccomp enforcer.
 	// +optional
 	SyscallRawRules []specs.LinuxSyscall `json:"syscallRawRules,omitempty"`
@@ -160,9 +160,8 @@ type EnhanceProtect struct {
 	// +optional
 	Privileged bool `json:"privileged,omitempty"`
 	// AuditViolations determines whether to audit the actions that violate the mandatory access
-	// control rules. Currently, this feature supports only the AppArmor enforcer. Any detected
-	// violation will be logged to the system's audit file. If you are using syslog or rsyslog,
-	// the default log path is `/var/log/kern.log`.
+	// control rules. Currently, this feature supports AppArmor and BPF enforcers. Any detected
+	// violation will be logged to `/var/log/varmor/violations.log` file in the host.
 	//
 	// Default is false.
 	// +optional
@@ -188,10 +187,10 @@ type Policy struct {
 	Mode VarmorPolicyMode `json:"mode"`
 	// EnhanceProtect is used to specify which built-in or custom rules are employed to protect the target workloads.
 	// +optional
-	EnhanceProtect EnhanceProtect `json:"enhanceProtect,omitempty"`
+	EnhanceProtect *EnhanceProtect `json:"enhanceProtect,omitempty"`
 	// ModelingOptions is used for the modeling settings.
 	// +optional
-	ModelingOptions ModelingOptions `json:"modelingOptions,omitempty"`
+	ModelingOptions *ModelingOptions `json:"modelingOptions,omitempty"`
 }
 
 // VarmorPolicySpec defines the desired state of VarmorPolicy or VarmorClusterPolicy

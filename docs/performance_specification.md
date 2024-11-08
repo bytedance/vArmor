@@ -20,7 +20,7 @@ vArmor user-space components use the resource quotas as shown in the table below
 
 | Version | Manager CPU | Manager Memory | Agent CPU   | Agent Memory |
 | ------- |:-----------:|:--------------:|:-----------:|:-----------------------------------------------------------------------------------------:|
-| v0.5.11 | 200m / 100m | 300Mi / 200Mi  | 200m / 100m | 100Mi / 40Mi (The BPF enforcer is disabled)<br>200Mi /100Mi (The BPF enforcer is enabled) |
+| v0.5.11 | 200m / 100m | 300Mi / 200Mi  | 200m / 100m | 100Mi / 40Mi (The BPF enforcer is disabled)<br />200Mi /100Mi (The BPF enforcer is enabled) |
 
 Explanation:
 
@@ -96,7 +96,7 @@ In this round of testing, we performed horizontal comparisons of two enforcers: 
 * **EnhanceProtect**
 
   Tested with EnhanceProtect Mode, with the following rules enabled:
-    - disable-cap-privilege
+    - disable-cap-privileged
     - disallow-umount
     - disallow-access-procfs-root
     - mitigate-disk-device-number-leak

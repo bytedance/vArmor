@@ -4,7 +4,7 @@
         <img src="docs/img/logo-dark.svg" alt="Logo" width="400">
     </picture>
 </div>
-<br>
+<br />
 
 ![BHArsenalUSA2024](docs/img/BlackHat-Arsenal-USA-2024.svg)
 [![Go Report Card](https://goreportcard.com/badge/github.com/bytedance/vArmor)](https://goreportcard.com/report/github.com/bytedance/vArmor)
@@ -74,7 +74,7 @@ vArmor references part of the code of [kyverno](https://github.com/kyverno/kyver
 
 
 ## Demo
-Below is a demonstration of using vArmor to harden a Deployment and defend against CVE-2021-22555. (The exploit is modified from [cve-2021-22555](https://github.com/google/security-research/tree/master/pocs/linux/cve-2021-22555))<br>
+Below is a demonstration of using vArmor to harden a Deployment and defend against CVE-2021-22555. (The exploit is modified from [cve-2021-22555](https://github.com/google/security-research/tree/master/pocs/linux/cve-2021-22555))<br />
 ![image](test/demos/CVE-2021-22555/demo.gif)
 
 

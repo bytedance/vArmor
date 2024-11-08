@@ -8,10 +8,10 @@ vArmor 的用户态组件和内核态组件对性能的影响因素如下表所�
 | 因素 | 说明 |
 | --- | ---- |
 | 集群规模                   | 集群规模越大，Manager 管理 Agent 所消耗的 CPU 和 内存越多 |
-| VarmorPolicy 数量和操作频率 | 大量创建 VarmorPolicy CR 时，Manager 会消耗更多的 CPU 和内存进行响应<br>频繁创建/修改/删除 VarmorPolicy CR 时，Manager 和 Agent 会消耗更多的 CPU 和内存进行响应 |
-| AppArmor LSM             | 开启 AppArmor LSM 为进程引入的基础开销<br>Profile 中的规则越多，对目标进程的性能影响越大|
-| BPF LSM                  | 开启 BPF LSM 为进程引入的基础开销<br>Profile 中的规则越多，对目标进程的性能影响越大 |
-| Seccomp                  | 开启 Seccomp 为进程引入的基础开销<br>Profile 中的规则越多，对目标进程的性能影响越大 |
+| VarmorPolicy 数量和操作频率 | 大量创建 VarmorPolicy CR 时，Manager 会消耗更多的 CPU 和内存进行响应<br />频繁创建/修改/删除 VarmorPolicy CR 时，Manager 和 Agent 会消耗更多的 CPU 和内存进行响应 |
+| AppArmor LSM             | 开启 AppArmor LSM 为进程引入的基础开销<br />Profile 中的规则越多，对目标进程的性能影响越大|
+| BPF LSM                  | 开启 BPF LSM 为进程引入的基础开销<br />Profile 中的规则越多，对目标进程的性能影响越大 |
+| Seccomp                  | 开启 Seccomp 为进程引入的基础开销<br />Profile 中的规则越多，对目标进程的性能影响越大 |
 
 ## 资源占用
 
@@ -19,7 +19,7 @@ vArmor 用户态组件默认使用下表所示的值进行资源申请
 
 | Version | Manager CPU | Manager Memory | Agent CPU   | Agent Memory |
 | ------- |:-----------:|:--------------:|:-----------:|:--------------------------------------------------------------------:|
-| v0.5.11 | 200m / 100m | 300Mi / 200Mi  | 200m / 100m | 100Mi / 40Mi (关闭 BPF enforcer 时)<br>200Mi /100Mi (开启 BPF enforcer 时) |
+| v0.5.11 | 200m / 100m | 300Mi / 200Mi  | 200m / 100m | 100Mi / 40Mi (关闭 BPF enforcer 时)<br />200Mi /100Mi (开启 BPF enforcer 时) |
 
 说明：
 
@@ -93,7 +93,7 @@ vArmor 用户态组件默认使用下表所示的值进行资源申请
 * EnhanceProtect
 
   使用 EnhanceProtect Mode 进行测试，开启如下 rules
-  - disable-cap-privilege
+  - disable-cap-privileged
   - disallow-umount
   - disallow-access-procfs-root
   - mitigate-disk-device-number-leak

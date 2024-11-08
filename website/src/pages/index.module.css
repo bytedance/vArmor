@@ -1,0 +1,30 @@
+/* src/pages/index.module.css */
+
+.heroBanner {
+  background-color: #282c34;
+  color: white;
+  padding: 50px 0;
+}
+
+.buttons {
+  margin-top: 20px;
+}
+
+.features {
+  padding: 40px 0;
+}
+
+.featureSvg {
+  max-width: 100%;
+  height: auto;
+}
+
+.container h2 {
+  margin-top: 40px;
+}
+
+pre {
+  background-color: #f7f7f7;
+  padding: 15px;
+  border-radius: 5px;
+}

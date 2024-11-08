@@ -45,6 +45,7 @@ vArmor allows you to configure its functionality during installation using the h
 | `--set removeAllSeccompProfiles.enabled=true` | Default: disabled. When enabled, all Seccomp profiles created by vArmor will be unloaded when the Agent exits.
 | `--set "manager.args={--webhookMatchLabel=KEY=VALUE}"` | The default value is: `sandbox.varmor.org/enable=true`. vArmor will only enable sandbox protection for Workloads that contain this label. You can disable this feature by using `--set 'manager.args={--webhookMatchLabel=}'`.
 | `--set behaviorModeling.enabled=true` | Default: disabled. Experimental feature. Currently, only the AppArmor/Seccomp enforcer supports the BehaviorModeling mode. Please refer to the [BehaviorModeling Mode](behavior_modeling.md) for more details.
+| `--set "agent.args={--auditLogPaths=FILE_PATH\|FILE_PATH}"` | Default: `/var/log/audit/audit.log\|/var/log/kern.log`. vArmor sequentially searches audit log files and monitors the first valid file to consume AppArmor and Seccomp audit events for violation auditing and behavioral modeling. Please use a vertical bar to separate file paths.
 
 ## Upgrade
 

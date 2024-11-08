@@ -25,7 +25,7 @@ import (
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
 type CapabilitiesContent struct {
-	Mode         uint32 `json:"mode"`
+	Mode         uint32 `json:"mode,omitempty"`
 	Capabilities uint64 `json:"capabilities"`
 }
 
@@ -36,13 +36,13 @@ type PathPattern struct {
 }
 
 type FileContent struct {
-	Mode        uint32      `json:"mode"`
+	Mode        uint32      `json:"mode,omitempty"`
 	Permissions uint32      `json:"permissions"`
 	Pattern     PathPattern `json:"pattern"`
 }
 
 type NetworkContent struct {
-	Mode    uint32 `json:"mode"`
+	Mode    uint32 `json:"mode,omitempty"`
 	Flags   uint32 `json:"flags"`
 	Address string `json:"address,omitempty"`
 	CIDR    string `json:"cidr,omitempty"`
@@ -50,13 +50,13 @@ type NetworkContent struct {
 }
 
 type PtraceContent struct {
-	Mode        uint32 `json:"mode"`
+	Mode        uint32 `json:"mode,omitempty"`
 	Permissions uint32 `json:"permissions,omitempty"`
 	Flags       uint32 `json:"flags,omitempty"`
 }
 
 type MountContent struct {
-	Mode              uint32      `json:"mode"`
+	Mode              uint32      `json:"mode,omitempty"`
 	MountFlags        uint32      `json:"mountFlags"`
 	ReverseMountflags uint32      `json:"reverseMountflags"`
 	Pattern           PathPattern `json:"pattern"`
