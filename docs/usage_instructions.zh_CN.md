@@ -37,10 +37,10 @@ vArmor 支持在创建或删除 VarmorPolicy/VarmorClusterPolicy 对象时，对
   |     |Modeling|正在对目标应用行为建模
   |     |Completed|已完成目标应用的行为建模
   |     |Error|处理出错，请查看 Conditions 相关信息获取错误原因
-  |Conditions|Type=Created<br>Status=True|VarmorPolicy 的创建事件已经被 controller 响应，且处理成功
-  |          |Type=Created<br>Status=False<br>Reason=XXX<br>Message=YYY|VarmorPolicy 的创建事件已经被 controller 响应，但处理失败。包含失败的原因及错误信息
-  |          |Type=Updated<br>Status=True|VarmorPolicy 的更新事件已经被 controller 响应，且处理成功
-  |          |Type=Updated<br>Status=False<br>Reason=XXX<br>Message=YYY|VarmorPolicy 的更新事件已经被 controller 响应，但处理失败。包含失败的原因及错误信息
+  |Conditions|Type=Created<br />Status=True|VarmorPolicy 的创建事件已经被 controller 响应，且处理成功
+  |          |Type=Created<br />Status=False<br />Reason=XXX<br />Message=YYY|VarmorPolicy 的创建事件已经被 controller 响应，但处理失败。包含失败的原因及错误信息
+  |          |Type=Updated<br />Status=True|VarmorPolicy 的更新事件已经被 controller 响应，且处理成功
+  |          |Type=Updated<br />Status=False<br />Reason=XXX<br />Message=YYY|VarmorPolicy 的更新事件已经被 controller 响应，但处理失败。包含失败的原因及错误信息
   |Ready|True|Profile 已经被所有的 Agents 处理和加载
   |     |False|Profile 还未被所有的 Agents 处理和加载
 
@@ -60,7 +60,7 @@ vArmor 支持在创建或删除 VarmorPolicy/VarmorClusterPolicy 对象时，对
     |---|--|---|
     |DesiredNumberLoaded|int|期望处理并响应的 Agent 数量
     |CurrentNumberLoaded|int|已经处理并响应的 Agent 数量
-    |Conditions|type=Read<br>Status=False<br>NodeName=XXX<br>Message=YYY|处理失败的节点，以及错误信息
+    |Conditions|type=Read<br />Status=False<br />NodeName=XXX<br />Message=YYY|处理失败的节点，以及错误信息
 
 ## 示例
 
