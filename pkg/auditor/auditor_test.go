@@ -27,7 +27,7 @@ func Test_SystemdJournald(t *testing.T) {
 
 	c := textlogger.NewConfig()
 	log.SetLogger(textlogger.NewLogger(c))
-	a, err := NewAuditor("test", true, false, log.Log.WithName("AUDIT-VIOLATIONS"))
+	a, err := NewAuditor("test", true, false, true, log.Log.WithName("AUDIT-VIOLATIONS"))
 	assert.NilError(t, err)
 
 	syncCh := make(chan struct{}, 1)

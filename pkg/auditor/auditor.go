@@ -36,52 +36,54 @@ const (
 )
 
 type Auditor struct {
-	nodeName             string
-	bootTimestamp        uint64
-	appArmorSupported    bool
-	bpfLsmSupported      bool
-	TaskStartCh          chan varmortypes.ContainerInfo
-	TaskDeleteCh         chan varmortypes.ContainerInfo
-	TaskDeleteSyncCh     chan bool
-	mntNsIDCache         map[uint32]uint32                      // key: The init PID of contaienr, value: The mnt ns id
-	containerCache       map[uint32]varmortypes.ContainerInfo   // key: The mnt ns id of container, value: The container information
-	auditEventChs        map[string]chan<- string               // auditEventChs used for sending apparmor & seccomp behavior event to subscribers
-	bpfEventChs          map[string]chan<- bpfenforcer.BpfEvent // bpfEventChs used for sending bpf behavior event to subscribers
-	journalReader        *sdjournal.JournalReader
-	journalReaderTimeout chan time.Time
-	savedRateLimit       uint64
-	auditRbMap           *ebpf.Map
-	capabilityMap        map[uint32]string
-	filePermissionMap    map[uint32]string
-	ptracePermissionMap  map[uint32]string
-	mountFlagMap         map[uint32]string
-	violationLogger      zerolog.Logger
-	log                  logr.Logger
+	nodeName               string
+	bootTimestamp          uint64
+	appArmorSupported      bool
+	bpfLsmSupported        bool
+	enableBehaviorModeling bool
+	TaskStartCh            chan varmortypes.ContainerInfo
+	TaskDeleteCh           chan varmortypes.ContainerInfo
+	TaskDeleteSyncCh       chan bool
+	mntNsIDCache           map[uint32]uint32                      // key: The init PID of contaienr, value: The mnt ns id
+	containerCache         map[uint32]varmortypes.ContainerInfo   // key: The mnt ns id of container, value: The container information
+	auditEventChs          map[string]chan<- string               // auditEventChs used for sending apparmor & seccomp behavior event to subscribers
+	bpfEventChs            map[string]chan<- bpfenforcer.BpfEvent // bpfEventChs used for sending bpf behavior event to subscribers
+	journalReader          *sdjournal.JournalReader
+	journalReaderTimeout   chan time.Time
+	savedRateLimit         uint64
+	auditRbMap             *ebpf.Map
+	capabilityMap          map[uint32]string
+	filePermissionMap      map[uint32]string
+	ptracePermissionMap    map[uint32]string
+	mountFlagMap           map[uint32]string
+	violationLogger        zerolog.Logger
+	log                    logr.Logger
 }
 
 // NewAuditor creates an auditor to audit the violations of target containers
-func NewAuditor(nodeName string, appArmorSupported, bpfLsmSupported bool, log logr.Logger) (*Auditor, error) {
+func NewAuditor(nodeName string, appArmorSupported, bpfLsmSupported, enableBehaviorModeling bool, log logr.Logger) (*Auditor, error) {
 	auditor := Auditor{
-		nodeName:            nodeName,
-		appArmorSupported:   appArmorSupported,
-		bpfLsmSupported:     bpfLsmSupported,
-		TaskStartCh:         make(chan varmortypes.ContainerInfo, 100),
-		TaskDeleteCh:        make(chan varmortypes.ContainerInfo, 100),
-		TaskDeleteSyncCh:    make(chan bool, 1),
-		mntNsIDCache:        make(map[uint32]uint32, 100),
-		containerCache:      make(map[uint32]varmortypes.ContainerInfo, 100),
-		auditEventChs:       make(map[string]chan<- string),
-		bpfEventChs:         make(map[string]chan<- bpfenforcer.BpfEvent),
-		savedRateLimit:      0,
-		capabilityMap:       initCapabilityMap(),
-		filePermissionMap:   initFilePermissionMap(),
-		ptracePermissionMap: initPtracePermissionMap(),
-		mountFlagMap:        initMountFlagMap(),
-		log:                 log,
+		nodeName:               nodeName,
+		appArmorSupported:      appArmorSupported,
+		bpfLsmSupported:        bpfLsmSupported,
+		enableBehaviorModeling: enableBehaviorModeling,
+		TaskStartCh:            make(chan varmortypes.ContainerInfo, 100),
+		TaskDeleteCh:           make(chan varmortypes.ContainerInfo, 100),
+		TaskDeleteSyncCh:       make(chan bool, 1),
+		mntNsIDCache:           make(map[uint32]uint32, 100),
+		containerCache:         make(map[uint32]varmortypes.ContainerInfo, 100),
+		auditEventChs:          make(map[string]chan<- string),
+		bpfEventChs:            make(map[string]chan<- bpfenforcer.BpfEvent),
+		savedRateLimit:         0,
+		capabilityMap:          initCapabilityMap(),
+		filePermissionMap:      initFilePermissionMap(),
+		ptracePermissionMap:    initPtracePermissionMap(),
+		mountFlagMap:           initMountFlagMap(),
+		log:                    log,
 	}
 
 	// Create a systemd-journald reader to read the kernel events
-	if appArmorSupported {
+	if appArmorSupported || enableBehaviorModeling {
 		r, err := sdjournal.NewJournalReader(sdjournal.JournalReaderConfig{
 			Since: time.Duration(-5) * time.Second,
 			Matches: []sdjournal.Match{
@@ -195,7 +197,7 @@ func (auditor *Auditor) DeleteBehaviorEventNotifyCh(subscriber string) {
 }
 
 func (auditor *Auditor) Run(stopCh <-chan struct{}) {
-	if auditor.appArmorSupported {
+	if auditor.appArmorSupported || auditor.enableBehaviorModeling {
 		go auditor.readFromSystemdJournald()
 	}
 	if auditor.bpfLsmSupported {
@@ -205,7 +207,7 @@ func (auditor *Auditor) Run(stopCh <-chan struct{}) {
 }
 
 func (auditor *Auditor) Close() {
-	if auditor.appArmorSupported {
+	if auditor.appArmorSupported || auditor.enableBehaviorModeling {
 		auditor.journalReaderTimeout <- time.Now()
 		auditor.journalReader.Close()
 	}
