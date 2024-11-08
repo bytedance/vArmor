@@ -41,6 +41,7 @@ helm install varmor varmor-0.5.11.tgz \
 | `--set removeAllSeccompProfiles.enabled=true` | 默认关闭；开启后，Agent 退出时，将会删除所有由 vArmor 创建的 Seccomp Profile。
 | `--set "manager.args={--webhookMatchLabel=KEY=VALUE}"` | 默认值为：`sandbox.varmor.org/enable=true`。vArmor 只会对包含此 label 的 Workloads 开启沙箱防护。你可以使用 `--set 'manager.args={--webhookMatchLabel=}'` 关闭此特性。
 | `--set behaviorModeling.enabled=true` | 默认关闭；此为实验功能，仅 AppArmor/Seccomp enforcer 支持 BehaviorModeling 模式。请参见 [The BehaviorModeling Mode](behavior_modeling.md)。
+| `--set "agent.args={--auditLogPaths=FILE_PATH\|FILE_PATH}"` | 默认值为：`/var/log/audit/audit.log\|/var/log/kern.log`。vArmor 会按顺序搜索审计日志文件，并监控第一个有效的文件来消费 AppArmor 和 Seccomp 的审计事件，用于违规审计和行为建模。请使用`|`分隔文件路径。
 
 ## 更新
 
