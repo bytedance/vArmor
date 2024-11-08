@@ -68,11 +68,6 @@ spec:
           name: containerd
         - mountPath: /var/log
           name: var-log-dir
-        - mountPath: /run/log
-          name: run-log-dir
-        - mountPath: /etc/machine-id
-          name: machine-id
-          readOnly: true
         - mountPath: /var/run/secrets/tokens
           name: bound-token
         {{- if .Values.appArmorLsmEnforcer.enabled }}
@@ -121,14 +116,6 @@ spec:
           path: /var/log
           type: Directory
         name: var-log-dir
-      - hostPath:
-          path: /run/log
-          type: Directory
-        name: run-log-dir
-      - hostPath:
-          path: /etc/machine-id
-          type: File
-        name: machine-id
       - projected:
           sources:
           - serviceAccountToken:

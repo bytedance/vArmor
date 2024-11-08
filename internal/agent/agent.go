@@ -238,13 +238,13 @@ func NewAgent(
 	}
 
 	// Create an auditor to audit violation and behavior events for AppArmor, Seccomp and BPF enforcers
-	agent.auditor, err = varmorauditor.NewAuditor(agent.nodeName, agent.appArmorSupported, agent.bpfLsmSupported, agent.enableBehaviorModeling, log.WithName("AUDIT-VIOLATIONS"))
+	agent.auditor, err = varmorauditor.NewAuditor(agent.nodeName, agent.appArmorSupported, agent.bpfLsmSupported, agent.enableBehaviorModeling, log.WithName("AUDITOR"))
 	if err != nil {
 		return nil, err
 	}
 
 	// Subscribe auditor to the monitor
-	agent.monitor.AddTaskNotifyChs("AUDIT-VIOLATIONS", &agent.auditor.TaskStartCh, &agent.auditor.TaskDeleteCh, &agent.auditor.TaskDeleteSyncCh)
+	agent.monitor.AddTaskNotifyChs("AUDITOR", &agent.auditor.TaskStartCh, &agent.auditor.TaskDeleteCh, &agent.auditor.TaskDeleteSyncCh)
 
 	// [Experimental feature]
 	//     Initialize the process tracer for BehaviorModeling mode.

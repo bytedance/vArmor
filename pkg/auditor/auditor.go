@@ -15,13 +15,15 @@
 package audit
 
 import (
+	"fmt"
+	"io"
 	"os"
 	"path/filepath"
-	"time"
+	"strings"
 
 	"github.com/cilium/ebpf"
-	"github.com/coreos/go-systemd/v22/sdjournal"
 	"github.com/go-logr/logr"
+	"github.com/nxadm/tail"
 	"github.com/rs/zerolog"
 	"gopkg.in/natefinch/lumberjack.v2"
 
@@ -33,6 +35,7 @@ import (
 const (
 	logDirectory    = "/var/log/varmor"
 	ratelimitSysctl = "/proc/sys/kernel/printk_ratelimit"
+	auditLogPaths   = "/var/log/audit/audit.log|/var/log/kern.log"
 )
 
 type Auditor struct {
@@ -48,8 +51,8 @@ type Auditor struct {
 	containerCache         map[uint32]varmortypes.ContainerInfo   // key: The mnt ns id of container, value: The container information
 	auditEventChs          map[string]chan<- string               // auditEventChs used for sending apparmor & seccomp behavior event to subscribers
 	bpfEventChs            map[string]chan<- bpfenforcer.BpfEvent // bpfEventChs used for sending bpf behavior event to subscribers
-	journalReader          *sdjournal.JournalReader
-	journalReaderTimeout   chan time.Time
+	auditLogPath           string
+	auditLogTail           *tail.Tail
 	savedRateLimit         uint64
 	auditRbMap             *ebpf.Map
 	capabilityMap          map[uint32]string
@@ -82,21 +85,30 @@ func NewAuditor(nodeName string, appArmorSupported, bpfLsmSupported, enableBehav
 		log:                    log,
 	}
 
-	// Create a systemd-journald reader to read the kernel events
+	// Create a tail reader to read the audit events
 	if appArmorSupported || enableBehaviorModeling {
-		r, err := sdjournal.NewJournalReader(sdjournal.JournalReaderConfig{
-			Since: time.Duration(-5) * time.Second,
-			Matches: []sdjournal.Match{
-				{
-					Field: sdjournal.SD_JOURNAL_FIELD_TRANSPORT,
-					Value: "kernel",
-				},
-			}})
+		for _, path := range strings.Split(auditLogPaths, "|") {
+			_, err := os.Stat(path)
+			if err == nil {
+				auditor.auditLogPath = path
+				break
+			}
+		}
+		if auditor.auditLogPath == "" {
+			return nil, fmt.Errorf("please specify the correct file path that stores the audit logs for AppArmor and Seccomp")
+		}
+		t, err := tail.TailFile(auditor.auditLogPath,
+			tail.Config{
+				Location:      &tail.SeekInfo{Offset: 0, Whence: io.SeekEnd},
+				ReOpen:        true,
+				Follow:        true,
+				CompleteLines: true,
+			})
 		if err != nil {
 			return nil, err
 		}
-		auditor.journalReader = r
-		auditor.journalReaderTimeout = make(chan time.Time)
+		auditor.auditLogTail = t
+		auditor.log.Info("start tailing audit log", "path", auditor.auditLogPath)
 	}
 
 	// Load the ringbuf map of BPF enforcer
@@ -198,7 +210,7 @@ func (auditor *Auditor) DeleteBehaviorEventNotifyCh(subscriber string) {
 
 func (auditor *Auditor) Run(stopCh <-chan struct{}) {
 	if auditor.appArmorSupported || auditor.enableBehaviorModeling {
-		go auditor.readFromSystemdJournald()
+		go auditor.readFromAuditLogFile()
 	}
 	if auditor.bpfLsmSupported {
 		go auditor.readFromAuditEventRingBuf()
@@ -208,8 +220,8 @@ func (auditor *Auditor) Run(stopCh <-chan struct{}) {
 
 func (auditor *Auditor) Close() {
 	if auditor.appArmorSupported || auditor.enableBehaviorModeling {
-		auditor.journalReaderTimeout <- time.Now()
-		auditor.journalReader.Close()
+		auditor.auditLogTail.Stop()
+		auditor.auditLogTail.Cleanup()
 	}
 	if auditor.bpfLsmSupported {
 		auditor.auditRbMap.Close()
