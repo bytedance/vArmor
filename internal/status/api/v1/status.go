@@ -76,7 +76,7 @@ func (m *StatusManager) HandleProfileStatusUpdate(status varmortypes.ProfileStat
 		attribute.String("node_name", status.NodeName),
 	}
 
-	if status.Status == "Success" {
+	if status.Status == varmortypes.Succeeded {
 		m.profileSuccess.Add(ctx, 1, metric.WithAttributes(labels...))
 	} else {
 		m.profileFailure.Add(ctx, 1, metric.WithAttributes(labels...))
@@ -84,7 +84,7 @@ func (m *StatusManager) HandleProfileStatusUpdate(status varmortypes.ProfileStat
 
 	m.profileChangeCount.Add(ctx, 1, metric.WithAttributes(labels...))
 
-	if status.Status == "Success" {
+	if status.Status == varmortypes.Succeeded {
 		m.profileStatusPerNode.Record(ctx, 1, metric.WithAttributes(labels...)) // 1 mean success
 	} else {
 		m.profileStatusPerNode.Record(ctx, 0, metric.WithAttributes(labels...)) // 0 mean failure

@@ -56,6 +56,10 @@ spec:
         {{- with .Values.manager.bpfExclusiveMode.args }}
           {{- toYaml . | nindent 8 }}
         {{- end }}
+        { { - if .Values.enableMetrics.enabled } }
+        { { - with .Values.manager.enableMetrics.args } }
+        { { - toYaml . | nindent 8 } }
+        { { - end } }
         {{- end }}
         {{- end }}
         securityContext:
@@ -67,6 +71,11 @@ spec:
         - name: status
           containerPort: 8080
           protocol: TCP
+        { { - if .Values.enableMetrics.enabled } }
+        - name: metrics
+          containerPort: 8081
+          protocol: TCP
+        {{- end }}
         resources:
           {{- toYaml .Values.manager.resources | nindent 10 }}
       {{- with .Values.manager.nodeSelector }}

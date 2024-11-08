@@ -63,10 +63,10 @@ type StatusManager struct {
 	debug                bool
 	log                  logr.Logger
 	metricsModule        *metrics.MetricsModule
-	profileSuccess       metric.Int64Counter
-	profileFailure       metric.Int64Counter
-	profileChangeCount   metric.Int64Counter
-	profileStatusPerNode metric.Int64Gauge
+	profileSuccess       metric.Float64Counter
+	profileFailure       metric.Float64Counter
+	profileChangeCount   metric.Float64Counter
+	profileStatusPerNode metric.Float64Gauge
 }
 
 func NewStatusManager(coreInterface corev1.CoreV1Interface, appsInterface appsv1.AppsV1Interface, varmorInterface varmorinterface.CrdV1beta1Interface, statusUpdateCycle time.Duration, debug bool, metricsModule *metrics.MetricsModule, log logr.Logger) *StatusManager {
@@ -89,10 +89,10 @@ func NewStatusManager(coreInterface corev1.CoreV1Interface, appsInterface appsv1
 		log:               log,
 	}
 	if metricsModule.Enabled {
-		m.profileSuccess = metricsModule.RegisterInt64Counter("profile_processing_success", "Number of successful profile processing")
-		m.profileFailure = metricsModule.RegisterInt64Counter("profile_processing_failure", "Number of failed profile processing")
-		m.profileChangeCount = metricsModule.RegisterInt64Counter("profile_change_count", "Number of profile change")
-		m.profileStatusPerNode = metricsModule.RegisterInt64Gauge("profile_status_per_node", "Number of profile status per node")
+		m.profileSuccess = metricsModule.RegisterFloat64Counter("profile_processing_success", "Number of successful profile processing")
+		m.profileFailure = metricsModule.RegisterFloat64Counter("profile_processing_failure", "Number of failed profile processing")
+		m.profileChangeCount = metricsModule.RegisterFloat64Counter("profile_change_count", "Number of profile change")
+		m.profileStatusPerNode = metricsModule.RegisterFloat64Gauge("profile_status_per_node", "Profile status per node (1=success, 0=failure)")
 	}
 	return &m
 }

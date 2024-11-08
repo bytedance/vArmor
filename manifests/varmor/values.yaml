@@ -15,6 +15,10 @@ appArmorLsmEnforcer:
 bpfLsmEnforcer:
   enabled: false
 
+enableMetrics:
+  enabled: false
+  serviceMonitorEnabled: false
+
 restartExistWorkloads:
   enabled: true
 
@@ -96,7 +100,9 @@ manager:
     requests:
       cpu: 100m
       memory: 200Mi
-
+  enableMetrics:
+    args:
+      - --enableMetrics
   autoscaling:
     enabled: false
     minReplicas: 3

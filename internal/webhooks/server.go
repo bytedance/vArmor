@@ -19,6 +19,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"github.com/bytedance/vArmor/pkg/metrics"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 	"net/http"
 	"time"
@@ -51,9 +52,9 @@ type WebhookServer struct {
 	deserializer       runtime.Decoder
 	bpfExclusiveMode   bool
 	metricsModule      *metrics.MetricsModule
-	admissionRequests  metric.Int64Counter
-	mutatedRequests    metric.Int64Counter
-	nonMutatedRequests metric.Int64Counter
+	admissionRequests  metric.Float64Counter
+	mutatedRequests    metric.Float64Counter
+	nonMutatedRequests metric.Float64Counter
 	webhookLatency     metric.Float64Histogram
 	log                logr.Logger
 }
@@ -77,9 +78,9 @@ func NewWebhookServer(
 		log:              log,
 	}
 	if metricsModule.Enabled {
-		ws.admissionRequests = metricsModule.RegisterInt64Counter("admission_requests_total", "Total number of admission requests")
-		ws.mutatedRequests = metricsModule.RegisterInt64Counter("mutated_requests", "Number of requests that were mutated")
-		ws.nonMutatedRequests = metricsModule.RegisterInt64Counter("non_mutated_requests", "Number of requests that were not mutated")
+		ws.admissionRequests = metricsModule.RegisterFloat64Counter("admission_requests_total", "Total number of admission requests")
+		ws.mutatedRequests = metricsModule.RegisterFloat64Counter("mutated_requests", "Number of requests that were mutated")
+		ws.nonMutatedRequests = metricsModule.RegisterFloat64Counter("non_mutated_requests", "Number of requests that were not mutated")
 		ws.webhookLatency = metricsModule.RegisterHistogram("webhook_latency", "Latency of webhook processing", 0.1, 0.5, 1, 2, 5)
 	}
 	scheme := runtime.NewScheme()
@@ -166,7 +167,15 @@ func (ws *WebhookServer) handlerFunc(handler func(request *admissionv1.Admission
 		writeResponse(rw, admissionReview)
 
 		if ws.webhookLatency != nil {
-			ws.webhookLatency.Record(ctx, time.Since(startTime).Seconds())
+			keyValues := []attribute.KeyValue{
+				attribute.String("uid", string(request.UID)),
+				attribute.String("kind", request.Kind.String()),
+				attribute.String("namespace", request.Namespace),
+				attribute.String("name", request.Name),
+				attribute.String("operation", string(request.Operation)),
+				attribute.String("allowed", fmt.Sprintf("%t", admissionReview.Response.Allowed)),
+			}
+			ws.webhookLatency.Record(ctx, time.Since(startTime).Seconds(), metric.WithAttributes(keyValues...))
 		}
 		logger.V(3).Info("AdmissionRequest processed", "time", time.Since(startTime).String())
 	}

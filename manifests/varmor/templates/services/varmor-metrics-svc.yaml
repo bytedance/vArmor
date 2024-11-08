@@ -1,0 +1,22 @@
+{{- if .Values.enableMetrics.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "varmor.manager.fullname" . }}-metrics
+  namespace: {{ include "varmor.namespace" . }}
+  labels:
+    {{- include "varmor.manager.labels" . | nindent 4 }}
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8081"
+    prometheus.io/path: "/metrics"
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8081
+      targetPort: metrics
+      protocol: TCP
+      name: metrics
+  selector:
+    {{- include "varmor.manager.selectorLabels" . | nindent 4 }}
+  {{- end }}

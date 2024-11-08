@@ -29,9 +29,9 @@ func NewMetricsModule(log logr.Logger, enabled bool) *MetricsModule {
 	meter := provider.Meter(MeterName)
 	if enabled == true {
 		go func() {
-			log.Info("Serving metrics at :8822/metrics")
+			log.Info("Serving metrics at :8081/metrics")
 			http.Handle("/metrics", promhttp.Handler())
-			err := http.ListenAndServe(":8822", nil)
+			err := http.ListenAndServe(":8081", nil)
 			if err != nil {
 				log.Error(err, "failed to start metrics server")
 			}
@@ -43,15 +43,15 @@ func NewMetricsModule(log logr.Logger, enabled bool) *MetricsModule {
 		Enabled: enabled,
 	}
 }
-func (m *MetricsModule) RegisterCounter(name string, description string) metric.Float64Counter {
-	counter, err := m.meter.Float64Counter(name, metric.WithDescription(description))
+func (m *MetricsModule) RegisterInt64Counter(name string, description string) metric.Int64Counter {
+	counter, err := m.meter.Int64Counter(name, metric.WithDescription(description))
 	if err != nil {
 		m.log.Error(err, "failed to create counter")
 	}
 	return counter
 }
-func (m *MetricsModule) RegisterInt64Counter(name string, description string) metric.Int64Counter {
-	counter, err := m.meter.Int64Counter(name, metric.WithDescription(description))
+func (m *MetricsModule) RegisterFloat64Counter(name string, description string) metric.Float64Counter {
+	counter, err := m.meter.Float64Counter(name, metric.WithDescription(description))
 	if err != nil {
 		m.log.Error(err, "failed to create counter")
 	}
@@ -66,8 +66,15 @@ func (m *MetricsModule) RegisterGauge(name string, description string) metric.Fl
 	return gauge
 }
 
-func (m *MetricsModule) RegisterInt64Gauge(name string, description string) metric.Int64Gauge {
-	gauge, err := m.meter.Int64Gauge(name, metric.WithDescription(description))
+func (m *MetricsModule) RegisterFloat64Gauge(name string, description string) metric.Float64Gauge {
+	gauge, err := m.meter.Float64Gauge(name, metric.WithDescription(description))
+	if err != nil {
+		log.Fatalf("failed to create gauge: %v", err)
+	}
+	return gauge
+}
+func (m *MetricsModule) RegisterFloat64ObservableGauge(name string, options ...metric.Float64ObservableGaugeOption) metric.Float64ObservableGauge {
+	gauge, err := m.meter.Float64ObservableGauge(name, options...)
 	if err != nil {
 		log.Fatalf("failed to create gauge: %v", err)
 	}
