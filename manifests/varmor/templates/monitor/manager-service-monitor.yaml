@@ -1,4 +1,4 @@
-{{- if and .Values.enableMetrics.enabled .Values.enableMetrics.serviceMonitorEnabled }}
+{{- if and .Values.metrics.enabled .Values.metrics.serviceMonitorEnabled }}
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
@@ -12,10 +12,10 @@ spec:
       {{- include "varmor.manager.selectorLabels" . | nindent 6 }}
   namespaceSelector:
     matchNames:
-      - {{ include "varmor.namespace" . }}
+    - {{ include "varmor.namespace" . }}
   endpoints:
-    - port: metrics
-      path: /metrics
-      interval: 15s
-      scrapeTimeout: 14s
-  {{- end }}
+  - port: metrics
+    path: /metrics
+    interval: 15s
+    scrapeTimeout: 14s
+{{- end }}
