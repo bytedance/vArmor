@@ -12,10 +12,10 @@
 |policy|enforcer<br />*string*|-|指定要使用的 LSM。<br />可用值: AppArmor, BPF, Seccomp, AppArmorBPF, AppArmorSeccomp, BPFSeccomp, AppArmorBPFSeccomp
 |      |mode<br />*string*|-|用于指定防护模式。<br />可用值：AlwaysAllow, RuntimeDefault, EnhanceProtect, BehaviorModeling, DefenseInDepth
 |      |enhanceProtect|hardeningRules<br />*string array*|可选字段，用于指定要使用的内置加固规则。
-|      ||attackProtectionRules<br />*[AttackProtectionRules](interface_specification.zh_CN.md#attackprotectionrules) array*|可选字段，用于指定要使用的内置规则。
+|      ||attackProtectionRules<br />*[AttackProtectionRules](#attackprotectionrules) array*|可选字段，用于指定要使用的内置规则。
 |      ||vulMitigationRules<br />*string array*|可选字段，用于指定要使用的内置规则。
 |      ||appArmorRawRules<br />*string array*|可选字段，用于设置自定义的 AppArmor 黑名单规则。
-|      ||bpfRawRules<br />*[BpfRawRules](interface_specification.zh_CN.md#bpfrawrules)*|可选字段，用于支持用户设置自定义的 BPF 黑名单规则。
+|      ||bpfRawRules<br />*[BpfRawRules](#bpfrawrules)*|可选字段，用于支持用户设置自定义的 BPF 黑名单规则。
 |      ||syscallRawRules<br />*[LinuxSyscall](https://pkg.go.dev/github.com/opencontainers/runtime-spec@v1.1.0/specs-go#LinuxSyscall) array*|可选字段，用于支持用户使用 Seccomp enforcer 设置自定义的 Syscall 黑名单规则。
 |      ||privileged<br />*bool*|可选字段，若要对特权容器进行加固，请务必将此值设置为 true。若为 `false`，将在 **RuntimeDefault** 模式的基础上构造 AppArmor/BPF Profiles。若为 `ture`，则在 **AlwaysAllow** 模式的基础上构造 AppArmor/BPF Profiles。<br /><br />注意：当为 `true` 时，vArmor 不会为目标构造 Seccomp Profiles。（默认值：false）
 |      ||auditViolations<br />*bool*|可选字段. 用于审计违反沙箱策略的行为。此特性当前支持 AppArmor 和 BPF enforcers，任何违反沙箱策略的行为都会被记录到宿主机的 `/var/log/varmor/violations.log` 文件中。（默认值：false）
@@ -38,7 +38,7 @@
 |files<br />*FileRule array*    |pattern<br />*string*|任意符合策略语法的文件路径字符串（最大长度 128 bytes），用于匹配文件路径、文件名称。
 |                             |permissions<br />*string array*|禁止使用的权限，其中 write 权限隐式包含 append, rename, hard link, symbol link 权限。<br />可用值：`read(r), write(w), append(a), exec(e)`
 |processes<br />*FileRule array*|-|同上
-|network<br />*NetworkRule*     |egresses<br />*[NetworkEgressRule](interface_specification.zh_CN.md#networkegressrule) array*|对外联请求进行访问控制。
+|network<br />*NetworkRule*     |egresses<br />*[NetworkEgressRule](#networkegressrule) array*|对外联请求进行访问控制。
 |ptrace<br />*PtraceRule*       |strictMode<br />*bool*|可选字段，如果设置为 false，同一容器内的进程将不受限制。如果将设置为 true，即使是同一容器内的进程也将受到限制。（默认值：false）
 |                             |permissions<br />*string array*|禁止使用的权限，可用值: `trace, read, traceby, readby`<br />- `trace`: 禁止进程跟踪其他进程<br />- `read`: 禁止进程读取其他进程<br />- `traceby`: 禁止进程被其他进程跟踪，宿主机进程除外<br />- `readby`: 禁止进程被其他进程读取，宿主机进程除外
 |mounts<br />*MountRule array*  |sourcePattern<br />*string*|任意符合策略语法的文件路径字符串（最大长度 128 bytes），用于匹配 [MOUNT(2)](https://man7.org/linux/man-pages/man2/mount.2.html) 的 source，[UMOUNT(2)](https://man7.org/linux/man-pages/man2/umount.2.html) 的 target，以及 MOVE_MOUNT(2) 的 from_pathname。

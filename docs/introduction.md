@@ -1,10 +1,3 @@
----
-slug: /introduction
-sidebar_position: 1
----
-
-import ThemeImage from '@site/src/components/ThemeImage';
-
 # Introduction
 Learn about vArmor and create your first policy through a Quick Start guide.
 
@@ -33,23 +26,24 @@ vArmor was created by the **Elkeid Team** of the endpoint security department at
 ### Architecture
 vArmor primarily consists of two components: the Manager and the Agent. The Manager is responsible for responding to and managing policy objects, while the Agent handles the management of enforcers and profiles on Nodes.
 
-<ThemeImage 
-  lightSrc="/img/architecture.svg" 
-  darkSrc="/img/architecture-dark.svg" 
-  alt="vArmor Architecture" 
-/>
-
+<div>
+    <picture>
+        <source media="(prefers-color-scheme: light)" srcset="img/architecture.svg" width="400">
+        <img src="img/architecture-dark.svg" alt="Logo" width="400">
+    </picture>
+</div>
 
 ### Principle
 * The [VarmorPolicy](getting_started/usage_instructions.md#varmorpolicy) and [VarmorClusterPolicy](getting_started/usage_instructions.md#varmorclusterpolicy) CRs serve as user interfaces.
 * With VarmorPolicy or VarmorClusterPolicy objects, users can harden specific workloads and decide which enforcers and rules to use.
 * The ArmorProfile CR acts as an internal interface used for profile management.
 
-<ThemeImage 
-  lightSrc="/img/principle.svg" 
-  darkSrc="/img/principle-dark.svg" 
-  alt="vArmor Principle" 
-/>
+<div>
+    <picture>
+        <source media="(prefers-color-scheme: light)" srcset="img/principle.svg" width="400">
+        <img src="img/principle-dark.svg" alt="Logo" width="400">
+    </picture>
+</div>
 
 When the Manager detects the creation event of a VarmorPolicy or VarmorClusterPolicy object, it generates a corresponding internal object called ArmorProfile. The Agent listens for and responds to this ArmorProfile object, processing the profiles and then reporting the status back to the Manager. When a user creates a workload, the APIServer sends the creation request to the Manager through the admission webhook. The Manager evaluates whether the workload should be hardened. If so, the Manager mutates the workload by adding annotations and modifying the securityContext. Finally, the workload's Pod will be scheduled to a Node, and the security context will be set when the container is created.
 

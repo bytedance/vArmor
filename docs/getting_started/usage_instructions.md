@@ -3,7 +3,7 @@ English | [简体中文](usage_instructions.zh_CN.md)
 
 ## Interface Operations
 
-vArmor provides API interfaces through [VarmorPolicy](./usage_instructions.md#varmorpolicy) and [VarmorClusterPolicy](./usage_instructions.md#varmorclusterpolicy) CR. The VarmorClusterPolicy CR have higher priority than VarmorPolicy CR. It means prioritizing the use of VarmorClusterPolicy objects to protect matched workloads. You can create, modify, and delete VarmorPolicy or VarmorClusterPolicy objects in the cluster to protect specified workloads.
+vArmor provides API interfaces through [VarmorPolicy](#varmorpolicy) and [VarmorClusterPolicy](#varmorclusterpolicy) CR. The VarmorClusterPolicy CR have higher priority than VarmorPolicy CR. It means prioritizing the use of VarmorClusterPolicy objects to protect matched workloads. You can create, modify, and delete VarmorPolicy or VarmorClusterPolicy objects in the cluster to protect specified workloads.
 
 vArmor supports performing a rolling restart of existing workloads that meet the matching conditions when a VarmorPolicy or VarmorClusterPolicy object is created or deleted. This rolling restart enables or disables protection for those workloads.
 
@@ -29,7 +29,7 @@ You can leverage logging components for collection and configuring alerts. Such 
 ### VarmorPolicy
 * Namespace-scoped resource, consistent with the namespace of the protected object.
 * The VarmorPolicy interface details can be found in [Interface Specification](interface_specification.md).
-* The definition of VarmorPolicy can be found in [VarmorPolicy CRD](../config/crds/crd.varmor.org_varmorpolicies.yaml).
+* The definition of VarmorPolicy can be found in [VarmorPolicy CRD](../../config/crds/crd.varmor.org_varmorpolicies.yaml).
 * Explanation of `VarmorPolicy/Status`:
 
   | Fields | Value | Interpretation |
@@ -49,13 +49,13 @@ You can leverage logging components for collection and configuring alerts. Such 
 ### VarmorClusterPolicy
 * Cluster-scoped resource.
 * The VarmorClusterPolicy interface details can be found in [Interface Specification](interface_specification.md)
-* The definition of VarmorClusterPolicy can be found in [VarmorClusterPolicy CRD](../config/crds/crd.varmor.org_varmorclusterpolicies.yaml)
+* The definition of VarmorClusterPolicy can be found in [VarmorClusterPolicy CRD](../../config/crds/crd.varmor.org_varmorclusterpolicies.yaml)
 * `VarmorClusterPolicy/Status` same as `VarmorPolicy/Status`
 
 ### ArmorProfile
 * Namespace-scoped resource, consistent with the namespace of the protected object or the namespace of the vArmor components.
 * **As an internal interface, used by vArmor only.**
-* The definition of ArmorProfile can be found in [ArmorProfile CRD](../config/crds/crd.varmor.org_armorprofiles.yaml).
+* The definition of ArmorProfile can be found in [ArmorProfile CRD](../../config/crds/crd.varmor.org_armorprofiles.yaml).
 * Explanation of `ArmorProfile/Status`:
 
   | Fields | Value | Interpretation |
@@ -117,5 +117,5 @@ The built-in rules used are as follows:
 
 ## Demos
 
-Here are some [demos](../test/demos) on how to use vArmor to mitigate vulnerabilities or harden containers with privileged capabilities.
+Here are some [demos](../../test/demos) on how to use vArmor to mitigate vulnerabilities or harden containers with privileged capabilities.
 

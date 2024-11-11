@@ -1,9 +1,5 @@
----
-sidebar_position: 1
-description: Measure the performance of the BPF enforcer.
----
-
 # BPF Enforcer Benchmark
+English | [简体中文](bpf_benchmark.zh_CN.md)
 
 We conducted a basic performance test of BPF enforcer (v0.5.0) on a VKE cluster with kernel 5.10 using [byte-unixbench](https://github.com/kdlucas/byte-unixbench).
 
@@ -36,4 +32,4 @@ We conducted a basic performance test of BPF enforcer (v0.5.0) on a VKE cluster 
   * When the elastic cloud server is under high load, file copying may be accelerated due to factors like cache heat, leading to fluctuations.
   * The host may experience overselling, which can result in fluctuations in baseline test results within the elastic cloud server.
   
-![image](../../img/bpf_enforcer_benchmark.png)
+  <img src="../../img/bpf_enforcer_benchmark.png" width="600">

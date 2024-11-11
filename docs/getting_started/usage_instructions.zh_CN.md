@@ -3,7 +3,7 @@
 
 ## 接口操作
 
-vArmor 通过 [VarmorPolicy](usage_instructions.zh_CN.md#varmorpolicy) 和 [VarmorClusterPolicy](usage_instructions.zh_CN.md#varmorclusterpolicy) CR 提供 API 接口，它们分别是 namespace-scoped 和 cluster-scoped 类型的资源。VarmorClusterPolicy 的优先级高于 VarmorPolicy，即优先使用 VarmorClusterPolicy 对象对匹配的 Workloads 进行防护。你可通过创建、修改、删除 VarmorPolicy/VarmorClusterPolicy 对象来对指定的 Workloads 进行防护。
+vArmor 通过 [VarmorPolicy](#varmorpolicy) 和 [VarmorClusterPolicy](#varmorclusterpolicy) CR 提供 API 接口，它们分别是 namespace-scoped 和 cluster-scoped 类型的资源。VarmorClusterPolicy 的优先级高于 VarmorPolicy，即优先使用 VarmorClusterPolicy 对象对匹配的 Workloads 进行防护。你可通过创建、修改、删除 VarmorPolicy/VarmorClusterPolicy 对象来对指定的 Workloads 进行防护。
 
 vArmor 支持在创建或删除 VarmorPolicy/VarmorClusterPolicy 对象时，对满足匹配条件的存量工作负载进行滚动重启，从而为其开启或关闭防护。
 
@@ -27,7 +27,7 @@ vArmor 支持在创建或删除 VarmorPolicy/VarmorClusterPolicy 对象时，对
 ### VarmorPolicy
 * 命名空间类型资源，与防护对象的命名空间一致
 * 接口描述详见 [Interface Specification](interface_specification.zh_CN.md)
-* 定义详见 [VarmorPolicy CRD](../config/crds/crd.varmor.org_varmorpolicies.yaml)
+* 定义详见 [VarmorPolicy CRD](../../config/crds/crd.varmor.org_varmorpolicies.yaml)
 * VarmorPolicy/Status 说明
 
   |字段|值|含义|
@@ -47,13 +47,13 @@ vArmor 支持在创建或删除 VarmorPolicy/VarmorClusterPolicy 对象时，对
 ### VarmorClusterPolicy
 * 集群范围资源
 * 接口说明详见 [Interface Specification](interface_specification.zh_CN.md)
-* 定义详见 [VarmorClusterPolicy CRD](../config/crds/crd.varmor.org_varmorclusterpolicies.yaml)
+* 定义详见 [VarmorClusterPolicy CRD](../../config/crds/crd.varmor.org_varmorclusterpolicies.yaml)
 * VarmorClusterPolicy/Status 与 VarmorPolicy/Status 一致
 
 ### ArmorProfile
 * 命名空间范围资源，与防护对象或 vArmor 组件的命名空间一致
 * 内部接口，仅由 vArmor 内部使用
-* 定义详见 [ArmorProfile CRD](../config/crds/crd.varmor.org_armorprofiles.yaml)
+* 定义详见 [ArmorProfile CRD](../../config/crds/crd.varmor.org_armorprofiles.yaml)
 * ArmorProfile/Status 说明
 
     |字段|值|含义|
@@ -113,4 +113,4 @@ spec:
 
 ## 案例
 
-这里有一些[案例](../test/demos)演示了如何使用 vArmor 缓解漏洞、加固具有特权能力的容器。
+这里有一些[案例](../../test/demos)演示了如何使用 vArmor 缓解漏洞、加固具有特权能力的容器。

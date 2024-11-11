@@ -1,4 +1,4 @@
-# Development Guide
+# Development
 ### Step 1. Build the binary
 ```
 // You must rebuild everything if the CRDs or eBPF code were modified

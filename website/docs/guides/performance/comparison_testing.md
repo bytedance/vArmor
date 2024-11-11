@@ -2,18 +2,19 @@
 sidebar_position: 2
 description: Compare different enforcers in real scenarios.
 ---
+
 # Comparison Testing
 
 To further compare different Enforcers in real scenarios, we used the [Phoronix Test Suite (PTS)](https://github.com/phoronix-test-suite/phoronix-test-suite) to conduct a series of automated performance tests on some common loads (Redis, Apache, etc.).
 
-#### Test Environment
+## Test Environment
 
 * Cluster version: v1.26.10-vke.18
 *  Number of nodes: 3
 *  Nodes with AppArmor & BPF LSM enabled by default
 *  Node specifications: ecs.g3i.xlarge (4vCPU 16GiB)
 
-#### Test Scenarios
+## Test Scenarios
 
 In this round of testing, we performed horizontal comparisons of two enforcers: AppArmor and BPF. Each enforcer was tested in three typical scenarios, including AlwaysAllow, RuntimeDefault, and EnhanceProtect. The policies for each scenario are as follows:
 
@@ -47,7 +48,7 @@ In addition, we also tested the Seccomp enforcer with the currently available fo
 
 The policy files used for the tests can be found in the [test/perf/policy](https://github.com/bytedance/vArmor/tree/main/test/perf/policy) directory.
 
-#### Test Steps
+## Test Steps
 
 We wrote a bash script to automate the testing process, which mainly completes the following tasks:
 
@@ -60,7 +61,7 @@ Specifically, for the Init Benchmark, BPF, and Seccomp modes, we used different 
 
 You can find the Pod definitions and Phoronix runtime configurations in the [test/perf/policy](https://github.com/bytedance/vArmor/tree/main/test/perf/policy) directory. The automation test script is also located in the [test/perf](https://github.com/bytedance/vArmor/tree/main/test/perf) directory. Additionally, we have written separate test scripts for sysbench and unixbench, which you can use if you are interested in conducting your own tests.
 
-#### Test Results
+## Test Results
 
 * **EnhanceProtect**: The performance of BPF decreased by about 1.2% compared to AppArmor.
 * **RuntimeDefault**: The performance of BPF decreased by about 0.6% compared to AppArmor.
@@ -72,7 +73,7 @@ The analysis results shows that although BPF generally exhibits slight performan
 
 Below are the detailed test results for each scenario:
 
-##### Phoronix-Apache
+### Phoronix-Apache
 
 Requests Per Second-Higher is better
 
@@ -87,7 +88,7 @@ Requests Per Second-Higher is better
 | Enhance BPF             | 15817.6                      | 15787.04                      | 16368.8                        | 16085.41                       | 13262.88                       | 11417.89                        |
 | Seccomp                 | 14882.43                     | 15035.12                      | 15454.24                       | 15312.25                       | 12870.28                       | 11162.86                        |
 
-##### Phoronix-GIMP
+### Phoronix-GIMP
 
 Time Usage-Lower is better
 
@@ -102,7 +103,7 @@ Time Usage-Lower is better
 | Enhance BPF             | 16.876            | 12.101           | 16.947                 | 20.411                  |
 | Seccomp                 | 16.915            | 12.863           | 18.082                 | 21.096                  |
 
-##### Phoronix-Redis
+### Phoronix-Redis
 
 Requests Per Second-Higher is better
 
@@ -117,7 +118,7 @@ Requests Per Second-Higher is better
 | Enhance BPF             | 2300571           | 1587930          | 1917951           | 1580093            | 2239246            |
 | Seccomp                 | 2280476           | 1596606          | 1875229           | 1547045            | 2316358            |
 
-##### Phoronix-Sysbench
+### Phoronix-Sysbench
 
 Higher is better
 

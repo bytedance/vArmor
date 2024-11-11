@@ -1,7 +1,7 @@
 # The Custom Rules
 English | [简体中文](custom_rules.zh_CN.md)
 
-vArmor allows users to customize access control rules in [VarmorPolicy](usage_instructions.md#varmorpolicy) or [VarmorClusterPolicy](usage_instructions.md#varmorclusterpolicy) objects in **EnhanceProtect mode** based on the enforcer syntax.
+vArmor allows users to customize access control rules in [VarmorPolicy](../../getting_started/usage_instructions.md#varmorpolicy) or [VarmorClusterPolicy](../../getting_started/usage_instructions.md#varmorclusterpolicy) objects in **EnhanceProtect mode** based on the enforcer syntax.
 
 Note:<br />- The syntax supported by BPF enforcer is still under development.
 
@@ -9,19 +9,19 @@ Note:<br />- The syntax supported by BPF enforcer is still under development.
 
 The AppArmor enforcer supports users in customizing policies based on the syntax of AppArmor.
 
-Please refer to the [syntax](https://manpages.ubuntu.com/manpages/jammy/man5/apparmor.d.5.html) of security profiles for AppArmor to set custom rules in the [`.spec.policy.enhanceProtect.appArmorRawRules`](interface_specification.md) field. Please ensure that each rule ends with a comma.
+Please refer to the [syntax](https://manpages.ubuntu.com/manpages/jammy/man5/apparmor.d.5.html) of security profiles for AppArmor to set custom rules in the [`.spec.policy.enhanceProtect.appArmorRawRules`](../../getting_started/interface_specification.md) field. Please ensure that each rule ends with a comma.
 
 ## Seccomp enforcer
 
 The Seccomp enforcer supports users in customizing policies based on the syntax of OCI specification.
 
-Please refer to this [document](https://github.com/opencontainers/runtime-spec/blob/main/config-linux.md#seccomp) to set custom syscalls blocklist rules in the [`.spec.policy.enhanceProtect.syscallRawRules`](interface_specification.md) field.
+Please refer to this [document](https://github.com/opencontainers/runtime-spec/blob/main/config-linux.md#seccomp) to set custom syscalls blocklist rules in the [`.spec.policy.enhanceProtect.syscallRawRules`](../../getting_started/interface_specification.md) field.
 
 ## BPF enforcer
 
 The BPF enforcer supports users in customizing policies based on the syntax, with an upper limit of 50 rules per rule type. Each node of Kubernetes can enable sandboxing for up to 100 containers.
 
-Please refer to the syntaxes below to set custom rules in the [`.spec.policy.enhanceProtect.bpfRawRules`](interface_specification.md#bpfrawrules) field.
+Please refer to the syntaxes below to set custom rules in the [`.spec.policy.enhanceProtect.bpfRawRules`](../../getting_started/interface_specification.md#bpfrawrules) field.
 
 ### File Permission
   
@@ -42,4 +42,4 @@ Please refer to the syntaxes below to set custom rules in the [`.spec.policy.enh
 ### Network Permission
 * Currently, vArmor supports connection access control for specified IP addresses, IP address blocks (CIDR blocks), and ports.
 * When specific IP addresses or IP address blocks are specified without specifying ports, it defaults to affecting all ports.
-* Please refer to [NetworkEgressRule](interface_specification.md#networkegressrule) for specific details.
+* Please refer to [NetworkEgressRule](../../getting_started/interface_specification.md#networkegressrule) for specific details.

@@ -47,7 +47,7 @@ vArmor 支持在安装时，通过 helm 命令对它的功能进行配置。
 ## 系统接口
 ### VarmorPolicy
 * 命名空间类型资源，与防护对象的命名空间一致
-* 接口描述详见 [Interface Instructions](interface_instructions.zh_CN.md)
+* 接口描述详见 [Interface Specification](interface_instructions.zh_CN.md)
 * 定义详见 [VarmorPolicy CRD](../config/crds/crd.varmor.org_varmorpolicies.yaml)
 * VarmorPolicy/Status 说明
 
@@ -67,7 +67,7 @@ vArmor 支持在安装时，通过 helm 命令对它的功能进行配置。
 
 ### VarmorClusterPolicy
 * 集群范围资源
-* 接口说明详见 [Interface Instructions](interface_instructions.zh_CN.md)
+* 接口说明详见 [Interface Specification](interface_instructions.zh_CN.md)
 * 定义详见 [VarmorClusterPolicy CRD](../config/crds/crd.varmor.org_varmorclusterpolicies.yaml)
 * VarmorClusterPolicy/Status 与 VarmorPolicy/Status 一致
 

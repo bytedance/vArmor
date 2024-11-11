@@ -5,7 +5,7 @@ description: Using built-in rules to harden containers and microservices.
 
 # The Built-in Rules
 
-**vArmor** supports defining [VarmorPolicy](../../getting_started/usage_instructions#varmorpolicy) or [VarmorClusterPolicy](../../getting_started/usage_instructions#varmorclusterpolicy) objects using built-in rules in **EnhanceProtect mode**. The currently supported built-in rules and categories are shown in the following table. You can also try using the [policy advisor](https://github.com/bytedance/varmor/tools/policy-advisor/tree/main/README.md) to generate a policy template with built-in rules.
+**vArmor** supports defining [VarmorPolicy](../../getting_started/usage_instructions.md#varmorpolicy) or [VarmorClusterPolicy](../../getting_started/usage_instructions.md#varmorclusterpolicy) objects using built-in rules in **EnhanceProtect mode**. The currently supported built-in rules and categories are shown in the following table. You can also try using the [policy advisor](guides/policy_advisor.md) to generate a policy template with built-in rules.
 
 Note:<br />- The built-in rules supported by different enforcers are still under development.<br />- There are some limitations in the rules and syntax supported by different enforcers. For example, the AppArmor enforcer does not support fine-grained network access control, and BPF does not support access control for specified executables.<br />
 

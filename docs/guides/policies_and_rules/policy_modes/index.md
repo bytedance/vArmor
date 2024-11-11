@@ -1,12 +1,9 @@
----
-slug: /guides/policies_and_rules/policy_modes
-sidebar_position: 1
----
-
 # The Policy Modes
 
+English | [简体中文](index.zh_CN.md)
+
 ## Overview
-The modes can be specified through the `spec.policy.mode` field of [VarmorPolicy](../../getting_started/usage_instructions#varmorpolicy) or [VarmorClusterPolicy](../../getting_started/usage_instructions#varmorclusterpolicy) objects. The modes supported by different enforcers are shown in the following table.
+The modes can be specified through the `spec.policy.mode` field of [VarmorPolicy](../../../getting_started/usage_instructions#varmorpolicy) or [VarmorClusterPolicy](../../../getting_started/usage_instructions#varmorclusterpolicy) objects. The modes supported by different enforcers are shown in the following table.
 
 
 |Policy Mode|AppArmor|BPF|Seccomp|Description|

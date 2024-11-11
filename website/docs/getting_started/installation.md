@@ -24,7 +24,7 @@ In order to install vArmor with Helm, first fetch the chart.
 helm pull oci://elkeid-ap-southeast-1.cr.volces.com/varmor/varmor --version 0.5.11
 ```
 
-Then install it with helm optional [configurations](installation#configuration).
+Then install it with helm optional [configurations](#configuration).
 
 ```
 helm install varmor varmor-0.5.11.tgz \

@@ -19,7 +19,7 @@ vArmor 推荐使用 Helm chart 进行部署。通过 Helm 安装前，请先拉�
 helm pull oci://elkeid-ap-southeast-1.cr.volces.com/varmor/varmor --version 0.5.11
 ```
 
-然后使用 helm 命令及[配置选项](installation.zh_CN.md#配置选项)进行安装和配置。
+然后使用 helm 命令及[配置选项](#配置选项)进行安装和配置。
 
 ```
 helm install varmor varmor-0.5.11.tgz \
@@ -40,7 +40,7 @@ helm install varmor varmor-0.5.11.tgz \
 | `--set unloadAllAaProfiles.enabled=true` | 默认关闭；开启后，Agent 退出时，将会卸载所有由 vArmor 加载的 AppArmor Profile。
 | `--set removeAllSeccompProfiles.enabled=true` | 默认关闭；开启后，Agent 退出时，将会删除所有由 vArmor 创建的 Seccomp Profile。
 | `--set "manager.args={--webhookMatchLabel=KEY=VALUE}"` | 默认值为：`sandbox.varmor.org/enable=true`。vArmor 只会对包含此 label 的 Workloads 开启沙箱防护。你可以使用 `--set 'manager.args={--webhookMatchLabel=}'` 关闭此特性。
-| `--set behaviorModeling.enabled=true` | 默认关闭；此为实验功能，仅 AppArmor/Seccomp enforcer 支持 BehaviorModeling 模式。请参见 [The BehaviorModeling Mode](behavior_modeling.md)。
+| `--set behaviorModeling.enabled=true` | 默认关闭；此为实验功能，仅 AppArmor/Seccomp enforcer 支持 BehaviorModeling 模式。请参见 [The BehaviorModeling Mode](../guides/policies_and_rules/policy_modes/behavior_modeling.md)。
 | `--set "agent.args={--auditLogPaths=FILE_PATH\|FILE_PATH}"` | 默认值为：`/var/log/audit/audit.log\|/var/log/kern.log`。vArmor 会按顺序查找日志文件是否存在，并监控第一个有效的文件来消费 AppArmor 和 Seccomp 的审计事件，从而审计违规行为和进行行为建模。你可以使用此参数来指定审计文件，或决定查找顺序。请使用`|`分隔文件路径。
 
 ## 更新
