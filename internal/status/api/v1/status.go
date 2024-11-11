@@ -77,19 +77,20 @@ func (m *StatusManager) HandleProfileStatusUpdate(status varmortypes.ProfileStat
 		attribute.String("profile_name", status.ProfileName),
 		attribute.String("node_name", status.NodeName),
 	}
+	attrSet := attribute.NewSet(labels...)
 
 	if status.Status == varmortypes.Succeeded {
-		m.profileSuccess.Add(ctx, 1, metric.WithAttributes(labels...))
+		m.profileSuccess.Add(ctx, 1, metric.WithAttributeSet(attrSet))
 	} else {
-		m.profileFailure.Add(ctx, 1, metric.WithAttributes(labels...))
+		m.profileFailure.Add(ctx, 1, metric.WithAttributeSet(attrSet))
 	}
 
-	m.profileChangeCount.Add(ctx, 1, metric.WithAttributes(labels...))
+	m.profileChangeCount.Add(ctx, 1, metric.WithAttributeSet(attrSet))
 
 	if status.Status == varmortypes.Succeeded {
-		m.profileStatusPerNode.Record(ctx, 1, metric.WithAttributes(labels...)) // 1 mean success
+		m.profileStatusPerNode.Record(ctx, 1, metric.WithAttributeSet(attrSet)) // 1 mean success
 	} else {
-		m.profileStatusPerNode.Record(ctx, 0, metric.WithAttributes(labels...)) // 0 mean failure
+		m.profileStatusPerNode.Record(ctx, 0, metric.WithAttributeSet(attrSet)) // 0 mean failure
 	}
 }
 

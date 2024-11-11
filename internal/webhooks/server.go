@@ -177,7 +177,8 @@ func (ws *WebhookServer) handlerFunc(handler func(request *admissionv1.Admission
 				attribute.String("operation", string(request.Operation)),
 				attribute.String("allowed", fmt.Sprintf("%t", admissionReview.Response.Allowed)),
 			}
-			ws.webhookLatency.Record(ctx, time.Since(startTime).Seconds(), metric.WithAttributes(keyValues...))
+			attrSet := attribute.NewSet(keyValues...)
+			ws.webhookLatency.Record(ctx, time.Since(startTime).Seconds(), metric.WithAttributeSet(attrSet))
 		}
 		logger.V(3).Info("AdmissionRequest processed", "time", time.Since(startTime).String())
 	}
