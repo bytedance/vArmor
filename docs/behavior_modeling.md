@@ -11,13 +11,14 @@ You can also create a policy with the **DefenseInDepth mode** to harden the targ
 
 vArmor currently leverages a built-in BPF tracer and the Linux's audit system to capture application behavior.
 
-The requirements of the **BehaviorModeling mode** as follows.
+The requirements for the **BehaviorModeling mode** are as follows.
 
 1. containerd v1.6.0 and above.
 2. BTF (BPF Type Format) must be enabled. 
 3. Upgrade vArmor
    * Enable the **BehaviorModeling** feature with `--set behaviorModeling.enabled=true`
-   * vArmor sequentially checks whether the files `/var/log/audit/audit.log` and `/var/log/kern.log` exist, and monitoring the first valid file to consume AppArmor and Seccomp audit events for violation auditing and behavioral modeling. If you are using *auditd*, the audit events of AppArmor and Seccomp will be stored by default in `/var/log/audit/audit.log`. Otherwise they will be stored in `/var/log/kern.log`. You can use the `--set "agent.args={--auditLogPaths=FILE_PATH}"` argument to specify the audit log file or determine the search order yourself. Please use a vertical bar to separate file paths.
+
+   * Use the `--set "agent.args={--auditLogPaths=FILE_PATH|FILE_PATH}"` argument to specify the audit log file or determine the search order yourself.
 
     ```
     helm upgrade varmor varmor-0.5.11.tgz \
@@ -26,13 +27,17 @@ The requirements of the **BehaviorModeling mode** as follows.
         --set behaviorModeling.enabled=true
     ```
     
-    *Note: The BehaviorModeling feature in vArmor agent requires additional resources.*
-    ```
-    resources:
-      limits:
-        cpu: 2
-        memory: 2Gi
-      requests:
-        cpu: 500m
-        memory: 500Mi
-    ```
+    *Note:* 
+    * *vArmor sequentially checks whether the files `/var/log/audit/audit.log` and `/var/log/kern.log` exist, and monitors the first valid file to consume AppArmor and Seccomp audit events for violation auditing and behavioral modeling. If you are using **auditd**, the audit events of AppArmor and Seccomp will be stored by default in `/var/log/audit/audit.log`. Otherwise they will be stored in `/var/log/kern.log`.*
+
+    * *The BehaviorModeling feature in vArmor agent requires additional resources.*
+
+      ```
+      resources:
+        limits:
+          cpu: 2
+          memory: 2Gi
+        requests:
+          cpu: 500m
+          memory: 500Mi
+      ```
