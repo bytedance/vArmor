@@ -2,6 +2,8 @@
 
 [English](README.md) | 简体中文
 
+## 概览
+
 可通过 [VarmorPolicy](../../../getting_started/usage_instructions.zh_CN.md#varmorpolicy) 或 [VarmorClusterPolicy](../../../getting_started/usage_instructions.zh_CN.md#varmorclusterpolicy) 对象的 `spec.policy.mode` 字段来指定策略的运行模式。不同 enforcers 支持的模式如下表所示。
 
 |运行模式|AppArmor|BPF|Seccomp|说明|
@@ -17,3 +19,9 @@
 注意：
 * vArmor 策略支持动态切换运行模式（限 EnhanceProtect, RuntimeDefault, AlwaysAllow, DefenseInDepth）、更新沙箱规则，而无需重启工作负载。但当使用 Seccomp enforcer 时，需要重启工作负载来使 Seccomp Profile 的变更生效。
 * vArmor 支持修改策略为其添加新的 enforcer，但不支持删除已经设置的 enforcer。除此之外，新添加的 enforcer 仅对新创建的 Workloads 生效。
+
+
+## 实验特性
+
+* [BehaviorModeling Mode](behavior_modeling.md)
+* [DefenseInDepth Mode](defense_in_depth.md)
