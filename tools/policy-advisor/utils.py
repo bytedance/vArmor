@@ -13,9 +13,8 @@ def has_common_item(list_one, list_two):
   for item in list_one:
     if item == '*':
       return True
-    for item2 in list_two:
-      if item2 in item or item in item2:
-        return True
+    if item in list_two:
+      return True
   return False
 
 
