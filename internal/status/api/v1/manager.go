@@ -653,7 +653,7 @@ func (m *StatusManager) Run(stopCh <-chan struct{}) {
 	go m.reconcileStatus(stopCh)
 	go wait.Until(m.statusWorker, time.Second, stopCh)
 	go wait.Until(m.dataWorker, time.Second, stopCh)
-
+	go m.syncStatusMetricsLoop()
 	<-stopCh
 }
 

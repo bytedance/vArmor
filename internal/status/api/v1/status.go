@@ -86,11 +86,35 @@ func (m *StatusManager) HandleProfileStatusUpdate(status varmortypes.ProfileStat
 	}
 
 	m.profileChangeCount.Add(ctx, 1, metric.WithAttributeSet(attrSet))
+}
+func (m *StatusManager) syncStatusMetricsLoop() {
+	ctx := context.Background()
+	for {
+		time.Sleep(time.Second * 60)
+		logger := m.log.WithName("syncStatusMetricsLoop()")
+		logger.Info("start syncing status metrics")
 
-	if status.Status == varmortypes.Succeeded {
-		m.profileStatusPerNode.Record(ctx, 1, metric.WithAttributeSet(attrSet)) // 1 mean success
-	} else {
-		m.profileStatusPerNode.Record(ctx, 0, metric.WithAttributeSet(attrSet)) // 0 mean failure
+		for key, status := range m.PolicyStatuses {
+			namespace, name, err := PolicyStatusKeyGetInfo(key)
+			if err != nil {
+				logger.Error(err, "PolicyStatusKeyGetInfo()")
+				continue
+			}
+			for nodeName, nodeMessage := range status.NodeMessages {
+				labels := []attribute.KeyValue{
+					attribute.String("namespace", namespace),
+					attribute.String("profile_name", name),
+					attribute.String("node_name", nodeName),
+				}
+				attrSet := attribute.NewSet(labels...)
+				if nodeMessage == string(varmortypes.ArmorProfileReady) {
+					m.profileStatusPerNode.Record(ctx, 1, metric.WithAttributeSet(attrSet)) // 1 mean success
+				} else {
+					m.profileStatusPerNode.Record(ctx, 0, metric.WithAttributeSet(attrSet)) // 0 mean failure
+				}
+			}
+
+		}
 	}
 }
 
