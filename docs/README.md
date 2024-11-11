@@ -29,7 +29,7 @@ vArmor primarily consists of two components: the Manager and the Agent. The Mana
 <div>
     <picture>
         <source media="(prefers-color-scheme: light)" srcset="img/architecture.svg" width="400">
-        <img src="img/architecture-dark.svg" alt="Logo" width="400">
+        <img src="img/architecture-dark.svg" alt="Logo" width="600">
     </picture>
 </div>
 
@@ -41,7 +41,7 @@ vArmor primarily consists of two components: the Manager and the Agent. The Mana
 <div>
     <picture>
         <source media="(prefers-color-scheme: light)" srcset="img/principle.svg" width="400">
-        <img src="img/principle-dark.svg" alt="Logo" width="400">
+        <img src="img/principle-dark.svg" alt="Logo" width="600">
     </picture>
 </div>
 
