@@ -40,6 +40,13 @@ const config = {
       /** @type {import('@docusaurus/preset-classic').Options} */
       ({
         docs: {
+          lastVersion: 'current',
+          versions: {
+            current: {
+              label: 'release-0.6',
+              path: 'release-0.6',
+            },
+          },
           sidebarPath: './sidebars.js',
           // Please change this to your repo.
           // Remove this to remove the "edit this page" links.
@@ -87,6 +94,12 @@ const config = {
             sidebarId: 'tutorialSidebar',
             position: 'right',
             label: 'Documentation',
+          },
+          {
+            type: 'docsVersionDropdown',
+            position: 'right',
+            dropdownItemsAfter: [],
+            dropdownActiveClassDisabled: true,
           },
           // {to: '/blog', label: 'Blog', position: 'left'},
           {
