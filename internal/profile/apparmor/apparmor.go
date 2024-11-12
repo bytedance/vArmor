@@ -353,6 +353,7 @@ func GenerateEnhanceProtectProfile(enhanceProtect *varmor.EnhanceProtect, profil
 
 	// Attack Protection
 	index := 0
+	parentBaseRules := baseRules
 	for _, attackProtectionRule := range enhanceProtect.AttackProtectionRules {
 		if len(attackProtectionRule.Targets) == 0 {
 			for _, rule := range attackProtectionRule.Rules {
@@ -362,7 +363,7 @@ func GenerateEnhanceProtectProfile(enhanceProtect *varmor.EnhanceProtect, profil
 			// build a child profile for certain binaries
 			childProfileName := fmt.Sprintf("child_%d", index)
 			childProfilePath := fmt.Sprintf("%s//%s", profileName, childProfileName)
-			childProfileRules := baseRules
+			childProfileRules := parentBaseRules
 			index += 1
 
 			for _, rule := range attackProtectionRule.Rules {
