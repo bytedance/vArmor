@@ -105,6 +105,7 @@ func (m *StatusManager) syncStatusMetricsLoop() {
 					attribute.String("namespace", namespace),
 					attribute.String("profile_name", name),
 					attribute.String("node_name", nodeName),
+					attribute.Int64("timestamp", time.Now().Unix()),
 				}
 				attrSet := attribute.NewSet(labels...)
 				if nodeMessage == string(varmortypes.ArmorProfileReady) {
