@@ -13,15 +13,15 @@ const config = {
   favicon: 'img/favicon.ico',
 
   // Set the production url of your site here
-  url: 'https://www.varmor.com',
+  url: 'https://www.varmor.org',
   // Set the /<baseUrl>/ pathname under which your site is served
   // For GitHub pages deployment, it is often '/<projectName>/'
   baseUrl: '/',
 
   // GitHub pages deployment config.
   // If you aren't using GitHub pages, you don't need these.
-  organizationName: 'facebook', // Usually your GitHub org/user name.
-  projectName: 'docusaurus', // Usually your repo name.
+  organizationName: 'bytedance', // Usually your GitHub org/user name.
+  projectName: 'vArmor', // Usually your repo name.
 
   onBrokenLinks: 'warn',
   onBrokenMarkdownLinks: 'warn',
@@ -40,11 +40,22 @@ const config = {
       /** @type {import('@docusaurus/preset-classic').Options} */
       ({
         docs: {
+          lastVersion: 'v0.6',
+          versions: {
+            current: {
+              label: 'main',
+              path: 'main',
+              banner: 'none',
+            },
+            'v0.6': {
+              label: 'v0.6',
+              path: 'v0.6',
+            }
+          },
           sidebarPath: './sidebars.js',
           // Please change this to your repo.
           // Remove this to remove the "edit this page" links.
-          editUrl:
-            'https://github.com/facebook/docusaurus/tree/main/packages/create-docusaurus/templates/shared/',
+          editUrl: 'https://github.com/bytedance/vArmor/tree/main/website',
         },
         blog: {
           showReadingTime: true,
@@ -54,8 +65,7 @@ const config = {
           },
           // Please change this to your repo.
           // Remove this to remove the "edit this page" links.
-          editUrl:
-            'https://github.com/facebook/docusaurus/tree/main/packages/create-docusaurus/templates/shared/',
+          editUrl: 'https://github.com/bytedance/vArmor/tree/main/website',
           // Useful options to enforce blogging best practices
           onInlineTags: 'warn',
           onInlineAuthors: 'warn',
@@ -76,26 +86,35 @@ const config = {
       navbar: {
         title: 'vArmor',
         logo: {
-          
           alt: 'vArmor Logo',
           src: 'img/logo.svg',
         },
         items: [
-          {to: 'index.html', label: 'About', position: 'right'},
+          {
+            to: 'index.html', 
+            label: 'About', 
+            position: 'right'
+          },
           {
             type: 'docSidebar',
             sidebarId: 'tutorialSidebar',
             position: 'right',
             label: 'Documentation',
           },
-          // {to: '/blog', label: 'Blog', position: 'left'},
+          {
+            type: 'docsVersionDropdown',
+            position: 'right',
+            dropdownActiveClassDisabled: true,
+          },
           {
             type: 'localeDropdown',
             position: 'right',
-          },{
-            href: 'https://github.com/bytedance/varmor',
-            label: 'GitHub',
+          },
+          {
+            href: 'https://github.com/bytedance/vArmor',
             position: 'right',
+            className: 'header-github-link',
+            'aria-label': 'GitHub repository',
           },
         ],
       },
@@ -103,46 +122,25 @@ const config = {
         style: 'dark',
         links: [
           {
-            title: 'Docs',
+            title: 'Community',
             items: [
               {
-                label: 'Tutorial',
-                to: '/docs/intro',
-              },
+                label: 'Lark Group',
+                href: 'https://applink.larkoffice.com/client/chat/chatter/add_by_link?link_token=ae5pfb2d-f8a4-4f0b-b12e-15f24fdaeb24&qr_code=true'
+              }
             ],
           },
-          // {
-          //   title: 'Community',
-          //   items: [
-          //     {
-          //       label: 'Stack Overflow',
-          //       href: 'https://stackoverflow.com/questions/tagged/docusaurus',
-          //     },
-          //     {
-          //       label: 'Discord',
-          //       href: 'https://discordapp.com/invite/docusaurus',
-          //     },
-          //     {
-          //       label: 'Twitter',
-          //       href: 'https://twitter.com/docusaurus',
-          //     },
-          //   ],
-          // },
           {
             title: 'More',
             items: [
-              // {
-              //   label: 'Blog',
-              //   to: '/blog',
-              // },
               {
                 label: 'GitHub',
-                href: 'https://github.com/facebook/docusaurus',
+                href: 'https://github.com/bytedance/vArmor',
               },
             ],
           },
         ],
-        copyright: `Copyright © ${new Date().getFullYear()} vArmor Project, Inc. Built with Docusaurus.`,
+        copyright: `Copyright © ${new Date().getFullYear()} vArmor Project.`,
       },
       prism: {
         theme: prismThemes.github,
