@@ -36,4 +36,4 @@ We conducted a basic performance test of BPF enforcer (v0.5.0) on a VKE cluster 
   * When the elastic cloud server is under high load, file copying may be accelerated due to factors like cache heat, leading to fluctuations.
   * The host may experience overselling, which can result in fluctuations in baseline test results within the elastic cloud server.
   
-![image](@site/docs/img/bpf_enforcer_benchmark.png)
+![image](../../img/bpf_enforcer_benchmark.png)
