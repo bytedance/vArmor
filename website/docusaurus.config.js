@@ -40,18 +40,22 @@ const config = {
       /** @type {import('@docusaurus/preset-classic').Options} */
       ({
         docs: {
-          lastVersion: 'current',
+          lastVersion: 'v0.6',
           versions: {
             current: {
-              label: 'v0.6',
-              path: 'release-0.6',
+              label: 'main',
+              path: 'main',
+              banner: 'none',
             },
+            'v0.6': {
+              label: 'v0.6',
+              path: 'v0.6',
+            }
           },
           sidebarPath: './sidebars.js',
           // Please change this to your repo.
           // Remove this to remove the "edit this page" links.
-          editUrl:
-            'https://github.com/facebook/docusaurus/tree/main/packages/create-docusaurus/templates/shared/',
+          editUrl: 'https://github.com/bytedance/vArmor/tree/main/website',
         },
         blog: {
           showReadingTime: true,
@@ -61,8 +65,7 @@ const config = {
           },
           // Please change this to your repo.
           // Remove this to remove the "edit this page" links.
-          editUrl:
-            'https://github.com/facebook/docusaurus/tree/main/packages/create-docusaurus/templates/shared/',
+          editUrl: 'https://github.com/bytedance/vArmor/tree/main/website',
           // Useful options to enforce blogging best practices
           onInlineTags: 'warn',
           onInlineAuthors: 'warn',
@@ -101,13 +104,18 @@ const config = {
           {
             type: 'docsVersionDropdown',
             position: 'right',
-            dropdownItemsAfter: [],
             dropdownActiveClassDisabled: true,
           },
           {
             type: 'localeDropdown',
             position: 'right',
-          }
+          },
+          {
+            href: 'https://github.com/bytedance/vArmor',
+            position: 'right',
+            className: 'header-github-link',
+            'aria-label': 'GitHub repository',
+          },
         ],
       },
       footer: {
