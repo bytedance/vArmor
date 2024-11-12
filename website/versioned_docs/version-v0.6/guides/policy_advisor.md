@@ -7,7 +7,7 @@ description: Generate a policy template with policy advisor.
 # Policy Advisor
 This program can help you generate a [`policy`](../getting_started/interface_specification.md#varmorpolicyspec--varmorclusterpolicyspec) template in the **EnhanceProtect mode** with built-in rules. The template can be a good start to craft the final policy. You can provide the context information and the behavior model data of the target application to make the template more precise. 
 
-Please use the `-f FEATURES` and `-c CAPABILITIES` arguments to specify the context information. The `-f FEATURES` argument used to describe the application features. The `-c CAPABILITIES` argument used to describe the capabilities required by application explicitly. The behavior model data file is passed by the `-m BEHAVIOR_MODEL` argument. It's an ArmorProfileModel object that is generated with the **[BehaviorModeling mode](./policies_and_rules/policy_modes/behavior_modeling.md)**.
+Please use the `-f FEATURES` and `-c CAPABILITIES` arguments to specify the context information. The `-f FEATURES` argument used to describe the application features. The `-c CAPABILITIES` argument used to describe the capabilities required by application explicitly. The behavior model data file is passed by the `-m BEHAVIOR_MODEL` argument. It's an ArmorProfileModel object that is generated with the **[BehaviorModeling mode](policies_and_rules/policy_modes/behavior_modeling.md)**.
 
 
 ## Use cases
