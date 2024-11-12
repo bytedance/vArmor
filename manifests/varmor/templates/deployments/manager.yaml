@@ -60,7 +60,7 @@ spec:
         {{- if .Values.metrics.enabled }}
         {{- with .Values.manager.metrics.args }}
           {{- toYaml . | nindent 8 }}
-        - --syncMetricsSecond={{ .Values.metrics.syncMetricsSecond }}
+        - --syncMetricsSecond={{ $.Values.metrics.syncMetricsSecond }}
         {{- end }}
         {{- end }}
         {{- end }}

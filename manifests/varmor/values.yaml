@@ -98,7 +98,6 @@ manager:
     args:
     - --enableMetrics
 
-
   resources:
     limits:
       cpu: 200m

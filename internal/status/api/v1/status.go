@@ -87,6 +87,7 @@ func (m *StatusManager) HandleProfileStatusUpdate(status varmortypes.ProfileStat
 
 	m.profileChangeCount.Add(ctx, 1, metric.WithAttributeSet(attrSet))
 }
+
 func (m *StatusManager) syncStatusMetricsLoop() {
 	ctx := context.Background()
 	for {
@@ -114,7 +115,6 @@ func (m *StatusManager) syncStatusMetricsLoop() {
 					m.profileStatusPerNode.Record(ctx, 0, metric.WithAttributeSet(attrSet)) // 0 mean failure
 				}
 			}
-
 		}
 	}
 }
