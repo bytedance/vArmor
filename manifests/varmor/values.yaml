@@ -18,6 +18,7 @@ bpfLsmEnforcer:
 metrics:
   enabled: false
   serviceMonitorEnabled: false
+  syncMetricsSecond: 10
 
 restartExistWorkloads:
   enabled: true
@@ -96,6 +97,7 @@ manager:
   metrics:
     args:
     - --enableMetrics
+
 
   resources:
     limits:

@@ -18,10 +18,11 @@ const (
 type MetricsModule struct {
 	meter   metric.Meter
 	Enabled bool
+	Refresh int
 	log     logr.Logger
 }
 
-func NewMetricsModule(log logr.Logger, enabled bool) *MetricsModule {
+func NewMetricsModule(log logr.Logger, enabled bool, refresh int) *MetricsModule {
 	exporter, err := prometheus.New()
 	if err != nil {
 		log.Error(err, "failed to create Prometheus exporter")
@@ -41,6 +42,7 @@ func NewMetricsModule(log logr.Logger, enabled bool) *MetricsModule {
 
 	return &MetricsModule{
 		meter:   meter,
+		Refresh: refresh,
 		Enabled: enabled,
 	}
 }

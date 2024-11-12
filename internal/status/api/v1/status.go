@@ -90,10 +90,10 @@ func (m *StatusManager) HandleProfileStatusUpdate(status varmortypes.ProfileStat
 func (m *StatusManager) syncStatusMetricsLoop() {
 	ctx := context.Background()
 	for {
-		time.Sleep(time.Second * 60)
+		time.Sleep(time.Duration(m.metricsModule.Refresh) * time.Second)
 		logger := m.log.WithName("syncStatusMetricsLoop()")
 		logger.Info("start syncing status metrics")
-
+		m.profileStatusPerNode = m.metricsModule.RegisterFloat64Gauge("profile_status_per_node", "Profile status per node (1=success, 0=failure)")
 		for key, status := range m.PolicyStatuses {
 			namespace, name, err := PolicyStatusKeyGetInfo(key)
 			if err != nil {
