@@ -52,21 +52,21 @@ type StatusManager struct {
 	PolicyStatuses map[string]varmortypes.PolicyStatus
 	// Use "namespace/VarmorPolicyName" as key. One VarmorPolicy object corresponds to one ModelingStatus
 	// TODO: Rebuild ModelingStatuses from ArmorProfile object when leader change occurs.
-	ModelingStatuses     map[string]varmortypes.ModelingStatus
-	ResetCh              chan string
-	DeleteCh             chan string
-	UpdateStatusCh       chan string
-	UpdateModeCh         chan string
-	statusQueue          workqueue.RateLimitingInterface
-	dataQueue            workqueue.RateLimitingInterface
-	statusUpdateCycle    time.Duration
-	debug                bool
-	log                  logr.Logger
-	metricsModule        *varmormetrics.MetricsModule
-	profileSuccess       metric.Float64Counter
-	profileFailure       metric.Float64Counter
-	profileChangeCount   metric.Float64Counter
-	profileStatusPerNode metric.Float64Gauge
+	ModelingStatuses   map[string]varmortypes.ModelingStatus
+	ResetCh            chan string
+	DeleteCh           chan string
+	UpdateStatusCh     chan string
+	UpdateModeCh       chan string
+	statusQueue        workqueue.RateLimitingInterface
+	dataQueue          workqueue.RateLimitingInterface
+	statusUpdateCycle  time.Duration
+	debug              bool
+	log                logr.Logger
+	metricsModule      *varmormetrics.MetricsModule
+	profileSuccess     metric.Float64Counter
+	profileFailure     metric.Float64Counter
+	profileChangeCount metric.Float64Counter
+	//profileStatusPerNode metric.Float64Gauge
 }
 
 func NewStatusManager(coreInterface corev1.CoreV1Interface,
@@ -99,7 +99,7 @@ func NewStatusManager(coreInterface corev1.CoreV1Interface,
 		m.profileSuccess = metricsModule.RegisterFloat64Counter("profile_processing_success", "Number of successful profile processing")
 		m.profileFailure = metricsModule.RegisterFloat64Counter("profile_processing_failure", "Number of failed profile processing")
 		m.profileChangeCount = metricsModule.RegisterFloat64Counter("profile_change_count", "Number of profile change")
-		m.profileStatusPerNode = metricsModule.RegisterFloat64Gauge("profile_status_per_node", "Profile status per node (1=success, 0=failure)")
+		//m.profileStatusPerNode = metricsModule.RegisterFloat64Gauge("profile_status_per_node", "Profile status per node (1=success, 0=failure)")
 	}
 
 	return &m
@@ -653,7 +653,7 @@ func (m *StatusManager) Run(stopCh <-chan struct{}) {
 	go m.reconcileStatus(stopCh)
 	go wait.Until(m.statusWorker, time.Second, stopCh)
 	go wait.Until(m.dataWorker, time.Second, stopCh)
-	go m.syncStatusMetricsLoop()
+	//go m.syncStatusMetricsLoop()
 	<-stopCh
 }
 

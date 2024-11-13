@@ -65,10 +65,10 @@ var (
 	webhookMatchLabel        string
 	bpfExclusiveMode         bool
 	enableMetrics            bool
-	syncMetricsSecond        int
-	statusUpdateCycle        time.Duration
-	auditLogPaths            string
-	setupLog                 = log.Log.WithName("SETUP")
+	//syncMetricsSecond        int
+	statusUpdateCycle time.Duration
+	auditLogPaths     string
+	setupLog          = log.Log.WithName("SETUP")
 )
 
 func main() {
@@ -92,7 +92,7 @@ func main() {
 	flag.DurationVar(&statusUpdateCycle, "statusUpdateCycle", time.Hour*2, "Configure the status update cycle for VarmorPolicy and ArmorProfile")
 	flag.StringVar(&auditLogPaths, "auditLogPaths", "/var/log/audit/audit.log|/var/log/kern.log", "Configure the file search list to select the audit log file and read the AppArmor and Seccomp audit events. Please use a vertical bar to separate the file paths, the first valid file will be used to track the audit events.")
 	flag.BoolVar(&enableMetrics, "enableMetrics", false, "Set this flag to enable metrics.")
-	flag.IntVar(&syncMetricsSecond, "syncMetricsSecond", 10, "Configure the profile metric update seconds")
+	//flag.IntVar(&syncMetricsSecond, "syncMetricsSecond", 10, "Configure the profile metric update seconds")
 	flag.Parse()
 
 	// Set the webhook matchLabels configuration.
@@ -150,7 +150,7 @@ func main() {
 	}
 
 	// init a metrics
-	metricsModule := metrics.NewMetricsModule(log.Log.WithName("METRICS"), enableMetrics, syncMetricsSecond)
+	metricsModule := metrics.NewMetricsModule(log.Log.WithName("METRICS"), enableMetrics, 10)
 
 	if agent {
 		setupLog.Info("vArmor agent startup")

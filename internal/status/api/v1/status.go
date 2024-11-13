@@ -88,36 +88,37 @@ func (m *StatusManager) HandleProfileStatusUpdate(status varmortypes.ProfileStat
 	m.profileChangeCount.Add(ctx, 1, metric.WithAttributeSet(attrSet))
 }
 
-func (m *StatusManager) syncStatusMetricsLoop() {
-	ctx := context.Background()
-	for {
-		time.Sleep(time.Duration(m.metricsModule.Refresh) * time.Second)
-		logger := m.log.WithName("syncStatusMetricsLoop()")
-		logger.Info("start syncing status metrics")
-		m.profileStatusPerNode = m.metricsModule.RegisterFloat64Gauge("profile_status_per_node", "Profile status per node (1=success, 0=failure)")
-		for key, status := range m.PolicyStatuses {
-			namespace, name, err := PolicyStatusKeyGetInfo(key)
-			if err != nil {
-				logger.Error(err, "PolicyStatusKeyGetInfo()")
-				continue
-			}
-			for nodeName, nodeMessage := range status.NodeMessages {
-				labels := []attribute.KeyValue{
-					attribute.String("namespace", namespace),
-					attribute.String("profile_name", name),
-					attribute.String("node_name", nodeName),
-					attribute.Int64("timestamp", time.Now().Unix()),
-				}
-				attrSet := attribute.NewSet(labels...)
-				if nodeMessage == string(varmortypes.ArmorProfileReady) {
-					m.profileStatusPerNode.Record(ctx, 1, metric.WithAttributeSet(attrSet)) // 1 mean success
-				} else {
-					m.profileStatusPerNode.Record(ctx, 0, metric.WithAttributeSet(attrSet)) // 0 mean failure
-				}
-			}
-		}
-	}
-}
+// disable syncStatusMetricsLoop until otel support clear metrics
+//func (m *StatusManager) syncStatusMetricsLoop() {
+//	ctx := context.Background()
+//	for {
+//		time.Sleep(time.Duration(m.metricsModule.Refresh) * time.Second)
+//		logger := m.log.WithName("syncStatusMetricsLoop()")
+//		logger.Info("start syncing status metrics")
+//		m.profileStatusPerNode = m.metricsModule.RegisterFloat64Gauge("profile_status_per_node", "Profile status per node (1=success, 0=failure)")
+//		for key, status := range m.PolicyStatuses {
+//			namespace, name, err := PolicyStatusKeyGetInfo(key)
+//			if err != nil {
+//				logger.Error(err, "PolicyStatusKeyGetInfo()")
+//				continue
+//			}
+//			for nodeName, nodeMessage := range status.NodeMessages {
+//				labels := []attribute.KeyValue{
+//					attribute.String("namespace", namespace),
+//					attribute.String("profile_name", name),
+//					attribute.String("node_name", nodeName),
+//					attribute.Int64("timestamp", time.Now().Unix()),
+//				}
+//				attrSet := attribute.NewSet(labels...)
+//				if nodeMessage == string(varmortypes.ArmorProfileReady) {
+//					m.profileStatusPerNode.Record(ctx, 1, metric.WithAttributeSet(attrSet)) // 1 mean success
+//				} else {
+//					m.profileStatusPerNode.Record(ctx, 0, metric.WithAttributeSet(attrSet)) // 0 mean failure
+//				}
+//			}
+//		}
+//	}
+//}
 
 // updatePolicyStatus update StatusManager.PolicyStatuses[statusKey] with profileStatus which comes from agent.
 func (m *StatusManager) updatePolicyStatus(statusKey string, profileStatus *varmortypes.ProfileStatus) error {
