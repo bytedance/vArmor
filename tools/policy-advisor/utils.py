@@ -15,7 +15,6 @@ def has_common_item(list_one, list_two):
       return True
     if item in list_two:
       return True
-
   return False
 
 

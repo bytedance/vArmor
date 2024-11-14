@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+	"go.opentelemetry.io/otel/metric"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -37,6 +38,7 @@ import (
 	varmortypes "github.com/bytedance/vArmor/internal/types"
 	varmorutils "github.com/bytedance/vArmor/internal/utils"
 	varmorinterface "github.com/bytedance/vArmor/pkg/client/clientset/versioned/typed/varmor/v1beta1"
+	varmormetrics "github.com/bytedance/vArmor/pkg/metrics"
 )
 
 type StatusManager struct {
@@ -50,19 +52,30 @@ type StatusManager struct {
 	PolicyStatuses map[string]varmortypes.PolicyStatus
 	// Use "namespace/VarmorPolicyName" as key. One VarmorPolicy object corresponds to one ModelingStatus
 	// TODO: Rebuild ModelingStatuses from ArmorProfile object when leader change occurs.
-	ModelingStatuses  map[string]varmortypes.ModelingStatus
-	ResetCh           chan string
-	DeleteCh          chan string
-	UpdateStatusCh    chan string
-	UpdateModeCh      chan string
-	statusQueue       workqueue.RateLimitingInterface
-	dataQueue         workqueue.RateLimitingInterface
-	statusUpdateCycle time.Duration
-	debug             bool
-	log               logr.Logger
+	ModelingStatuses   map[string]varmortypes.ModelingStatus
+	ResetCh            chan string
+	DeleteCh           chan string
+	UpdateStatusCh     chan string
+	UpdateModeCh       chan string
+	statusQueue        workqueue.RateLimitingInterface
+	dataQueue          workqueue.RateLimitingInterface
+	statusUpdateCycle  time.Duration
+	debug              bool
+	log                logr.Logger
+	metricsModule      *varmormetrics.MetricsModule
+	profileSuccess     metric.Float64Counter
+	profileFailure     metric.Float64Counter
+	profileChangeCount metric.Float64Counter
+	//profileStatusPerNode metric.Float64Gauge
 }
 
-func NewStatusManager(coreInterface corev1.CoreV1Interface, appsInterface appsv1.AppsV1Interface, varmorInterface varmorinterface.CrdV1beta1Interface, statusUpdateCycle time.Duration, debug bool, log logr.Logger) *StatusManager {
+func NewStatusManager(coreInterface corev1.CoreV1Interface,
+	appsInterface appsv1.AppsV1Interface,
+	varmorInterface varmorinterface.CrdV1beta1Interface,
+	statusUpdateCycle time.Duration, debug bool,
+	metricsModule *varmormetrics.MetricsModule,
+	log logr.Logger) *StatusManager {
+
 	m := StatusManager{
 		coreInterface:     coreInterface,
 		appsInterface:     appsInterface,
@@ -77,9 +90,18 @@ func NewStatusManager(coreInterface corev1.CoreV1Interface, appsInterface appsv1
 		statusQueue:       workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "status"),
 		dataQueue:         workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "data"),
 		statusUpdateCycle: statusUpdateCycle,
+		metricsModule:     metricsModule,
 		debug:             debug,
 		log:               log,
 	}
+
+	if metricsModule.Enabled {
+		m.profileSuccess = metricsModule.RegisterFloat64Counter("varmor_profile_processing_success", "Number of successful profile processing")
+		m.profileFailure = metricsModule.RegisterFloat64Counter("varmor_profile_processing_failure", "Number of failed profile processing")
+		m.profileChangeCount = metricsModule.RegisterFloat64Counter("varmor_profile_change_count", "Number of profile change")
+		//m.profileStatusPerNode = metricsModule.RegisterFloat64Gauge("varmor_profile_status_per_node", "Profile status per node (1=success, 0=failure)")
+	}
+
 	return &m
 }
 
@@ -631,7 +653,7 @@ func (m *StatusManager) Run(stopCh <-chan struct{}) {
 	go m.reconcileStatus(stopCh)
 	go wait.Until(m.statusWorker, time.Second, stopCh)
 	go wait.Until(m.dataWorker, time.Second, stopCh)
-
+	//go m.syncStatusMetricsLoop()
 	<-stopCh
 }
 

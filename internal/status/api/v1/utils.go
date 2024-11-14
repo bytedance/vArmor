@@ -59,6 +59,20 @@ func generatePolicyStatusKey(profileStatus *varmortypes.ProfileStatus) (string, 
 		return "", fmt.Errorf("profileStatus.ProfileName is illegal")
 	}
 }
+func PolicyStatusKeyGetInfo(key string) (string, string, error) {
+
+	keyList := strings.Split(key, "/")
+	if len(keyList) == 2 {
+		profileNamePrefix := fmt.Sprintf(varmorprofile.ProfileNameTemplate, keyList[0], keyList[1])
+		return keyList[0], profileNamePrefix, nil
+	} else if len(keyList) == 1 {
+		clusterProfileNamePrefix := fmt.Sprintf(varmorprofile.ClusterProfileNameTemplate, "", keyList[0])
+		return "", clusterProfileNamePrefix, nil
+	} else {
+		return "", key, fmt.Errorf("PolicyStatusKey is illegal")
+	}
+
+}
 
 func generatePolicyStatusKeyWithArmorProfile(ap *varmor.ArmorProfile) (string, error) {
 	clusterProfileNamePrefix := fmt.Sprintf(varmorprofile.ClusterProfileNameTemplate, ap.Namespace, "")

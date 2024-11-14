@@ -47,6 +47,7 @@ import (
 	varmorlister "github.com/bytedance/vArmor/pkg/client/listers/varmor/v1beta1"
 	varmorapparmor "github.com/bytedance/vArmor/pkg/lsm/apparmor"
 	varmorbpfenforcer "github.com/bytedance/vArmor/pkg/lsm/bpfenforcer"
+	varmormetrics "github.com/bytedance/vArmor/pkg/metrics"
 	varmorptracer "github.com/bytedance/vArmor/pkg/processtracer"
 	varmorruntime "github.com/bytedance/vArmor/pkg/runtime"
 	varmorseccomp "github.com/bytedance/vArmor/pkg/seccomp"
@@ -103,7 +104,9 @@ func NewAgent(
 	classifierPort int,
 	auditLogPaths string,
 	stopCh <-chan struct{},
-	log logr.Logger) (*Agent, error) {
+	metricsModule *varmormetrics.MetricsModule,
+	log logr.Logger,
+) (*Agent, error) {
 
 	var err error
 
@@ -148,7 +151,7 @@ func NewAgent(
 
 	go func() {
 		if err := r.Run(fmt.Sprintf(":%d", varmorconfig.AgentServicePort)); err != nil {
-			panic(err)
+			log.Error(err, "fatal error: agent service failed to start")
 		}
 	}()
 

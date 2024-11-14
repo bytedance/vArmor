@@ -15,6 +15,11 @@ appArmorLsmEnforcer:
 bpfLsmEnforcer:
   enabled: false
 
+metrics:
+  enabled: false
+  serviceMonitorEnabled: false
+#  syncMetricsSecond: 10
+
 restartExistWorkloads:
   enabled: true
 
@@ -88,6 +93,10 @@ manager:
   bpfExclusiveMode:
     args:
     - --bpfExclusiveMode
+
+  metrics:
+    args:
+    - --enableMetrics
 
   resources:
     limits:
