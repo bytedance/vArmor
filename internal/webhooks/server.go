@@ -157,7 +157,9 @@ func (ws *WebhookServer) handlerFunc(handler func(request *admissionv1.Admission
 			"operation", request.Operation)
 
 		admissionReview.Response = handler(request)
+		mutated := false
 		if admissionReview.Response.Patch != nil && len(admissionReview.Response.Patch) > 0 {
+			mutated = true
 			if ws.mutatedRequests != nil {
 				ws.mutatedRequests.Add(ctx, 1)
 			}
@@ -170,12 +172,12 @@ func (ws *WebhookServer) handlerFunc(handler func(request *admissionv1.Admission
 
 		if ws.webhookLatency != nil {
 			keyValues := []attribute.KeyValue{
-				attribute.String("uid", string(request.UID)),
-				attribute.String("kind", request.Kind.String()),
-				attribute.String("namespace", request.Namespace),
-				attribute.String("name", request.Name),
-				attribute.String("operation", string(request.Operation)),
-				attribute.String("allowed", fmt.Sprintf("%t", admissionReview.Response.Allowed)),
+				attribute.String("request_uid", string(request.UID)),
+				attribute.String("request_kind", request.Kind.String()),
+				attribute.String("request_namespace", request.Namespace),
+				attribute.String("request_name", request.Name),
+				attribute.String("request_operation", string(request.Operation)),
+				attribute.String("request_mutated", fmt.Sprintf("%t", mutated)),
 			}
 			attrSet := attribute.NewSet(keyValues...)
 			ws.webhookLatency.Record(ctx, time.Since(startTime).Seconds(), metric.WithAttributeSet(attrSet))
