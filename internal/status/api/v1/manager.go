@@ -96,10 +96,10 @@ func NewStatusManager(coreInterface corev1.CoreV1Interface,
 	}
 
 	if metricsModule.Enabled {
-		m.profileSuccess = metricsModule.RegisterFloat64Counter("profile_processing_success", "Number of successful profile processing")
-		m.profileFailure = metricsModule.RegisterFloat64Counter("profile_processing_failure", "Number of failed profile processing")
-		m.profileChangeCount = metricsModule.RegisterFloat64Counter("profile_change_count", "Number of profile change")
-		//m.profileStatusPerNode = metricsModule.RegisterFloat64Gauge("profile_status_per_node", "Profile status per node (1=success, 0=failure)")
+		m.profileSuccess = metricsModule.RegisterFloat64Counter("varmor_profile_processing_success", "Number of successful profile processing")
+		m.profileFailure = metricsModule.RegisterFloat64Counter("varmor_profile_processing_failure", "Number of failed profile processing")
+		m.profileChangeCount = metricsModule.RegisterFloat64Counter("varmor_profile_change_count", "Number of profile change")
+		//m.profileStatusPerNode = metricsModule.RegisterFloat64Gauge("varmor_profile_status_per_node", "Profile status per node (1=success, 0=failure)")
 	}
 
 	return &m

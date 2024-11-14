@@ -117,7 +117,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "sum(profile_processing_failure_total)",
+          "expr": "sum(varmor_profile_processing_failure_total)",
           "format": "time_series",
           "legendFormat": "Failure Total",
           "range": true,
@@ -129,7 +129,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "sum(profile_processing_failure_total)",
+          "expr": "sum(varmor_profile_processing_failure_total)",
           "hide": false,
           "instant": false,
           "legendFormat": "Success Total",
@@ -223,7 +223,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "sum(profile_change_count_total) by (node_name)",
+          "expr": "sum(varmor_profile_change_count_total) by (node_name)",
           "legendFormat": "{{node_name}} Total Changes",
           "range": true,
           "refId": "A"
@@ -287,7 +287,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "sum(profile_processing_failure_total) by (node_name)",
+          "expr": "sum(varmor_profile_processing_failure_total) by (node_name)",
           "format": "time_series",
           "legendFormat": "{{node_name}} Failure Total",
           "range": true,
@@ -352,7 +352,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "sum(profile_processing_success_total) by (node_name)",
+          "expr": "sum(varmor_profile_processing_success_total) by (node_name)",
           "format": "time_series",
           "legendFormat": "{{node_name}} Success Total",
           "range": true,
@@ -448,7 +448,7 @@
       "pluginVersion": "11.3.0",
       "targets": [
         {
-          "expr": "rate(profile_change_count_total[5m])",
+          "expr": "rate(varmor_profile_change_count_total[5m])",
           "legendFormat": "Change Rate",
           "refId": "A"
         }
@@ -542,12 +542,12 @@
       "pluginVersion": "11.3.0",
       "targets": [
         {
-          "expr": "rate(profile_processing_success_total[5m])",
+          "expr": "rate(varmor_profile_processing_success_total[5m])",
           "legendFormat": "Success Rate",
           "refId": "A"
         },
         {
-          "expr": "rate(profile_processing_failure_total[5m])",
+          "expr": "rate(varmor_profile_processing_failure_total[5m])",
           "legendFormat": "Failure Rate",
           "refId": "B"
         }
@@ -623,7 +623,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "profile_status_per_node",
+          "expr": "varmor_profile_status_per_node",
           "format": "table",
           "instant": true,
           "refId": "A"
@@ -757,17 +757,17 @@
       "pluginVersion": "11.3.0",
       "targets": [
         {
-          "expr": "admission_requests_total",
+          "expr": "varmor_admission_requests_total",
           "legendFormat": "Total Requests",
           "refId": "A"
         },
         {
-          "expr": "mutated_requests_total",
+          "expr": "varmor_mutated_requests_total",
           "legendFormat": "Mutated",
           "refId": "B"
         },
         {
-          "expr": "non_mutated_requests_total",
+          "expr": "varmor_non_mutated_requests_total",
           "legendFormat": "Non-mutated",
           "refId": "C"
         }
@@ -857,12 +857,12 @@
       "pluginVersion": "11.3.0",
       "targets": [
         {
-          "expr": "rate(admission_requests_total[5m])",
+          "expr": "rate(varmor_admission_requests_total[5m])",
           "legendFormat": "Request Rate",
           "refId": "A"
         },
         {
-          "expr": "rate(mutated_requests_total[5m])",
+          "expr": "rate(varmor_mutated_requests_total[5m])",
           "legendFormat": "Mutation Rate",
           "refId": "B"
         }
@@ -975,7 +975,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "sum(webhook_latency_sum) by (operation) / sum(webhook_latency_count) by (operation)\n",
+          "expr": "sum(varmor_webhook_latency_sum) by (request_operation) / sum(varmor_webhook_latency_count) by (request_operation)\n",
           "format": "time_series",
           "hide": false,
           "instant": false,
@@ -1003,11 +1003,11 @@
           "type": "prometheus",
           "uid": "prometheus"
         },
-        "definition": "label_values(profile_status_per_node, namespace)",
+        "definition": "label_values(varmor_profile_status_per_node, namespace)",
         "name": "namespace",
         "options": [],
         "query": {
-          "query": "label_values(profile_status_per_node, namespace)",
+          "query": "label_values(varmor_profile_status_per_node, namespace)",
           "refId": "StandardVariableQuery"
         },
         "refresh": 2,
