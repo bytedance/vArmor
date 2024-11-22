@@ -35,8 +35,10 @@ import (
 	types "k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/version"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
+	"k8s.io/client-go/util/retry"
 
 	varmorconfig "github.com/bytedance/vArmor/internal/config"
+	varmorinterface "github.com/bytedance/vArmor/pkg/client/clientset/versioned/typed/varmor/v1beta1"
 )
 
 const (
@@ -291,4 +293,16 @@ func IsAppArmorGA(versionInfo *version.Info) (bool, error) {
 		return false, nil
 	}
 	return true, nil
+}
+
+func RemoveArmorProfileFinalizers(i varmorinterface.CrdV1beta1Interface, namespace, name string) error {
+	removeFinalizers := func() error {
+		ap, err := i.ArmorProfiles(namespace).Get(context.Background(), name, metav1.GetOptions{})
+		if err == nil {
+			ap.Finalizers = []string{}
+			_, err = i.ArmorProfiles(namespace).Update(context.Background(), ap, metav1.UpdateOptions{})
+		}
+		return err
+	}
+	return retry.RetryOnConflict(retry.DefaultRetry, removeFinalizers)
 }
