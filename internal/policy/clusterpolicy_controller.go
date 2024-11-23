@@ -28,8 +28,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	appsv1 "k8s.io/client-go/kubernetes/typed/apps/v1"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
-	"k8s.io/client-go/util/retry"
-
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 
@@ -40,6 +38,7 @@ import (
 	varmorprofile "github.com/bytedance/vArmor/internal/profile"
 	statusmanager "github.com/bytedance/vArmor/internal/status/api/v1"
 	varmortypes "github.com/bytedance/vArmor/internal/types"
+	varmorutils "github.com/bytedance/vArmor/internal/utils"
 	varmorinterface "github.com/bytedance/vArmor/pkg/client/clientset/versioned/typed/varmor/v1beta1"
 	varmorinformer "github.com/bytedance/vArmor/pkg/client/informers/externalversions/varmor/v1beta1"
 	varmorlister "github.com/bytedance/vArmor/pkg/client/listers/varmor/v1beta1"
@@ -164,15 +163,7 @@ func (c *ClusterPolicyController) handleDeleteVarmorClusterPolicy(name string) e
 		}
 
 		logger.Info("remove the ArmorProfile's finalizers")
-		removeFinalizers := func() error {
-			ap, err := c.varmorInterface.ArmorProfiles(varmorconfig.Namespace).Get(context.Background(), apName, metav1.GetOptions{})
-			if err == nil {
-				ap.Finalizers = []string{}
-				_, err = c.varmorInterface.ArmorProfiles(varmorconfig.Namespace).Update(context.Background(), ap, metav1.UpdateOptions{})
-			}
-			return err
-		}
-		err := retry.RetryOnConflict(retry.DefaultRetry, removeFinalizers)
+		err := varmorutils.RemoveArmorProfileFinalizers(c.varmorInterface, apName, varmorconfig.Namespace)
 		if err != nil {
 			logger.Error(err, "failed to remove the ArmorProfile's finalizers")
 		}
@@ -580,22 +571,31 @@ func (c *ClusterPolicyController) syncClusterPolicy(key string) error {
 		}
 	}
 
-	apName := varmorprofile.GenerateArmorProfileName(varmorconfig.Namespace, vcp.Name, true)
-	ap, err := c.varmorInterface.ArmorProfiles(varmorconfig.Namespace).Get(context.Background(), apName, metav1.GetOptions{})
-	if err != nil {
-		if k8errors.IsNotFound(err) {
-			// VarmorClusterPolicy create event
-			logger.V(3).Info("processing VarmorClusterPolicy create event")
-			return c.handleAddVarmorClusterPolicy(vcp)
+	newPolicy := false
+	apName := varmorprofile.GenerateArmorProfileName(vcp.Namespace, vcp.Name, false)
+	ap, err := c.varmorInterface.ArmorProfiles(vcp.Namespace).Get(context.Background(), apName, metav1.GetOptions{})
+	if err == nil {
+		if policyOwnArmorProfile(vcp, ap, false) {
+			// VarmorClusterPolicy update event
+			logger.V(3).Info("processing VarmorClusterPolicy update event")
+			return c.handleUpdateVarmorClusterPolicy(vcp, ap)
 		} else {
-			logger.Error(err, "c.varmorInterface.ArmorProfiles().Get()")
-			return err
+			logger.Info("remove the finalizers of zombie ArmorProfile", "namespace", ap.Namespace, "name", ap.Name)
+			err := varmorutils.RemoveArmorProfileFinalizers(c.varmorInterface, ap.Namespace, ap.Name)
+			if err != nil {
+				return err
+			}
+			newPolicy = true
 		}
-	} else {
-		// VarmorClusterPolicy update event
-		logger.V(3).Info("processing VarmorClusterPolicy update event")
-		return c.handleUpdateVarmorClusterPolicy(vcp, ap)
 	}
+
+	if k8errors.IsNotFound(err) || newPolicy {
+		// VarmorClusterPolicy create event
+		logger.V(3).Info("processing VarmorClusterPolicy create event")
+		return c.handleAddVarmorClusterPolicy(vcp)
+	}
+
+	return err
 }
 
 func (c *ClusterPolicyController) handleErr(err error, key interface{}) {

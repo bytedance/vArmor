@@ -182,6 +182,16 @@ func (m *StatusManager) rebuildPolicyStatuses() error {
 		}
 
 		for _, ap := range apList.Items {
+			// Try to delete the zombie ArmorProfile objects
+			if ap.DeletionTimestamp != nil {
+				m.log.Info("remove the finalizers of zombie ArmorProfile", "namespace", ap.Namespace, "name", ap.Name)
+				err := varmorutils.RemoveArmorProfileFinalizers(m.varmorInterface, ap.Namespace, ap.Name)
+				if err != nil {
+					m.log.Error(err, "varmorutils.RemoveArmorProfileFinalizers()")
+				}
+				continue
+			}
+
 			statusKey, err := generatePolicyStatusKeyWithArmorProfile(&ap)
 			if err != nil {
 				continue

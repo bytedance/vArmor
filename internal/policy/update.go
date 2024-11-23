@@ -670,3 +670,18 @@ func resetArmorProfileModelStatus(varmorInterface varmorinterface.CrdV1beta1Inte
 			return err
 		})
 }
+
+func policyOwnArmorProfile(obj interface{}, ap *varmor.ArmorProfile, clusterScope bool) bool {
+	if clusterScope {
+		vcp := obj.(*varmor.VarmorClusterPolicy)
+		if len(ap.OwnerReferences) == 1 {
+			return vcp.UID == ap.OwnerReferences[0].UID
+		}
+	} else {
+		vp := obj.(*varmor.VarmorPolicy)
+		if len(ap.OwnerReferences) == 1 {
+			return vp.UID == ap.OwnerReferences[0].UID
+		}
+	}
+	return false
+}
