@@ -3,7 +3,7 @@ sidebar_position: 3
 description: 使用指标监控和观察 vArmor
 ---
 
-# vArmor 指标
+# 监控指标
 
 ## 概述
 vArmor 目前支持可观测性指标，本文档描述了可用的指标、配置选项以及如何在您的环境中启用它们。
@@ -35,13 +35,12 @@ vArmor 目前支持可观测性指标，本文档描述了可用的指标、配�
 1. 在配置文件中将 `metrics.enable` 设置为 `true`
 2. 如需创建 Prometheus ServiceMonitor，将 `metrics.serviceMonitorEnabled` 设置为 `true`
 
-启用后，指标将在管理器的 8081 端口的 `/metric` 端点上暴露。
+启用后，指标将在 Manager 的 8081 端口的 `/metric` 端点上暴露。
 
 ## 可用指标
 
 ### 配置文件处理指标
-这些指标用于跟踪由 Agent 处理的 ArmorProfile 对象的状态和性能
-所有配置文件处理指标包含以下标签：
+这些指标用于跟踪由 Agent 处理的 ArmorProfile 对象的状态和性能。所有配置文件处理指标包含以下标签：
 - `namespace`：配置文件所在的命名空间
 - `profile_name`：配置文件名称
 - `node_name`：节点名称
@@ -53,7 +52,7 @@ vArmor 目前支持可观测性指标，本文档描述了可用的指标、配�
 | `varmor_profile_change_count` | 计数器 | 配置文件变更次数 |
 
 ### Webhook 指标
-这些指标提供了 Manager 中 webhook server 的详细信息。
+这些指标提供了 Manager Webhook Server 的详细信息。
 
 #### 基本 Webhook 指标（无标签）
 | 指标名称 | 类型 | 描述 |
