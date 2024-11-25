@@ -3,7 +3,7 @@ sidebar_position: 3
 description: Monitor and observe vArmor using metrics.
 ---
 
-# Monitoring
+# Metrics
 
 ## Overview
 vArmor now includes a comprehensive metrics system. This document describes the available metrics, their configurations, and how to enable them in your environment.
