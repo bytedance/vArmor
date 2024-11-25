@@ -4,8 +4,10 @@ description: Rules to reduce the attack surface of system.
 ---
 
 # Hardening
+These rules are used for reduce the attack surface of system, such as blocking common escape vectors for containers has privileges, disabling capabilities, and blocking certain kernel vulnerability exploitation vectors.
 
 ## Securing Privileged Containers
+
 ### `disallow-write-core-pattern`
 
 Prohibit modifying procfs' core_pattern.
@@ -23,7 +25,6 @@ Disallow writing to the procfs' core_pattern file.
 * BPF
 :::
 
-
 ### `disallow-mount-securityfs`
 
 Prohibit mounting securityfs.
@@ -40,7 +41,6 @@ Disallow mounting of new security file systems.
 * AppArmor
 * BPF
 :::
-
 
 ### `disallow-mount-procfs`
 
@@ -61,7 +61,6 @@ Attackers may attempt container escape in containers (**w/ CAP_SYS_ADMIN**) by r
 * BPF
 :::
 
-
 ### `disallow-write-release-agent`
 
 Prohibit modifying cgroupfs' release_agent.
@@ -78,7 +77,6 @@ Disallow writing to the cgroupfs' release_agent file.
 * AppArmor
 * BPF
 :::
-
 
 ### `disallow-mount-cgroupfs`
 
@@ -100,7 +98,6 @@ Attackers may attempt to escape from containers (**w/ CAP_SYS_ADMIN**) by remoun
 * BPF
 :::
 
-
 ### `disallow-debug-disk-device`
 
 Prohibit debugging of disk devices.
@@ -119,8 +116,6 @@ Dynamically acquire host disk devices and restrict container access them with re
 * AppArmor
 * BPF
 :::
-
-
 
 ### `disallow-mount-disk-device`
 
@@ -141,8 +136,6 @@ Dynamically acquire host machine disk device files and prevent mounting within c
 * BPF
 :::
 
-
-
 ### `disallow-mount`
 
 Disable the mount system call.
@@ -162,8 +155,6 @@ Disable the mount system call.
 * BPF
 :::
 
-
-
 ### `disallow-umount`
 
 Disable the umount system call.
@@ -181,8 +172,6 @@ Disable the umount system call.
 * BPF
 :::
 
-
-
 ### `disallow-insmod`
 
 Prohibit loading kernel modules.
@@ -199,8 +188,6 @@ Disable CAP_SYS_MODULE.
 * AppArmor
 * BPF
 :::
-
-
 
 ### `disallow-load-ebpf`
 
@@ -221,8 +208,6 @@ Disable CAP_SYS_ADMIN & CAP_BPF.
 * BPF
 :::
 
-
-
 ### `disallow-access-procfs-root`
 
 Prohibit accessing process's root directory.
@@ -242,8 +227,6 @@ Disable [PTRACE_MODE_READ](https://man7.org/linux/man-pages/man2/ptrace.2.html) 
 * BPF
 :::
 
-
-
 ### `disallow-access-kallsyms`
 
 Prohibit accessing kernel exported symbol.
@@ -260,7 +243,6 @@ Disallow reading `/proc/kallsyms` file.
 * AppArmor
 * BPF
 :::
-
 
 ## Disabling Capabilities
 
@@ -281,8 +263,6 @@ None
 * BPF
 :::
 
-
-
 ### `disable-cap-all-except-net-bind-service`
 
 Disable all capabilities except for NET_BIND_SERVICE.
@@ -301,8 +281,6 @@ None
 * AppArmor
 * BPF
 :::
-
-
 
 ### `disable-cap-privileged`
 
@@ -323,8 +301,6 @@ None
 * BPF
 :::
 
-
-
 ### `disable-cap-[CAP]`
 
 Disable specified capability.
@@ -341,8 +317,6 @@ None
 * AppArmor
 * BPF
 :::
-
-
 
 ## Blocking Exploit Vectors
 
@@ -367,8 +341,6 @@ Disable CAP_SYS_ADMIN.
 * BPF
 :::
 
-
-
 ### `disallow-create-user-ns`
 
 Prohibit creating user namespace.
@@ -388,4 +360,3 @@ Disallow creating user namespace.
 :::tip[Supported Enforcer]
 * Seccomp
 :::
-

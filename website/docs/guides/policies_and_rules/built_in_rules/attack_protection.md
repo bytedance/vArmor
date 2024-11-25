@@ -4,6 +4,7 @@ description: Rules against penetration tactics in the container environment.
 ---
 
 # Attack Protection
+These rules are used to counter penetration tactics in the container environment, such as mitigating container information leakage and prohibiting execution of sensitive actions.
 
 ## Mitigating Information Leakage
 
@@ -26,8 +27,6 @@ Disallow reading ServiceAccount-related files.
 * BPF
 :::
 
-
-
 ### `mitigate-disk-device-number-leak`
 
 Mitigating host disk device number leakage.
@@ -44,8 +43,6 @@ isallow reading `/proc/[PID]/mountinfo` and `/proc/partitions` files.
 * AppArmor
 * BPF
 :::
-
-
 
 ### `mitigate-overlayfs-leak`
 
@@ -66,8 +63,6 @@ This rule may impact some functionality of the mount command or syscall within c
 * BPF
 :::
 
-
-
 ### `mitigate-host-ip-leak`
 
 Mitigating host IP leakage.
@@ -84,8 +79,6 @@ Disallow reading ARP address resolution tables (such as `/proc/net/arp`, `/proc/
 * AppArmor
 * BPF
 :::
-
-
 
 ### `disallow-metadata-service`
 
@@ -104,8 +97,6 @@ Prohibit connections to Instance Metadata Services' IP addresses.
 :::tip[Supported Enforcer]
 * BPF
 :::
-
-
 
 ## Disabling Sensitive Operations
 
@@ -126,8 +117,6 @@ Disallow writing to the `/etc` directory.
 * BPF
 :::
 
-
-
 ### `disable-busybox`
 
 Prohibit the execution of busybox command.
@@ -146,8 +135,6 @@ If containerized services rely on busybox or related bash commands, enabling thi
 * AppArmor
 * BPF
 :::
-
-
 
 ### `disable-shell`
 
@@ -170,8 +157,6 @@ Some base images may symlink sh to `/bin/busybox`. In this scenario, it's also n
 * BPF
 :::
 
-
-
 ### `disable-wget`
 
 Prohibit the execution of wget command.
@@ -193,8 +178,6 @@ Some base images may symlink wget to `/bin/busybox`. In this scenario, it's also
 * BPF
 :::
 
-
-
 ### `disable-curl`
 
 Prohibit the execution of curl command.
@@ -213,8 +196,6 @@ Prohibit the execution of curl command.
 * AppArmor
 * BPF
 :::
-
-
 
 ### `disable-chmod`
 
@@ -235,8 +216,6 @@ Some base images may symlink wget to `/bin/busybox`. In this scenario, it's also
 * BPF
 :::
 
-
-
 ### `disable-chmod-x-bit`
 
 Prohibit setting the execute/search bit of a file.
@@ -253,8 +232,6 @@ Prohibit setting the execute/search bit of a file with `chmod`, `fchmod`, `fchmo
 * Seccomp
 :::
 
-
-
 ### `disable-chmod-s-bit`
 
 Prohibit setting the SUID/SGID bit of a file.
@@ -270,8 +247,6 @@ Prohibit setting the set-user-ID/set-group-ID bit of a file with `chmod`, `fchmo
 :::tip[Supported Enforcer]
 * Seccomp
 :::
-
-
 
 ### `disable-su-sudo`
 
@@ -292,10 +267,7 @@ Some base images may symlink su to `/bin/busybox`. In this scenario, it's also n
 * BPF
 :::
 
-
-
 ## Restricting Specific Executable
-
 
 It extends the use cases of [Mitigating Information Leakage](#mitigating-information-leakage) and [Disabling Sensitive Operations](#disabling-sensitive-operations), it allows user to apply restrictions only to specific executable programs within containers.
 
@@ -316,4 +288,3 @@ Enable sandbox restrictions for specified executable programs.
 :::tip[Supported Enforcer]
 * Apprmor
 :::
-
