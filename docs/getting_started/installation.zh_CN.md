@@ -42,6 +42,8 @@ helm install varmor varmor-0.5.11.tgz \
 | `--set "manager.args={--webhookMatchLabel=KEY=VALUE}"` | 默认值为：`sandbox.varmor.org/enable=true`。vArmor 只会对包含此 label 的 Workloads 开启沙箱防护。你可以使用 `--set 'manager.args={--webhookMatchLabel=}'` 关闭此特性。
 | `--set behaviorModeling.enabled=true` | 默认关闭；此为实验功能，仅 AppArmor/Seccomp enforcer 支持 BehaviorModeling 模式。请参见 [The BehaviorModeling Mode](../guides/policies_and_rules/policy_modes/behavior_modeling.md)。
 | `--set "agent.args={--auditLogPaths=FILE_PATH\|FILE_PATH}"` | 默认值为：`/var/log/audit/audit.log\|/var/log/kern.log`。vArmor 会按顺序查找日志文件是否存在，并监控第一个有效的文件来消费 AppArmor 和 Seccomp 的审计事件，从而审计违规行为和进行行为建模。你可以使用此参数来指定审计文件，或决定查找顺序。请使用`|`分隔文件路径。
+| `--set metrics.enabled=true` | 默认关闭；开启后，在每个 Manager 实例的 8081 端口上的 `/metric` 端点会暴露指标。
+| `--set metrics.serviceMonitorEnabled=true` | 默认关闭；开启后，vArmor 会在其所在命名空间中创建一个 `ServiceMonitor` 对象。
 
 ## 更新
 
