@@ -1,12 +1,12 @@
 ---
-sidebar_position: 2
-description: Metrics introduction.
+sidebar_position: 3
+description: Monitor and observe vArmor using metrics.
 ---
 
 # Metrics
 
 ## Overview
-Varmor now includes a comprehensive metrics system that provides insights into profile processing and webhook operations. This document describes the available metrics, their configurations, and how to enable them in your environment.
+vArmor now includes a comprehensive metrics system. This document describes the available metrics, their configurations, and how to enable them in your environment.
 
 ## Setup Workflow
 1. Install prometheus-stack:
@@ -16,7 +16,7 @@ Varmor now includes a comprehensive metrics system that provides insights into p
    helm install prometheus prometheus-community/kube-prometheus-stack
    ```
 
-2. Install Varmor with metrics enabled:
+2. Install vArmor with metrics enabled:
    ```bash
    helm install varmor varmor/varmor \
      --set metrics.enable=true \
@@ -40,7 +40,7 @@ Once enabled, metrics are exposed at the `/metric` endpoint on port 8081 of the 
 ## Available Metrics
 
 ### Profile Processing Metrics
-These metrics track the status and performance of profile processing operations.
+These metrics track the status and performance of the ArmorProfile object processed by the Agent.
 All profile processing metrics include the following labels:
 - `namespace`: The namespace of the profile
 - `profile_name`: Name of the profile
@@ -48,28 +48,28 @@ All profile processing metrics include the following labels:
 
 | Metric Name | Type | Description |
 |------------|------|-------------|
-| `profile_processing_success` | Counter | Number of successful profile processing operations |
-| `profile_processing_failure` | Counter | Number of failed profile processing operations |
-| `profile_change_count` | Counter | Number of profile changes |
+| `varmor_profile_processing_success` | Counter | Number of successful profile processing operations |
+| `varmor_profile_processing_failure` | Counter | Number of failed profile processing operations |
+| `varmor_profile_change_count` | Counter | Number of profile changes |
 
 ### Webhook Metrics
-These metrics provide insights into admission webhook operations.
+These metrics provide insights into admission webhook operations of the Manager.
 
 #### Basic Webhook Metrics (No Labels)
 | Metric Name | Type | Description |
 |------------|------|-------------|
-| `admission_requests_total` | Counter | Total number of admission requests |
-| `mutated_requests` | Counter | Number of requests that were mutated |
-| `non_mutated_requests` | Counter | Number of requests that were not mutated |
+| `varmor_admission_requests_total` | Counter | Total number of admission requests |
+| `varmor_mutated_requests` | Counter | Number of requests that were mutated |
+| `varmor_non_mutated_requests` | Counter | Number of requests that were not mutated |
 
 #### Webhook Latency Metric
-The `webhook_latency` metric is a histogram that measures webhook processing latency with buckets at 0.1, 0.5, 1, 2, and 5 seconds.
+The `varmor_webhook_latency` metric is a histogram that measures webhook processing latency with buckets at 0.1, 0.5, 1, 2, and 5 seconds.
 This metric includes the following labels:
-- `uid`: Request UID
-- `kind`: Resource kind
-- `namespace`: Resource namespace
-- `name`: Resource name
-- `operation`: Operation type
+- `request_uid`: Request UID
+- `request_kind`: The type of workload be submitted
+- `request_namespace`: The namespace of workload be submitted
+- `request_name`: The name of workload be submitted
+- `request_operation`: Whether the workload be mutated by Manager or not
 
 ## Grafana Dashboard
 A pre-configured Grafana dashboard is available in the codebase for visualizing these metrics. The dashboard provides comprehensive views of both profile processing and webhook performance metrics.

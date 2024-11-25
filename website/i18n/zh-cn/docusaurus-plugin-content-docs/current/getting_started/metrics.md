@@ -1,12 +1,12 @@
 ---
-sidebar_position: 2
-description: Varmor 指标介绍
+sidebar_position: 3
+description: 使用指标监控和观察 vArmor
 ---
 
-# Varmor 指标
+# vArmor 指标
 
 ## 概述
-Varmor 目前支持可观测性指标，可提供配置文件处理和 webhook 操作的详细信息。本文档描述了可用的指标、配置选项以及如何在您的环境中启用它们。
+vArmor 目前支持可观测性指标，本文档描述了可用的指标、配置选项以及如何在您的环境中启用它们。
 
 ## 安装流程
 1. 安装 prometheus-stack：
@@ -16,7 +16,7 @@ Varmor 目前支持可观测性指标，可提供配置文件处理和 webhook �
    helm install prometheus prometheus-community/kube-prometheus-stack
    ```
 
-2. 安装启用了指标系统的 Varmor：
+2. 安装启用了指标系统的 vArmor
    ```bash
    helm install varmor varmor/varmor \
      --set metrics.enable=true \
@@ -40,7 +40,7 @@ Varmor 目前支持可观测性指标，可提供配置文件处理和 webhook �
 ## 可用指标
 
 ### 配置文件处理指标
-这些指标用于跟踪配置文件处理操作的状态和性能。
+这些指标用于跟踪由 Agent 处理的 ArmorProfile 对象的状态和性能
 所有配置文件处理指标包含以下标签：
 - `namespace`：配置文件所在的命名空间
 - `profile_name`：配置文件名称
@@ -48,28 +48,28 @@ Varmor 目前支持可观测性指标，可提供配置文件处理和 webhook �
 
 | 指标名称 | 类型 | 描述 |
 |------------|------|-------------|
-| `profile_processing_success` | 计数器 | 成功的配置文件处理操作数量 |
-| `profile_processing_failure` | 计数器 | 失败的配置文件处理操作数量 |
-| `profile_change_count` | 计数器 | 配置文件变更次数 |
+| `varmor_profile_processing_success` | 计数器 | 成功的配置文件处理操作数量 |
+| `varmor_profile_processing_failure` | 计数器 | 失败的配置文件处理操作数量 |
+| `varmor_profile_change_count` | 计数器 | 配置文件变更次数 |
 
 ### Webhook 指标
-这些指标提供了准入 webhook 操作的详细信息。
+这些指标提供了 Manager 中 webhook server 的详细信息。
 
 #### 基本 Webhook 指标（无标签）
 | 指标名称 | 类型 | 描述 |
 |------------|------|-------------|
-| `admission_requests_total` | 计数器 | 准入请求总数 |
-| `mutated_requests` | 计数器 | 被修改的请求数量 |
-| `non_mutated_requests` | 计数器 | 未被修改的请求数量 |
+| `varmor_admission_requests_total` | 计数器 | 准入请求总数 |
+| `varmor_mutated_requests` | 计数器 | 被修改的请求数量 |
+| `varmor_non_mutated_requests` | 计数器 | 未被修改的请求数量 |
 
 #### Webhook 延迟指标
-`webhook_latency` 指标是一个直方图，用于测量 webhook 处理延迟，包含 0.1、0.5、1、2 和 5 秒的区间。
+`varmor_webhook_latency` 指标是一个直方图，用于测量 webhook 处理延迟，包含 0.1、0.5、1、2 和 5 秒的区间。
 此指标包含以下标签：
-- `uid`：请求 UID
-- `kind`：资源类型
-- `namespace`：资源命名空间
-- `name`：资源名称
-- `operation`：操作类型
+- `request_uid`：请求 UID
+- `request_kind`：工作负载类型
+- `request_namespace`：工作负载的命名空间
+- `request_name`：工作负载的名称
+- `request_operation`：工作负载是否被 Manager 变更
 
 ## Grafana 仪表板
 代码库中提供了一个预配置的 Grafana 仪表板，用于可视化这些指标。该仪表板提供了配置文件处理和 webhook 性能指标的全面视图。
