@@ -49,6 +49,8 @@ vArmor allows you to configure its functionality during installation using the h
 | `--set "manager.args={--webhookMatchLabel=KEY=VALUE}"` | The default value is: `sandbox.varmor.org/enable=true`. vArmor will only enable sandbox protection for Workloads that contain this label. You can disable this feature by using `--set 'manager.args={--webhookMatchLabel=}'`.
 | `--set behaviorModeling.enabled=true` | Default: disabled. Experimental feature. Currently, only the AppArmor/Seccomp enforcer supports the BehaviorModeling mode. Please refer to the [BehaviorModeling Mode](../guides/policies_and_rules/policy_modes/behavior_modeling.md) for more details.
 | `--set "agent.args={--auditLogPaths=FILE_PATH\|FILE_PATH}"` | Default: `/var/log/audit/audit.log\|/var/log/kern.log`. vArmor sequentially checks whether the files exist, and monitoring the first valid file to consume AppArmor and Seccomp audit events for violation auditing and behavioral modeling. If you are using *auditd*, the audit events of AppArmor and Seccomp will be stored by default in `/var/log/audit/audit.log`. Otherwise they will be stored in `/var/log/kern.log`. You can use the argument to specify the audit log file or determine the search order yourself. Please use a vertical bar to separate file paths.
+| `--set metrics.enabled=true` | Default: disabled. When enabled, metrics are exposed at the `/metric` endpoint on port 8081 of every manager instance.
+| `--set metrics.serviceMonitorEnabled=true` | Default: disabled. When enabled, vArmor will create a `ServiceMonitor` object in the namespace where vArmor is installed. 
 
 ## Upgrade
 You can use helm commands to upgrade, rollback, and perform other operations.
