@@ -168,7 +168,7 @@ func (c *PolicyController) handleDeleteVarmorPolicy(namespace, name string) erro
 		}
 
 		logger.Info("remove the ArmorProfile's finalizers")
-		err := varmorutils.RemoveArmorProfileFinalizers(c.varmorInterface, apName, namespace)
+		err := varmorutils.RemoveArmorProfileFinalizers(c.varmorInterface, namespace, apName)
 		if err != nil {
 			logger.Error(err, "failed to remove the ArmorProfile's finalizers")
 		}

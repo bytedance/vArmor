@@ -163,7 +163,7 @@ func (c *ClusterPolicyController) handleDeleteVarmorClusterPolicy(name string) e
 		}
 
 		logger.Info("remove the ArmorProfile's finalizers")
-		err := varmorutils.RemoveArmorProfileFinalizers(c.varmorInterface, apName, varmorconfig.Namespace)
+		err := varmorutils.RemoveArmorProfileFinalizers(c.varmorInterface, varmorconfig.Namespace, apName)
 		if err != nil {
 			logger.Error(err, "failed to remove the ArmorProfile's finalizers")
 		}
