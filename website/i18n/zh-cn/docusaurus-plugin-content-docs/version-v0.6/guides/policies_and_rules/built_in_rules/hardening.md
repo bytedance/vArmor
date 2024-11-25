@@ -7,10 +7,10 @@ description: Rules to reduce the attack surface of system.
 
 ## Securing Privileged Containers
 ### `disallow-write-core-pattern`
-:::::info[About This Rule]
+
 Prohibit modifying procfs' core_pattern.
 
-:::note[Description]
+:::info[Description]
 Attackers may attempt container escape by modifying the procfs core_pattern in a **privileged container** or, in a container (**w/ CAP_SYS_ADMIN**), unmounting specific mount points and then modifying the procfs core_pattern to execute a container escape.
 :::
 
@@ -22,13 +22,13 @@ Disallow writing to the procfs' core_pattern file.
 * AppArmor
 * BPF
 :::
-:::::
+
 
 ### `disallow-mount-securityfs`
-:::::info[About This Rule]
+
 Prohibit mounting securityfs.
 
-:::note[Description]
+:::info[Description]
 Attackers may attempt container escape in containers (**w/ CAP_SYS_ADMIN**) by mounting securityfs with read-write permissions and subsequently modifying it.
 :::
 
@@ -40,13 +40,13 @@ Disallow mounting of new security file systems.
 * AppArmor
 * BPF
 :::
-:::::
+
 
 ### `disallow-mount-procfs`
-:::::info[About This Rule]
+
 Prohibit remounting procfs.
 
-:::note[Description]
+:::info[Description]
 Attackers may attempt container escape in containers (**w/ CAP_SYS_ADMIN**) by remounting procfs with read-write permissions and subsequently modifying the core_pattern, among other things.
 :::
 
@@ -60,13 +60,13 @@ Attackers may attempt container escape in containers (**w/ CAP_SYS_ADMIN**) by r
 * AppArmor
 * BPF
 :::
-:::::
+
 
 ### `disallow-write-release-agent`
-:::::info[About This Rule]
+
 Prohibit modifying cgroupfs' release_agent.
 
-:::note[Description]
+:::info[Description]
 Attackers may attempt container escape within **privileged container** by directly modifying the cgroupfs release_agent.
 :::
 
@@ -78,13 +78,13 @@ Disallow writing to the cgroupfs' release_agent file.
 * AppArmor
 * BPF
 :::
-:::::
+
 
 ### `disallow-mount-cgroupfs`
-:::::info[About This Rule]
+
 Prohibit remounting cgroupfs.
 
-:::note[Description]
+:::info[Description]
 Attackers may attempt to escape from containers (**w/ CAP_SYS_ADMIN**) by remounting cgroupfs with read-write permissions. Subsequently, they can modify release_agent and device access permissions, among other things.
 :::
 
@@ -99,13 +99,13 @@ Attackers may attempt to escape from containers (**w/ CAP_SYS_ADMIN**) by remoun
 * AppArmor
 * BPF
 :::
-:::::
+
 
 ### `disallow-debug-disk-device`
-:::::info[About This Rule]
+
 Prohibit debugging of disk devices.
 
-:::note[Description]
+:::info[Description]
 Attackers may attempt to read and write host machine files by debugging host machine disk devices within a **privileged container**.
 
 It is recommended to use this rule in conjunction with [disable-cap-mknod](#disable-cap-cap) to prevent attackers from bypassing the rule with mknod.
@@ -119,14 +119,14 @@ Dynamically acquire host disk devices and restrict container access them with re
 * AppArmor
 * BPF
 :::
-:::::
+
 
 
 ### `disallow-mount-disk-device`
-:::::info[About This Rule]
+
 Prohibit mounting of host's disk devices.
 
-:::note[Description]
+:::info[Description]
 Attackers may attempt to mount host machine disk devices within a **privileged container**, thereby gaining read-write access to host machine files.
 
 It is recommended to use this rule in conjunction with [disable-cap-mknod](#disable-cap-cap) to prevent attackers from bypassing the rule with mknod.
@@ -140,14 +140,14 @@ Dynamically acquire host machine disk device files and prevent mounting within c
 * AppArmor
 * BPF
 :::
-:::::
+
 
 
 ### `disallow-mount`
-:::::info[About This Rule]
+
 Disable the mount system call.
 
-:::note[Description]
+:::info[Description]
 [MOUNT(2)](https://man7.org/linux/man-pages/man2/mount.2.html) is often used for privilege escalation, container escapes, and other attacks. Most microservices applications do not require mount operations. Therefore, it is recommended to use this rule to restrict container processes from using the `mount()` system call.
 
 Note: The mount system call will be disabled by default if the `spec.policy.privileged` field is false.
@@ -161,14 +161,14 @@ Disable the mount system call.
 * AppArmor
 * BPF
 :::
-:::::
+
 
 
 ### `disallow-umount`
-:::::info[About This Rule]
+
 Disable the umount system call.
 
-:::note[Description]
+:::info[Description]
 [UMOUNT(2)](https://man7.org/linux/man-pages/man2/umount.2.html) can be used to remove the attachment of topmost mount points(such as maskedPaths), leading to privilege escalation and information disclosure. Most microservices applications do not require umount operations. Therefore, it is recommended to use this rule to restrict container processes from using the `umount()` system call.
 :::
 
@@ -180,14 +180,14 @@ Disable the umount system call.
 * AppArmor
 * BPF
 :::
-:::::
+
 
 
 ### `disallow-insmod`
-:::::info[About This Rule]
+
 Prohibit loading kernel modules.
 
-:::note[Description]
+:::info[Description]
 Attackers may attempt to inject code into the kernel within a container (**w/ CAP_SYS_MODULE**) by executing kernel module loading command.
 :::
 
@@ -199,14 +199,14 @@ Disable CAP_SYS_MODULE.
 * AppArmor
 * BPF
 :::
-:::::
+
 
 
 ### `disallow-load-ebpf`
-:::::info[About This Rule]
+
 Prohibit loading eBPF programs.
 
-:::note[Description]
+:::info[Description]
 Attackers may load eBPF programs within a container (**w/ CAP_SYS_ADMIN & CAP_BPF**) to theft data or create rootkit.
 
 Note: CAP_BPF was introduced starting from Linux 5.8.
@@ -220,14 +220,14 @@ Disable CAP_SYS_ADMIN & CAP_BPF.
 * AppArmor
 * BPF
 :::
-:::::
+
 
 
 ### `disallow-access-procfs-root`
-:::::info[About This Rule]
+
 Prohibit accessing process's root directory.
 
-:::note[Description]
+:::info[Description]
 This policy prohibits processes within containers from accessing the root directory of the process filesystem (i.e., `/proc/[PID]/root`), preventing attackers from exploiting shared PID namespaces to launch attacks.
 
 Attackers may attempt to access the process filesystem outside the container by reading and writing to `/proc/*/root` in environments where the PID namespace is shared with the host or other containers. This could lead to information disclosure, privilege escalation, lateral movement, and other attacks.
@@ -241,14 +241,14 @@ Disable [PTRACE_MODE_READ](https://man7.org/linux/man-pages/man2/ptrace.2.html) 
 * AppArmor
 * BPF
 :::
-:::::
+
 
 
 ### `disallow-access-kallsyms`
-:::::info[About This Rule]
+
 Prohibit accessing kernel exported symbol.
 
-:::note[Description]
+:::info[Description]
 Attackers may attempt to leak the base address of kernel modules from containers (**w/ CAP_SYSLOG**) by reading the kernel's exported symbol definitions file. This assists attackers in bypassing KASLR protection to exploit kernel vulnerabilities more easily.
 :::
 
@@ -260,15 +260,15 @@ Disallow reading `/proc/kallsyms` file.
 * AppArmor
 * BPF
 :::
-:::::
+
 
 ## Disabling Capabilities
 
 ### `disable-cap-all`
-:::::info[About This Rule]
+
 Disable all capabilities.
 
-:::note[Description]
+:::info[Description]
 Disable all capabilities.
 :::
 
@@ -280,14 +280,14 @@ None
 * AppArmor
 * BPF
 :::
-:::::
+
 
 
 ### `disable-cap-all-except-net-bind-service`
-:::::info[About This Rule]
+
 Disable all capabilities except for NET_BIND_SERVICE.
 
-:::note[Description]
+:::info[Description]
 Disable all capabilities except for NET_BIND_SERVICE.
 
 This rule complies with the [*Restricted Policy*](https://kubernetes.io/concepts/security/pod-security-standards/#restricted) of the Pod Security Standards.
@@ -301,14 +301,14 @@ None
 * AppArmor
 * BPF
 :::
-:::::
+
 
 
 ### `disable-cap-privileged`
-:::::info[About This Rule]
+
 Disable privileged capabilities.
 
-:::note[Description]
+:::info[Description]
 Disable all privileged capabilities that can directly lead to escapes or affect host availability. Only allow the [default capabilities](https://github.com/containerd/containerd/blob/release/1.7/oci/spec.go#L115).
 
 This rule complies with the [*Baseline Policy*](https://kubernetes.io/concepts/security/pod-security-standards/#restricted) of the Pod Security Standards, except for the NET_RAW capability.
@@ -322,14 +322,14 @@ None
 * AppArmor
 * BPF
 :::
-:::::
+
 
 
 ### `disable-cap-[CAP]`
-:::::info[About This Rule]
+
 Disable specified capability.
 
-:::note[Description]
+:::info[Description]
 Disable any specified capabilities, replacing [CAP] with the values from [capabilities(7)](https://man7.org/linux/man-pages/man7/capabilities.7.html), for example, disable-cap-net-raw.
 :::
 
@@ -341,16 +341,16 @@ None
 * AppArmor
 * BPF
 :::
-:::::
+
 
 
 ## Blocking Exploit Vectors
 
 ### `disallow-abuse-user-ns`
-:::::info[About This Rule]
+
 Prohibit abusing user namespaces.
 
-:::note[Description]
+:::info[Description]
 User namespaces can be used to enhance container isolation. However, it also increases the kernel's attack surface, making certain kernel vulnerabilities easier to exploit. Attackers can use a container to create a user namespace, gaining full privileges and thereby expanding the kernel's attack surface.
 
 Disallowing container processes from abusing CAP_SYS_ADMIN privileges via user namespaces can reduce the kernel's attack surface and block certain exploitation paths for kernel vulnerabilities.
@@ -366,14 +366,14 @@ Disable CAP_SYS_ADMIN.
 * AppArmor
 * BPF
 :::
-:::::
+
 
 
 ### `disallow-create-user-ns`
-:::::info[About This Rule]
+
 Prohibit creating user namespace.
 
-:::note[Description]
+:::info[Description]
 User namespaces can be used to enhance container isolation. However, it also increases the kernel's attack surface, making certain kernel vulnerabilities easier to exploit. Attackers can use a container to create a user namespace, gaining full privileges and thereby expanding the kernel's attack surface.
 
 Disallowing container processes from creating new user namespaces can reduce the kernel's attack surface and block certain exploitation paths for kernel vulnerabilities.
@@ -388,4 +388,4 @@ Disallow creating user namespace.
 :::danger[Supported Enforcer]
 * Seccomp
 :::
-:::::
+
