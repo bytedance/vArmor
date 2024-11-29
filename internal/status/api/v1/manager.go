@@ -526,7 +526,9 @@ func (m *StatusManager) reconcileStatus(stopCh <-chan struct{}) {
 			if clusterScope {
 				v, err = m.varmorInterface.VarmorClusterPolicies().Get(context.Background(), vpName, metav1.GetOptions{})
 				if err != nil {
-					logger.Error(err, "m.varmorInterface.VarmorClusterPolicies().Get()")
+					if !k8errors.IsNotFound(err) {
+						logger.Error(err, "m.varmorInterface.VarmorClusterPolicies().Get()")
+					}
 					break
 				}
 				vSpec = v.(*varmor.VarmorClusterPolicy).Spec
@@ -534,7 +536,9 @@ func (m *StatusManager) reconcileStatus(stopCh <-chan struct{}) {
 			} else {
 				v, err = m.varmorInterface.VarmorPolicies(namespace).Get(context.Background(), vpName, metav1.GetOptions{})
 				if err != nil {
-					logger.Error(err, "m.varmorInterface.VarmorPolicies().Get()")
+					if !k8errors.IsNotFound(err) {
+						logger.Error(err, "m.varmorInterface.VarmorPolicies().Get()")
+					}
 					break
 				}
 				vSpec = v.(*varmor.VarmorPolicy).Spec
