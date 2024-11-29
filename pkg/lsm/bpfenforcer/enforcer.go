@@ -52,6 +52,7 @@ type BpfEnforcer struct {
 	pathRenameLink   link.Link
 	bprmLink         link.Link
 	sockConnLink     link.Link
+	socketLink       link.Link
 	ptraceLink       link.Link
 	mountLink        link.Link
 	moveMountLink    link.Link
@@ -213,6 +214,15 @@ func (enforcer *BpfEnforcer) initBPF() error {
 	}
 	enforcer.bprmLink = bprmLink
 
+	enforcer.log.Info("attach VarmorSocketCreate to the LSM hook point")
+	socketLink, err := link.AttachLSM(link.LSMOptions{
+		Program: enforcer.objs.VarmorSocketCreate,
+	})
+	if err != nil {
+		return err
+	}
+	enforcer.socketLink = socketLink
+
 	enforcer.log.Info("attach VarmorSocketConnect to the LSM hook point")
 	sockConnLink, err := link.AttachLSM(link.LSMOptions{
 		Program: enforcer.objs.VarmorSocketConnect,
@@ -271,6 +281,7 @@ func (enforcer *BpfEnforcer) Close() {
 	enforcer.pathRenameLink.Close()
 	enforcer.bprmLink.Close()
 	enforcer.sockConnLink.Close()
+	enforcer.socketLink.Close()
 	enforcer.ptraceLink.Close()
 	enforcer.mountLink.Close()
 	enforcer.moveMountLink.Close()

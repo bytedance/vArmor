@@ -217,18 +217,33 @@ spec:
                         items:
                           properties:
                             address:
-                              type: string
-                            cidr:
-                              type: string
+                              properties:
+                                cidr:
+                                  type: string
+                                ip:
+                                  type: string
+                                port:
+                                  format: int32
+                                  type: integer
+                              type: object
                             flags:
                               format: int32
                               type: integer
                             mode:
                               format: int32
                               type: integer
-                            port:
-                              format: int32
-                              type: integer
+                            socket:
+                              properties:
+                                domains:
+                                  format: int64
+                                  type: integer
+                                protocols:
+                                  format: int64
+                                  type: integer
+                                types:
+                                  format: int64
+                                  type: integer
+                              type: object
                           required:
                           - flags
                           type: object

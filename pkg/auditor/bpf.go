@@ -59,17 +59,26 @@ func (auditor *Auditor) convertBpfEvent(t bpfenforcer.EventType, e interface{}) 
 	case bpfenforcer.NetworkType:
 		event := e.(*bpfenforcer.BpfNetworkEvent)
 
-		object := BpfNetworkEvent{
-			Port: int(event.Port),
-		}
+		switch event.Type {
+		case bpfenforcer.SocketType:
+			return &BpfNetworkCreateEvent{
+				Domain:   event.Socket.Domain,
+				Type:     event.Socket.Type,
+				Protocol: event.Socket.Protocol,
+			}
+		case bpfenforcer.ConnectType:
+			object := BpfNetworkConnectEvent{
+				Port: int(event.Addr.Port),
+			}
 
-		if event.SaFamily == unix.AF_INET {
-			object.IP = net.IPv4(byte(event.SinAddr), byte(event.SinAddr>>8), byte(event.SinAddr>>16), byte(event.SinAddr>>24)).String()
-		} else {
-			object.IP = net.IP(event.Sin6Addr[:]).String()
+			if event.Addr.SaFamily == unix.AF_INET {
+				object.IP = net.IPv4(byte(event.Addr.SinAddr), byte(event.Addr.SinAddr>>8), byte(event.Addr.SinAddr>>16), byte(event.Addr.SinAddr>>24)).String()
+			} else {
+				object.IP = net.IP(event.Addr.Sin6Addr[:]).String()
+			}
+			return &object
 		}
-
-		return &object
+		return nil
 
 	case bpfenforcer.PtraceType:
 		event := e.(*bpfenforcer.BpfPtraceEvent)
@@ -207,14 +216,28 @@ func (auditor *Auditor) readFromAuditEventRingBuf() {
 
 			e = auditor.convertBpfEvent(bpfenforcer.NetworkType, &event)
 
-			auditor.log.V(3).Info("audit event",
-				"container id", auditor.containerCache[eventHeader.MntNs].ContainerID,
-				"container name", auditor.containerCache[eventHeader.MntNs].ContainerName,
-				"pod name", auditor.containerCache[eventHeader.MntNs].PodName,
-				"pod namespace", auditor.containerCache[eventHeader.MntNs].PodNamespace,
-				"pod uid", auditor.containerCache[eventHeader.MntNs].PodUID,
-				"pid", eventHeader.Tgid, "ktime", eventHeader.Ktime, "mnt ns", eventHeader.MntNs,
-				"address", e.(*BpfNetworkEvent).IP, "port", event.Port)
+			switch event.Type {
+			case bpfenforcer.SocketType:
+				auditor.log.V(3).Info("audit event",
+					"container id", auditor.containerCache[eventHeader.MntNs].ContainerID,
+					"container name", auditor.containerCache[eventHeader.MntNs].ContainerName,
+					"pod name", auditor.containerCache[eventHeader.MntNs].PodName,
+					"pod namespace", auditor.containerCache[eventHeader.MntNs].PodNamespace,
+					"pod uid", auditor.containerCache[eventHeader.MntNs].PodUID,
+					"pid", eventHeader.Tgid, "ktime", eventHeader.Ktime, "mnt ns", eventHeader.MntNs,
+					"domain", e.(*BpfNetworkCreateEvent).Domain,
+					"type", e.(*BpfNetworkCreateEvent).Type,
+					"protocol", e.(*BpfNetworkCreateEvent).Protocol)
+			case bpfenforcer.ConnectType:
+				auditor.log.V(3).Info("audit event",
+					"container id", auditor.containerCache[eventHeader.MntNs].ContainerID,
+					"container name", auditor.containerCache[eventHeader.MntNs].ContainerName,
+					"pod name", auditor.containerCache[eventHeader.MntNs].PodName,
+					"pod namespace", auditor.containerCache[eventHeader.MntNs].PodNamespace,
+					"pod uid", auditor.containerCache[eventHeader.MntNs].PodUID,
+					"pid", eventHeader.Tgid, "ktime", eventHeader.Ktime, "mnt ns", eventHeader.MntNs,
+					"address", e.(*BpfNetworkConnectEvent).IP, "port", e.(*BpfNetworkConnectEvent).Port)
+			}
 
 		case bpfenforcer.PtraceType:
 			// Parse the event body of ptrace operation

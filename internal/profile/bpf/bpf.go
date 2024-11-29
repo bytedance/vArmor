@@ -441,14 +441,14 @@ func generateAttackProtectionRules(content *varmor.BpfContent, mode uint32, rule
 		content.Files = append(content.Files, *fileContent)
 	case "disallow-metadata-service":
 		// For Aliyun, Volc Engine, etc.
-		networkContent, err = newBpfNetworkRule(mode, "", "100.96.0.96", 0)
+		networkContent, err = newBpfNetworkConnectRule(mode, "", "100.96.0.96", 0)
 		if err != nil {
 			return err
 		}
 		content.Networks = append(content.Networks, *networkContent)
 
 		// For AWS, GCP, Azure, etc.
-		networkContent, err = newBpfNetworkRule(mode, "", "169.254.169.254", 0)
+		networkContent, err = newBpfNetworkConnectRule(mode, "", "169.254.169.254", 0)
 		if err != nil {
 			return err
 		}
@@ -590,8 +590,166 @@ func generateRawProcessRule(bpfContent *varmor.BpfContent, mode uint32, rule var
 	return nil
 }
 
-func generateRawNetworkRule(bpfContent *varmor.BpfContent, mode uint32, rule varmor.NetworkEgressRule) error {
-	networkContent, err := newBpfNetworkRule(mode, rule.IPBlock, rule.IP, uint32(rule.Port))
+func generateRawNetworkSocketRule(bpfContent *varmor.BpfContent, mode uint32, rule varmor.NetworkSocketRule) error {
+	var domains, types, protocols uint64
+
+	for _, domain := range rule.Domains {
+		switch strings.ToLower(domain) {
+		case "all", "*":
+			domains = 1<<unix.AF_UNIX | 1<<unix.AF_INET | 1<<unix.AF_AX25 | 1<<unix.AF_IPX |
+				1<<unix.AF_APPLETALK | 1<<unix.AF_NETROM | 1<<unix.AF_BRIDGE | 1<<unix.AF_ATMPVC |
+				1<<unix.AF_X25 | 1<<unix.AF_INET6 | 1<<unix.AF_ROSE | 1<<unix.AF_NETBEUI |
+				1<<unix.AF_SECURITY | 1<<unix.AF_KEY | 1<<unix.AF_NETLINK | 1<<unix.AF_PACKET |
+				1<<unix.AF_ASH | 1<<unix.AF_ECONET | 1<<unix.AF_ATMSVC | 1<<unix.AF_RDS |
+				1<<unix.AF_SNA | 1<<unix.AF_IRDA | 1<<unix.AF_PPPOX | 1<<unix.AF_WANPIPE |
+				1<<unix.AF_LLC | 1<<unix.AF_IB | 1<<unix.AF_MPLS | 1<<unix.AF_CAN |
+				1<<unix.AF_TIPC | 1<<unix.AF_BLUETOOTH | 1<<unix.AF_IUCV | 1<<unix.AF_RXRPC |
+				1<<unix.AF_ISDN | 1<<unix.AF_PHONET | 1<<unix.AF_IEEE802154 | 1<<unix.AF_CAIF |
+				1<<unix.AF_ALG | 1<<unix.AF_NFC | 1<<unix.AF_VSOCK | 1<<unix.AF_KCM |
+				1<<unix.AF_QIPCRTR | 1<<unix.AF_SMC | 1<<unix.AF_XDP | 1<<unix.AF_MCTP
+		case "unix":
+			domains |= 1 << unix.AF_UNIX
+		case "inet":
+			domains |= 1 << unix.AF_INET
+		case "ax25":
+			domains |= 1 << unix.AF_AX25
+		case "ipx":
+			domains |= 1 << unix.AF_IPX
+		case "appletalk":
+			domains |= 1 << unix.AF_APPLETALK
+		case "netrom":
+			domains |= 1 << unix.AF_NETROM
+		case "bridge":
+			domains |= 1 << unix.AF_BRIDGE
+		case "atmpvc":
+			domains |= 1 << unix.AF_ATMPVC
+		case "x25":
+			domains |= 1 << unix.AF_X25
+		case "inet6":
+			domains |= 1 << unix.AF_INET6
+		case "rose":
+			domains |= 1 << unix.AF_ROSE
+		case "netbeui":
+			domains |= 1 << unix.AF_NETBEUI
+		case "security":
+			domains |= 1 << unix.AF_SECURITY
+		case "key":
+			domains |= 1 << unix.AF_KEY
+		case "netlink":
+			domains |= 1 << unix.AF_NETLINK
+		case "packet":
+			domains |= 1 << unix.AF_PACKET
+		case "ash":
+			domains |= 1 << unix.AF_ASH
+		case "econet":
+			domains |= 1 << unix.AF_ECONET
+		case "atmsvc":
+			domains |= 1 << unix.AF_ATMSVC
+		case "rds":
+			domains |= 1 << unix.AF_RDS
+		case "sna":
+			domains |= 1 << unix.AF_SNA
+		case "irda":
+			domains |= 1 << unix.AF_IRDA
+		case "pppox":
+			domains |= 1 << unix.AF_PPPOX
+		case "wanpipe":
+			domains |= 1 << unix.AF_WANPIPE
+		case "llc":
+			domains |= 1 << unix.AF_LLC
+		case "ib":
+			domains |= 1 << unix.AF_IB
+		case "mpls":
+			domains |= 1 << unix.AF_MPLS
+		case "can":
+			domains |= 1 << unix.AF_CAN
+		case "tipc":
+			domains |= 1 << unix.AF_TIPC
+		case "bluetooth":
+			domains |= 1 << unix.AF_BLUETOOTH
+		case "iucv":
+			domains |= 1 << unix.AF_IUCV
+		case "rxrpc":
+			domains |= 1 << unix.AF_RXRPC
+		case "isdn":
+			domains |= 1 << unix.AF_ISDN
+		case "phonet":
+			domains |= 1 << unix.AF_PHONET
+		case "ieee802154":
+			domains |= 1 << unix.AF_IEEE802154
+		case "caif":
+			domains |= 1 << unix.AF_CAIF
+		case "alg":
+			domains |= 1 << unix.AF_ALG
+		case "nfc":
+			domains |= 1 << unix.AF_NFC
+		case "vsock":
+			domains |= 1 << unix.AF_VSOCK
+		case "kcm":
+			domains |= 1 << unix.AF_KCM
+		case "qipcrtr":
+			domains |= 1 << unix.AF_QIPCRTR
+		case "smc":
+			domains |= 1 << unix.AF_SMC
+		case "xdp":
+			domains |= 1 << unix.AF_XDP
+		case "mctp":
+			domains |= 1 << unix.AF_MCTP
+		default:
+			return fmt.Errorf("policy contains an illegal NetworkSocketRule rule, found unknown or unsupported socket domain (%s)", domain)
+		}
+	}
+
+	for _, t := range rule.Types {
+		switch strings.ToLower(t) {
+		case "all", "*":
+			types = 1<<unix.SOCK_STREAM | 1<<unix.SOCK_DGRAM | 1<<unix.SOCK_RAW |
+				1<<unix.SOCK_RDM | 1<<unix.SOCK_SEQPACKET | 1<<unix.SOCK_DCCP | 1<<unix.SOCK_PACKET
+		case "stream":
+			types |= 1 << unix.SOCK_STREAM
+		case "dgram":
+			types |= 1 << unix.SOCK_DGRAM
+		case "raw":
+			types |= 1 << unix.SOCK_RAW
+		case "rdm":
+			types |= 1 << unix.SOCK_RDM
+		case "seqpacket":
+			types |= 1 << unix.SOCK_SEQPACKET
+		case "dccp":
+			types |= 1 << unix.SOCK_DCCP
+		case "packet":
+			types |= 1 << unix.SOCK_PACKET
+		default:
+			return fmt.Errorf("policy contains an illegal NetworkSocketRule rule, found unknown or unsupported socket type (%s)", t)
+		}
+	}
+
+	for _, protocol := range rule.Protocols {
+		switch strings.ToLower(protocol) {
+		case "all", "*":
+			protocols = 1<<unix.IPPROTO_ICMP | 1<<unix.IPPROTO_ICMPV6 | 1<<unix.IPPROTO_TCP | 1<<unix.IPPROTO_UDP
+		case "icmp":
+			protocols |= 1<<unix.IPPROTO_ICMP | 1<<unix.IPPROTO_ICMPV6
+		case "tcp":
+			protocols |= 1 << unix.IPPROTO_TCP
+		case "udp":
+			protocols |= 1 << unix.IPPROTO_UDP
+		default:
+			return fmt.Errorf("policy contains an illegal NetworkSocketRule rule, found unknown or unsupported socket protocol (%s)", protocol)
+		}
+	}
+
+	networkContent, err := newBpfNetworkCreateRule(mode, domains, types, protocols)
+	if err != nil {
+		return err
+	}
+	bpfContent.Networks = append(bpfContent.Networks, *networkContent)
+
+	return nil
+}
+
+func generateRawNetworkEgressRule(bpfContent *varmor.BpfContent, mode uint32, rule varmor.NetworkEgressRule) error {
+	networkContent, err := newBpfNetworkConnectRule(mode, rule.IPBlock, rule.IP, uint32(rule.Port))
 	if err != nil {
 		return err
 	}
@@ -762,8 +920,14 @@ func generateCustomRules(enhanceProtect *varmor.EnhanceProtect, bpfContent *varm
 	}
 
 	if enhanceProtect.BpfRawRules.Network != nil {
+		for _, socketRule := range enhanceProtect.BpfRawRules.Network.Sockets {
+			err := generateRawNetworkSocketRule(bpfContent, mode, socketRule)
+			if err != nil {
+				return err
+			}
+		}
 		for _, egressRule := range enhanceProtect.BpfRawRules.Network.Egresses {
-			err := generateRawNetworkRule(bpfContent, mode, egressRule)
+			err := generateRawNetworkEgressRule(bpfContent, mode, egressRule)
 			if err != nil {
 				return err
 			}

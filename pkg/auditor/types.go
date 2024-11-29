@@ -23,7 +23,13 @@ type BpfCapabilityEvent struct {
 	Capability string `json:"capability"`
 }
 
-type BpfNetworkEvent struct {
+type BpfNetworkCreateEvent struct {
+	Domain   uint32 `json:"domain"`
+	Type     uint32 `json:"type"`
+	Protocol uint32 `json:"protocol"`
+}
+
+type BpfNetworkConnectEvent struct {
 	IP   string `json:"ip"`
 	Port int    `json:"port"`
 }

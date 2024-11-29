@@ -88,6 +88,7 @@ type bpfProgramSpecs struct {
 	VarmorPathSymlink       *ebpf.ProgramSpec `ebpf:"varmor_path_symlink"`
 	VarmorPtraceAccessCheck *ebpf.ProgramSpec `ebpf:"varmor_ptrace_access_check"`
 	VarmorSocketConnect     *ebpf.ProgramSpec `ebpf:"varmor_socket_connect"`
+	VarmorSocketCreate      *ebpf.ProgramSpec `ebpf:"varmor_socket_create"`
 	VarmorUmount            *ebpf.ProgramSpec `ebpf:"varmor_umount"`
 }
 
@@ -166,6 +167,7 @@ type bpfPrograms struct {
 	VarmorPathSymlink       *ebpf.Program `ebpf:"varmor_path_symlink"`
 	VarmorPtraceAccessCheck *ebpf.Program `ebpf:"varmor_ptrace_access_check"`
 	VarmorSocketConnect     *ebpf.Program `ebpf:"varmor_socket_connect"`
+	VarmorSocketCreate      *ebpf.Program `ebpf:"varmor_socket_create"`
 	VarmorUmount            *ebpf.Program `ebpf:"varmor_umount"`
 }
 
@@ -183,6 +185,7 @@ func (p *bpfPrograms) Close() error {
 		p.VarmorPathSymlink,
 		p.VarmorPtraceAccessCheck,
 		p.VarmorSocketConnect,
+		p.VarmorSocketCreate,
 		p.VarmorUmount,
 	)
 }

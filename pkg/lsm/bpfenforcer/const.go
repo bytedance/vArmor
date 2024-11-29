@@ -47,7 +47,7 @@ const (
 
 	// NetRuleSize is the size of `struct net_rule` in BPF code, it's
 	// also the value size of the inner map for network access control.
-	NetRuleSize = 4*3 + IpAddressSize*2
+	NetRuleSize = 4*3 + 8*3 + IpAddressSize*2
 
 	// MaxFileSystemTypeLength is the max length of fstype pattern,
 	// it's equal to FILE_SYSTEM_TYPE_MAX in BPF code
@@ -73,10 +73,13 @@ const (
 	GreedyMatch  = 0x00000002
 	PrefixMatch  = 0x00000004
 	SuffixMatch  = 0x00000008
-	CidrMatch    = 0x00000020
-	Ipv4Match    = 0x00000040
-	Ipv6Match    = 0x00000080
-	PortMatch    = 0x00000100
+
+	// Matching Flag for Network Rule
+	CidrMatch   = 0x00000020
+	Ipv4Match   = 0x00000040
+	Ipv6Match   = 0x00000080
+	PortMatch   = 0x00000100
+	SocketMatch = 0x00000200
 
 	// Matching Permissions
 	AaMayExec     = 0x00000001
@@ -99,4 +102,8 @@ const (
 	NetworkType    EventType = 0x00000008
 	PtraceType     EventType = 0x00000010
 	MountType      EventType = 0x00000020
+
+	// Event Subtype for Network Event
+	ConnectType = 0x00000001
+	SocketType  = 0x00000002
 )

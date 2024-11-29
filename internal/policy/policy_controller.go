@@ -149,7 +149,7 @@ func (c *PolicyController) handleDeleteVarmorPolicy(namespace, name string) erro
 	ap, err := c.varmorInterface.ArmorProfiles(namespace).Get(context.Background(), apName, metav1.GetOptions{})
 	if err != nil {
 		if k8errors.IsNotFound(err) {
-			logger.Error(err, "namespace", namespace, "name", apName)
+			logger.V(3).Info("ArmorProfiles object is not found", "namespace", namespace, "name", apName)
 		} else {
 			logger.Error(err, "c.varmorInterface.ArmorProfiles().Get()")
 			return err
