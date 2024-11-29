@@ -195,8 +195,44 @@ spec:
                                       type: integer
                                   type: object
                                 type: array
-                            required:
-                            - egresses
+                              sockets:
+                                description: Sockets are the list of socket rules
+                                  to restrict all socket(2) operations.
+                                items:
+                                  properties:
+                                    domains:
+                                      description: "Domains specifies the communication
+                                        domains of socket. \n Available values: *,
+                                        all, unix, inet, ax25, ipx, appletalk, netrom,
+                                        bridge, atmpvc, x25, inet6, rose, netbeui,
+                                        security, key, netlink, packet, ash, econet,
+                                        atmsvc, rds, sna, irda, pppox, wanpipe, llc,
+                                        ib, mpls, can, tipc, bluetooth, iucv, rxrpc,
+                                        isdn, phonet, ieee802154, caif, alg, nfc,
+                                        vsock, kcm, qipcrtr, smc, xdp, mctp"
+                                      items:
+                                        type: string
+                                      type: array
+                                    protocols:
+                                      description: "Protocols specifies the particular
+                                        protocols to be used with the socket. Note
+                                        that the protocols field and types field are
+                                        mutually exclusive. \n Available values: *,
+                                        all, icmp, tcp, udp"
+                                      items:
+                                        type: string
+                                      type: array
+                                    types:
+                                      description: "Types specifies the communication
+                                        semantics of socket. Note that the types field
+                                        and protocols field are mutually exclusive.
+                                        \n Available values: *, all, stream, dgram,
+                                        raw, rdm, seqpacket, dccp, packet"
+                                      items:
+                                        type: string
+                                      type: array
+                                  type: object
+                                type: array
                             type: object
                           processes:
                             items:

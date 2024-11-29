@@ -29,11 +29,14 @@ type bpfPathRule struct {
 
 // bpfNetworkRule is the rule definition of network policy primitive
 type bpfNetworkRule struct {
-	Mode    uint32
-	Flags   uint32
-	Address [IpAddressSize]byte
-	Mask    [IpAddressSize]byte
-	Port    uint32
+	Mode      uint32
+	Flags     uint32
+	Domains   uint64
+	Types     uint64
+	Protocols uint64
+	Address   [IpAddressSize]byte
+	Mask      [IpAddressSize]byte
+	Port      uint32
 }
 
 // bpfMountRule is the rule definition of mount policy primitive
@@ -71,11 +74,23 @@ type BpfPathEvent struct {
 	Padding     [20]byte
 }
 
-type BpfNetworkEvent struct {
+type BpfNetworkSocket struct {
+	Domain   uint32
+	Type     uint32
+	Protocol uint32
+}
+
+type BpfNetworkSockAddr struct {
 	SaFamily uint32
 	SinAddr  uint32
 	Sin6Addr [16]byte
 	Port     uint32
+}
+
+type BpfNetworkEvent struct {
+	Type   uint32
+	Socket BpfNetworkSocket
+	Addr   BpfNetworkSockAddr
 }
 
 type BpfPtraceEvent struct {

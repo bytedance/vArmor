@@ -41,12 +41,23 @@ type FileContent struct {
 	Pattern     PathPattern `json:"pattern"`
 }
 
+type NetworkAddress struct {
+	IP   string `json:"ip,omitempty"`
+	CIDR string `json:"cidr,omitempty"`
+	Port uint32 `json:"port,omitempty"`
+}
+
+type NetworkSocket struct {
+	Domains   uint64 `json:"domains,omitempty"`
+	Types     uint64 `json:"types,omitempty"`
+	Protocols uint64 `json:"protocols,omitempty"`
+}
+
 type NetworkContent struct {
-	Mode    uint32 `json:"mode,omitempty"`
-	Flags   uint32 `json:"flags"`
-	Address string `json:"address,omitempty"`
-	CIDR    string `json:"cidr,omitempty"`
-	Port    uint32 `json:"port,omitempty"`
+	Mode    uint32          `json:"mode,omitempty"`
+	Flags   uint32          `json:"flags"`
+	Socket  *NetworkSocket  `json:"socket,omitempty"`
+	Address *NetworkAddress `json:"address,omitempty"`
 }
 
 type PtraceContent struct {

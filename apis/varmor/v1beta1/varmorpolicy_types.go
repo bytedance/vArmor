@@ -73,9 +73,36 @@ type NetworkEgressRule struct {
 	Port int `json:"port,omitempty"`
 }
 
+type NetworkSocketRule struct {
+	// Domains specifies the communication domains of socket.
+	//
+	// Available values:
+	//       *, all, unix, inet, ax25, ipx, appletalk, netrom, bridge, atmpvc, x25,
+	//       inet6, rose, netbeui, security, key, netlink, packet, ash, econet, atmsvc,
+	//       rds, sna, irda, pppox, wanpipe, llc, ib, mpls, can, tipc, bluetooth, iucv,
+	//       rxrpc, isdn, phonet, ieee802154, caif, alg, nfc, vsock, kcm, qipcrtr, smc,
+	//       xdp, mctp
+	//
+	Domains []string `json:"domains,omitempty"`
+	// Types specifies the communication semantics of socket. Note that the types field and protocols field
+	// are mutually exclusive.
+	//
+	// Available values: *, all, stream, dgram, raw, rdm, seqpacket, dccp, packet
+	//
+	Types []string `json:"types,omitempty"`
+	// Protocols specifies the particular protocols to be used with the socket. Note that the protocols field
+	// and types field are mutually exclusive.
+	//
+	// Available values: *, all, icmp, tcp, udp
+	//
+	Protocols []string `json:"protocols,omitempty"`
+}
+
 type NetworkRule struct {
+	// Sockets are the list of socket rules to restrict all socket(2) operations.
+	Sockets []NetworkSocketRule `json:"sockets,omitempty"`
 	// Egresses are the list of egress rules to be applied to restrict particular IPs and ports.
-	Egresses []NetworkEgressRule `json:"egresses"`
+	Egresses []NetworkEgressRule `json:"egresses,omitempty"`
 }
 
 type PtraceRule struct {

@@ -178,22 +178,32 @@ func (enforcer *BpfEnforcer) applyNetworkRules(nsID uint32, networks []varmor.Ne
 			rule := bpfNetworkRule{
 				Mode:  network.Mode,
 				Flags: network.Flags,
-				Port:  network.Port,
 			}
 
-			ip := net.ParseIP(network.Address)
-			if ip.To4() != nil {
-				copy(rule.Address[:], ip.To4())
-			} else {
-				copy(rule.Address[:], ip.To16())
-			}
-
-			if network.CIDR != "" {
-				_, ipNet, err := net.ParseCIDR(network.CIDR)
-				if err != nil {
-					return err
+			if network.Address != nil {
+				// Socket Connect
+				rule.Port = network.Address.Port
+				ip := net.ParseIP(network.Address.IP)
+				if ip.To4() != nil {
+					copy(rule.Address[:], ip.To4())
+				} else {
+					copy(rule.Address[:], ip.To16())
 				}
-				copy(rule.Mask[:], ipNet.Mask)
+
+				if network.Address.CIDR != "" {
+					_, ipNet, err := net.ParseCIDR(network.Address.CIDR)
+					if err != nil {
+						return err
+					}
+					copy(rule.Mask[:], ipNet.Mask)
+				}
+			} else if network.Socket != nil {
+				// Socket Create
+				rule.Domains = network.Socket.Domains
+				rule.Types = network.Socket.Types
+				rule.Protocols = network.Socket.Protocols
+			} else {
+				continue
 			}
 
 			var index uint32 = uint32(i)

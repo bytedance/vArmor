@@ -72,11 +72,11 @@ func newBpfPathRule(mode uint32, pattern string, permissions uint32) (*varmor.Fi
 	starWildcardLen := len(regexp2FindAllString(re, pattern))
 
 	if starWildcardLen > 0 && strings.Contains(pattern, "**") {
-		return nil, fmt.Errorf("the globbing * and ** in the pattern '%s' cannot be used at the same time", pattern)
+		return nil, fmt.Errorf("policy contains an illegal FileRule rule; the globbing * and ** in the pattern '%s' cannot be used at the same time", pattern)
 	}
 
 	if starWildcardLen > 1 || strings.Count(pattern, "**") > 1 {
-		return nil, fmt.Errorf("the globbing * or ** in the pattern '%s' can only be used once", pattern)
+		return nil, fmt.Errorf("policy contains an illegal FileRule rule; the globbing * or ** in the pattern '%s' can only be used once", pattern)
 	}
 
 	// Create bpfPathRule
@@ -87,7 +87,7 @@ func newBpfPathRule(mode uint32, pattern string, permissions uint32) (*varmor.Fi
 
 	if starWildcardLen > 0 {
 		if strings.Contains(pattern, "/") {
-			return nil, fmt.Errorf("the pattern '%s' with globbing * is not supported", pattern)
+			return nil, fmt.Errorf("policy contains an illegal FileRule rule; the pattern '%s' with globbing * is not supported", pattern)
 		}
 
 		stringList := strings.Split(pattern, "*")
@@ -121,11 +121,13 @@ func newBpfPathRule(mode uint32, pattern string, permissions uint32) (*varmor.Fi
 	}
 
 	if len(pathRule.Pattern.Prefix) >= bpfenforcer.MaxFilePathPatternLength {
-		return nil, fmt.Errorf("the length of prefix '%s' should be less than the maximum (%d)", pathRule.Pattern.Prefix, bpfenforcer.MaxFilePathPatternLength)
+		return nil, fmt.Errorf("policy contains an illegal FileRule rule; the length of prefix '%s' should be less than the %d",
+			pathRule.Pattern.Prefix, bpfenforcer.MaxFilePathPatternLength)
 	}
 
 	if len(pathRule.Pattern.Suffix) >= bpfenforcer.MaxFilePathPatternLength {
-		return nil, fmt.Errorf("the length of suffix '%s' should be less than the maximum (%d)", pathRule.Pattern.Suffix, bpfenforcer.MaxFilePathPatternLength)
+		return nil, fmt.Errorf("policy contains an illegal FileRule rule; the length of suffix '%s' should be less than the %d",
+			pathRule.Pattern.Suffix, bpfenforcer.MaxFilePathPatternLength)
 	}
 
 	pathRule.Pattern.Flags = flags
@@ -134,22 +136,43 @@ func newBpfPathRule(mode uint32, pattern string, permissions uint32) (*varmor.Fi
 	return &pathRule, nil
 }
 
-func newBpfNetworkRule(mode uint32, cidr string, ipAddress string, port uint32) (*varmor.NetworkContent, error) {
+func newBpfNetworkCreateRule(mode uint32, domains uint64, types uint64, protocols uint64) (*varmor.NetworkContent, error) {
 	// Pre-check
-	if cidr == "" && ipAddress == "" && port == 0 {
-		return nil, fmt.Errorf("cidr, ipAddress and port cannot be empty at the same time")
+	if types != 0 && protocols != 0 {
+		return nil, fmt.Errorf("policy contains an illegal NetworkSocketRule rule; the types and protocols fields cannot be set at the same time")
+	}
+	if domains == 0 && types == 0 && protocols == 0 {
+		return nil, fmt.Errorf("policy contains an illegal NetworkSocketRule rule; the domains, types and protocols fields cannot be empty at the same time")
 	}
 
-	if cidr != "" && ipAddress != "" {
-		return nil, fmt.Errorf("cannot set CIRD and IP address at the same time")
+	return &varmor.NetworkContent{
+		Mode:  mode,
+		Flags: bpfenforcer.SocketMatch,
+		Socket: &varmor.NetworkSocket{
+			Domains:   domains,
+			Types:     types,
+			Protocols: protocols,
+		}}, nil
+}
+
+func newBpfNetworkConnectRule(mode uint32, cidr string, ip string, port uint32) (*varmor.NetworkContent, error) {
+	// Pre-check
+	if cidr == "" && ip == "" && port == 0 {
+		return nil, fmt.Errorf("policy contains an illegal NetworkEgressRule rule; the cidr, ip and port fields cannot be empty at the same time")
+	}
+
+	if cidr != "" && ip != "" {
+		return nil, fmt.Errorf("policy contains an illegal NetworkEgressRule rule; the cidr and ip fields cannot be set at the same time")
 	}
 
 	if port > 65535 {
-		return nil, fmt.Errorf("invalid network port")
+		return nil, fmt.Errorf("policy contains an illegal NetworkEgressRule rule; the network port '%d' is invalid", port)
 	}
 
-	var networkRule varmor.NetworkContent
-	networkRule.Mode = mode
+	networkRule := varmor.NetworkContent{
+		Mode:    mode,
+		Address: &varmor.NetworkAddress{},
+	}
 
 	if cidr != "" {
 		networkRule.Flags |= bpfenforcer.CidrMatch
@@ -159,8 +182,8 @@ func newBpfNetworkRule(mode uint32, cidr string, ipAddress string, port uint32) 
 			return nil, err
 		}
 
-		networkRule.Address = ipNet.IP.String()
-		networkRule.CIDR = ipNet.String()
+		networkRule.Address.IP = ipNet.IP.String()
+		networkRule.Address.CIDR = ipNet.String()
 		if ipNet.IP.To4() != nil {
 			networkRule.Flags |= bpfenforcer.Ipv4Match
 		} else {
@@ -168,16 +191,16 @@ func newBpfNetworkRule(mode uint32, cidr string, ipAddress string, port uint32) 
 		}
 	}
 
-	if ipAddress != "" {
+	if ip != "" {
 		networkRule.Flags |= bpfenforcer.PreciseMatch
 
-		ip := net.ParseIP(ipAddress)
-		if ip == nil {
-			return nil, fmt.Errorf("the address is not a valid textual representation of an IP address")
+		i := net.ParseIP(ip)
+		if i == nil {
+			return nil, fmt.Errorf("policy contains an illegal NetworkEgressRule rule; the ip '%s' is not a valid textual representation of an IP address", ip)
 		}
 
-		networkRule.Address = ip.String()
-		if ip.To4() != nil {
+		networkRule.Address.IP = i.String()
+		if i.To4() != nil {
 			networkRule.Flags |= bpfenforcer.Ipv4Match
 		} else {
 			networkRule.Flags |= bpfenforcer.Ipv6Match
@@ -186,7 +209,7 @@ func newBpfNetworkRule(mode uint32, cidr string, ipAddress string, port uint32) 
 
 	if port != 0 {
 		networkRule.Flags |= bpfenforcer.PortMatch
-		networkRule.Port = port
+		networkRule.Address.Port = port
 	}
 
 	return &networkRule, nil
@@ -195,7 +218,8 @@ func newBpfNetworkRule(mode uint32, cidr string, ipAddress string, port uint32) 
 func newBpfMountRule(mode uint32, sourcePattern string, fstype string, mountFlags uint32, reverseMountFlags uint32) (*varmor.MountContent, error) {
 	// Pre-check
 	if len(fstype) >= bpfenforcer.MaxFileSystemTypeLength {
-		return nil, fmt.Errorf("the length of fstype '%s' should be less than the maximum (%d)", fstype, bpfenforcer.MaxFileSystemTypeLength)
+		return nil, fmt.Errorf("policy contains an illegal MountRule rule; the length of fstype '%s' should be less than the maximum (%d)",
+			fstype, bpfenforcer.MaxFileSystemTypeLength)
 	}
 
 	re, err := regexp2.Compile(`(?<!\*)\*(?!\*)`, regexp2.None)
@@ -205,11 +229,11 @@ func newBpfMountRule(mode uint32, sourcePattern string, fstype string, mountFlag
 	starWildcardLen := len(regexp2FindAllString(re, sourcePattern))
 
 	if starWildcardLen > 0 && strings.Contains(sourcePattern, "**") {
-		return nil, fmt.Errorf("the globbing * and ** in the pattern '%s' cannot be used at the same time", sourcePattern)
+		return nil, fmt.Errorf("policy contains an illegal MountRule rule; the globbing * and ** in the pattern '%s' cannot be used at the same time", sourcePattern)
 	}
 
 	if starWildcardLen > 1 || strings.Count(sourcePattern, "**") > 1 {
-		return nil, fmt.Errorf("the globbing * or ** in the pattern '%s' can only be used once", sourcePattern)
+		return nil, fmt.Errorf("policy contains an illegal MountRule rule; the globbing * or ** in the pattern '%s' can only be used once", sourcePattern)
 	}
 
 	// Create bpfMountRule
@@ -220,7 +244,7 @@ func newBpfMountRule(mode uint32, sourcePattern string, fstype string, mountFlag
 
 	if starWildcardLen > 0 {
 		if strings.Contains(sourcePattern, "/") {
-			return nil, fmt.Errorf("the pattern '%s' with globbing * is not supported", sourcePattern)
+			return nil, fmt.Errorf("policy contains an illegal MountRule rule; the pattern '%s' with globbing * is not supported", sourcePattern)
 		}
 
 		stringList := strings.Split(sourcePattern, "*")
@@ -254,11 +278,13 @@ func newBpfMountRule(mode uint32, sourcePattern string, fstype string, mountFlag
 	}
 
 	if len(mountRule.Pattern.Prefix) >= bpfenforcer.MaxFilePathPatternLength {
-		return nil, fmt.Errorf("the length of prefix '%s' should be less than the maximum (%d)", mountRule.Pattern.Prefix, bpfenforcer.MaxFilePathPatternLength)
+		return nil, fmt.Errorf("policy contains an illegal MountRule rule; the length of prefix '%s' should be less than the maximum (%d)",
+			mountRule.Pattern.Prefix, bpfenforcer.MaxFilePathPatternLength)
 	}
 
 	if len(mountRule.Pattern.Suffix) >= bpfenforcer.MaxFilePathPatternLength {
-		return nil, fmt.Errorf("the length of suffix '%s' should be less than the maximum (%d)", mountRule.Pattern.Suffix, bpfenforcer.MaxFilePathPatternLength)
+		return nil, fmt.Errorf("policy contains an illegal MountRule rule; the length of suffix '%s' should be less than the maximum (%d)",
+			mountRule.Pattern.Suffix, bpfenforcer.MaxFilePathPatternLength)
 	}
 
 	mountRule.Pattern.Flags = flags
