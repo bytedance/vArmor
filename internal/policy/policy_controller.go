@@ -28,8 +28,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	appsv1 "k8s.io/client-go/kubernetes/typed/apps/v1"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
-
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/util/retry"
 	"k8s.io/client-go/util/workqueue"
 
 	// informers "k8s.io/client-go/informers/core/v1"
@@ -198,31 +198,48 @@ func (c *PolicyController) updateVarmorPolicyStatus(
 		Reason:             reason,
 		Message:            message,
 	}
-	exist := false
-	if condition.Type == varmortypes.VarmorPolicyUpdated {
-		for i, c := range vp.Status.Conditions {
-			if c.Type == varmortypes.VarmorPolicyUpdated {
-				condition.DeepCopyInto(&vp.Status.Conditions[i])
-				exist = true
-				break
+
+	regain := false
+	update := func() (err error) {
+		if regain {
+			vp, err = c.varmorInterface.VarmorPolicies(vp.Namespace).Get(context.Background(), vp.Name, metav1.GetOptions{})
+			if err != nil {
+				if k8errors.IsNotFound(err) {
+					return nil
+				}
+				return err
 			}
 		}
-	}
-	if !exist {
-		vp.Status.Conditions = append(vp.Status.Conditions, condition)
-	}
 
-	if profileName != "" {
-		vp.Status.ProfileName = profileName
-	}
-	vp.Status.Ready = ready
-	if phase != varmortypes.VarmorPolicyUnchanged {
-		vp.Status.Phase = phase
-	}
+		exist := false
+		if condition.Type == varmortypes.VarmorPolicyUpdated {
+			for i, c := range vp.Status.Conditions {
+				if c.Type == varmortypes.VarmorPolicyUpdated {
+					condition.DeepCopyInto(&vp.Status.Conditions[i])
+					exist = true
+					break
+				}
+			}
+		}
+		if !exist {
+			vp.Status.Conditions = append(vp.Status.Conditions, condition)
+		}
 
-	_, err := c.varmorInterface.VarmorPolicies(vp.Namespace).UpdateStatus(context.Background(), vp, metav1.UpdateOptions{})
+		if profileName != "" {
+			vp.Status.ProfileName = profileName
+		}
+		vp.Status.Ready = ready
+		if phase != varmortypes.VarmorPolicyUnchanged {
+			vp.Status.Phase = phase
+		}
 
-	return err
+		_, err = c.varmorInterface.VarmorPolicies(vp.Namespace).UpdateStatus(context.Background(), vp, metav1.UpdateOptions{})
+		if err != nil {
+			regain = true
+		}
+		return err
+	}
+	return retry.RetryOnConflict(retry.DefaultRetry, update)
 }
 
 func (c *PolicyController) ignoreAdd(vp *varmor.VarmorPolicy, logger logr.Logger) (bool, error) {
@@ -421,7 +438,7 @@ func (c *PolicyController) ignoreUpdate(newVp *varmor.VarmorPolicy, oldAp *varmo
 		newVp.Spec.Policy.EnhanceProtect == nil {
 		err := fmt.Errorf("the EnhanceProtect field is not set when running with EnhanceProtect mode")
 		logger.Error(err, "update VarmorClusterPolicy/status with forbidden info")
-		err = c.updateVarmorPolicyStatus(newVp, "", false, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyCreated, apicorev1.ConditionFalse,
+		err = c.updateVarmorPolicyStatus(newVp, "", false, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionFalse,
 			"Forbidden",
 			"The EnhanceProtect field should be set when running with EnhanceProtect mode.")
 		return true, err
@@ -449,7 +466,7 @@ func (c *PolicyController) ignoreUpdate(newVp *varmor.VarmorPolicy, oldAp *varmo
 		newVp.Spec.Policy.ModelingOptions == nil {
 		err := fmt.Errorf("the ModelingOptions field is not set when running with BehaviorModeling mode")
 		logger.Error(err, "update VarmorClusterPolicy/status with forbidden info")
-		err = c.updateVarmorPolicyStatus(newVp, "", false, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyCreated, apicorev1.ConditionFalse,
+		err = c.updateVarmorPolicyStatus(newVp, "", false, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionFalse,
 			"Forbidden",
 			"The ModelingOptions field should be set when running with BehaviorModeling mode.")
 		return true, err
@@ -483,7 +500,7 @@ func (c *PolicyController) handleUpdateVarmorPolicy(newVp *varmor.VarmorPolicy, 
 	newProfile, err := varmorprofile.GenerateProfile(newVp.Spec.Policy, oldAp.Name, oldAp.Namespace, c.varmorInterface, false)
 	if err != nil {
 		logger.Error(err, "GenerateProfile()")
-		err = c.updateVarmorPolicyStatus(newVp, "", false, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyCreated, apicorev1.ConditionFalse,
+		err = c.updateVarmorPolicyStatus(newVp, "", false, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionFalse,
 			"Error",
 			err.Error())
 		if err != nil {

@@ -496,11 +496,10 @@ func updateWorkloadAnnotationsAndEnv(
 		}
 
 		for _, item := range deploys.Items {
-			needRegain := false
 			deploy := &item
-
+			regain := false
 			updateDeployment := func() error {
-				if needRegain {
+				if regain {
 					deploy, err = appsInterface.Deployments(deploy.Namespace).Get(context.Background(), deploy.Name, metav1.GetOptions{})
 					if err != nil {
 						if k8errors.IsNotFound(err) {
@@ -508,7 +507,7 @@ func updateWorkloadAnnotationsAndEnv(
 						}
 						return err
 					}
-					needRegain = false
+					regain = false
 				}
 
 				deployOld := deploy.DeepCopy()
@@ -517,11 +516,11 @@ func updateWorkloadAnnotationsAndEnv(
 					return nil
 				}
 				deploy.Spec.Template.Annotations["controller.varmor.org/restartedAt"] = time.Now().Format(time.RFC3339)
-				deploy, err = appsInterface.Deployments(deploy.Namespace).Update(context.Background(), deploy, metav1.UpdateOptions{})
+				_, err = appsInterface.Deployments(deploy.Namespace).Update(context.Background(), deploy, metav1.UpdateOptions{})
 				if err == nil {
 					logger.Info("the target workload has been updated", "Kind", "Deployments", "namespace", deploy.Namespace, "name", deploy.Name)
 				} else {
-					needRegain = true
+					regain = true
 				}
 				return err
 			}
@@ -540,11 +539,10 @@ func updateWorkloadAnnotationsAndEnv(
 		}
 
 		for _, item := range statefuls.Items {
-			needRegain := false
 			stateful := &item
-
+			regain := false
 			updateStateful := func() error {
-				if needRegain {
+				if regain {
 					stateful, err = appsInterface.StatefulSets(stateful.Namespace).Get(context.Background(), stateful.Name, metav1.GetOptions{})
 					if err != nil {
 						if k8errors.IsNotFound(err) {
@@ -552,7 +550,7 @@ func updateWorkloadAnnotationsAndEnv(
 						}
 						return err
 					}
-					needRegain = false
+					regain = false
 				}
 
 				statefulOld := stateful.DeepCopy()
@@ -561,11 +559,11 @@ func updateWorkloadAnnotationsAndEnv(
 					return nil
 				}
 				stateful.Spec.Template.Annotations["controller.varmor.org/restartedAt"] = time.Now().Format(time.RFC3339)
-				stateful, err = appsInterface.StatefulSets(stateful.Namespace).Update(context.Background(), stateful, metav1.UpdateOptions{})
+				_, err = appsInterface.StatefulSets(stateful.Namespace).Update(context.Background(), stateful, metav1.UpdateOptions{})
 				if err == nil {
 					logger.Info("the target workload has been updated", "Kind", "StatefulSets", "namespace", stateful.Namespace, "name", stateful.Name)
 				} else {
-					needRegain = true
+					regain = true
 				}
 				return err
 			}
@@ -588,11 +586,10 @@ func updateWorkloadAnnotationsAndEnv(
 		}
 
 		for _, item := range daemons.Items {
-			needRegain := false
 			daemon := &item
-
+			regain := false
 			updateDaemon := func() error {
-				if needRegain {
+				if regain {
 					daemon, err = appsInterface.DaemonSets(daemon.Namespace).Get(context.Background(), daemon.Name, metav1.GetOptions{})
 					if err != nil {
 						if k8errors.IsNotFound(err) {
@@ -600,7 +597,7 @@ func updateWorkloadAnnotationsAndEnv(
 						}
 						return err
 					}
-					needRegain = false
+					regain = false
 				}
 
 				daemonOld := daemon.DeepCopy()
@@ -609,11 +606,11 @@ func updateWorkloadAnnotationsAndEnv(
 					return nil
 				}
 				daemon.Spec.Template.Annotations["controller.varmor.org/restartedAt"] = time.Now().Format(time.RFC3339)
-				daemon, err = appsInterface.DaemonSets(daemon.Namespace).Update(context.Background(), daemon, metav1.UpdateOptions{})
+				_, err = appsInterface.DaemonSets(daemon.Namespace).Update(context.Background(), daemon, metav1.UpdateOptions{})
 				if err == nil {
 					logger.Info("the target workload has been updated", "Kind", "DaemonSets", "namespace", daemon.Namespace, "name", daemon.Name)
 				} else {
-					needRegain = true
+					regain = true
 				}
 				return err
 			}

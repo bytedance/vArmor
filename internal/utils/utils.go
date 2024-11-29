@@ -298,10 +298,14 @@ func IsAppArmorGA(versionInfo *version.Info) (bool, error) {
 func RemoveArmorProfileFinalizers(i varmorinterface.CrdV1beta1Interface, namespace, name string) error {
 	removeFinalizers := func() error {
 		ap, err := i.ArmorProfiles(namespace).Get(context.Background(), name, metav1.GetOptions{})
-		if err == nil {
-			ap.Finalizers = []string{}
-			_, err = i.ArmorProfiles(namespace).Update(context.Background(), ap, metav1.UpdateOptions{})
+		if err != nil {
+			if k8errors.IsNotFound(err) {
+				return nil
+			}
+			return err
 		}
+		ap.Finalizers = []string{}
+		_, err = i.ArmorProfiles(namespace).Update(context.Background(), ap, metav1.UpdateOptions{})
 		return err
 	}
 	return retry.RetryOnConflict(retry.DefaultRetry, removeFinalizers)
