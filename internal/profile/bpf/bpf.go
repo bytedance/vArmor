@@ -544,6 +544,8 @@ func generateRawFileRule(bpfContent *varmor.BpfContent, mode uint32, rule varmor
 
 	for _, permission := range rule.Permissions {
 		switch strings.ToLower(permission) {
+		case "all", "*":
+			permissions |= bpfenforcer.AaMayRead | bpfenforcer.AaMayWrite | bpfenforcer.AaMayAppend
 		case "read", "r":
 			permissions |= bpfenforcer.AaMayRead
 		case "write", "w":
@@ -572,6 +574,8 @@ func generateRawProcessRule(bpfContent *varmor.BpfContent, mode uint32, rule var
 
 	for _, permission := range rule.Permissions {
 		switch strings.ToLower(permission) {
+		case "all", "*":
+			permissions |= bpfenforcer.AaMayExec
 		case "exec", "x":
 			permissions |= bpfenforcer.AaMayExec
 		}
@@ -763,6 +767,8 @@ func generateRawPtraceRule(bpfContent *varmor.BpfContent, mode uint32, rule *var
 
 	for _, permission := range rule.Permissions {
 		switch strings.ToLower(permission) {
+		case "all", "*":
+			permissions |= bpfenforcer.AaPtraceTrace | bpfenforcer.AaPtraceRead | bpfenforcer.AaMayBeTraced | bpfenforcer.AaMayBeRead
 		case "trace":
 			permissions |= bpfenforcer.AaPtraceTrace
 		case "read":
@@ -791,7 +797,7 @@ func generateRawMountRule(bpfContent *varmor.BpfContent, mode uint32, rule varmo
 	for _, flag := range rule.Flags {
 		switch strings.ToLower(flag) {
 		// All Flags:
-		case "all":
+		case "all", "*":
 			mountFlags = 0xFFFFFFFF
 			reverseMountFlags = 0xFFFFFFFF
 		// Command Flags

@@ -58,6 +58,9 @@ type FileRule struct {
 	// Pattern can be any string (maximum length 128 bytes) that conforms to the policy syntax, used for matching file paths and filenames
 	Pattern string `json:"pattern"`
 	// Permissions are used to specify the file permissions to be disabled.
+	//
+	// Available values: all(*), read(r), write(w), exec(x), append(a)
+	//
 	Permissions []string `json:"permissions"`
 }
 
@@ -77,7 +80,7 @@ type NetworkSocketRule struct {
 	// Domains specifies the communication domains of socket.
 	//
 	// Available values:
-	//       *, all, unix, inet, ax25, ipx, appletalk, netrom, bridge, atmpvc, x25,
+	//       all(*), unix, inet, ax25, ipx, appletalk, netrom, bridge, atmpvc, x25,
 	//       inet6, rose, netbeui, security, key, netlink, packet, ash, econet, atmsvc,
 	//       rds, sna, irda, pppox, wanpipe, llc, ib, mpls, can, tipc, bluetooth, iucv,
 	//       rxrpc, isdn, phonet, ieee802154, caif, alg, nfc, vsock, kcm, qipcrtr, smc,
@@ -87,13 +90,13 @@ type NetworkSocketRule struct {
 	// Types specifies the communication semantics of socket. Note that the types field and protocols field
 	// are mutually exclusive.
 	//
-	// Available values: *, all, stream, dgram, raw, rdm, seqpacket, dccp, packet
+	// Available values: all(*), stream, dgram, raw, rdm, seqpacket, dccp, packet
 	//
 	Types []string `json:"types,omitempty"`
 	// Protocols specifies the particular protocols to be used with the socket. Note that the protocols field
 	// and types field are mutually exclusive.
 	//
-	// Available values: *, all, icmp, tcp, udp
+	// Available values: all(*), icmp, tcp, udp
 	//
 	Protocols []string `json:"protocols,omitempty"`
 }
@@ -113,15 +116,13 @@ type PtraceRule struct {
 	// +optional
 	StrictMode bool `json:"strictMode,omitempty"`
 	// Permissions are used to indicate which ptrace-related permissions of the target container should be restricted.
-	// Available values: trace, traceby, read, readby.
 	//
-	// trace, traceby
-	//
+	// Available values: all(*), trace, traceby, read, readby.
+	//    trace, traceby
 	//    For "write" operations, or other operations that are more dangerous, such as: ptrace attaching (PTRACE_ATTACH) to
 	//    another process or calling process_vm_writev(2).
 	//
-	// read, readby
-	//
+	//    read, readby
 	//    For "read" operations or other operations that are less dangerous, such as: get_robust_list(2); kcmp(2); reading
 	//    /proc/pid/auxv, /proc/pid/environ, or /proc/pid/stat; or readlink(2) of a /proc/pid/ns/* file.
 	//
@@ -136,8 +137,7 @@ type MountRule struct {
 	// Flags are used to specify the mount flags to enforce. They are almost the same as the 'MOUNT FLAGS LIST' of AppArmor.
 	//
 	// Available values:
-	//
-	//       All Flags: all
+	//       All Flags: all(*)
 	//   Command Flags: ro(r, read-only), rw(w), suid, nosuid, dev, nodev, exec, noexec,
 	//                  sync, async, mand, nomand, dirsync, atime, noatime, diratime, nodiratime,
 	//                  silent, loud, relatime, norelatime, iversion, noiversion, strictatime,
