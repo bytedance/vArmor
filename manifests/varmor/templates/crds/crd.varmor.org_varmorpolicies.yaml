@@ -261,27 +261,35 @@ spec:
                                 description: "Permissions are used to indicate which
                                   ptrace-related permissions of the target container
                                   should be restricted. \n Available values: all(*),
-                                  trace, traceby, read, readby. trace, traceby For
-                                  \"write\" operations, or other operations that are
-                                  more dangerous, such as: ptrace attaching (PTRACE_ATTACH)
-                                  to another process or calling process_vm_writev(2).
-                                  \n read, readby For \"read\" operations or other
-                                  operations that are less dangerous, such as: get_robust_list(2);
-                                  kcmp(2); reading /proc/pid/auxv, /proc/pid/environ,
-                                  or /proc/pid/stat; or readlink(2) of a /proc/pid/ns/*
-                                  file."
+                                  trace, traceby, read, readby. - trace: prohibiting
+                                  tracing of other processes. - read: prohibiting
+                                  reading of other processes. - traceby: prohibiting
+                                  being traced by other processes (excluding the host
+                                  processes). - readby: prohibiting being read by
+                                  other processes (excluding the host processes).
+                                  \n The trace, traceby permissions for \"write\"
+                                  operations, or other operations that are more dangerous,
+                                  such as: ptrace attaching (PTRACE_ATTACH) to another
+                                  process or calling process_vm_writev(2). \n The
+                                  read, readby permissions for \"read\" operations
+                                  or other operations that are less dangerous, such
+                                  as: get_robust_list(2); kcmp(2); reading /proc/pid/auxv,
+                                  /proc/pid/environ, or /proc/pid/stat; or readlink(2)
+                                  of a /proc/pid/ns/* file."
                                 items:
                                   type: string
                                 type: array
                               strictMode:
                                 description: StrictMode is used to indicate whether
-                                  to restrict ptrace permissions for all source and
+                                  to restrict ptrace operations for all source and
                                   destination processes. Default is false. If set
-                                  to false, it restricts ptrace-related permissions
-                                  only for processes in other containers. If set to
-                                  true, it restricts ptrace-related permissions for
-                                  all processes, except those within the init mnt
-                                  namespace.
+                                  to false, it allows a process to perform trace and
+                                  read operations on other processes within the same
+                                  container, and also allows a process to be subjected
+                                  to traceby and readby operations by other processes
+                                  within the same container. If set to true, it prohibits
+                                  all trace, read, traceby, and readby operations
+                                  within the container.
                                 type: boolean
                             required:
                             - permissions
@@ -396,9 +404,9 @@ spec:
                       Note that the name field and selector field are mutually exclusive.
                     type: string
                   selector:
-                    description: "LabelSelector is used to match workloads that meet
-                      the specified conditions \n Note: The type of workloads is determined
-                      by the KIND field."
+                    description: LabelSelector is used to match workloads that meet
+                      the specified conditions. Note that the selector field and name
+                      field are mutually exclusive.
                     properties:
                       matchExpressions:
                         description: matchExpressions is a list of label selector

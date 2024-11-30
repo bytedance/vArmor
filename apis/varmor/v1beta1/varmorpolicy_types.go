@@ -37,10 +37,7 @@ type Target struct {
 	// will be enabled for all containers within the workload (excluding initContainers and ephemeralContainers).
 	// +optional
 	Containers []string `json:"containers,omitempty"`
-	// LabelSelector is used to match workloads that meet the specified conditions
-	//
-	// Note:
-	// The type of workloads is determined by the KIND field.
+	// LabelSelector is used to match workloads that meet the specified conditions. Note that the selector field and name field are mutually exclusive.
 	// +optional
 	Selector *metav1.LabelSelector `json:"selector,omitempty"`
 }
@@ -109,23 +106,26 @@ type NetworkRule struct {
 }
 
 type PtraceRule struct {
-	// StrictMode is used to indicate whether to restrict ptrace permissions for all source and destination processes.
+	// StrictMode is used to indicate whether to restrict ptrace operations for all source and destination processes.
 	// Default is false.
-	// If set to false, it restricts ptrace-related permissions only for processes in other containers.
-	// If set to true, it restricts ptrace-related permissions for all processes, except those within the init mnt namespace.
+	// If set to false, it allows a process to perform trace and read operations on other processes within the same container,
+	// and also allows a process to be subjected to traceby and readby operations by other processes within the same container.
+	// If set to true, it prohibits all trace, read, traceby, and readby operations within the container.
 	// +optional
 	StrictMode bool `json:"strictMode,omitempty"`
 	// Permissions are used to indicate which ptrace-related permissions of the target container should be restricted.
 	//
 	// Available values: all(*), trace, traceby, read, readby.
-	//    trace, traceby
-	//    For "write" operations, or other operations that are more dangerous, such as: ptrace attaching (PTRACE_ATTACH) to
-	//    another process or calling process_vm_writev(2).
+	//    - trace: prohibiting tracing of other processes.
+	//    - read: prohibiting reading of other processes.
+	//    - traceby: prohibiting being traced by other processes (excluding the host processes).
+	//    - readby: prohibiting being read by other processes (excluding the host processes).
 	//
-	//    read, readby
-	//    For "read" operations or other operations that are less dangerous, such as: get_robust_list(2); kcmp(2); reading
-	//    /proc/pid/auxv, /proc/pid/environ, or /proc/pid/stat; or readlink(2) of a /proc/pid/ns/* file.
+	//  The trace, traceby permissions for "write" operations, or other operations that are more dangerous, such as:
+	//  ptrace attaching (PTRACE_ATTACH) to another process or calling process_vm_writev(2).
 	//
+	//  The read, readby permissions for "read" operations or other operations that are less dangerous, such as:
+	//  get_robust_list(2); kcmp(2); reading /proc/pid/auxv, /proc/pid/environ, or /proc/pid/stat; or readlink(2) of a /proc/pid/ns/* file.
 	Permissions []string `json:"permissions"`
 }
 

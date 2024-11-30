@@ -250,9 +250,9 @@ spec:
                       Note that the name field and selector field are mutually exclusive.
                     type: string
                   selector:
-                    description: "LabelSelector is used to match workloads that meet
-                      the specified conditions \n Note: The type of workloads is determined
-                      by the KIND field."
+                    description: LabelSelector is used to match workloads that meet
+                      the specified conditions. Note that the selector field and name
+                      field are mutually exclusive.
                     properties:
                       matchExpressions:
                         description: matchExpressions is a list of label selector
