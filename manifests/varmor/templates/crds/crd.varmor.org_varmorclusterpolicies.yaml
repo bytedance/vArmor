@@ -182,13 +182,12 @@ spec:
                                   properties:
                                     ip:
                                       description: IP defines policy on a particular
-                                        IP. If this field is set then neither of the
-                                        IPBlock field can be.
+                                        IP. Note that the ip field and ipBlock field
+                                        are mutually exclusive.
                                       type: string
                                     ipBlock:
                                       description: IPBlock defines policy on a particular
-                                        IPBlock with CIDR. If this field is set then
-                                        neither of the IP field can be.
+                                        IPBlock with CIDR.
                                       type: string
                                     port:
                                       description: Port defines policy on a particular
@@ -226,10 +225,9 @@ spec:
                                       type: array
                                     types:
                                       description: "Types specifies the communication
-                                        semantics of socket. Note that the types field
-                                        and protocols field are mutually exclusive.
-                                        \n Available values: all(*), stream, dgram,
-                                        raw, rdm, seqpacket, dccp, packet"
+                                        semantics of socket. \n Available values:
+                                        all(*), stream, dgram, raw, rdm, seqpacket,
+                                        dccp, packet"
                                       items:
                                         type: string
                                       type: array
@@ -402,7 +400,6 @@ spec:
                     type: string
                   name:
                     description: Name is used to specify a specific workload name.
-                      Note that the name field and selector field are mutually exclusive.
                     type: string
                   selector:
                     description: LabelSelector is used to match workloads that meet

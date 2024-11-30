@@ -62,10 +62,10 @@ type FileRule struct {
 }
 
 type NetworkEgressRule struct {
-	// IPBlock defines policy on a particular IPBlock with CIDR. If this field is set then neither of the IP field can be.
+	// IPBlock defines policy on a particular IPBlock with CIDR.
 	// +optional
 	IPBlock string `json:"ipBlock,omitempty"`
-	// IP defines policy on a particular IP. If this field is set then neither of the IPBlock field can be.
+	// IP defines policy on a particular IP. Note that the ip field and ipBlock field are mutually exclusive.
 	// +optional
 	IP string `json:"ip,omitempty"`
 	// Port defines policy on a particular port. If this field is zero or missing, this rule matches all ports.
