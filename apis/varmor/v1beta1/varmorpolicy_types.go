@@ -30,7 +30,7 @@ type Target struct {
 	// Kind is used to specify the type of workloads for the protection targets.
 	// Available values: Deployment, StatefulSet, DaemonSet, Pod.
 	Kind string `json:"kind"`
-	// Name is used to specify a specific workload name. Note that the name field and selector field are mutually exclusive.
+	// Name is used to specify a specific workload name.
 	// +optional
 	Name string `json:"name,omitempty"`
 	// Containers are used to specify the names of the protected containers. If it is empty, sandbox protection
@@ -84,8 +84,7 @@ type NetworkSocketRule struct {
 	//       xdp, mctp
 	//
 	Domains []string `json:"domains,omitempty"`
-	// Types specifies the communication semantics of socket. Note that the types field and protocols field
-	// are mutually exclusive.
+	// Types specifies the communication semantics of socket.
 	//
 	// Available values: all(*), stream, dgram, raw, rdm, seqpacket, dccp, packet
 	//

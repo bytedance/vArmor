@@ -6,9 +6,9 @@
 |字段|子字段|子字段|描述|
 |---|-----|-----|---|
 |target|kind<br />*string*|-|用于指定防护目标的 Workloads 类型。<br />可用值: Deployment, StatefulSet, DaemonSet, Pod。|
-|      |name<br />*string*|-|可选字段。用于指定防护目标的对象名称。注意：name 字段与 selector 字段互斥，不能同时存在。|
-|      |containers<br />*string array*|-|可选字段。用于指定防护目标的容器名，如果为空默认对 Workloads 中的所有容器开启沙箱防护。（注：不含 initContainers, ephemeralContainers）|
-|      |selector<br />*[LabelSelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.26/#labelselector-v1-meta)*|-|可选字段。用于根据标签选择器识别防护目标，并开启沙箱防护。注意 selector 字段与 name 字段互斥，不能同时存在。|
+|      |name<br />*string*|-|可选字段。用于指定防护目标的对象名称。|
+|      |containers<br />*string array*|-|可选字段。用于指定防护目标的容器名，如果为空默认对 Workloads 中的所有容器开启沙箱防护。（不含 initContainers, ephemeralContainers）|
+|      |selector<br />*[LabelSelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.26/#labelselector-v1-meta)*|-|可选字段。用于根据标签选择器识别防护目标，并开启沙箱防护。<br /><br />注意 selector 字段与 name 字段互斥，不能同时存在。|
 |policy|enforcer<br />*string*|-|指定要使用的 LSM。<br />可用值: AppArmor, BPF, Seccomp, AppArmorBPF, AppArmorSeccomp, BPFSeccomp, AppArmorBPFSeccomp|
 |      |mode<br />*string*|-|用于指定防护模式。<br />可用值：AlwaysAllow, RuntimeDefault, EnhanceProtect, BehaviorModeling, DefenseInDepth|
 |      |enhanceProtect|hardeningRules<br />*string array*|可选字段。用于指定要使用的内置加固规则。|
@@ -41,7 +41,7 @@
 |network<br />*NetworkRule*     |sockets<br />*[NetworkSocketRule](#networksocketrule) array*|对套接字 [SOCKET(2)](https://man7.org/linux/man-pages/man2/socket.2.html) 创建行为进行访问控制。|
 |                               |egresses<br />*[NetworkEgressRule](#networkegressrule) array*|对外联请求进行访问控制。|
 |ptrace<br />*PtraceRule*       |strictMode<br />*bool*|可选字段。如果设置为 false，将允许进程对同一容器内其他进程执行 trace、read 操作，以及允许进程被同一容器内其他进程执行 traceby、readby 操作。如果设置为 true，则将禁止容器内所有进程的 trace、read、traceby、readby 操作。（默认值：false）|
-|                             |permissions<br />*string array*|禁止使用 ptrace 相关操作，可用值: `all(*), trace, read, traceby, readby`<br />- `trace`: 禁止跟踪其他进程<br />- `read`: 禁止读取其他进程<br />- `traceby`: 禁止被其他进程跟踪，宿主机进程除外<br />- `readby`: 禁止被其他进程读取，宿主机进程除外|
+|                             |permissions<br />*string array*|禁止使用 ptrace 相关操作。<br />可用值: `all(*), trace, read, traceby, readby`<br />- trace: 禁止跟踪其他进程<br />- read: 禁止读取其他进程<br />- traceby: 禁止被其他进程跟踪，宿主机进程除外<br />- readby: 禁止被其他进程读取，宿主机进程除外|
 |mounts<br />*MountRule array*  |sourcePattern<br />*string*|任意符合策略语法的文件路径字符串（最大长度 128 bytes），用于匹配 [MOUNT(2)](https://man7.org/linux/man-pages/man2/mount.2.html) 的 source，[UMOUNT(2)](https://man7.org/linux/man-pages/man2/umount.2.html) 的 target，以及 MOVE_MOUNT(2) 的 from_pathname。|
 |                             |fstype<br />*string*|任意字符串（最大长度 16 bytes），用于匹配文件系统类型，`*` 代表匹配任意文件系统。|
 |                             |flags<br />*string array*|禁止使用的 mount flags，它们与 AppArmor 的 [MOUNT FLAGS](https://manpages.ubuntu.com/manpages/focal/man5/apparmor.d.5.html) 类似。<br />可用值：`all(*), ro(r, read-only), rw(w), suid, nosuid, dev, nodev, exec, noexec, sync, async, mand, nomand, dirsync, atime, noatime, diratime, nodiratime, silent, loud, relatime, norelatime, iversion, noiversion, strictatime, nostrictatime, remount, bind(B), move(M), rbind(R), make-unbindable, make-private(private), make-slave(slave), make-shared(shared), make-runbindable, make-rprivate, make-rslave, make-rshared, umount`|
@@ -52,14 +52,14 @@
 |---|----|
 |domains<br />*string array*|可选字段。用于指定禁止使用的套接字通信域。<br />可用值：`all(*), unix, inet, ax25, ipx, appletalk, netrom, bridge, atmpvc, x25, inet6, rose, netbeui, security, key, netlink, packet, ash, econet, atmsvc, rds, sna, irda, pppox, wanpipe, llc, ib, mpls, can, tipc, bluetooth, iucv, rxrpc, isdn, phonet, ieee802154, caif, alg, nfc, vsock, kcm, qipcrtr, smc, xdp, mctp`|
 |types<br />*string array*|可选字段。用于指定禁止使用的套接字通信语义。<br />可用值：`all(*), stream, dgram, raw, rdm, seqpacket, dccp, packet`|
-|protocols<br />*string array*|可选字段。用于指定禁止使用的套接字特定协议。<br />可用值：`all(*), icmp, tcp, udp`<br />注意：protocols 和 types 字段互斥，不能同时存在。|
+|protocols<br />*string array*|可选字段。用于指定禁止使用的套接字特定协议。<br />可用值：`all(*), icmp, tcp, udp`<br /><br />注意：protocols 和 types 字段互斥，不能同时存在。|
 |PLACEHOLDER|
 
 ## NetworkEgressRule
 
 |字段|描述|
 |---|----|
-|ipBlock<br />*string*|可选字段。可使用任意标准的 CIDR，支持 IPv6。用于对指定 CIDR 范围内的 IP 地址进行外联限制，例如<br />* 192.168.1.1/24 代表 192.168.1.0 ~ 192.168.1.255 范围内的 IP 地址。<br />* 2001:db8::/32 代表 2001:db8:: ~ 2001:db8:ffff:ffff:ffff:ffff:ffff:ffff 范围内的 IP 地址。<br />注意：同一个 NetworkEgressRule 中，IPBlock 和 IP 字段互斥，不能同时存在。|
+|ipBlock<br />*string*|可选字段。可使用任意标准的 CIDR，支持 IPv6。用于对指定 CIDR 范围内的 IP 地址进行外联限制，例如<br />* 192.168.1.1/24 代表 192.168.1.0 ~ 192.168.1.255 范围内的 IP 地址。<br />* 2001:db8::/32 代表 2001:db8:: ~ 2001:db8:ffff:ffff:ffff:ffff:ffff:ffff 范围内的 IP 地址。<br /><br />注意：同一个 NetworkEgressRule 中，IPBlock 和 IP 字段互斥，不能同时存在。|
 |ip<br />*string*|可选字段。任意标准的 IP 地址，支持 IPv6，用于对特定的 IP 地址进行外联限制。|
 |port<br />*int*|可选字段。用于对指定的端口进行外联限制，当为空时，默认对（匹配 IP 地址的）所有端口进行外联限制。否则仅对特定端口进行控制。<br />可用值：`1~65535`|
 |PLACEHOLDER||
