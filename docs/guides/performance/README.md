@@ -9,9 +9,9 @@ The factors affecting performance for vArmor's user-space and kernel-space compo
 | -------------- | ----------- |
 | Cluster scale  | As the cluster size increases, the CPU and memory consumed by the Manager for managing Agents also increase.|
 | Resource scale | Creating a large number of VarmorPolicy CRs will result in increased CPU and memory consumption for Manager. Frequent creation/modification/deletion of VarmorPolicy CRs will result in increased CPU and memory consumption for both Manager and Agent in response.|
-| AppArmor LSM   | The basic overhead introduced when the kernel enable the AppArmor LSM.<br />The more rules in a profile, the greater the performance impact on processes.|
-| BPF LSM        | The basic overhead introduced when the kernel enable the BPF LSM.<br />The more rules in a profile, the greater the performance impact on processes.|
-| Seccomp        | The basic overhead introduced when the kernel enable the Seccomp.<br />The more rules in a profile, the greater the performance impact on processes.|
+| AppArmor LSM   | The basic overhead introduced when the kernel enable the AppArmor LSM feature.<br />The more rules in a profile, the greater the performance impact on processes.|
+| BPF LSM        | The basic overhead introduced when the kernel enable the BPF LSM feature.<br />The more rules in a profile, the greater the performance impact on processes.|
+| Seccomp        | The basic overhead introduced when the kernel enable the Seccomp feature.<br />The more rules in a profile, the greater the performance impact on processes.|
 |PLACEHOLDER||
 
 ## Resource Usage
