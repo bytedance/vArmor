@@ -37,15 +37,15 @@ vArmor was created by the **Elkeid Team** of the endpoint security department at
 ## Documentation
 vArmor reference documents are available at [varmor.org](https://varmor.org).
 
-⏩ **[Quick Start](https://www.varmor.org/docs/introduction#quick-start)**
+⏩ **[Quick Start](https://www.varmor.org/docs/main/introduction)**
 
-⚙️ **[Installation](https://www.varmor.org/docs/getting_started/installation)**
+⚙️ **[Installation](https://www.varmor.org/docs/main/getting_started/installation)**
 
-📔 **[Usage Instructions](https://www.varmor.org/docs/getting_started/usage_instructions)**
+📔 **[Usage Instructions](https://www.varmor.org/docs/main/getting_started/usage_instructions)**
 
-📜 **[Policies and Rules](https://www.varmor.org/docs/guides/policies_and_rules)**
+📜 **[Policies and Rules](https://www.varmor.org/docs/main/guides/policies_and_rules)**
 
-⏱️ **[Performance Specifications](https://www.varmor.org/docs/guides/performance)**
+⏱️ **[Performance Specifications](https://www.varmor.org/docs/main/guides/performance)**
 
 
 ## Contributing
@@ -53,7 +53,7 @@ Thanks for your interest in contributing to vArmor! Here are some steps to help 
 
 🤝🏻 Read and agree to the [code of conduct](./CODE_OF_CONDUCT.md).
 
-🛠️ Read the [development guide](docs/development_guide.md).
+🛠️ Read the [development guide](https://www.varmor.org/docs/main/guides/development).
 
 💬 Join vArmor [Lark group](https://applink.larkoffice.com/client/chat/chatter/add_by_link?link_token=ae5pfb2d-f8a4-4f0b-b12e-15f24fdaeb24&qr_code=true).
 
