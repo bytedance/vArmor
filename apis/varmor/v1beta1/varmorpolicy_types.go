@@ -30,17 +30,14 @@ type Target struct {
 	// Kind is used to specify the type of workloads for the protection targets.
 	// Available values: Deployment, StatefulSet, DaemonSet, Pod.
 	Kind string `json:"kind"`
-	// Name is used to specify a specific workload name. Note that the name field and selector field are mutually exclusive.
+	// Name is used to specify a specific workload name.
 	// +optional
 	Name string `json:"name,omitempty"`
 	// Containers are used to specify the names of the protected containers. If it is empty, sandbox protection
 	// will be enabled for all containers within the workload (excluding initContainers and ephemeralContainers).
 	// +optional
 	Containers []string `json:"containers,omitempty"`
-	// LabelSelector is used to match workloads that meet the specified conditions
-	//
-	// Note:
-	// The type of workloads is determined by the KIND field.
+	// LabelSelector is used to match workloads that meet the specified conditions. Note that the selector field and name field are mutually exclusive.
 	// +optional
 	Selector *metav1.LabelSelector `json:"selector,omitempty"`
 }
@@ -58,14 +55,17 @@ type FileRule struct {
 	// Pattern can be any string (maximum length 128 bytes) that conforms to the policy syntax, used for matching file paths and filenames
 	Pattern string `json:"pattern"`
 	// Permissions are used to specify the file permissions to be disabled.
+	//
+	// Available values: all(*), read(r), write(w), exec(x), append(a)
+	//
 	Permissions []string `json:"permissions"`
 }
 
 type NetworkEgressRule struct {
-	// IPBlock defines policy on a particular IPBlock with CIDR. If this field is set then neither of the IP field can be.
+	// IPBlock defines policy on a particular IPBlock with CIDR.
 	// +optional
 	IPBlock string `json:"ipBlock,omitempty"`
-	// IP defines policy on a particular IP. If this field is set then neither of the IPBlock field can be.
+	// IP defines policy on a particular IP. Note that the ip field and ipBlock field are mutually exclusive.
 	// +optional
 	IP string `json:"ip,omitempty"`
 	// Port defines policy on a particular port. If this field is zero or missing, this rule matches all ports.
@@ -77,23 +77,22 @@ type NetworkSocketRule struct {
 	// Domains specifies the communication domains of socket.
 	//
 	// Available values:
-	//       *, all, unix, inet, ax25, ipx, appletalk, netrom, bridge, atmpvc, x25,
+	//       all(*), unix, inet, ax25, ipx, appletalk, netrom, bridge, atmpvc, x25,
 	//       inet6, rose, netbeui, security, key, netlink, packet, ash, econet, atmsvc,
 	//       rds, sna, irda, pppox, wanpipe, llc, ib, mpls, can, tipc, bluetooth, iucv,
 	//       rxrpc, isdn, phonet, ieee802154, caif, alg, nfc, vsock, kcm, qipcrtr, smc,
 	//       xdp, mctp
 	//
 	Domains []string `json:"domains,omitempty"`
-	// Types specifies the communication semantics of socket. Note that the types field and protocols field
-	// are mutually exclusive.
+	// Types specifies the communication semantics of socket.
 	//
-	// Available values: *, all, stream, dgram, raw, rdm, seqpacket, dccp, packet
+	// Available values: all(*), stream, dgram, raw, rdm, seqpacket, dccp, packet
 	//
 	Types []string `json:"types,omitempty"`
 	// Protocols specifies the particular protocols to be used with the socket. Note that the protocols field
 	// and types field are mutually exclusive.
 	//
-	// Available values: *, all, icmp, tcp, udp
+	// Available values: all(*), icmp, tcp, udp
 	//
 	Protocols []string `json:"protocols,omitempty"`
 }
@@ -106,25 +105,26 @@ type NetworkRule struct {
 }
 
 type PtraceRule struct {
-	// StrictMode is used to indicate whether to restrict ptrace permissions for all source and destination processes.
+	// StrictMode is used to indicate whether to restrict ptrace operations for all source and destination processes.
 	// Default is false.
-	// If set to false, it restricts ptrace-related permissions only for processes in other containers.
-	// If set to true, it restricts ptrace-related permissions for all processes, except those within the init mnt namespace.
+	// If set to false, it allows a process to perform trace and read operations on other processes within the same container,
+	// and also allows a process to be subjected to traceby and readby operations by other processes within the same container.
+	// If set to true, it prohibits all trace, read, traceby, and readby operations within the container.
 	// +optional
 	StrictMode bool `json:"strictMode,omitempty"`
 	// Permissions are used to indicate which ptrace-related permissions of the target container should be restricted.
-	// Available values: trace, traceby, read, readby.
 	//
-	// trace, traceby
+	// Available values: all(*), trace, traceby, read, readby.
+	//    - trace: prohibiting tracing of other processes.
+	//    - read: prohibiting reading of other processes.
+	//    - traceby: prohibiting being traced by other processes (excluding the host processes).
+	//    - readby: prohibiting being read by other processes (excluding the host processes).
 	//
-	//    For "write" operations, or other operations that are more dangerous, such as: ptrace attaching (PTRACE_ATTACH) to
-	//    another process or calling process_vm_writev(2).
+	//  The trace, traceby permissions for "write" operations, or other operations that are more dangerous, such as:
+	//  ptrace attaching (PTRACE_ATTACH) to another process or calling process_vm_writev(2).
 	//
-	// read, readby
-	//
-	//    For "read" operations or other operations that are less dangerous, such as: get_robust_list(2); kcmp(2); reading
-	//    /proc/pid/auxv, /proc/pid/environ, or /proc/pid/stat; or readlink(2) of a /proc/pid/ns/* file.
-	//
+	//  The read, readby permissions for "read" operations or other operations that are less dangerous, such as:
+	//  get_robust_list(2); kcmp(2); reading /proc/pid/auxv, /proc/pid/environ, or /proc/pid/stat; or readlink(2) of a /proc/pid/ns/* file.
 	Permissions []string `json:"permissions"`
 }
 
@@ -136,8 +136,7 @@ type MountRule struct {
 	// Flags are used to specify the mount flags to enforce. They are almost the same as the 'MOUNT FLAGS LIST' of AppArmor.
 	//
 	// Available values:
-	//
-	//       All Flags: all
+	//       All Flags: all(*)
 	//   Command Flags: ro(r, read-only), rw(w), suid, nosuid, dev, nodev, exec, noexec,
 	//                  sync, async, mand, nomand, dirsync, atime, noatime, diratime, nodiratime,
 	//                  silent, loud, relatime, norelatime, iversion, noiversion, strictatime,

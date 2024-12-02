@@ -126,8 +126,9 @@ spec:
                                     syntax, used for matching file paths and filenames
                                   type: string
                                 permissions:
-                                  description: Permissions are used to specify the
-                                    file permissions to be disabled.
+                                  description: "Permissions are used to specify the
+                                    file permissions to be disabled. \n Available
+                                    values: all(*), read(r), write(w), exec(x), append(a)"
                                   items:
                                     type: string
                                   type: array
@@ -143,7 +144,7 @@ spec:
                                   description: "Flags are used to specify the mount
                                     flags to enforce. They are almost the same as
                                     the 'MOUNT FLAGS LIST' of AppArmor. \n Available
-                                    values: \n All Flags: all Command Flags: ro(r,
+                                    values: All Flags: all(*) Command Flags: ro(r,
                                     read-only), rw(w), suid, nosuid, dev, nodev, exec,
                                     noexec, sync, async, mand, nomand, dirsync, atime,
                                     noatime, diratime, nodiratime, silent, loud, relatime,
@@ -181,13 +182,12 @@ spec:
                                   properties:
                                     ip:
                                       description: IP defines policy on a particular
-                                        IP. If this field is set then neither of the
-                                        IPBlock field can be.
+                                        IP. Note that the ip field and ipBlock field
+                                        are mutually exclusive.
                                       type: string
                                     ipBlock:
                                       description: IPBlock defines policy on a particular
-                                        IPBlock with CIDR. If this field is set then
-                                        neither of the IP field can be.
+                                        IPBlock with CIDR.
                                       type: string
                                     port:
                                       description: Port defines policy on a particular
@@ -203,8 +203,8 @@ spec:
                                   properties:
                                     domains:
                                       description: "Domains specifies the communication
-                                        domains of socket. \n Available values: *,
-                                        all, unix, inet, ax25, ipx, appletalk, netrom,
+                                        domains of socket. \n Available values: all(*),
+                                        unix, inet, ax25, ipx, appletalk, netrom,
                                         bridge, atmpvc, x25, inet6, rose, netbeui,
                                         security, key, netlink, packet, ash, econet,
                                         atmsvc, rds, sna, irda, pppox, wanpipe, llc,
@@ -218,17 +218,16 @@ spec:
                                       description: "Protocols specifies the particular
                                         protocols to be used with the socket. Note
                                         that the protocols field and types field are
-                                        mutually exclusive. \n Available values: *,
-                                        all, icmp, tcp, udp"
+                                        mutually exclusive. \n Available values: all(*),
+                                        icmp, tcp, udp"
                                       items:
                                         type: string
                                       type: array
                                     types:
                                       description: "Types specifies the communication
-                                        semantics of socket. Note that the types field
-                                        and protocols field are mutually exclusive.
-                                        \n Available values: *, all, stream, dgram,
-                                        raw, rdm, seqpacket, dccp, packet"
+                                        semantics of socket. \n Available values:
+                                        all(*), stream, dgram, raw, rdm, seqpacket,
+                                        dccp, packet"
                                       items:
                                         type: string
                                       type: array
@@ -244,8 +243,9 @@ spec:
                                     syntax, used for matching file paths and filenames
                                   type: string
                                 permissions:
-                                  description: Permissions are used to specify the
-                                    file permissions to be disabled.
+                                  description: "Permissions are used to specify the
+                                    file permissions to be disabled. \n Available
+                                    values: all(*), read(r), write(w), exec(x), append(a)"
                                   items:
                                     type: string
                                   type: array
@@ -259,28 +259,36 @@ spec:
                               permissions:
                                 description: "Permissions are used to indicate which
                                   ptrace-related permissions of the target container
-                                  should be restricted. Available values: trace, traceby,
-                                  read, readby. \n trace, traceby \n For \"write\"
+                                  should be restricted. \n Available values: all(*),
+                                  trace, traceby, read, readby. - trace: prohibiting
+                                  tracing of other processes. - read: prohibiting
+                                  reading of other processes. - traceby: prohibiting
+                                  being traced by other processes (excluding the host
+                                  processes). - readby: prohibiting being read by
+                                  other processes (excluding the host processes).
+                                  \n The trace, traceby permissions for \"write\"
                                   operations, or other operations that are more dangerous,
                                   such as: ptrace attaching (PTRACE_ATTACH) to another
-                                  process or calling process_vm_writev(2). \n read,
-                                  readby \n For \"read\" operations or other operations
-                                  that are less dangerous, such as: get_robust_list(2);
-                                  kcmp(2); reading /proc/pid/auxv, /proc/pid/environ,
-                                  or /proc/pid/stat; or readlink(2) of a /proc/pid/ns/*
-                                  file."
+                                  process or calling process_vm_writev(2). \n The
+                                  read, readby permissions for \"read\" operations
+                                  or other operations that are less dangerous, such
+                                  as: get_robust_list(2); kcmp(2); reading /proc/pid/auxv,
+                                  /proc/pid/environ, or /proc/pid/stat; or readlink(2)
+                                  of a /proc/pid/ns/* file."
                                 items:
                                   type: string
                                 type: array
                               strictMode:
                                 description: StrictMode is used to indicate whether
-                                  to restrict ptrace permissions for all source and
+                                  to restrict ptrace operations for all source and
                                   destination processes. Default is false. If set
-                                  to false, it restricts ptrace-related permissions
-                                  only for processes in other containers. If set to
-                                  true, it restricts ptrace-related permissions for
-                                  all processes, except those within the init mnt
-                                  namespace.
+                                  to false, it allows a process to perform trace and
+                                  read operations on other processes within the same
+                                  container, and also allows a process to be subjected
+                                  to traceby and readby operations by other processes
+                                  within the same container. If set to true, it prohibits
+                                  all trace, read, traceby, and readby operations
+                                  within the container.
                                 type: boolean
                             required:
                             - permissions
@@ -392,12 +400,11 @@ spec:
                     type: string
                   name:
                     description: Name is used to specify a specific workload name.
-                      Note that the name field and selector field are mutually exclusive.
                     type: string
                   selector:
-                    description: "LabelSelector is used to match workloads that meet
-                      the specified conditions \n Note: The type of workloads is determined
-                      by the KIND field."
+                    description: LabelSelector is used to match workloads that meet
+                      the specified conditions. Note that the selector field and name
+                      field are mutually exclusive.
                     properties:
                       matchExpressions:
                         description: matchExpressions is a list of label selector
