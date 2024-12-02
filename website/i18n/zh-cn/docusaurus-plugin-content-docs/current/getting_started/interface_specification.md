@@ -21,7 +21,7 @@ description: The interface specification of vArmor.
 |      ||appArmorRawRules<br />*string array*|可选字段。用于设置自定义的 AppArmor 黑名单规则。每条规则必须以逗号结尾，请参考 [AppArmor 语法](https://manpages.ubuntu.com/manpages/jammy/man5/apparmor.d.5.html) 进行编写。|
 |      ||bpfRawRules<br />*[BpfRawRules](#bpfrawrules)*|可选字段。用于支持用户设置自定义的 BPF 黑名单规则。|
 |      ||syscallRawRules<br />*[LinuxSyscall](https://pkg.go.dev/github.com/opencontainers/runtime-spec@v1.1.0/specs-go#LinuxSyscall) array*|可选字段。用于支持用户使用 Seccomp enforcer 设置自定义的 Syscall 黑名单规则。请参考 [此文档](https://github.com/opencontainers/runtime-spec/blob/main/config-linux.md#seccomp) 创建自定义规则。|
-|      ||privileged<br />*bool*|可选字段。当对特权容器进行加固，请务必将此值设置为 true。若为 `false`，将在 **RuntimeDefault** 模式的基础上构造 AppArmor/BPF Profiles。若为 `ture`，则在 **AlwaysAllow** 模式的基础上构造 AppArmor/BPF Profiles。<br /><br />注意：当为 `true` 时，vArmor 不会为目标构造 Seccomp Profiles。（默认值：false）|
+|      ||privileged<br />*bool*|可选字段。当对特权容器进行加固，请务必将此值设置为 true。若为 false，将在 **RuntimeDefault** 模式的基础上构造 AppArmor/BPF Profiles。若为 ture，则在 **AlwaysAllow** 模式的基础上构造 AppArmor/BPF Profiles。<br /><br />注意：当为 true 时，vArmor 不会为目标构造 Seccomp Profiles。（默认值：false）|
 |      ||auditViolations<br />*bool*|可选字段. 用于审计违反沙箱策略的行为。此特性当前支持 AppArmor 和 BPF enforcers，任何违反沙箱策略的行为都会被记录到宿主机的 `/var/log/varmor/violations.log` 文件中。（默认值：false）|
 |      |modelingOptions|duration<br />*int*|动态建模的时间。（单位：分钟）[实验功能]|
 |updateExistingWorkloads<br />*bool*|-|-|可选字段。用于指定是否对符合条件的工作负载进行滚动更新，从而在 Policy 创建或删除时，对目标工作负载开启或关闭防护。（默认值：false）<br /><br />注意：vArmor 只会对 Deployment、StatefulSet、DaemonSet 类型的工作负载进行滚动更新，如果 `.spec.target.kind` 为 Pod，需要您自行重建 Pod 来开启或关闭防护。|
@@ -63,7 +63,7 @@ description: The interface specification of vArmor.
 
 |字段|描述|
 |---|----|
-|ipBlock<br />*string*|可选字段。可使用任意标准的 CIDR，支持 IPv6。用于对指定 CIDR 范围内的 IP 地址进行外联限制，例如<br />* 192.168.1.1/24 代表 192.168.1.0 ~ 192.168.1.255 范围内的 IP 地址。<br />* 2001:db8::/32 代表 2001:db8:: ~ 2001:db8:ffff:ffff:ffff:ffff:ffff:ffff 范围内的 IP 地址。<br /><br />注意：同一个 NetworkEgressRule 中，IPBlock 和 IP 字段互斥，不能同时存在。|
-|ip<br />*string*|可选字段。任意标准的 IP 地址，支持 IPv6，用于对特定的 IP 地址进行外联限制。|
+|ipBlock<br />*string*|可选字段。可使用任意标准的 CIDR，支持 IPv6。用于对指定 CIDR 范围内的 IP 地址进行外联限制，例如<br />* 192.168.1.1/24 代表 192.168.1.0 ~ 192.168.1.255 范围内的 IP 地址。<br />* 2001:db8::/32 代表 2001:db8:: ~ 2001:db8:ffff:ffff:ffff:ffff:ffff:ffff 范围内的 IP 地址。|
+|ip<br />*string*|可选字段。任意标准的 IP 地址，支持 IPv6，用于对特定的 IP 地址进行外联限制。<br /><br />注意：同一个 NetworkEgressRule 中，IP 和 IPBlock 字段互斥，不能同时存在。|
 |port<br />*int*|可选字段。用于对指定的端口进行外联限制，当为空时，默认对（匹配 IP 地址的）所有端口进行外联限制。否则仅对特定端口进行控制。<br />可用值：`1~65535`|
 |PLACEHOLDER||
