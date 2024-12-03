@@ -535,6 +535,49 @@ func generateAttackProtectionRules(content *varmor.BpfContent, mode uint32, rule
 			return err
 		}
 		content.Processes = append(content.Processes, *fileContent)
+	//// 6. Others
+	case "disable-network":
+		networkContent, err = newBpfNetworkCreateRule(mode, 1<<unix.AF_MAX-1, 0, 0)
+		if err != nil {
+			return err
+		}
+		content.Networks = append(content.Networks, *networkContent)
+	case "disable-ipv4", "disable-inet":
+		networkContent, err = newBpfNetworkCreateRule(mode, 1<<unix.AF_INET, 0, 0)
+		if err != nil {
+			return err
+		}
+		content.Networks = append(content.Networks, *networkContent)
+	case "disable-ipv6", "disable-inet6":
+		networkContent, err = newBpfNetworkCreateRule(mode, 1<<unix.AF_INET6, 0, 0)
+		if err != nil {
+			return err
+		}
+		content.Networks = append(content.Networks, *networkContent)
+	case "disable-unix-domain-socket":
+		networkContent, err = newBpfNetworkCreateRule(mode, 1<<unix.AF_UNIX, 0, 0)
+		if err != nil {
+			return err
+		}
+		content.Networks = append(content.Networks, *networkContent)
+	case "disable-icmp":
+		networkContent, err = newBpfNetworkCreateRule(mode, 0, 0, 1<<unix.IPPROTO_ICMP|1<<unix.IPPROTO_ICMPV6)
+		if err != nil {
+			return err
+		}
+		content.Networks = append(content.Networks, *networkContent)
+	case "disable-tcp":
+		networkContent, err = newBpfNetworkCreateRule(mode, 0, 0, 1<<unix.IPPROTO_TCP)
+		if err != nil {
+			return err
+		}
+		content.Networks = append(content.Networks, *networkContent)
+	case "disable-udp":
+		networkContent, err = newBpfNetworkCreateRule(mode, 0, 0, 1<<unix.IPPROTO_UDP)
+		if err != nil {
+			return err
+		}
+		content.Networks = append(content.Networks, *networkContent)
 	}
 	return nil
 }
