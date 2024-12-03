@@ -15,17 +15,21 @@
 package statusmanagerv1
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 	v1 "k8s.io/api/core/v1"
+	k8errors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/util/retry"
 
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
 	varmorprofile "github.com/bytedance/vArmor/internal/profile"
 	varmortypes "github.com/bytedance/vArmor/internal/types"
+	varmorinterface "github.com/bytedance/vArmor/pkg/client/clientset/versioned/typed/varmor/v1beta1"
 )
 
 func getHttpBody(c *gin.Context) ([]byte, error) {
@@ -141,4 +145,170 @@ func newArmorProfileModelCondition(
 		Reason:             reason,
 		Message:            message,
 	}
+}
+
+func UpdateVarmorPolicyStatus(
+	i varmorinterface.CrdV1beta1Interface,
+	vp *varmor.VarmorPolicy,
+	profileName string,
+	ready bool,
+	phase varmor.VarmorPolicyPhase,
+	condType varmor.VarmorPolicyConditionType,
+	status v1.ConditionStatus,
+	reason, message string) error {
+
+	// Prepare for condition
+	condition := varmor.VarmorPolicyCondition{
+		Type:               condType,
+		Status:             status,
+		LastTransitionTime: metav1.Now(),
+		Reason:             reason,
+		Message:            message,
+	}
+
+	regain := false
+	update := func() (err error) {
+		if regain {
+			vp, err = i.VarmorPolicies(vp.Namespace).Get(context.Background(), vp.Name, metav1.GetOptions{})
+			if err != nil {
+				if k8errors.IsNotFound(err) {
+					return nil
+				}
+				return err
+			}
+		}
+
+		// Update condition
+		exist := false
+		switch condition.Type {
+		case varmortypes.VarmorPolicyCreated:
+			for i, c := range vp.Status.Conditions {
+				if c.Type == varmortypes.VarmorPolicyCreated {
+					condition.DeepCopyInto(&vp.Status.Conditions[i])
+					exist = true
+					break
+				}
+			}
+		case varmortypes.VarmorPolicyUpdated:
+			for i, c := range vp.Status.Conditions {
+				if c.Type == varmortypes.VarmorPolicyUpdated {
+					condition.DeepCopyInto(&vp.Status.Conditions[i])
+					exist = true
+					break
+				}
+			}
+		case varmortypes.VarmorPolicyReady:
+			for i, c := range vp.Status.Conditions {
+				if c.Type == varmortypes.VarmorPolicyReady {
+					condition.DeepCopyInto(&vp.Status.Conditions[i])
+					exist = true
+					break
+				}
+			}
+		}
+		if !exist {
+			vp.Status.Conditions = append(vp.Status.Conditions, condition)
+		}
+
+		// Update profile name
+		if profileName != "" {
+			vp.Status.ProfileName = profileName
+		}
+
+		// Update status
+		vp.Status.Ready = ready
+		if phase != varmortypes.VarmorPolicyUnchanged {
+			vp.Status.Phase = phase
+		}
+
+		_, err = i.VarmorPolicies(vp.Namespace).UpdateStatus(context.Background(), vp, metav1.UpdateOptions{})
+		if err != nil {
+			regain = true
+		}
+		return err
+	}
+	return retry.RetryOnConflict(retry.DefaultRetry, update)
+}
+
+func UpdateVarmorClusterPolicyStatus(
+	i varmorinterface.CrdV1beta1Interface,
+	vcp *varmor.VarmorClusterPolicy,
+	profileName string,
+	ready bool,
+	phase varmor.VarmorPolicyPhase,
+	condType varmor.VarmorPolicyConditionType,
+	status v1.ConditionStatus,
+	reason, message string) error {
+
+	// Prepare for condition
+	condition := varmor.VarmorPolicyCondition{
+		Type:               condType,
+		Status:             status,
+		LastTransitionTime: metav1.Now(),
+		Reason:             reason,
+		Message:            message,
+	}
+
+	regain := false
+	update := func() (err error) {
+		if regain {
+			vcp, err = i.VarmorClusterPolicies().Get(context.Background(), vcp.Name, metav1.GetOptions{})
+			if err != nil {
+				if k8errors.IsNotFound(err) {
+					return nil
+				}
+				return err
+			}
+		}
+
+		// Update condition
+		exist := false
+		switch condition.Type {
+		case varmortypes.VarmorPolicyCreated:
+			for i, c := range vcp.Status.Conditions {
+				if c.Type == varmortypes.VarmorPolicyCreated {
+					condition.DeepCopyInto(&vcp.Status.Conditions[i])
+					exist = true
+					break
+				}
+			}
+		case varmortypes.VarmorPolicyUpdated:
+			for i, c := range vcp.Status.Conditions {
+				if c.Type == varmortypes.VarmorPolicyUpdated {
+					condition.DeepCopyInto(&vcp.Status.Conditions[i])
+					exist = true
+					break
+				}
+			}
+		case varmortypes.VarmorPolicyReady:
+			for i, c := range vcp.Status.Conditions {
+				if c.Type == varmortypes.VarmorPolicyReady {
+					condition.DeepCopyInto(&vcp.Status.Conditions[i])
+					exist = true
+					break
+				}
+			}
+		}
+		if !exist {
+			vcp.Status.Conditions = append(vcp.Status.Conditions, condition)
+		}
+
+		// Update profile name
+		if profileName != "" {
+			vcp.Status.ProfileName = profileName
+		}
+
+		// Update status
+		vcp.Status.Ready = ready
+		if phase != varmortypes.VarmorPolicyUnchanged {
+			vcp.Status.Phase = phase
+		}
+
+		_, err = i.VarmorClusterPolicies().UpdateStatus(context.Background(), vcp, metav1.UpdateOptions{})
+		if err != nil {
+			regain = true
+		}
+		return err
+	}
+	return retry.RetryOnConflict(retry.DefaultRetry, update)
 }

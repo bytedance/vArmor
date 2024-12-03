@@ -273,63 +273,23 @@ func (m *StatusManager) updateVarmorPolicyStatus(
 		return nil
 	}
 
-	// Prepare for condition
-	condition := varmor.VarmorPolicyCondition{
-		Type:               varmortypes.VarmorPolicyReady,
-		LastTransitionTime: metav1.Now(),
-	}
+	var status v1.ConditionStatus
+	var reason, message string
+
 	if ready {
-		condition.Status = v1.ConditionTrue
-		condition.Reason = "AllAgentsReady"
+		status = v1.ConditionTrue
+		reason = "AllAgentsReady"
 	} else {
-		condition.Status = v1.ConditionFalse
-		condition.Reason = "Processing"
+		status = v1.ConditionFalse
+		reason = "Processing"
 		if phase == varmortypes.VarmorPolicyError {
-			condition.Reason = "Error"
-			condition.Message = fmt.Sprintf("The agents failed processing the profile. Please refer to the status of ArmorProfile object (%s/%s) for more details.",
+			reason = "Error"
+			message = fmt.Sprintf("The agents failed processing the profile. Please refer to the status of ArmorProfile object (%s/%s) for more details.",
 				vp.Namespace, vp.Status.ProfileName)
 		}
 	}
 
-	regain := false
-	update := func() (err error) {
-		if regain {
-			vp, err = m.varmorInterface.VarmorPolicies(vp.Namespace).Get(context.Background(), vp.Name, metav1.GetOptions{})
-			if err != nil {
-				if k8errors.IsNotFound(err) {
-					return nil
-				}
-				return err
-			}
-		}
-
-		// Update condition
-		exist := false
-		for i, c := range vp.Status.Conditions {
-			if c.Type == varmortypes.VarmorPolicyReady {
-				condition.DeepCopyInto(&vp.Status.Conditions[i])
-				exist = true
-				break
-			}
-		}
-		if !exist {
-			vp.Status.Conditions = append(vp.Status.Conditions, condition)
-		}
-
-		// Update status
-		vp.Status.Ready = ready
-		if phase != varmortypes.VarmorPolicyUnchanged {
-			vp.Status.Phase = phase
-		}
-
-		// Update
-		_, err = m.varmorInterface.VarmorPolicies(vp.Namespace).UpdateStatus(context.Background(), vp, metav1.UpdateOptions{})
-		if err != nil {
-			regain = true
-		}
-		return err
-	}
-	return retry.RetryOnConflict(retry.DefaultRetry, update)
+	return UpdateVarmorPolicyStatus(m.varmorInterface, vp, "", ready, phase, varmortypes.VarmorPolicyReady, status, reason, message)
 }
 
 func (m *StatusManager) updateVarmorClusterPolicyStatus(
@@ -342,63 +302,23 @@ func (m *StatusManager) updateVarmorClusterPolicyStatus(
 		return nil
 	}
 
-	// Prepare for condition
-	condition := varmor.VarmorPolicyCondition{
-		Type:               varmortypes.VarmorPolicyReady,
-		LastTransitionTime: metav1.Now(),
-	}
+	var status v1.ConditionStatus
+	var reason, message string
+
 	if ready {
-		condition.Status = v1.ConditionTrue
-		condition.Reason = "AllAgentsReady"
+		status = v1.ConditionTrue
+		reason = "AllAgentsReady"
 	} else {
-		condition.Status = v1.ConditionFalse
-		condition.Reason = "Processing"
+		status = v1.ConditionFalse
+		reason = "Processing"
 		if phase == varmortypes.VarmorPolicyError {
-			condition.Reason = "Error"
-			condition.Message = fmt.Sprintf("The agents failed processing the profile. Please refer to the status of ArmorProfile object (%s/%s) for more details.",
+			reason = "Error"
+			message = fmt.Sprintf("The agents failed processing the profile. Please refer to the status of ArmorProfile object (%s/%s) for more details.",
 				varmorconfig.Namespace, vcp.Status.ProfileName)
 		}
 	}
 
-	regain := false
-	update := func() (err error) {
-		if regain {
-			vcp, err = m.varmorInterface.VarmorClusterPolicies().Get(context.Background(), vcp.Name, metav1.GetOptions{})
-			if err != nil {
-				if k8errors.IsNotFound(err) {
-					return nil
-				}
-				return err
-			}
-		}
-
-		// Update condition
-		exist := false
-		for i, c := range vcp.Status.Conditions {
-			if c.Type == varmortypes.VarmorPolicyReady {
-				condition.DeepCopyInto(&vcp.Status.Conditions[i])
-				exist = true
-				break
-			}
-		}
-		if !exist {
-			vcp.Status.Conditions = append(vcp.Status.Conditions, condition)
-		}
-
-		// Update status
-		vcp.Status.Ready = ready
-		if phase != varmortypes.VarmorPolicyUnchanged {
-			vcp.Status.Phase = phase
-		}
-
-		// Update
-		_, err = m.varmorInterface.VarmorClusterPolicies().UpdateStatus(context.Background(), vcp, metav1.UpdateOptions{})
-		if err != nil {
-			regain = true
-		}
-		return err
-	}
-	return retry.RetryOnConflict(retry.DefaultRetry, update)
+	return UpdateVarmorClusterPolicyStatus(m.varmorInterface, vcp, "", ready, phase, varmortypes.VarmorPolicyReady, status, reason, message)
 }
 
 func (m *StatusManager) updateAllCRStatus(logger logr.Logger) {
