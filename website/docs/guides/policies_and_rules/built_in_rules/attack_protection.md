@@ -267,6 +267,91 @@ Some base images may symlink su to `/bin/busybox`. In this scenario, it's also n
 * BPF
 :::
 
+## Others
+### `disable-network`
+Prohibit all network access.
+
+:::note[Description]
+When you want to prevent a container from accessing the network, you can use this rule to disable it.
+:::
+
+:::tip[Supported Enforcer]
+* AppArmor
+* BPF
+:::
+
+### `disable-inet`, `disable-ipv4`
+Prohibit accessing the network via inet4 addresses.
+
+:::note[Description]
+When you want to prevent a container from accessing the network via IPv4 addresses, you can use this rule to disable it.
+:::
+
+:::tip[Supported Enforcer]
+* AppArmor
+* BPF
+:::
+
+### `disable-inet6`, `disable-ipv6`
+Prohibit accessing the network via inet6 addresses.
+
+:::note[Description]
+When you want to prevent a container from accessing the network via IPv6 addresses, you can use this rule to disable it.
+:::
+
+:::tip[Supported Enforcer]
+* AppArmor
+* BPF
+:::
+
+### `disable-unix-domain-socket`
+Prohibit accessing the network via UDS addresses.
+
+:::note[Description]
+When you want to prevent a container from accessing the network via Unix Domain Socket addresses, you can use this rule to disable it.
+:::
+
+:::tip[Supported Enforcer]
+* AppArmor
+* BPF
+:::
+
+### `disable-icmp`
+Prohibit the use of the ICMP protocol.
+
+:::note[Description]
+When you want to prevent a container from using ICMP protocol, you can use this rule to disable it.
+:::
+
+:::tip[Supported Enforcer]
+* AppArmor
+* BPF
+:::
+
+### `disable-tcp`
+Prohibit the use of the TCP protocol.
+
+:::note[Description]
+When you want to prevent a container from using TCP protocol, you can use this rule to disable it.
+:::
+
+:::tip[Supported Enforcer]
+* AppArmor
+* BPF
+:::
+
+### `disable-udp`
+Prohibit the use of the UDP protocol.
+
+:::note[Description]
+When you want to prevent a container from using UDP protocol, you can use this rule to disable it.
+:::
+
+:::tip[Supported Enforcer]
+* AppArmor
+* BPF
+:::
+
 ## Restricting Specific Executable
 
 It extends the use cases of [Mitigating Information Leakage](#mitigating-information-leakage) and [Disabling Sensitive Operations](#disabling-sensitive-operations), it allows user to apply restrictions only to specific executable programs within containers.

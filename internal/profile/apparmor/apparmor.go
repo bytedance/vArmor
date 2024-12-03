@@ -284,7 +284,7 @@ func generateAttackProtectionRules(rule, qualifier string) (rules string) {
 		rules += qualifier + "deny /proc/**/mountinfo r,\n"
 	case "mitigate-host-ip-leak":
 		rules += qualifier + "deny /proc/**/net/arp r,\n"
-	//// 5. Restrict the execution of sensitive commands inside the container
+	//// 5. Restrict the sensitive operations inside the container
 	case "disable-write-etc":
 		rules += qualifier + "deny /etc/** wl,\n"
 	case "disable-busybox":
@@ -302,6 +302,21 @@ func generateAttackProtectionRules(rule, qualifier string) (rules string) {
 	case "disable-su-sudo":
 		rules += qualifier + "deny /**/su rx,\n"
 		rules += qualifier + "deny /**/sudo rx,\n"
+	//// 6. Others
+	case "disable-network":
+		rules += qualifier + "deny network,\n"
+	case "disable-ipv4", "disable-inet":
+		rules += qualifier + "deny network inet,\n"
+	case "disable-ipv6", "disable-inet6":
+		rules += qualifier + "deny network inet6,\n"
+	case "disable-unix-domain-socket":
+		rules += qualifier + "deny network unix,\n"
+	case "disable-icmp":
+		rules += qualifier + "deny network icmp,\n"
+	case "disable-tcp":
+		rules += qualifier + "deny network tcp,\n"
+	case "disable-udp":
+		rules += qualifier + "deny network udp,\n"
 	}
 	return rules
 }
