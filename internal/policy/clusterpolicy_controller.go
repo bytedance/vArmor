@@ -529,8 +529,8 @@ func (c *ClusterPolicyController) syncClusterPolicy(key string) error {
 	}
 
 	newPolicy := false
-	apName := varmorprofile.GenerateArmorProfileName(vcp.Namespace, vcp.Name, false)
-	ap, err := c.varmorInterface.ArmorProfiles(vcp.Namespace).Get(context.Background(), apName, metav1.GetOptions{})
+	apName := varmorprofile.GenerateArmorProfileName(varmorconfig.Namespace, vcp.Name, false)
+	ap, err := c.varmorInterface.ArmorProfiles(varmorconfig.Namespace).Get(context.Background(), apName, metav1.GetOptions{})
 	if err == nil {
 		if policyOwnArmorProfile(vcp, ap, false) {
 			// VarmorClusterPolicy update event
