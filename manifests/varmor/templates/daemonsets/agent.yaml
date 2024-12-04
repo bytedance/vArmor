@@ -13,6 +13,13 @@ spec:
     metadata:
       labels:
         {{- include "varmor.agent.selectorLabels" . | nindent 8 }}
+      annotations:
+        {{- with .Values.agent.podAnnotations }}
+            {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- if semverCompare "<1.30.0-0" .Capabilities.KubeVersion.Version }}
+        container.apparmor.security.beta.kubernetes.io/agent: unconfined
+        {{- end }}
     spec:
       {{- if .Values.image.password }}
       imagePullSecrets:
@@ -58,7 +65,13 @@ spec:
           {{- end }}
         {{- end }}
         securityContext:
-          {{- toYaml .Values.agent.securityContext | nindent 10 }}
+          {{- with .Values.agent.securityContext }}
+            {{- toYaml . | nindent 10 }}
+          {{- end }}
+          {{- if semverCompare ">=1.30.0-0" .Capabilities.KubeVersion.Version }}
+          appArmorProfile:
+            type: Unconfined
+          {{- end }}
         volumeMounts:
         - mountPath: /sys/kernel/security
           name: securityfs

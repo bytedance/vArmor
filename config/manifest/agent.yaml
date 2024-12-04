@@ -17,6 +17,8 @@ spec:
       labels:
         app: varmor
         app.kubernetes.io/name: varmor-agent
+      annotations:
+        container.apparmor.security.beta.kubernetes.io/agent: unconfined
     spec:
       hostPID: true
       serviceAccountName: varmor-agent
@@ -31,7 +33,13 @@ spec:
         - --enableBpfEnforcer
         - --enableBehaviorModeling
         securityContext:
-          privileged: true
+          capabilities:
+            add:
+            - SYS_ADMIN
+            - BPF
+            - SYS_RESOURCE
+            - SYS_PTRACE
+            - MAC_ADMIN
           runAsUser: 0
         volumeMounts:
         - mountPath: /sys/kernel/security

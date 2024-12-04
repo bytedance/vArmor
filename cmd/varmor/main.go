@@ -25,6 +25,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/kyverno/kyverno/pkg/leaderelection"
 	_ "go.uber.org/automaxprocs"
+	"golang.org/x/sys/unix"
 	kubeinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/util/retry"
@@ -155,6 +156,15 @@ func main() {
 
 	if agent {
 		setupLog.Info("vArmor agent startup")
+
+		// RemoveMemlock requires the write permission for /proc/sys/kernel/printk_ratelimit
+		if !debug {
+			err = unix.Unmount("/proc/sys", 0)
+			if err != nil {
+				setupLog.Error(err, "unix.Unmount(\"/proc/sys\", 0)")
+				os.Exit(1)
+			}
+		}
 
 		agentCtrl, err := varmoragent.NewAgent(
 			kubeClient.CoreV1().Pods(config.Namespace),
