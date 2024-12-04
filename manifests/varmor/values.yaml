@@ -143,7 +143,13 @@ agent:
     tag: ""
   
   securityContext:
-    privileged: true
+    capabilities:
+      add:
+      - SYS_ADMIN
+      - BPF
+      - SYS_RESOURCE
+      - SYS_PTRACE
+      - MAC_ADMIN
     runAsUser: 0
 
   args: []

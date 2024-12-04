@@ -31,7 +31,13 @@ spec:
         - --enableBpfEnforcer
         - --enableBehaviorModeling
         securityContext:
-          privileged: true
+          capabilities:
+            add:
+            - SYS_ADMIN
+            - BPF
+            - SYS_RESOURCE
+            - SYS_PTRACE
+            - MAC_ADMIN
           runAsUser: 0
         volumeMounts:
         - mountPath: /sys/kernel/security
