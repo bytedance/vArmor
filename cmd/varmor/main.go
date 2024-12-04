@@ -158,10 +158,12 @@ func main() {
 		setupLog.Info("vArmor agent startup")
 
 		// RemoveMemlock requires the write permission for /proc/sys/kernel/printk_ratelimit
-		err = unix.Unmount("/proc/sys", 0)
-		if err != nil {
-			setupLog.Error(err, "unix.Unmount(\"/proc/sys\", 0)")
-			os.Exit(1)
+		if !debug {
+			err = unix.Unmount("/proc/sys", 0)
+			if err != nil {
+				setupLog.Error(err, "unix.Unmount(\"/proc/sys\", 0)")
+				os.Exit(1)
+			}
 		}
 
 		agentCtrl, err := varmoragent.NewAgent(
