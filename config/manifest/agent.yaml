@@ -17,6 +17,8 @@ spec:
       labels:
         app: varmor
         app.kubernetes.io/name: varmor-agent
+      annotations:
+        container.apparmor.security.beta.kubernetes.io/agent: unconfined
     spec:
       hostPID: true
       serviceAccountName: varmor-agent
