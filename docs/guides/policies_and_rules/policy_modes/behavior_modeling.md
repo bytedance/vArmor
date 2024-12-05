@@ -55,11 +55,9 @@ metadata:
   namespace: default
   labels:
     app: demo-4
-    // highlight-start
     # This label is required with target workloads. 
     # You can disable the feature with --set 'manager.args={--webhookMatchLabel=}'
     sandbox.varmor.org/enable: "true"
-    // highlight-end
 spec:
   replicas: 2
   selector:
@@ -87,11 +85,9 @@ metadata:
   namespace: demo
   labels:
     app: demo-4
-    // highlight-start
     # This label is required with target workloads. 
     # You can disable the feature with --set 'manager.args={--webhookMatchLabel=}'
     sandbox.varmor.org/enable: "true"
-    // highlight-end
 spec:
   replicas: 2
   selector:
@@ -102,13 +98,11 @@ spec:
       labels:
         app: demo-4
       annotations:
-        // highlight-start
         # Use these annotation to explicitly disable the protection for the container named c0.
         # It always takes precedence over the '.spec.target.containers' field of VarmorPolicy 
         # or VarmorClusterPolicy object.
         container.apparmor.security.beta.varmor.org/c0: unconfined
         container.seccomp.security.beta.varmor.org/c0: unconfined
-        // highlight-end
     spec:
       shareProcessNamespace: true
       containers:
@@ -150,10 +144,8 @@ spec:
     # mode: DefenseInDepth
     mode: BehaviorModeling
     modelingOptions:
-      // highlight-start
       # 30 minutes
       duration: 30
-      // highlight-end
 EOF
 ```
 
