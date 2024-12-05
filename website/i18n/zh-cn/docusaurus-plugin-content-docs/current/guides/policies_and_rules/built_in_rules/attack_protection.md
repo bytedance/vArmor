@@ -354,7 +354,7 @@ When you want to prevent a container from using UDP protocol, you can use this r
 
 ## Restricting Specific Executable
 
-It extends the use cases of [Mitigating Information Leakage](#mitigating-information-leakage) and [Disabling Sensitive Operations](#disabling-sensitive-operations), it allows user to apply restrictions only to specific executable programs within containers.
+It extends the use cases of [Mitigating Information Leakage](#mitigating-information-leakage), [Disabling Sensitive Operations](#disabling-sensitive-operations) and [Others](#others), it allows user to apply restrictions only to specific executable programs within containers.
 
 :::note[Description]
 Restricting specified executable programs serves two purposes:
@@ -363,7 +363,7 @@ Restricting specified executable programs serves two purposes:
 
 For example, this feature can be used to restrict programs like busybox, bash, sh, curl within containers, preventing attackers from using them to execute sensitive operations. Meanwhile, the application services is unaffected by sandbox policies and can continue to access ServiceAccount tokens and perform other tasks normally.
 
-*Note: Due to the implementation principles of BPF LSM, this feature cannot be provided by the BPF enforcer.*
+*Note: Due to the implementation principles of BPF LSM, this feature cannot be **robustly** provided by the BPF enforcer.*
 :::
 
 :::info[Principle & Impact]
@@ -373,3 +373,31 @@ Enable sandbox restrictions for specified executable programs.
 :::tip[Supported Enforcer]
 * Apprmor
 :::
+
+Use case:
+```yaml
+  policy:
+    enforcer: AppArmor
+    mode: EnhanceProtect
+    enhanceProtect:
+      attackProtectionRules:
+      # All processes in the container are confined by the `disable-write-etc` rule.
+      - rules: 
+        - disable-write-etc
+      // highlight-start
+      # Only the executable files listed below and their child processes are confined by the listed rules.
+      - rules:
+        - mitigate-sa-leak
+        - disable-network
+        - disable-chmod-x-bit
+        targets:
+        - "/bin/sh"
+        - "/usr/bin/sh"
+        - "/bin/dash"
+        - "/usr/bin/dash"
+        - "/bin/bash"
+        - "/usr/bin/bash"
+        - "/bin/busybox"
+        - "/usr/bin/busybox"
+      // highlight-end
+```

@@ -13,10 +13,10 @@ spec:
         app: demo-4
   policy:
     enforcer: AppArmorSeccomp
-    # Note: Switching the mode from BehaviorModeling to others is prohibited, and vice versa.
-    #       You need recraete the policy to switch the mode from BehaviorModeling to DefenseInDepth.
+    # Switching the mode from BehaviorModeling to others is prohibited, and vice versa.
+    # You need recraete the policy to switch the mode from BehaviorModeling to DefenseInDepth.
     # mode: DefenseInDepth
     mode: BehaviorModeling
     modelingOptions:
-      # 3 minutes
-      duration: 3
+      # 30 minutes
+      duration: 30
