@@ -17,14 +17,20 @@ spec:
     metadata:
       labels:
         app: demo-4
+      annotations:
+        # Use these annotation to explicitly disable the protection for the container named c0.
+        # It always takes precedence over the '.spec.target.containers' field of VarmorPolicy 
+        # or VarmorClusterPolicy object.
+        container.apparmor.security.beta.varmor.org/c0: unconfined
+        container.seccomp.security.beta.varmor.org/c0: unconfined
     spec:
       shareProcessNamespace: true
       containers:
       - name: c0
-        image: debian:10
+        image: curlimages/curl:7.87.0
         command: ["/bin/sh", "-c", "sleep infinity"]
         imagePullPolicy: IfNotPresent
       - name: c1
-        image: curlimages/curl:7.87.0
+        image: debian:10
         command: ["/bin/sh", "-c", "sleep infinity"]
         imagePullPolicy: IfNotPresent
