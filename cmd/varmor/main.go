@@ -167,7 +167,6 @@ func main() {
 		}
 
 		agentCtrl, err := varmoragent.NewAgent(
-			kubeClient.CoreV1().Pods(config.Namespace),
 			varmorClient.CrdV1beta1(),
 			varmorInformer.Crd().V1beta1().ArmorProfiles(),
 			enableBehaviorModeling,
