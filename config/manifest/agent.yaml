@@ -35,6 +35,8 @@ spec:
             fieldRef:
               apiVersion: v1
               fieldPath: spec.nodeName
+        - name: READINESS_PORT
+          value: "6080"
         args:
         - --enableBpfEnforcer
         - --enableBehaviorModeling
