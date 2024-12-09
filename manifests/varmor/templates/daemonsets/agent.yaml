@@ -48,7 +48,7 @@ spec:
               apiVersion: v1
               fieldPath: spec.nodeName
         - name: READINESS_PORT
-          value: {{ .Values.agent.network.readinessPort }}
+          value: "{{ .Values.agent.network.readinessPort }}"
         args:
           {{- if .Values.agent.args }}
             {{- with .Values.agent.args }}
