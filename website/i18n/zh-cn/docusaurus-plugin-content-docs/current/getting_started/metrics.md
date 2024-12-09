@@ -1,6 +1,6 @@
 ---
 sidebar_position: 3
-description: 使用指标监控和观察 vArmor
+description: 使用指标监控和观察 vArmor。
 ---
 
 # 监控指标

@@ -11,7 +11,7 @@ import ThemeImage from '@site/src/components/ThemeImage';
 
 ## 关于 vArmor
 
-vArmor 是一个云原生容器沙箱系统，它借助 Linux 的 [AppArmor LSM](https://en.wikipedia.org/wiki/AppArmor), [BPF LSM](https://docs.kernel.org/bpf/prog_lsm.html) 和 [Seccomp](https://en.wikipedia.org/wiki/Seccomp) 技术实现强制访问控制器（即 enforcer），从而对容器进行安全加固。它可以用于增强容器隔离性、减少内核攻击面、增加容器逃逸或横行移动攻击的难度与成本。
+vArmor 是一个云原生容器沙箱系统，它借助 Linux 的 [AppArmor LSM](https://en.wikipedia.org/wiki/AppArmor)，[BPF LSM](https://docs.kernel.org/bpf/prog_lsm.html) 和 [Seccomp](https://en.wikipedia.org/wiki/Seccomp) 技术实现强制访问控制器（即 enforcer），从而对容器进行安全加固。它可以用于增强容器隔离性、减少内核攻击面、增加容器逃逸或横行移动攻击的难度与成本。
 
 您可以借助 vArmor 在以下场景对 Kubernetes 集群中的容器进行沙箱防护
 * 业务场景存在多租户（多租户共享同一个集群），由于成本、技术条件等原因无法使用硬件虚拟化容器。
@@ -68,7 +68,7 @@ vArmor 将 AppArmor, BPF, Seccomp 抽象为强制访问控制器（即 enforcer�
 #### 策略模式
 vArmor 的策略可以运行在五种模式中：*AlwaysAllow, RuntimeDefault, EnhanceProtect, BehaviorModeling 和 DefenseInDepth*。这种灵活性使其能够满足不同场景的需求。
 
-更多信息请参见 [Policy Modes](guides/policies_and_rules/policy_modes/index.md)。
+更多信息请参见 [策略模式](guides/policies_and_rules/policy_modes/index.md)。
 
 #### 内置规则和自定义规则
 当安全策略运行在 **EnhanceProtect** 模式时，[内置规则](guides/policies_and_rules/built_in_rules/index.md) 和 [自定义规则](guides/policies_and_rules/custom_rules.md) 可以被用于加固容器。此时，策略采用 **Allow-by-Default** 安全模型，这意味着只有明确声明的行为才会被阻止。这种方法在增强可用性的同时最大限度地减少了对性能的影响。
@@ -87,27 +87,31 @@ vArmor 的策略可以运行在五种模式中：*AlwaysAllow, RuntimeDefault, E
 
 ## 快速入门
 ### Step 1. 拉取 chart 包
-```
+
+```bash
 helm pull oci://elkeid-ap-southeast-1.cr.volces.com/varmor/varmor --version 0.5.11
 ```
 
 ### Step 2. 安装
-vArmor 默认支持 AppArmor 和 Seccomp enforcer。请参照 [配置选项](getting_started/installation#configuration) 查看更多信息。
+vArmor 默认支持 AppArmor 和 Seccomp enforcer。请参照 [配置选项](getting_started/installation#配置选项) 查看更多信息。
 
-```
+```bash
 helm install varmor varmor-0.5.11.tgz \
     --namespace varmor --create-namespace \
-    --set image.registry="elkeid-ap-southeast-1.cr.volces.com"
+    --set image.registry="elkeid-cn-beijing-1.cr.volces.com"
 ```
-*您可以在中国地区使用 elkeid-cn-beijing-1.cr.volces.com 域名*
+*您可以在非中国地区使用 elkeid-ap-southeast-1.cr.volces.com 域名*
 
 ### Step 3. 尝试以下用例
 创建 demo 命名空间。
-```
+
+```bash
 kubectl create namespace demo
 ```
+
 创建一个运行在 **AlwaysAllow 模式** 中的 VarmorPolicy 对象，为符合 `spec.target.selector` 条件的 `deployments` 开启“防护”。
-```
+
+```yaml
 cat << EOF | kubectl create -f -
 apiVersion: crd.varmor.org/v1beta1
 kind: VarmorPolicy
@@ -125,13 +129,17 @@ spec:
     mode: AlwaysAllow
 EOF
 ```
+
 查看 VarmorPolicy 和 ArmorProfile 对象的状态。
-```
+
+```bash
 kubectl get VarmorPolicy -n demo
 kubectl get ArmorProfile -n demo
 ```
-Create the target Deployment object.
-```
+
+创建目标工作负载。
+
+```yaml
 cat << EOF | kubectl create -f -
 apiVersion: apps/v1
 kind: Deployment
@@ -167,16 +175,22 @@ spec:
 
 EOF
 ```
+
 获取目标 Deployment 的 Pod 名称。
-```
+
+```bash
 POD_NAME=$(kubectl get Pods -n demo -l app=demo-1 -o name)
 ```
+
 在容器 `c1` 中执行命令，读取其 SA token。
-```
+
+```bash
 kubectl exec -n demo $POD_NAME -c c1 -- cat /run/secrets/kubernetes.io/serviceaccount/token
 ```
+
 切换 VarmorPolicy 对象到 **EnhancedProtect 模式**，并阻止 `c1` 容器读取 SA token。
-```
+
+```yaml
 cat << EOF | kubectl apply -f -
 apiVersion: crd.varmor.org/v1beta1
 kind: VarmorPolicy
@@ -200,8 +214,10 @@ spec:
         - mitigate-sa-leak
 EOF
 ```
+
 在容器 `c1` 中执行命令，读取其 SA token。验证读取行为是否被禁止。
-```
+
+```bash
 kubectl exec -n demo $POD_NAME -c c1 -- cat /run/secrets/kubernetes.io/serviceaccount/token
 ```
 

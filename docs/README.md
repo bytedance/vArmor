@@ -1,4 +1,6 @@
 # Introduction
+English | [简体中文](README.zh_CN.md)
+
 Learn about vArmor and create your first policy through a Quick Start guide.
 
 ## About vArmor
@@ -56,7 +58,7 @@ You can specify the enforcer through the `spec.policy.enforcer` field of [Varmor
 #### The Policy Mode
 The vArmor policy can operate in five modes: *AlwaysAllow, RuntimeDefault, EnhanceProtect, BehaviorModeling and DefenseInDepth*. This flexibility allows it to meet the needs of different scenarios.
 
-For more information, please refer to the [Policy Modes](./guides/policies_and_rules/policy_modes/index.md).
+For more information, please refer to the [Policy Modes](./guides/policies_and_rules/policy_modes/README.md).
 
 #### The Built-in and Custom Rule
 When the policy is running in **EnhanceProtect** mode, [Built-in Rules](./guides/policies_and_rules/built_in_rules.md) and [Custom Rules](./guides/policies_and_rules/custom_rules.md) can be used to harden the container. The policy operates with the **Allow-by-Default** security model, meaning only behaviors explicitly declared will be blocked. This approach minimizes performance impact while enhancing usability.
@@ -75,14 +77,15 @@ The prerequisites required by different enforcers are as shown in the following 
 
 ## Quick Start
 ### Step 1. Fetch chart
-```
+
+```bash
 helm pull oci://elkeid-ap-southeast-1.cr.volces.com/varmor/varmor --version 0.5.11
 ```
 
 ### Step 2. Install
-The default configuration enables the AppArmor and Seccomp enforcers. Please refer to the documentation for more [configuration options](getting_started/installation#configuration).
+The default configuration enables the AppArmor and Seccomp enforcers. Please refer to the documentation for more [configuration options](getting_started/installation.md#configuration).
 
-```
+```bash
 helm install varmor varmor-0.5.11.tgz \
     --namespace varmor --create-namespace \
     --set image.registry="elkeid-ap-southeast-1.cr.volces.com"
@@ -91,11 +94,14 @@ helm install varmor varmor-0.5.11.tgz \
 
 ### Step 3. Try with this example
 Create demo namespace.
-```
+
+```bash
 kubectl create namespace demo
 ```
+
 Create a VarmorPolicy object to enable the **AlwaysAllow mode** for `deployments` that match the `spec.target.selector`.
-```
+
+```yaml
 cat << EOF | kubectl create -f -
 apiVersion: crd.varmor.org/v1beta1
 kind: VarmorPolicy
@@ -113,13 +119,17 @@ spec:
     mode: AlwaysAllow
 EOF
 ```
+
 View the status of VarmorPolicy & ArmorProfile object.
-```
+
+```bash
 kubectl get VarmorPolicy -n demo
 kubectl get ArmorProfile -n demo
 ```
+
 Create the target Deployment object.
-```
+
+```yaml
 cat << EOF | kubectl create -f -
 apiVersion: apps/v1
 kind: Deployment
@@ -155,16 +165,22 @@ spec:
 
 EOF
 ```
+
 Retrieve the Pod name of the target Deployment object.
-```
+
+```bash
 POD_NAME=$(kubectl get Pods -n demo -l app=demo-1 -o name)
 ```
+
 Execute a command in container `c1` to read the SA token.
-```
+
+```bash
 kubectl exec -n demo $POD_NAME -c c1 -- cat /run/secrets/kubernetes.io/serviceaccount/token
 ```
+
 Switch the VarmorPolicy object to **EnhancedProtect mode** to prohibit the container `c1` from reading the secret token.
-```
+
+```yaml
 cat << EOF | kubectl apply -f -
 apiVersion: crd.varmor.org/v1beta1
 kind: VarmorPolicy
@@ -188,8 +204,10 @@ spec:
         - mitigate-sa-leak
 EOF
 ```
+
 Execute a command in container `c1` to read the SA token and verify that the reading behavior is prohibited.
-```
+
+```bash
 kubectl exec -n demo $POD_NAME -c c1 -- cat /run/secrets/kubernetes.io/serviceaccount/token
 ```
 
@@ -198,4 +216,4 @@ Below is a demonstration of using vArmor to harden a Deployment and defend again
 
 For more demos, please check out our GitHub repository [here](https://github.com/bytedance/vArmor/tree/main/test/demos).
 
-![image](./demos/CVE-2021-22555/demo.gif)
+![image](../test/demos/CVE-2021-22555/demo.gif)
