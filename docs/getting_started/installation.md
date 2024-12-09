@@ -35,31 +35,108 @@ helm install varmor varmor-0.5.11.tgz \
 
 vArmor allows you to configure its functionality during installation using the helm command.
 
-| Helm Options | Description |
-|--------------|-------------|
-| `--set appArmorLsmEnforcer.enabled=false` | Default: enabled. The AppArmor enforcer can be disabled with it when the system does not support AppArmor LSM.
-| `--set bpfLsmEnforcer.enabled=true` | Default: disabled. The BPF enforcer can be enabled when the system supports BPF LSM.
-| `--set bpfExclusiveMode.enabled=true` | Default: disabled. When enabled, AppArmor protection for the target workload will be disabled when a VarmorPolicy object uses the BPF enforcer.
-| `--set restartExistWorkloads.enabled=false` | Default: enabled. When disabled, vArmor will prevent users from performing a rolling restart of target existing workloads with the `.spec.updateExistingWorkloads` field of VarmorPolicy/VarmorClusterPolicy. 
-| `--set unloadAllAaProfiles.enabled=true` | Default: disabled. When enabled, all AppArmor profiles loaded by vArmor will be unloaded when the Agent exits.
-| `--set removeAllSeccompProfiles.enabled=true` | Default: disabled. When enabled, all Seccomp profiles created by vArmor will be unloaded when the Agent exits.
-| `--set "manager.args={--webhookMatchLabel=KEY=VALUE}"` | The default value is: `sandbox.varmor.org/enable=true`. vArmor will only enable sandbox protection for Workloads that contain this label. You can disable this feature by using `--set 'manager.args={--webhookMatchLabel=}'`.
-| `--set behaviorModeling.enabled=true` | Default: disabled. Experimental feature. Currently, only the AppArmor/Seccomp enforcer supports the BehaviorModeling mode. Please refer to the [BehaviorModeling Mode](../guides/policies_and_rules/policy_modes/behavior_modeling.md) for more details.
-| `--set "agent.args={--auditLogPaths=FILE_PATH\|FILE_PATH}"` | Default: `/var/log/audit/audit.log\|/var/log/kern.log`. vArmor sequentially checks whether the files exist, and monitoring the first valid file to consume AppArmor and Seccomp audit events for violation auditing and behavioral modeling. If you are using *auditd*, the audit events of AppArmor and Seccomp will be stored by default in `/var/log/audit/audit.log`. Otherwise they will be stored in `/var/log/kern.log`. You can use the argument to specify the audit log file or determine the search order yourself. Please use a vertical bar to separate file paths.
-| `--set metrics.enabled=true` | Default: disabled. When enabled, metrics are exposed at the `/metric` endpoint on port 8081 of every manager instance.
-| `--set metrics.serviceMonitorEnabled=true` | Default: disabled. When enabled, vArmor will create a `ServiceMonitor` object in the namespace where vArmor is installed. 
+### General Options
+#### Disable AppArmor enforcer
+The AppArmor enforcer should be disabled when the system doesn't support AppArmor LSM. Default: enabled.
+
+```bash
+--set appArmorLsmEnforcer.enabled=false
+```
+
+#### Enable BPF enforcer
+The BPF enforcer can be enabled when the system supports BPF LSM. Default: disabled.
+
+```bash
+--set bpfLsmEnforcer.enabled=true
+```
+
+#### Enable the BehaviorModeling mode
+This is an experimental feature. Currently, only the AppArmor and Seccomp enforcers support the BehaviorModeling mode. Please refer to the [BehaviorModeling Mode](../guides/policies_and_rules/policy_modes/behavior_modeling.md) for more details. Default: disabled.
+
+```bash
+--set behaviorModeling.enabled=true
+```
+
+#### Configure the search list of audit logs
+vArmor sequentially checks whether the audit logs exist and monitors the first valid file to consume AppArmor and Seccomp audit events for the violation auditing and behavioral modeling features. If you are using *auditd*, the audit events of AppArmor and Seccomp will be stored by default in `/var/log/audit/audit.log`. Otherwise they will be stored in `/var/log/kern.log`. 
+
+You can use the option to specify the audit logs or determine the search order yourself. Please use a vertical bar to separate file paths. Default: `/var/log/audit/audit.log\|/var/log/kern.log`.
+
+```bash
+--set "agent.args={--auditLogPaths=FILE_PATH\|FILE_PATH}"
+```
+
+#### Configure metrics
+You can enable metrics to monitor the operation of vArmor. All metrics are exposed at the `/metric` endpoint on port `8081` of every manager instance. Default: disabled.
+
+```bash
+--set metrics.enabled=true
+```
+
+You can use the following command to create a `ServiceMonitor` object in the namespace where vArmor is installed. Default: disabled.
+
+```bash
+--set metrics.serviceMonitorEnabled=true
+```
+
+### Advanced Options
+#### Set the match label of webhook
+vArmor will only enable sandbox protection for workloads that contain a specific label. You can set the label you want or disable this feature by using `--set 'manager.args={--webhookMatchLabel=}'`. Default: `sandbox.varmor.org/enable=true`.
+
+```bash
+--set "manager.args={--webhookMatchLabel=KEY=VALUE}"
+```
+
+#### Disallow restarting the existing workloads
+vArmor allows users to decide whether to perform a rolling restart on all target workloads or not, when creating or deleting a policy with the `.spec.updateExistingWorkloads` field. You can disable this feature with following option. Default: enabled.
+
+```bash
+--set restartExistWorkloads.enabled=false
+```
+
+#### Run Agent in hostNetwork mode
+The agent runs in its own network namespace and exposes the readinessProbe on port `6080` by default. If you want to run it in the host's network namespace, you can use following options.
+
+```bash
+--set agent.network.hostNetwork=true \
+--set agent.network.readinessPort=HOSTPORT
+```
+
+#### Enable exclusive mode for BPF enforcer
+If your system supports AppArmor LSM, the default AppArmor profile of container runtime will be applied to the workloads which don't have an AppArmor setting explicitly.
+You can use this option to disable the default AppArmor profile if a policy with a BPF enforcer is applied to the workload. Default: disabled.
+
+```bash
+--set bpfExclusiveMode.enabled=true
+```
+
+#### Unload all AppArmor profiles
+All AppArmor profiles managed by vArmor will not be unloaded when the Agent exits or vArmor is uninstalled.
+You can use the following option to change this behavior. Default: disabled.
+
+```bash
+--set unloadAllAaProfiles.enabled=true
+```
+
+#### Remove all Seccomp profiles
+All Seccomp profiles managed by vArmor will not be removed when the Agent exits or vArmor is uninstalled.
+You can use the following option to change this behavior. Default: disabled.
+
+```bash
+--set removeAllSeccompProfiles.enabled=true
+``` 
 
 ## Upgrade
 
 You can use helm commands to upgrade, rollback, and perform other operations.
-```
+```bash
 helm upgrade varmor varmor-0.5.11.tgz \
     --namespace varmor --create-namespace \
     --set image.registry="elkeid-ap-southeast-1.cr.volces.com" \
     --set bpfLsmEnforcer.enabled=true \
     --set appArmorLsmEnforcer.enabled=false
 ```
-```
+```bash
 helm rollback varmor -n varmor
 ```
 
@@ -67,7 +144,7 @@ helm rollback varmor -n varmor
 
 vArmor can be uninstalled via helm command.
 
-```
+```bash
 helm uninstall varmor -n varmor
 ```
 

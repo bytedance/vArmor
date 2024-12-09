@@ -1,84 +1,163 @@
 ---
 sidebar_position: 1
-description: Understand how to install, configure, upgrade and uninstall vArmor.
+description: 了解如何安装、配置、更新和卸载 vArmor。
 ---
-# Installation
+# 安装指引
 
-## Prerequisites
+## 前置条件
 
-The prerequisites required by different enforcers are as shown in the following table.
+不同 enforcers 所需要的前置条件如下表所示。
 
-|Enforcer|Requirements|Recommendations|
+|强制访问控制器|要求|推荐|
 |------------|--------------------------------------------|--------|
-|AppArmor    |1. Linux Kernel 4.15 and above<br />2. The AppArmor LSM is enabled|GKE with Container-Optimized OS<br />AKS with Ubuntu 22.04 LTS<br />[VKE](https://www.volcengine.com/product/vke) with veLinux 1.0<br />Debian 10 and above<br />Ubuntu 18.04.0 LTS and above<br />[veLinux 1.0](https://www.volcengine.com/docs/6396/74967) etc.
-|BPF         |1. Linux Kernel 5.10 and above (x86_64)<br />2. containerd v1.6.0 and above<br />3. The BPF LSM is enabled|EKS with Amazon Linux 2<br />GKE with Container-Optimized OS<br />[VKE](https://www.volcengine.com/product/vke) with veLinux 1.0 (with 5.10 kernel)<br />AKS with Ubuntu 22.04 LTS <sup>\*</sup><br />ACK with Alibaba Cloud Linux 3 <sup>\*</sup><br />OpenSUSE 15.4 <sup>\*</sup><br />Debian 11 <sup>\*</sup><br />Fedora 37 <br />[veLinux 1.0 with 5.10 kernel](https://www.volcengine.com/docs/6396/74967) etc.<br /><br />* *Manual enabling of BPF LSM is required*
-|Seccomp     |1. Kubernetes v1.19 and above|All Linux distributions
+|AppArmor    |1. Linux Kernel 4.15 及以上版本<br />2. 系统需开启 AppArmor LSM|GKE with Container-Optimized OS<br />AKS with Ubuntu 22.04 LTS<br />[VKE](https://www.volcengine.com/product/vke) with veLinux 1.0<br />Debian 10 及以上版本<br />Ubuntu 18.04.0 LTS 及以上版本<br />[veLinux 1.0](https://www.volcengine.com/docs/6396/74967) 等
+|BPF         |1. Linux Kernel 5.10 及以上版本 (x86_64)<br />2. containerd v1.6.0 及以上版本<br />3. 系统需开启 BPF LSM|EKS with Amazon Linux 2<br />GKE with Container-Optimized OS<br />[VKE](https://www.volcengine.com/product/vke) with veLinux 1.0 (with 5.10 kernel)<br />AKS with Ubuntu 22.04 LTS <sup>\*</sup><br />ACK with Alibaba Cloud Linux 3 <sup>\*</sup><br />OpenSUSE 15.4  <sup>\*</sup><br />Debian 11 <sup>\*</sup><br />Fedora 37<br />[veLinux 1.0 with 5.10 kernel](https://www.volcengine.com/docs/6396/74967) 等<br /><br />* *需手动启用节点的 BPF LSM*
+|Seccomp     |1. Kubernetes v1.19 及以上版本|所有 Linux 发行版
 
-## Installation
+## 安装
 
-vArmor can be deployed via a Helm chart which is the recommended and preferred method for a production install.
-
-In order to install vArmor with Helm, first fetch the chart.
+vArmor 推荐使用 Helm chart 进行部署。通过 Helm 安装前，请先拉取 chart 包。
 
 ```
 helm pull oci://elkeid-ap-southeast-1.cr.volces.com/varmor/varmor --version 0.5.11
 ```
 
-Then install it with helm optional [configurations](#configuration).
+然后使用 helm 命令及[配置选项](#配置选项)进行安装和配置。
 
 ```
 helm install varmor varmor-0.5.11.tgz \
     --namespace varmor --create-namespace \
-    --set image.registry="elkeid-ap-southeast-1.cr.volces.com"
+    --set image.registry="elkeid-cn-beijing.cr.volces.com"
 ```
 
-*You can use the domain `elkeid-cn-beijing.cr.volces.com` inside of the CN region.*
+*您可以在非中国地区使用 elkeid-ap-southeast-1.cr.volces.com 域名*
 
-## Configuration
+## 配置选项
 
-vArmor allows you to configure its functionality during installation using the helm command.
+您可以使用以下选项，在安装或更新时配置 vArmor 的功能。
 
-| Helm Options | Description |
-|--------------|-------------|
-| `--set appArmorLsmEnforcer.enabled=false` | Default: enabled. The AppArmor enforcer can be disabled with it when the system does not support AppArmor LSM.
-| `--set bpfLsmEnforcer.enabled=true` | Default: disabled. The BPF enforcer can be enabled when the system supports BPF LSM.
-| `--set bpfExclusiveMode.enabled=true` | Default: disabled. When enabled, AppArmor protection for the target workload will be disabled when a VarmorPolicy object uses the BPF enforcer.
-| `--set restartExistWorkloads.enabled=false` | Default: enabled. When disabled, vArmor will prevent users from performing a rolling restart of target existing workloads with the `.spec.updateExistingWorkloads` field of VarmorPolicy/VarmorClusterPolicy. 
-| `--set unloadAllAaProfiles.enabled=true` | Default: disabled. When enabled, all AppArmor profiles loaded by vArmor will be unloaded when the Agent exits.
-| `--set removeAllSeccompProfiles.enabled=true` | Default: disabled. When enabled, all Seccomp profiles created by vArmor will be unloaded when the Agent exits.
-| `--set "manager.args={--webhookMatchLabel=KEY=VALUE}"` | The default value is: `sandbox.varmor.org/enable=true`. vArmor will only enable sandbox protection for Workloads that contain this label. You can disable this feature by using `--set 'manager.args={--webhookMatchLabel=}'`.
-| `--set behaviorModeling.enabled=true` | Default: disabled. Experimental feature. Currently, only the AppArmor/Seccomp enforcer supports the BehaviorModeling mode. Please refer to the [BehaviorModeling Mode](../guides/policies_and_rules/policy_modes/behavior_modeling.md) for more details.
-| `--set "agent.args={--auditLogPaths=FILE_PATH\|FILE_PATH}"` | Default: `/var/log/audit/audit.log\|/var/log/kern.log`. vArmor sequentially checks whether the files exist, and monitoring the first valid file to consume AppArmor and Seccomp audit events for violation auditing and behavioral modeling. If you are using *auditd*, the audit events of AppArmor and Seccomp will be stored by default in `/var/log/audit/audit.log`. Otherwise they will be stored in `/var/log/kern.log`. You can use the argument to specify the audit log file or determine the search order yourself. Please use a vertical bar to separate file paths.
-| `--set metrics.enabled=true` | Default: disabled. When enabled, metrics are exposed at the `/metric` endpoint on port 8081 of every manager instance.
-| `--set metrics.serviceMonitorEnabled=true` | Default: disabled. When enabled, vArmor will create a `ServiceMonitor` object in the namespace where vArmor is installed. 
+### 通用选项
 
-## Upgrade
-You can use helm commands to upgrade, rollback, and perform other operations.
+#### 关闭 AppArmor enforcer
+当宿主机不支持 AppArmor LSM 时，应当主动关闭 AppArmor enforcer。默认值：开启。
+
+```bash
+--set appArmorLsmEnforcer.enabled=false
 ```
+
+#### 开启 BPF enforcer
+当宿主机支持 BPF LSM 时，可以开启 BPF enforcer。默认值：关闭。
+
+```bash
+--set bpfLsmEnforcer.enabled=true
+```
+
+#### 开启 BehaviorModeling 模式
+这是一个实验性质的功能。当前只有 AppArmor 和 Seccomp enforcer 支持 BehaviorModeling 模式。请参考  [BehaviorModeling Mode](../guides/policies_and_rules/policy_modes/behavior_modeling.md) 了解更多细节。默认值：关闭。
+
+```bash
+--set behaviorModeling.enabled=true
+```
+
+#### 配置审计日志的搜索列表
+vArmor 顺序检查对应的审计日志是否存在，并通过监控第一个有效的文件来获取 AppArmor 和 Seccomp 的审计事件，从而用于违规审计和行为建模功能。当您使用 *auditd* 时，AppArmor 和 Seccomp 的审计事件会默认保存在 `/var/log/audit/audit.log` 文件中。否则，他们通常会被保存在 `/var/log/kern.log` 文件中。
+
+你可以使用这个选项来配置审计日志、文件搜索顺序。请使用`|`来分割文件。默认值：`/var/log/audit/audit.log\|/var/log/kern.log`。
+
+```bash
+--set "agent.args={--auditLogPaths=FILE_PATH\|FILE_PATH}"
+```
+
+#### 配置监控指标
+您可以开启指标来监控 vArmor。指标将在所有 Manager 实例 `8081` 端口上的 `/metric` 路径对外暴露。默认值：关闭。
+
+```bash
+--set metrics.enabled=true
+```
+
+您可以使用下面的选项在 vArmor 所在命名空间中创建 `ServiceMonitor` 对象，用于与 Prometheus 集成。默认值：关闭。
+
+```bash
+--set metrics.serviceMonitorEnabled=true
+```
+
+### 高级选项
+
+#### 设置 Webhook 的匹配标签
+vArmor 只会对包含此 label 的 Workloads 开启沙箱防护。你可以使用此选项配置所需的 label，或者使用 `--set 'manager.args={--webhookMatchLabel=}'` 关闭此特性。默认值：`sandbox.varmor.org/enable=true`。
+
+```bash
+--set "manager.args={--webhookMatchLabel=KEY=VALUE}"
+```
+
+#### 禁止重启存在的工作负载
+在创建、删除策略时，vArmor 允许用户通过策略的 `.spec.updateExistingWorkloads` 字段来决定是否对目标工作负载进行滚动更新。你可以通过此选项来关闭此特性。默认值：开启。
+
+```bash
+--set restartExistWorkloads.enabled=false
+```
+
+#### 在宿主机网络命名空间中运行 Agent
+vArmor 的 Agent 默认运行在独立的网络命名空间中，并在端口 `6080` 暴露就绪探针。如果您想将其部署在宿主网络命名空间中，那么可以使用下面的选项进行配置。
+
+```bash
+--set agent.network.hostNetwork=true \
+--set agent.network.readinessPort=HOSTPORT
+```
+
+#### 开启 BPF enforcer 的独占模式
+如果您的系统支持 AppArmor LSM，那么容器运行时会为没有显式配置 AppAmor 的工作负载应用其默认的 AppArmor profile。
+您可以使用这个选项开启 BPF enforcer 的独占模式，即为那些启用 BPF enforcer 防护的工作负载禁用 AppArmor profile。
+
+```bash
+--set bpfExclusiveMode.enabled=true
+```
+
+#### 卸载所有 AppArmor 配置文件
+当 Agent 退出或 vArmor 被卸载时，所有被 vArmor 管理的 AppArmor profile 都不会被自动卸载。
+您可以使用下面的选项来改变此行为。默认值：关闭。
+
+```bash
+--set unloadAllAaProfiles.enabled=true
+```
+
+#### 移除所有 Seccomp 配置文件
+当 Agent 退出或 vArmor 被卸载时，所有被 vArmor 管理的 Seccomp profile 都不会被自动移除。
+您可以使用下面的选项来改变此行为。默认值：关闭。
+
+```bash
+--set removeAllSeccompProfiles.enabled=true
+```
+
+## 更新
+
+你可以使用 helm 命令进行升级、回滚等操作。
+
+```bash
 helm upgrade varmor varmor-0.5.11.tgz \
     --namespace varmor --create-namespace \
     --set image.registry="elkeid-ap-southeast-1.cr.volces.com" \
     --set bpfLsmEnforcer.enabled=true \
     --set appArmorLsmEnforcer.enabled=false
 ```
-```
+```bash
 helm rollback varmor -n varmor
 ```
 
-## Uninstallation
+## 卸载
 
-vArmor can be uninstalled via helm command.
+可以使用以下命令卸载 vArmor。
 
-```
+```bash
 helm uninstall varmor -n varmor
 ```
 
-If you are using the AppArmor & Seccomp enforcer, please follow these steps to uninstall vArmor:
-* Filter out all VarmorPolicy/VarmorClusterPolicy objects using the AppArmor or Seccomp enforcer (`.spec.policy.enforcer` contains AppArmor or Seccomp)
-* Process each VarmorPolicy/VarmorClusterPolicy and its corresponding workloads one by one.
-  * Delete the VarmorPolicy/VarmorClusterPolicy object
-  * When the workloads' type is Deployment, StatefulSet, or DaemonSet,
-    * If you have enabled `--restartExistWorkloads`, you don't need to perform any additional steps.
-    * If `--restartExistWorkloads` is not enabled, you will need to manually remove the annotations and seccompProfiles added by vArmor from the corresponding workloads.
-  * When the workloads' type is Pod, you will need to recreate the Pod (make sure there are no annotations and seccompProfiles added by vArmor in the Pod).
-* Uninstall vArmor using Helm.
+若使用了 AppArmor 和 Seccomp enforcer，请按照以下步骤卸载 vArmor
+* 筛选出所有使用 AppArmor 或 Seccomp enforcer 的 VarmorPolicy/VarmorClusterPolicy（`.spec.policy.enforcer` 中包含 AppArmor 或 Seccomp）
+* 逐个处理 VarmorPolicy/VarmorClusterPolicy 和对应的工作负载
+  * 删除 VarmorPolicy/VarmorClusterPolicy 对象
+  * 当防护目标的类型为 Deployment, StatusfulSet, DaemonSet 时
+    * 若 `.spec.updateExistingWorkloads` 为 `true`，那么你无需其他额外工作
+    * 若 `.spec.updateExistingWorkloads` 为 `false`，你需要手动删除被 vArmor 添加的 annotations、appArmorProfiles、seccompProfiles
+  * 当防护目标的类型为 Pod 时，您需要重新创建 Pod（确保 Pod 中没有被 vArmor 添加的 annotations、appArmorProfiles、seccompProfiles）
+* 通过 helm 卸载 vArmor

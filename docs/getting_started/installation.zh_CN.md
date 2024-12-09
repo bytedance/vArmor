@@ -31,31 +31,112 @@ helm install varmor varmor-0.5.11.tgz \
 
 ## 配置选项
 
-|helm 参数|描述|
-|--------|----|
-| `--set appArmorLsmEnforcer.enabled=false` | 默认开启；当系统不支持 AppArmor LSM 时可通过此参数关闭。
-| `--set bpfLsmEnforcer.enabled=true` | 默认关闭；当系统支持 BPF LSM 时可通过此参数开启。
-| `--set bpfExclusiveMode.enabled=true` | 默认关闭；开启后当 VarmorPolicy 使用 BPF enforcer 时，将禁用目标工作负载的 AppArmor 防护。
-| `--set restartExistWorkloads.enabled=false` | 默认开启；关闭后，将禁止用户通过 VarmorPolicy/VarmorClusterPolicy 中的 `.spec.updateExistingWorkloads` 字段来控制是否对符合条件的 Workloads (Deployments, DaemonSet, StatefulSet) 进行滚动更新，从而在策略创建或删除时，对目标开启或关闭防护。
-| `--set unloadAllAaProfiles.enabled=true` | 默认关闭；开启后，Agent 退出时，将会卸载所有由 vArmor 加载的 AppArmor Profile。
-| `--set removeAllSeccompProfiles.enabled=true` | 默认关闭；开启后，Agent 退出时，将会删除所有由 vArmor 创建的 Seccomp Profile。
-| `--set "manager.args={--webhookMatchLabel=KEY=VALUE}"` | 默认值为：`sandbox.varmor.org/enable=true`。vArmor 只会对包含此 label 的 Workloads 开启沙箱防护。你可以使用 `--set 'manager.args={--webhookMatchLabel=}'` 关闭此特性。
-| `--set behaviorModeling.enabled=true` | 默认关闭；此为实验功能，仅 AppArmor/Seccomp enforcer 支持 BehaviorModeling 模式。请参见 [The BehaviorModeling Mode](../guides/policies_and_rules/policy_modes/behavior_modeling.md)。
-| `--set "agent.args={--auditLogPaths=FILE_PATH\|FILE_PATH}"` | 默认值为：`/var/log/audit/audit.log\|/var/log/kern.log`。vArmor 会按顺序查找日志文件是否存在，并监控第一个有效的文件来消费 AppArmor 和 Seccomp 的审计事件，从而审计违规行为和进行行为建模。你可以使用此参数来指定审计文件，或决定查找顺序。请使用`|`分隔文件路径。
-| `--set metrics.enabled=true` | 默认关闭；开启后，在每个 Manager 实例的 8081 端口上的 `/metric` 端点会暴露指标。
-| `--set metrics.serviceMonitorEnabled=true` | 默认关闭；开启后，vArmor 会在其所在命名空间中创建一个 `ServiceMonitor` 对象。
+您可以使用以下选项，在安装或更新时配置 vArmor 的功能。
+
+### 通用选项
+
+#### 关闭 AppArmor enforcer
+当宿主机不支持 AppArmor LSM 时，应当主动关闭 AppArmor enforcer。默认值：开启。
+
+```bash
+--set appArmorLsmEnforcer.enabled=false
+```
+
+#### 开启 BPF enforcer
+当宿主机支持 BPF LSM 时，可以开启 BPF enforcer。默认值：关闭。
+
+```bash
+--set bpfLsmEnforcer.enabled=true
+```
+
+#### 开启 BehaviorModeling 模式
+这是一个实验性质的功能。当前只有 AppArmor 和 Seccomp enforcer 支持 BehaviorModeling 模式。请参考  [BehaviorModeling Mode](../guides/policies_and_rules/policy_modes/behavior_modeling.md) 了解更多细节。默认值：关闭。
+
+```bash
+--set behaviorModeling.enabled=true
+```
+
+#### 配置审计日志的搜索列表
+vArmor 顺序检查对应的审计日志是否存在，并通过监控第一个有效的文件来获取 AppArmor 和 Seccomp 的审计事件，从而用于违规审计和行为建模功能。当您使用 *auditd* 时，AppArmor 和 Seccomp 的审计事件会默认保存在 `/var/log/audit/audit.log` 文件中。否则，他们通常会被保存在 `/var/log/kern.log` 文件中。
+
+你可以使用这个选项来配置审计日志、文件搜索顺序。请使用`|`来分割文件。默认值：`/var/log/audit/audit.log\|/var/log/kern.log`。
+
+```bash
+--set "agent.args={--auditLogPaths=FILE_PATH\|FILE_PATH}"
+```
+
+#### 配置监控指标
+您可以开启指标来监控 vArmor。指标将在所有 Manager 实例 `8081` 端口上的 `/metric` 路径对外暴露。默认值：关闭。
+
+```bash
+--set metrics.enabled=true
+```
+
+您可以使用下面的选项在 vArmor 所在命名空间中创建 `ServiceMonitor` 对象，用于与 Prometheus 集成。默认值：关闭。
+
+```bash
+--set metrics.serviceMonitorEnabled=true
+```
+
+### 高级选项
+
+#### 设置 Webhook 的匹配标签
+vArmor 只会对包含此 label 的 Workloads 开启沙箱防护。你可以使用此选项配置所需的 label，或者使用 `--set 'manager.args={--webhookMatchLabel=}'` 关闭此特性。默认值：`sandbox.varmor.org/enable=true`。
+
+```bash
+--set "manager.args={--webhookMatchLabel=KEY=VALUE}"
+```
+
+#### 禁止重启存在的工作负载
+在创建、删除策略时，vArmor 允许用户通过策略的 `.spec.updateExistingWorkloads` 字段来决定是否对目标工作负载进行滚动更新。你可以通过此选项来关闭此特性。默认值：开启。
+
+```bash
+--set restartExistWorkloads.enabled=false
+```
+
+#### 在宿主机网络命名空间中运行 Agent
+vArmor 的 Agent 默认运行在独立的网络命名空间中，并在端口 `6080` 暴露就绪探针。如果您想将其部署在宿主网络命名空间中，那么可以使用下面的选项进行配置。
+
+```bash
+--set agent.network.hostNetwork=true \
+--set agent.network.readinessPort=HOSTPORT
+```
+
+#### 开启 BPF enforcer 的独占模式
+如果您的系统支持 AppArmor LSM，那么容器运行时会为没有显式配置 AppAmor 的工作负载应用其默认的 AppArmor profile。
+您可以使用这个选项开启 BPF enforcer 的独占模式，即为那些启用 BPF enforcer 防护的工作负载禁用 AppArmor profile。
+
+```bash
+--set bpfExclusiveMode.enabled=true
+```
+
+#### 卸载所有 AppArmor 配置文件
+当 Agent 退出或 vArmor 被卸载时，所有被 vArmor 管理的 AppArmor profile 都不会被自动卸载。
+您可以使用下面的选项来改变此行为。默认值：关闭。
+
+```bash
+--set unloadAllAaProfiles.enabled=true
+```
+
+#### 移除所有 Seccomp 配置文件
+当 Agent 退出或 vArmor 被卸载时，所有被 vArmor 管理的 Seccomp profile 都不会被自动移除。
+您可以使用下面的选项来改变此行为。默认值：关闭。
+
+```bash
+--set removeAllSeccompProfiles.enabled=true
+```
 
 ## 更新
 
 你可以使用 helm 命令进行升级、回滚等操作。
-```
+```bash
 helm upgrade varmor varmor-0.5.11.tgz \
     --namespace varmor --create-namespace \
     --set image.registry="elkeid-ap-southeast-1.cr.volces.com" \
     --set bpfLsmEnforcer.enabled=true \
     --set appArmorLsmEnforcer.enabled=false
 ```
-```
+```bash
 helm rollback varmor -n varmor
 ```
 
@@ -63,7 +144,7 @@ helm rollback varmor -n varmor
 
 可以使用以下命令卸载 vArmor。
 
-```
+```bash
 helm uninstall varmor -n varmor
 ```
 

@@ -31,7 +31,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
-	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 
@@ -91,7 +90,6 @@ type Agent struct {
 }
 
 func NewAgent(
-	podInterface corev1.PodInterface,
 	varmorInterface varmorinterface.CrdV1beta1Interface,
 	apInformer varmorinformer.ArmorProfileInformer,
 	enableBehaviorModeling bool,
@@ -180,7 +178,7 @@ func NewAgent(
 	}
 
 	// Retrieve the node name where the agent is located.
-	agent.nodeName, err = retrieveNodeName(podInterface, debug)
+	agent.nodeName, err = retrieveNodeName(debug)
 	if err != nil {
 		return nil, err
 	}

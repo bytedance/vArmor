@@ -29,6 +29,14 @@ spec:
         image: elkeid-test-cn-beijing.cr.volces.com/varmor/varmor:v0.5.11
         imagePullPolicy: Always
         command: ["/varmor/vArmor", "--agent"]
+        env:
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: spec.nodeName
+        - name: READINESS_PORT
+          value: "6080"
         args:
         - --enableBpfEnforcer
         - --enableBehaviorModeling

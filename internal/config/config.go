@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -44,7 +45,7 @@ var (
 	AgentName = "varmor-agent"
 
 	// AgentReadinessPort is the port of agent service
-	AgentServicePort = 6080
+	AgentServicePort = getAgentReadinessPort()
 
 	// AgentReadinessPath is the path for checking readness health of agent
 	AgentReadinessPath = "/health/readiness"
@@ -162,4 +163,16 @@ func getNamespace() string {
 		return "varmor"
 	}
 	return strings.Trim(string(content), "\n")
+}
+
+func getAgentReadinessPort() int {
+	os.LookupEnv("READINESS_PORT")
+	readinessPort := os.Getenv("READINESS_PORT")
+	if readinessPort != "" {
+		port, err := strconv.Atoi(readinessPort)
+		if err == nil && port > 1024 && port <= 65535 {
+			return port
+		}
+	}
+	return -1
 }

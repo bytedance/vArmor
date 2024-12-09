@@ -1,6 +1,6 @@
 ---
 sidebar_position: 4
-description: The interface specification of vArmor.
+description: vArmor 的接口规范。
 ---
 
 # 接口说明

@@ -31,12 +31,24 @@ spec:
       securityContext:
         {{- toYaml .Values.agent.podSecurityContext | nindent 8 }}
       hostPID: true
+      {{- if .Values.agent.network.hostNetwork }}
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      {{- end}}
       containers:
       - name: {{ .Values.agent.name }}
         image: "{{ .Values.image.registry }}/{{ .Values.image.namespace }}/{{ .Values.agent.image.name }}:{{ .Values.agent.image.tag | default .Chart.AppVersion }}"
         imagePullPolicy: {{ .Values.agent.image.pullPolicy }}
         command: ["/varmor/vArmor", "--agent"]
         {{- if or .Values.agent.args .Values.behaviorModeling.enabled .Values.bpfLsmEnforcer.enabled .Values.unloadAllAaProfiles.enabled .Values.removeAllSeccompProfiles.enabled }}
+        env:
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: spec.nodeName
+        - name: READINESS_PORT
+          value: "{{ .Values.agent.network.readinessPort }}"
         args:
           {{- if .Values.agent.args }}
             {{- with .Values.agent.args }}
@@ -109,7 +121,7 @@ spec:
         readinessProbe:
           httpGet:
             path: /health/readiness
-            port: 6080
+            port: {{ .Values.agent.network.readinessPort }}
           initialDelaySeconds: 5
           periodSeconds: 10
       volumes:

@@ -1,13 +1,7 @@
----
-slug: /introduction
-sidebar_position: 1
----
-
-import ThemeImage from '@site/src/components/ThemeImage';
-
 # 简介
-了解 vArmor 并通过快速入门指南创建您的第一个策略。
+[English](README.md) | 简体中文
 
+了解 vArmor 并通过快速入门指南创建您的第一个策略。
 
 ## 关于 vArmor
 
@@ -18,11 +12,10 @@ vArmor 是一个云原生容器沙箱系统，它借助 Linux 的 [AppArmor LSM]
 * 想要对关键的业务进行安全加固，增加攻击者权限提升、容器逃逸、横向渗透的难度与成本。
 * 当出现高危漏洞，但由于修复难度大、周期长等原因无法立即修复时，可以借助 vArmor 实施漏洞利用缓解（具体取决于漏洞类型或漏洞利用向量。缓解代表阻断利用向量、增加利用难度）。
 
-:::tip
-- 安全防御的核心在于平衡风险与收益，通过选择不同类型的安全边界和防御技术，将不可控风险转化为可控成本。
-- runc + vArmor 不提供等同硬件虚拟化容器（如 Kata Container 等轻量级虚拟机）的隔离等级。如果您需要高强度的隔离方案，请优先考虑使用硬件虚拟化容器（如 Kata Container）进行计算隔离，并借助 CNI 的 NetworkPolicy 进行网络隔离。
-:::
 
+*Note:* 
+*<br />- 安全防御的核心在于平衡风险与收益，通过选择不同类型的安全边界和防御技术，将不可控风险转化为可控成本。*
+*<br />- runc + vArmor 不提供等同硬件虚拟化容器（如 Kata Container 等轻量级虚拟机）的隔离等级。如果您需要高强度的隔离方案，请优先考虑使用硬件虚拟化容器（如 Kata Container）进行计算隔离，并借助 CNI 的 NetworkPolicy 进行网络隔离。*
 
 **vArmor 的特点**
 * **Cloud-Native**. vArmor 遵循 Kubernetes Operator 设计模式，用户可通过操作 [CRD API](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/) 对特定的 Workloads 进行加固。从而以更贴近业务的视角，实现对容器化微服务的沙箱加固。
@@ -40,22 +33,25 @@ vArmor 项目由字节跳动终端安全团队的 **Elkeid Team** 创建，目�
 ### 架构
 vArmor 主要由 Manager 和 Agent 两个组件构成。Manager 用于响应和管理安全策略，而 Agent 则在集群节点上管理 enforcer（强制访问控制器）和 profile（安全配置文件）。
 
-<ThemeImage 
-  lightSrc="/img/architecture.svg" 
-  darkSrc="/img/architecture-dark.svg" 
-  alt="vArmor Architecture" 
-/>
+
+<div>
+    <picture>
+        <source media="(prefers-color-scheme: light)" srcset="img/architecture.svg" width="600">
+        <img src="img/architecture-dark.svg" width="600">
+    </picture>
+</div>
 
 ### 原理
 * [VarmorPolicy](getting_started/usage_instructions.md#varmorpolicy) 和 [VarmorClusterPolicy](getting_started/usage_instructions.md#varmorclusterpolicy) CR 是 vArmor 的用户接口。
 * 您可以通过管理 VarmorPolicy 或 VarmorClusterPolicy CR 策略对象，使用不同的强制访问控制器及其规则来加固容器。
 * ArmorProfile CR 作为内部接口，用于安全配置文件的管理。
 
-<ThemeImage 
-  lightSrc="/img/principle.svg" 
-  darkSrc="/img/principle-dark.svg" 
-  alt="vArmor Principle" 
-/>
+<div>
+    <picture>
+        <source media="(prefers-color-scheme: light)" srcset="img/principle.svg" width="600">
+        <img src="img/principle-dark.svg" width="600">
+    </picture>
+</div>
 
 当 Manager 监听到 VarmorPolicy 或 VarmorClusterPolicy 对象的创建事件时，它会为其创建一个对应的 ArmorProfile 内部对象。Agent 监听并响应这个 ArmorProfile 对象，处理安全配置文件后将状态报告回 Manager。当用户创建工作负载时，APIServer 通过准入 webhook 将创建请求发送到 Manager。Manager 评估是否应该加固工作负载。如果需要，Manager 通过添加注释和修改 securityContext 等来变异工作负载。最后，工作负载的 Pod 将被调度到节点上，并在创建容器时为其设置安全上下文。
 
@@ -68,10 +64,11 @@ vArmor 将 AppArmor, BPF, Seccomp 抽象为强制访问控制器（即 enforcer�
 #### 策略模式
 vArmor 的策略可以运行在五种模式中：*AlwaysAllow, RuntimeDefault, EnhanceProtect, BehaviorModeling 和 DefenseInDepth*。这种灵活性使其能够满足不同场景的需求。
 
-更多信息请参见 [策略模式](guides/policies_and_rules/policy_modes/index.md)。
+更多信息请参见 [策略模式](guides/policies_and_rules/policy_modes/README.zh_CN.md)。
+
 
 #### 内置规则和自定义规则
-当安全策略运行在 **EnhanceProtect** 模式时，[内置规则](guides/policies_and_rules/built_in_rules/index.md) 和 [自定义规则](guides/policies_and_rules/custom_rules.md) 可以被用于加固容器。此时，策略采用 **Allow-by-Default** 安全模型，这意味着只有明确声明的行为才会被阻止。这种方法在增强可用性的同时最大限度地减少了对性能的影响。
+当安全策略运行在 **EnhanceProtect** 模式时，[内置规则](guides/policies_and_rules/built_in_rules.zh_CN.md) 和 [自定义规则](guides/policies_and_rules/custom_rules.zh_CN.md) 可以被用于加固容器。此时，策略采用 **Allow-by-Default** 安全模型，这意味着只有明确声明的行为才会被阻止。这种方法在增强可用性的同时最大限度地减少了对性能的影响。
 
 
 ## 前置条件
@@ -93,7 +90,7 @@ helm pull oci://elkeid-ap-southeast-1.cr.volces.com/varmor/varmor --version 0.5.
 ```
 
 ### Step 2. 安装
-vArmor 默认支持 AppArmor 和 Seccomp enforcer。请参照 [配置选项](getting_started/installation#配置选项) 查看更多信息。
+vArmor 默认支持 AppArmor 和 Seccomp enforcer。请参照 [配置选项](getting_started/installation.zh_CN.md#配置选项) 查看更多信息。
 
 ```bash
 helm install varmor varmor-0.5.11.tgz \
@@ -110,6 +107,7 @@ kubectl create namespace demo
 ```
 
 创建一个运行在 **AlwaysAllow 模式** 中的 VarmorPolicy 对象，为符合 `spec.target.selector` 条件的 `deployments` 开启“防护”。
+
 
 ```yaml
 cat << EOF | kubectl create -f -
@@ -227,4 +225,4 @@ kubectl exec -n demo $POD_NAME -c c1 -- cat /run/secrets/kubernetes.io/serviceac
 
 更多演示请查看我们的 GitHub [仓库](https://github.com/bytedance/vArmor/tree/main/test/demos)。
 
-![image](demos/CVE-2021-22555/demo.zh_CN.gif)
+![image](../test/demos/CVE-2021-22555/demo.zh_CN.gif)

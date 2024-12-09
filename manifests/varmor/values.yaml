@@ -9,12 +9,6 @@ forceNamespace:
 nameOverride: ""
 fullnameOverride: ""
 
-appArmorLsmEnforcer:
-  enabled: true
-
-bpfLsmEnforcer:
-  enabled: false
-
 metrics:
   enabled: false
   serviceMonitorEnabled: false
@@ -23,13 +17,19 @@ metrics:
 restartExistWorkloads:
   enabled: true
 
+bpfExclusiveMode:
+  enabled: false
+
+appArmorLsmEnforcer:
+  enabled: true
+
+bpfLsmEnforcer:
+  enabled: false
+
 unloadAllAaProfiles:
   enabled: false
 
 removeAllSeccompProfiles:
-  enabled: false
-
-bpfExclusiveMode:
   enabled: false
 
 # [Experimental feature]
@@ -153,6 +153,10 @@ agent:
     runAsUser: 0
 
   args: []
+
+  network:
+    hostNetwork: false
+    readinessPort: 6080
 
   appArmorLsmEnforcer:
     volumeMounts:

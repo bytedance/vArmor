@@ -3,7 +3,7 @@ slug: /getting-started
 sidebar_position: 2
 ---
 
-# Getting Started
+# 开始使用
 
 import DocCardList from '@theme/DocCardList';
 

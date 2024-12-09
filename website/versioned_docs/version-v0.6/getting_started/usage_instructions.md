@@ -12,7 +12,7 @@ vArmor supports performing a rolling restart of existing workloads that meet the
 The following constraints and usage requirements must also be observed:
 * Workloads must have the label **`sandbox.varmor.org/enable="true"`** to be processed by vArmor's webhook server during creation and updates. If they meet the matching conditions specified in a VarmorPolicy or VarmorClusterPolicy object's `spec.target`, vArmor will enable sandbox for them.
 * Once a VarmorPolicy or VarmorClusterPolicy object is created, its `spec.target` cannot be changed. Please create a new VarmorPolicy or VarmorClusterPolicy with the desired target to make changes.
-* After creating a VarmorPolicy or VarmorClusterPolicy object, you can dynamically switch the policy mode and update rules by updating `spec.policy`. However, switching from **BehaviorModeling mode** to other modes is not supported, and vice versa (Note: Switching policy mode and updating rules does not require triggering a rolling restart of workloads).
+* After creating a VarmorPolicy or VarmorClusterPolicy object, you can dynamically add enforcers, switch the policy mode and update rules by updating `spec.policy`. However, switching from **BehaviorModeling mode** to other modes is not supported, and vice versa (Note: Switching policy mode and updating rules does not require triggering a rolling restart of workloads).
 
 ## State Management
 You can check the status of VarmorPolicy or VarmorClusterPolicy object to get information about the processing stage, error messages, and the processing status of AppArmor/BPF/Seccomp Profiles.
@@ -66,7 +66,7 @@ You can leverage logging components for collection and configuring alerts. Such 
 ## Example
 The following example is for demonstration of functionality only, and should not be considered as recommended policy.
 
-```
+```yaml
 apiVersion: crd.varmor.org/v1beta1
 kind: VarmorPolicy
 metadata:

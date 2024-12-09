@@ -3,7 +3,7 @@ slug: /guides
 sidebar_position: 3
 ---
 
-# Guides
+# 指南
 
 import DocCardList from '@theme/DocCardList';
 
