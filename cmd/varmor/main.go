@@ -54,23 +54,23 @@ const (
 
 var (
 	kubeconfig               string
-	webhookTimeout           int
 	agent                    bool
-	restartExistWorkloads    bool
-	enableBehaviorModeling   bool
 	enableBpfEnforcer        bool
 	unloadAllAaProfiles      bool
 	removeAllSeccompProfiles bool
+	enableBehaviorModeling   bool
+	restartExistWorkloads    bool
 	clientRateLimitQPS       float64
 	clientRateLimitBurst     int
 	managerIP                string
+	webhookTimeout           int
 	webhookMatchLabel        string
 	bpfExclusiveMode         bool
+	statusUpdateCycle        time.Duration
+	auditLogPaths            string
 	enableMetrics            bool
 	//syncMetricsSecond        int
-	statusUpdateCycle time.Duration
-	auditLogPaths     string
-	setupLog          = log.Log.WithName("SETUP")
+	setupLog = log.Log.WithName("SETUP")
 )
 
 func main() {
@@ -79,16 +79,16 @@ func main() {
 	log.SetLogger(textlogger.NewLogger(c))
 
 	flag.StringVar(&kubeconfig, "kubeconfig", "", "Path to a kubeconfig. Only required if out-of-cluster.")
-	flag.IntVar(&webhookTimeout, "webhookTimeout", int(config.WebhookTimeout), "Timeout for webhook configurations.")
 	flag.BoolVar(&agent, "agent", false, "Set this flag to run vArmor agent. Run vArmor manager default if true.")
-	flag.BoolVar(&restartExistWorkloads, "restartExistWorkloads", false, "Set this flag to allow users control whether or not to restart existing workloads with the .spec.updateExistingWorkloads feild.")
-	flag.BoolVar(&enableBehaviorModeling, "enableBehaviorModeling", false, "Set this flag to enable BehaviorModeling feature (Note: this is an experimental feature, please do not enable it in production environment).")
 	flag.BoolVar(&enableBpfEnforcer, "enableBpfEnforcer", false, "Set this flag to enable BPF enforcer.")
 	flag.BoolVar(&unloadAllAaProfiles, "unloadAllAaProfiles", false, "Unload all AppArmor profiles when the agent exits.")
 	flag.BoolVar(&removeAllSeccompProfiles, "removeAllSeccompProfiles", false, "Remove all Seccomp profiles when the agent exits.")
+	flag.BoolVar(&enableBehaviorModeling, "enableBehaviorModeling", false, "Set this flag to enable BehaviorModeling feature (Note: this is an experimental feature, please do not enable it in production environment).")
+	flag.BoolVar(&restartExistWorkloads, "restartExistWorkloads", false, "Set this flag to allow users control whether or not to restart existing workloads with the .spec.updateExistingWorkloads feild.")
 	flag.Float64Var(&clientRateLimitQPS, "clientRateLimitQPS", 0, "Configure the maximum QPS to the master from vArmor. Uses the client default if zero.")
 	flag.IntVar(&clientRateLimitBurst, "clientRateLimitBurst", 0, "Configure the maximum burst for throttle. Uses the client default if zero.")
 	flag.StringVar(&managerIP, "managerIP", "0.0.0.0", "Configure the IP address of manager.")
+	flag.IntVar(&webhookTimeout, "webhookTimeout", int(config.WebhookTimeout), "Timeout for webhook configurations.")
 	flag.StringVar(&webhookMatchLabel, "webhookMatchLabel", "sandbox.varmor.org/enable=true", "Configure the matchLabel of webhook configuration, the valid format is key=value or nil")
 	flag.BoolVar(&bpfExclusiveMode, "bpfExclusiveMode", false, "Set this flag to enable exclusive mode for the BPF enforcer. It will disable the AppArmor confinement when using the BPF enforcer.")
 	flag.DurationVar(&statusUpdateCycle, "statusUpdateCycle", time.Hour*2, "Configure the status update cycle for VarmorPolicy and ArmorProfile")
