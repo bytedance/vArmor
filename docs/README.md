@@ -10,7 +10,9 @@ vArmor is a cloud-native container sandbox system. It leverages Linux's [AppArmo
 * When there is a need to enhance the security of critical business containers, making it more difficult for attackers to escalate privileges, escape, or laterally move.
 * When high-risk vulnerabilities are present, but immediate remediation is not possible due to the difficulty or lengthy process of patching. vArmor can be used to mitigate the risks (depending on the vulnerability type or exploitation vector) to block or increase the difficulty of exploitation.
 
-*Note: To meet stringent isolation requirements, it is advisable to give priority to utilizing hardware-virtualized containers (e.g., Kata Containers) for compute isolation, in conjunction with network isolation provided by CNI's NetworkPolicy.*
+*Note:* 
+*<br />- The core of security defense lies in balancing risks and benefits, transforming uncontrollable risks into controllable costs by choosing different types of security boundaries and defense technologies.*
+*<br />- runc + vArmor does not provide an isolation level equivalent to that of hardware virtualization containers (such as Kata Containers and other lightweight virtual machines). If you require a high-intensity isolation solution, please consider using hardware virtualization containers for compute isolation, and utilize CNI's NetworkPolicy for network isolation.*
 
 **vArmor Features:**
 * Cloud-Native. vArmor follows the Kubernetes Operator design pattern, allowing users to harden specific workloads by manipulating the [CRD API](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/). This approach enables sandboxing of containerized microservices from a perspective closely aligned with business needs.
