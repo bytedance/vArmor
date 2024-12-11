@@ -1,4 +1,7 @@
 # Development
+
+English | [简体中文](development.zh_CN.md)
+
 ### Step 1. Build the binary
 ```
 // You must rebuild everything if the CRDs or eBPF code were modified

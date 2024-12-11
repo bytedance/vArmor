@@ -10,9 +10,9 @@ To further compare different Enforcers in real scenarios, we used the [Phoronix 
 ## Test Environment
 
 * Cluster version: v1.26.10-vke.18
-*  Number of nodes: 3
-*  Nodes with AppArmor & BPF LSM enabled by default
-*  Node specifications: ecs.g3i.xlarge (4vCPU 16GiB)
+* Number of nodes: 3
+* Nodes with AppArmor & BPF LSM enabled by default
+* Node specifications: ecs.g3i.xlarge (4vCPU 16GiB)
 
 ## Test Scenarios
 

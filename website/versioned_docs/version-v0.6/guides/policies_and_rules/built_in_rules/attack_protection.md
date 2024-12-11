@@ -36,7 +36,7 @@ Attackers may attempt to obtain host disk device numbers for subsequent containe
 :::
 
 :::info[Principle & Impact]
-isallow reading `/proc/[PID]/mountinfo` and `/proc/partitions` files.
+Disallow reading `/proc/[PID]/mountinfo` and `/proc/partitions` files.
 :::
 
 :::tip[Supported Enforcer]
@@ -149,7 +149,7 @@ This rule prohibits container processes from creating new Unix shells, thus defe
 :::info[Principle & Impact]
 Prohibit the creation of Unix shells.
 
-Some base images may symlink sh to `/bin/busybox`. In this scenario, it's also necessary to prohibit the execution of busybox.
+Some base images may symlink sh to `/bin/busybox`. In this scenario, it's also necessary to [prohibit the execution of busybox](#disable-busybox).
 :::
 
 :::tip[Supported Enforcer]
@@ -170,7 +170,7 @@ This rule limits file downloads by prohibiting the execution of the wget command
 :::info[Principle & Impact]
 Prohibit the execution of wget.
 
-Some base images may symlink wget to `/bin/busybox`. In this scenario, it's also necessary to prohibit the execution of busybox.
+Some base images may symlink wget to `/bin/busybox`. In this scenario, it's also necessary to [prohibit the execution of busybox](#disable-busybox).
 :::
 
 :::tip[Supported Enforcer]
@@ -208,7 +208,7 @@ When attackers gain control over a container through vulnerabilities, they typic
 :::info[Principle & Impact]
 Prohibit the execution of chmod command.
 
-Some base images may symlink wget to `/bin/busybox`. In this scenario, it's also necessary to prohibit the execution of busybox command.
+Some base images may symlink wget to `/bin/busybox`. In this scenario, it's also necessary to [prohibit the execution of busybox](#disable-busybox).
 :::
 
 :::tip[Supported Enforcer]
@@ -259,7 +259,7 @@ When processes within a container run as non-root users, attackers often need to
 :::info[Principle & Impact]
 Prohibit the execution of sudo and su command.
 
-Some base images may symlink su to `/bin/busybox`. In this scenario, it's also necessary to prohibit the execution of busybox command.
+Some base images may symlink su to `/bin/busybox`. In this scenario, it's also necessary to [prohibit the execution of busybox](#disable-busybox).
 :::
 
 :::tip[Supported Enforcer]

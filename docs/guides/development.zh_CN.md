@@ -1,10 +1,7 @@
----
-slug: /guides/development
-sidebar_position: 4
-description: 如何设置本地开发环境。
----
-
 # 本地开发
+
+[English](development.md) | 简体中文
+
 ### 步骤 1. 编译二进制
 ```
 // You must rebuild everything if the CRDs or eBPF code were modified

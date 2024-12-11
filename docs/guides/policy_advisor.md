@@ -1,11 +1,14 @@
 # Policy Advisor
 
-This program can help you generate a [`policy`](../getting_started/interface_specification.md#varmorpolicyspec--varmorclusterpolicyspec) template in the **EnhanceProtect mode** with built-in rules. The template can be a good start to craft the final policy. You can provide the context information and the behavior model data of the target application to make the template more precise. 
+English | [简体中文](policy_advisor.zh_CN.md)
+
+This program can help you generate a [`policy`](../getting_started/interface_specification.md#varmorpolicyspec--varmorclusterpolicyspec) template in the **EnhanceProtect** mode with built-in rules. The template can be a good start to craft the final policy. You can provide the context information and the behavior model data of the target application to make the template more precise. 
 
 Please use the `-f FEATURES` and `-c CAPABILITIES` arguments to specify the context information. The `-f FEATURES` argument used to describe the application features. The `-c CAPABILITIES` argument used to describe the capabilities required by application explicitly. The behavior model data file is passed by the `-m BEHAVIOR_MODEL` argument. It's an ArmorProfileModel object that is generated with the **[BehaviorModeling mode](./policies_and_rules/policy_modes/behavior_modeling.md)**.
 
 
 ## Use cases
+
 Generate a policy template that runs in EnhanceProtect mode with built-in rules supported by AppArmor and BPF enforcers.
 
 `policy-advisor.py AppArmor,BPF -f share-containers-pid-ns -c sys_admin,net_admin,kill`
@@ -16,6 +19,7 @@ Filter out the conflicted built-in rules with behavior model data to make the po
 
 
 ## Usage
+
 ```
 policy-advisor.py [-h] [-f FEATURES] [-c CAPABILITIES]
                   [-m BEHAVIOR_MODEL] [-d]

@@ -150,6 +150,7 @@ agent:
       - SYS_RESOURCE
       - SYS_PTRACE
       - MAC_ADMIN
+      - IPC_LOCK
     runAsUser: 0
 
   args: []

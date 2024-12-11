@@ -1,9 +1,6 @@
----
-sidebar_position: 1
-description: 收集行为数据并为目标工作负载构建安全配置文件。
----
-
 # BehaviorModeling 模式
+
+[English](behavior_modeling.md) | 简体中文
 
 ## 介绍
 
