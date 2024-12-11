@@ -5,12 +5,14 @@ description: 使用策略顾问生成策略模版。
 ---
 
 # 策略顾问
-此功能可协助您使用内置策略生成以一个[策略](../getting_started/interface_specification.md#varmorpolicyspec--varmorclusterpolicyspec)模版，您可以基于此模版来构造最终的策略。建议您尽可能多地提供目标工作负载的上下文信息、行为模型数据，从而使生成的模版更加精准。
 
-请使用 `-f FEATURES` 和 `-c CAPABILITIES` 参数来指定上下文信息。其中，`-f FEATURES` 参数用于显式地描述应用的特性，`-c CAPABILITIES` 参数用于显式地描述应用所需的能力。行为模型数据则通过 `-m BEHAVIOR_MODEL` 参数传递，您可以使用 **[BehaviorModeling](policies_and_rules/policy_modes/behavior_modeling.md)** 模式为目标应用生成 ArmorProfileModel 然后将其导出。
+此功能可协助您使用内置策略生成以一个策略模版，您可以基于此模版来构造最终的策略。建议您尽可能多地提供目标工作负载的上下文信息、行为模型数据，从而使生成的模版更加精准。
+
+请使用 `-f FEATURES` 和 `-c CAPABILITIES` 参数来指定上下文信息。其中，`-f FEATURES` 参数用于显式地描述应用的特性，`-c CAPABILITIES` 参数用于显式地描述应用所需的能力。行为模型数据则通过 `-m BEHAVIOR_MODEL` 参数传递，您可以使用 **[BehaviorModeling 模式](policies_and_rules/policy_modes/behavior_modeling.md)** 为目标应用生成 ArmorProfileModel 然后将其导出。
 
 
 ## 示例
+
 使用内置规则，为需要 sys_admin,net_admin,kill 能力，且共享 PID 命名空间的容器生成策略模版。
 
 `policy-advisor.py AppArmor,BPF -f share-containers-pid-ns -c sys_admin,net_admin,kill`
@@ -21,6 +23,7 @@ description: 使用策略顾问生成策略模版。
 
 
 ## 用法
+
 ```
 policy-advisor.py [-h] [-f FEATURES] [-c CAPABILITIES]
                   [-m BEHAVIOR_MODEL] [-d]

@@ -1,4 +1,4 @@
-# DefenseInDepth Mode [Experimental]
+# The DefenseInDepth Mode
 
 English | [简体中文](defense_in_depth.zh_CN.md)
 

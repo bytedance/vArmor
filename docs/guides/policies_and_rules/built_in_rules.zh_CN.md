@@ -1,4 +1,5 @@
 # 内置规则
+
 [English](built_in_rules.md) | 简体中文
 
 **vArmor** 支持使用内置规则来定义 **EnhanceProtect** 模式的策略对象 [VarmorPolicy](../../getting_started/usage_instructions.zh_CN.md#varmorpolicy) or [VarmorClusterPolicy](../../getting_started/usage_instructions.zh_CN.md#varmorclusterpolicy)，当前支持的内置规则及其分类如下表所示。你可以尝试使用 [policy advisor](../policy_advisor.md) 来生成策略模版，从而帮助创建最终的防护策略。

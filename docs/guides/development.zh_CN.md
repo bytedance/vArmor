@@ -1,8 +1,8 @@
-# Development
+# 本地开发
 
-English | [简体中文](development.zh_CN.md)
+[English](development.md) | 简体中文
 
-### Step 1. Build the binary
+### 步骤 1. 编译二进制
 ```
 // You must rebuild everything if the CRDs or eBPF code were modified
 make build
@@ -11,12 +11,12 @@ make build
 make local
 ```
 
-### Step 2. Install the necessary CRDs, resources etc.
+### 步骤 2. 安装所需的 CRD、资源等
 ```
 ./scripts/deploy_resources.sh test
 ```
 
-### Step 3. Run manager and agent locally
+### 步骤 3. 分别在本地运行 manager 和 agent
 ```
 sudo ./bin/vArmor -kubeconfig=./varmor-manager.kubeconfig -v 3
 sudo ./bin/vArmor -agent -kubeconfig=./varmor-agent.kubeconfig -v 3

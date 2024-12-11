@@ -1,4 +1,5 @@
 # The Built-in Rules
+
 English | [简体中文](built_in_rules.zh_CN.md)
 
 **vArmor** supports defining [VarmorPolicy](../../getting_started/usage_instructions.md#varmorpolicy) or [VarmorClusterPolicy](../../getting_started/usage_instructions.md#varmorclusterpolicy) objects using built-in rules in **EnhanceProtect** mode. The currently supported built-in rules and categories are shown in the following table. You can also try using the [policy advisor](../policy_advisor.md) to generate a policy template with built-in rules.

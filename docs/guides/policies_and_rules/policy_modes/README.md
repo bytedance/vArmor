@@ -24,5 +24,5 @@ Note:
 
 ## Experimentals
 
-* [BehaviorModeling Mode](behavior_modeling.md)
-* [DefenseInDepth Mode](defense_in_depth.md)
+* [The BehaviorModeling Mode](behavior_modeling.md)
+* [The DefenseInDepth Mode](defense_in_depth.md)
