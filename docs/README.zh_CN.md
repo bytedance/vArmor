@@ -57,7 +57,7 @@ vArmor 主要由 Manager 和 Agent 两个组件构成。Manager 用于响应和�
 
 ### 关键术语
 #### 强制访问控制器
-vArmor 将 AppArmor, BPF, Seccomp 抽象为强制访问控制器（即 enforcer）。安全策略可以单独、组合使用它们来加固工作负载，例如：BPF、AppArmorBPF、AppArmorSeccomp、AppArmorBPFSeccomp 等。
+vArmor 将 AppArmor, BPF, Seccomp 抽象为强制访问控制器（即 Enforcer）。安全策略可以单独、组合使用它们来加固工作负载，例如：BPF、AppArmorBPF、AppArmorSeccomp、AppArmorBPFSeccomp 等。
 
 您可以在 [VarmorPolicy](getting_started/usage_instructions.md#varmorpolicy) 或 [VarmorClusterPolicy](getting_started/usage_instructions.md#varmorclusterpolicy) 对象的 `spec.policy.enforcer` 字段中设置要使用的强制访问控制器。
 
