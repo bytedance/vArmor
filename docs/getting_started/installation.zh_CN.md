@@ -3,7 +3,7 @@
 
 ## 前置条件
 
-不同 enforcers 所需要的前置条件如下表所示。
+不同 Enforcer 所需要的前置条件如下表所示。
 
 |强制访问控制器|要求|推荐|
 |------------|--------------------------------------------|--------|
@@ -50,7 +50,7 @@ helm install varmor varmor-0.5.11.tgz \
 ```
 
 #### 开启 BehaviorModeling 模式
-这是一个实验性质的功能。当前只有 AppArmor 和 Seccomp enforcer 支持 BehaviorModeling 模式。请参考  [BehaviorModeling Mode](../guides/policies_and_rules/policy_modes/behavior_modeling.md) 了解更多细节。默认值：关闭。
+这是一个实验性质的功能。当前只有 AppArmor 和 Seccomp enforcer 支持 BehaviorModeling 模式。请参考  [BehaviorModeling Mode](../guides/policies_and_rules/policy_modes/behavior_modeling.zh_CN.md) 了解更多细节。默认值：关闭。
 
 ```bash
 --set behaviorModeling.enabled=true
