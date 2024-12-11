@@ -161,7 +161,7 @@ func (auditor *Auditor) processAuditEvent(event string) {
 }
 
 func (auditor *Auditor) readFromAuditLogFile() {
-	auditor.log.Info("start reading from ")
+	auditor.log.Info("start reading from audit logs", "path", auditor.auditLogPath)
 
 	for line := range auditor.auditLogTail.Lines {
 		auditor.processAuditEvent(line.Text)
