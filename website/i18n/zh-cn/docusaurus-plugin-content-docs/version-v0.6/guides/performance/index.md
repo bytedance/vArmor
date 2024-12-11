@@ -3,36 +3,35 @@ slug: /guides/performance
 sidebar_position: 2
 ---
 
-# Performance
+# 性能说明
 
-## Impact Factors
+## 影响因素
 
-The factors affecting performance for vArmor's user-space and kernel-space components are as shown in the below
+vArmor 的用户态组件和内核态组件对性能的影响因素如下表所示。
 
-| Factor         | Explanation |
-| -------------- | ----------- |
-| Cluster scale  | As the cluster size increases, the CPU and memory consumed by the Manager for managing Agents also increase.|
-| Resource scale | Creating a large number of VarmorPolicy CRs will result in increased CPU and memory consumption for Manager. Frequent creation/modification/deletion of VarmorPolicy CRs will result in increased CPU and memory consumption for both Manager and Agent in response.|
-| AppArmor LSM   | The basic overhead introduced when the kernel enable the AppArmor LSM feature.<br />The more rules in a profile, the greater the performance impact on processes.|
-| BPF LSM        | The basic overhead introduced when the kernel enable the BPF LSM feature.<br />The more rules in a profile, the greater the performance impact on processes.|
-| Seccomp        | The basic overhead introduced when the kernel enable the Seccomp feature.<br />The more rules in a profile, the greater the performance impact on processes.|
-|PLACEHOLDER||
+| 因素 | 说明 |
+| --- | ---- |
+| 集群规模                   | 集群规模越大，Manager 管理 Agent 所消耗的 CPU 和 内存越多。 |
+| VarmorPolicy 数量和操作频率 | 大量创建 VarmorPolicy CR 时，Manager 会消耗更多的 CPU 和内存进行响应。<br />频繁创建/修改/删除 VarmorPolicy CR 时，Manager 和 Agent 会消耗更多的 CPU 和内存进行响应。 |
+| AppArmor LSM             | 开启 AppArmor LSM 为进程引入的基础开销。<br />Profile 中的规则越多，对目标进程的性能影响越大。|
+| BPF LSM                  | 开启 BPF LSM 为进程引入的基础开销。<br />Profile 中的规则越多，对目标进程的性能影响越大。 |
+| Seccomp                  | 开启 Seccomp 为进程引入的基础开销。<br />Profile 中的规则越多，对目标进程的性能影响越大。 |
 
-## Resource Usage
+## 资源占用
 
-vArmor user-space components use the resource quotas as shown in the table below by default.
+vArmor 用户态组件默认使用下表所示的值进行资源申请。
 
 | Version | Manager CPU | Manager Memory | Agent CPU   | Agent Memory |
-| ------- |:-----------:|:--------------:|:-----------:|:-----------------------------------------------------------------------------------------:|
-| v0.5.11 | 200m / 100m | 300Mi / 200Mi  | 200m / 100m | 100Mi / 40Mi (The BPF enforcer is disabled)<br />200Mi /100Mi (The BPF enforcer is enabled) |
+| ------- |:-----------:|:--------------:|:-----------:|:--------------------------------------------------------------------:|
+| v0.5.11 | 200m / 100m | 300Mi / 200Mi  | 200m / 100m | 100Mi / 40Mi (关闭 BPF enforcer 时)<br />200Mi /100Mi (开启 BPF enforcer 时) |
 
-Explanation:
+说明：
 
-* The default values are derived from experience and simulated test results (enabling protection for 400*32 Pods with one VarmorPolicy).
-* You can set higher CPU and memory quotas for large-scale clusters by adjusting the values of helm chart during installation.
-* When the BPF enforcer is enabled, the Agent requires more memory during startup
+* 默认值来自经验和模拟测试结果 (一个 VarmorPolicy 对 400*32 个Pods 开启防护)
+* 您可以在安装组件时，通过调整 Helm Values 来为大规模集群设置更多的内存配额
+* 若开启了 BPF enforcer，Agent 在启动并加载 BPF program 时需要更多的内存，因此内存资源的申请额度较高
 
-## Performance Test
+## 性能测试
 
 import DocCardList from '@theme/DocCardList';
 

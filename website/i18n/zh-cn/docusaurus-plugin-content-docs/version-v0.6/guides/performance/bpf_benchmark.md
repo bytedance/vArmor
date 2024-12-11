@@ -1,39 +1,37 @@
 ---
 sidebar_position: 1
-description: Measure the performance of the BPF enforcer.
+description: 评估 BPF Enforcer 的性能。
 ---
 
-# BPF Enforcer Benchmark
+# BPF Enforcer 基准测试
 
-We conducted a basic performance test of BPF enforcer (v0.5.0) on a VKE cluster with kernel 5.10 using [byte-unixbench](https://github.com/kdlucas/byte-unixbench).
+我们利用 [byte-unixbench](https://github.com/kdlucas/byte-unixbench) 在 VKE with kernel 5.10 集群中对 BPF enforcer (v0.5.0) 进行了初步的性能测试。
 
-*Note: We plan to conduct further comparative testing for typical applications and scenarios in the future.*
+## 测试环境
 
-## Test Environment
+* 集群版本 v1.20.15-vke.10
+* 节点数 2
+* 节点主机默认启用 AppArmor & BPF LSM
+* 节点规格 ecs.g2i.xlarge (4vCPU 16GiB)
 
-* Kubernetes version: v1.20.15
-* Node number: 2
-* The node host has AppArmor and BPF LSM enabled by default.
-* Node specification: ecs.g2i.xlarge (4 vCPUs, 16 GiB RAM)
+## 测试步骤
 
-## Test Steps
+* 部署测试用的工作负载（通过 annotations 主动关闭测试容器的默认 AppArmor Profile）。
+* 在测试容器内连续执行 10 次基线测试。
+* 安装 vArmor。
+* 在测试容器内连续执行 10 次基线测试。
+* 为工作负载创建 VarmorPolicy（各类型策略各一条），在测试容器内连续执行 10 次基线测试。
+* 更新 VarmorPolicy（各类型策略各两条），在测试容器内连续执行 10 次基线测试。
+* 更新 VarmorPolicy（各类型策略各四条），在测试容器内连续执行 10 次基线测试。
+* 更新 VarmorPolicy（各类型策略各八条），在测试容器内连续执行 10 次基线测试。
+* 收集测试数据，对测试数据取均值，并以未安装 vArmor 时的测试结果为基准值，计算不同情况下的性能损失。
 
-* Deploy a test workload (disabling the default AppArmor profile for the test container via annotation).
-* Perform 10 consecutive baseline tests within the test container.
-* Install vArmor
-* Perform 10 consecutive baseline tests within the test container
-* Create a VarmorPolicy for the workload (1 rule for each access control type)， then perform 10 consecutive baseline tests within the test container.
-* Update the VarmorPolicy (2 rules for each access control type), then perform 10 consecutive baseline tests within the test container.
-* Update the VarmorPolicy (4 rules for each access control type), then perform 10 consecutive baseline tests within the test container.
-* Update the VarmorPolicy (8 rules for each access control type), then perform 10 consecutive baseline tests within the test container.
-* Collect test data, calculate the average of the test data, and then use the test results without vArmor installation as the baseline to measure performance losses under different scenarios.
+## 测试结果
 
-## Test Results
-
-* After installing vArmor v0.5.0, if the container is not sandboxed (or if the container is sandboxed with the AlwaysAllow mode), it introduces a maximum performance loss of 1.34% to container process (in terms of Execl Throughput).
-* vArmor v0.5.0 introduces the most significant performance overhead in terms of Execl Throughput and Process Creation. When 8 rules of various access control types are set for container process, the maximum performance loss for execl is 2.55%, and the maximum performance loss for process creation is 2.32%.
-* The File Copy 4096 bufsize 8000 maxblocks scores for different test cases fluctuate compared to the baseline, which is unexpected. Possible reasons for this could be:
-  * When the elastic cloud server is under high load, file copying may be accelerated due to factors like cache heat, leading to fluctuations.
-  * The host may experience overselling, which can result in fluctuations in baseline test results within the elastic cloud server.
+* 安装 vArmor v0.5.0 后，若不对容器开启沙箱防护（或对容器开启 AlwaysAllow 模式沙箱）。将给容器进程引入最大 1.34% 的性能损失（Execl Throughput 维度）。
+* vArmor v0.5.0 在 Execl Throughput 和 Process Creation 中引入的性能损耗最大，当为容器进程设置各类型策略 8 条规则后，其 execl 的最大性能损耗为 2.55%，进程创建的最大性能损耗为 2.32%。
+* 不同测试用例的 File Copy 4096 bufsize 8000 maxblocks 得分与基准值相比有所波动，与预期不符。可能的原因是：
+  * 当云主机在高负载时，cache 局部性/热度导致文件拷贝被加速等原因导致了波动。
+  * 云主机存在超售情况，宿主机在测试期间整体负载存在波动，从而导致云主机内的基线测试结果有所波动。
   
 ![image](../../img/bpf_enforcer_benchmark.png)

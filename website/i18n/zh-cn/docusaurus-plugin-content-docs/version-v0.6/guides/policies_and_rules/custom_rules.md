@@ -1,44 +1,51 @@
 ---
 sidebar_position: 3
-description: Customize access control rules in EnhanceProtect mode.
+description: 在 EnhanceProtect 模式下自定义访问控制规则。
 ---
 
-# The Custom Rules
-vArmor allows users to customize access control rules in [VarmorPolicy](../../getting_started/usage_instructions#varmorpolicy) or [VarmorClusterPolicy](../../getting_started/usage_instructions#varmorclusterpolicy) objects in **EnhanceProtect mode** based on the enforcer syntax.
+# 自定义规则
 
-Note:<br />- The syntax supported by BPF enforcer is still under development.
+vArmor 支持用户基于 enforcer 的语法，在 **EhanceProtect** 模式的 [VarmorPolicy](../../getting_started/usage_instructions#varmorpolicy) 或 [VarmorClusterPolicy](../../getting_started/usage_instructions#varmorclusterpolicy) 对象中自定义访问控制规则。
+
+注：BPF enforcer 支持的语法在持续开发中。
 
 ### AppArmor enforcer
-The AppArmor enforcer supports users in customizing policies based on the syntax of AppArmor.
 
-Please refer to the [syntax](https://manpages.ubuntu.com/manpages/jammy/man5/apparmor.d.5.html) of security profiles for AppArmor to set custom rules in the [`.spec.policy.enhanceProtect.appArmorRawRules`](../../getting_started/interface_specification) field. Please ensure that each rule ends with a comma.
+AppArmor enforcer 支持用户根据 AppArmor 的语法定制策略。
+
+请参见此 [文档](https://manpages.ubuntu.com/manpages/jammy/man5/apparmor.d.5.html) 在 [`.spec.policy.enhanceProtect.appArmorRawRules`](../../getting_started/interface_specification) 字段中设置自定义规则。请确保每条规则以 ',' 结尾。
 
 ### Seccomp enforcer
-The Seccomp enforcer supports users in customizing policies based on the syntax of OCI specification.
 
-Please refer to this [document](https://github.com/opencontainers/runtime-spec/blob/main/config-linux.md#seccomp) to set custom syscalls blocklist rules in the [`.spec.policy.enhanceProtect.syscallRawRules`](../../getting_started/interface_specification.md) field.
+Seccomp enforcer 支持用户根据 OCI 规范的语法定制策略。
+
+请参见此 [文档](https://github.com/opencontainers/runtime-spec/blob/main/config-linux.md#seccomp) 在 [`.spec.policy.enhanceProtect.syscallRawRules`](../../getting_started/interface_specification.md) 字段中设置自定义的系统调用规则。
 
 ### BPF enforcer
-The BPF enforcer supports users in customizing policies based on the syntax, with an upper limit of 50 rules per rule type. Each node of Kubernetes can enable sandboxing for up to 100 containers.
 
-Please refer to the syntaxes below to set custom rules in the [`.spec.policy.enhanceProtect.bpfRawRules`](../../getting_started/interface_specification.md#bpfrawrules) field.
+BPF enforcer 支持用户根据语法定制策略。每类规则的数量上限为 50 条。每个节点支持最多对 100 个容器开启沙箱。
+
+请参考以下语法在 [`.spec.policy.enhanceProtect.bpfRawRules`](../../getting_started/interface_specification.md#bpfrawrules) 中设置自定义规则。
 
 * **File Permission**
   
-  | Permission / Permission Abbreviate |  Implied Permissions | Description |
-  |------------------------------------|----------------------|-------------|
-  |read / r|-<br />rename<br />hard link|Restrict read permission.<br />Prohibit abusing 'rename **oldpath** newpath' to bypass read restrictions on oldpath.<br />Prohibit abusing 'ln **TARGET** LINK_NAME' to bypass read restrictions on TARGET.
-  |write / w|-<br />append<br />rename<br />hard link<br />symbol link<br />chmod<br />chown|Restrict write permission.<br />Prohibit using the O_APPEND flag to bypass map_file_to_perms() for append operations.<br />Prohibit abusing 'rename oldpath **newpath**' to bypass write restrictions on newpath.<br />Prohibit abusing 'ln TARGET **LINK_NAME**' to bypass write restrictions on LINK_NAME.<br />Prohibit abusing symlink to bypass write restrictions on the target file.<br />WIP<br />WIP
-  |exec / x|-|Prohibit execution permission.
-  |append / a|-|Prohibit append permission.
+  | 权限 | 缩写 | 隐含权限 | 备注 |
+  |-----|-----|---------|-----|
+  |read|r|-<br />rename<br />hard link|禁止读<br />禁止利用 rename **oldpath** newpath 绕过 oldpath 的读限制<br />禁止利用 ln **TARGET** LINK_NAME 绕过 TARGET 的读限制
+  |write|w|-<br />append<br />rename<br />hard link<br />symbol link<br />chmod<br />chown|禁止写<br />禁止利用 O_APPEND flag 绕过 map_file_to_perms() 实现追加写操作<br />禁止利用 rename oldpath **newpath** 绕过 newpath 的写限制<br />禁止利用 ln TARGET **LINK_NAME** 绕过 LINK_NAME 的写限制<br />禁止利用创建软链接（符号链接）绕过目标文件的写限制<br />WIP<br />WIP
+  |exec|x|-|禁止执行
+  |append|a|-|禁止追加写
 
 * **File Globbing Syntax**
-  | Globbing | Description | Examples | Notes |
-  |----------|-------------|----------|-------|
-  |*|- Used only to match file names.<br />- It will match dot files except the special dot files . and ..<br />- Supports only a single *, and does not support \*\* and * appearing together.|- fi\* matches any file name starting with 'fi'.<br />- *le matches any file name ending with 'le'.<br />- *.log matches any file name ending with '.log'|The behavior of this globbing may change in future versions.|
-  |\**|- Match zero, one, or multiple characters in multi-level directories.<br />- It will match dot files except the special dot files . and ..<br />- Supports only a single \*\*, and does not support ** and * appearing together.|- /tmp/\*\*/33 matches any file that starts with /tmp and ends with /33, including /tmp/33.<br />- /tmp/\*\* matches any file or directory that starts with /tmp.<br />- /tm** matches any file or directory that starts with /tm.<br />- /t**/33 matches any file or directory that starts with /t and ends with /33.
+
+  BPF enfocer 支持根据路径 Pattern 对文件进行匹配，并支持两种匹配模式（精确匹配、通配匹配），匹配 Pattern 的最大长度限制为 64 字节。
+
+  |通配符|语法|样例|备注|
+  |-----|---|---|----|
+  |*|- 仅用于匹配叶子结点的文件名<br />- 匹配 dot 文件，但不匹配 . 和 .. 文件<br />- 仅支持单个 *，且不支持 \*\* 和 * 一起出现|- fi\* 代表匹配任意以 fi 开头的文件名<br />- *le 代表匹配任意以 le 结尾的文件名<br />- *.log 代表匹配任意以 .log 结尾的文件名|此通配符的行为可能会在后续版本中发生改变|
+  |\**|- 在多级目录中，匹配零个、一个、多个字符<br />- 匹配 dot 文件，但不匹配 . 和 .. 文件<br />- 仅支持单个 \*\*，且不支持 ** 和 * 一起出现|- /tmp/\*\*/33 代表匹配任意以 /tmp 开头，且以 /33 结尾的文件，包含 /tmp/33<br />- /tmp/\*\* 代表匹配任意以 /tmp 开头的文件、目录<br />- /tm** 代表匹配任意以 /tm 开头的文件、目录<br />- /t**/33 代表匹配任意以 /t 开头，以 /33 结尾的文件、目录
 
 * **Network Permission**
-  * Currently, vArmor supports connection access control for specified IP addresses, IP address blocks (CIDR blocks), and ports.
-  * When specific IP addresses or IP address blocks are specified without specifying ports, it defaults to affecting all ports.
-  * Please refer to [NetworkEgressRule](../../getting_started/interface_specification.md#networkegressrule) for specific details.
+  * 当前 vArmor 支持对指定的 IP 地址、IP 地址块（CIDR 块）、端口进行外联访问控制。
+  * 当指定了 IP 地址、IP 地址块，但未指定端口时，默认对所有端口生效。
+  * 具体请参见 [NetworkEgressRule](../../getting_started/interface_specification.md#networkegressrule)。

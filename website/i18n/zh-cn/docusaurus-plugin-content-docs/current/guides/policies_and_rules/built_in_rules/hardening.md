@@ -1,24 +1,24 @@
 ---
 sidebar_position: 1
-description: Rules to reduce the attack surface of system.
+description: 减少系统攻击面的规则。
 ---
 
-# Hardening
+# 容器加固
 
-## Securing Privileged Containers
+## 加固具有特权的容器
 ### `disallow-write-core-pattern`
 
-Prohibit modifying procfs' core_pattern.
+禁止改写 procfs 的 core_pattern。
 
-:::note[Description]
-Attackers may attempt container escape by modifying the procfs core_pattern in a **privileged container** or, in a container (**w/ CAP_SYS_ADMIN**), unmounting specific mount points and then modifying the procfs core_pattern to execute a container escape.
+:::note[说明]
+攻击者可能会在特权容器（**Privileged Container**）中，通过改写 procfs core_pattern，来实施容器逃逸。或者在特权容器（**w/ CAP_SYS_ADMIN**）中，卸载特定挂载点后改写 procfs core_pattern，来实施容器逃逸。
 :::
 
-:::info[Principle & Impact]
-Disallow writing to the procfs' core_pattern file.
+:::info[原理与影响]
+禁止修改 procfs 的 core_pattern。
 :::
 
-:::tip[Supported Enforcer]
+:::tip[支持的强制访问控制器]
 * AppArmor
 * BPF
 :::
@@ -26,17 +26,17 @@ Disallow writing to the procfs' core_pattern file.
 
 ### `disallow-mount-securityfs`
 
-Prohibit mounting securityfs.
+禁止挂载 securityfs。
 
-:::note[Description]
-Attackers may attempt container escape in containers (**w/ CAP_SYS_ADMIN**) by mounting securityfs with read-write permissions and subsequently modifying it.
+:::note[说明]
+攻击者可能会在特权容器（**w/ CAP_SYS_ADMIN**）中，以读写权限挂载新的 securityfs 并对其进行修改。
 :::
 
-:::info[Principle & Impact]
-Disallow mounting of new security file systems.
+:::info[原理与影响]
+禁止挂载新的 securityfs。
 :::
 
-:::tip[Supported Enforcer]
+:::tip[支持的强制访问控制器]
 * AppArmor
 * BPF
 :::
@@ -44,19 +44,19 @@ Disallow mounting of new security file systems.
 
 ### `disallow-mount-procfs`
 
-Prohibit remounting procfs.
+禁止重新挂载 procfs。
 
-:::note[Description]
-Attackers may attempt container escape in containers (**w/ CAP_SYS_ADMIN**) by remounting procfs with read-write permissions and subsequently modifying the core_pattern, among other things.
+:::note[说明]
+攻击者可能会在特权容器（**w/ CAP_SYS_ADMIN**）中，以读写权限重新挂载 procfs，然后再通过改写 core_pattern 等方式进行容器逃逸、修改系统配置。
 :::
 
-:::info[Principle & Impact]
-1. Disallow mounting of new proc file systems.
-2. Prohibit using bind, rbind, move, remount options to remount `/proc**`.
-3. When using BPF enforcer, it also prevents unmounting `/proc**`.
+:::info[原理与影响]
+1. 禁止挂载新的 procfs。
+2. 禁止使用 bind, rbind, move, remount 选项重新挂载 `/proc**`。
+3. 使用 BPF enforcer 时，还将禁止卸载 `/proc**`。
 :::
 
-:::tip[Supported Enforcer]
+:::tip[支持的强制访问控制器]
 * AppArmor
 * BPF
 :::
@@ -64,17 +64,17 @@ Attackers may attempt container escape in containers (**w/ CAP_SYS_ADMIN**) by r
 
 ### `disallow-write-release-agent`
 
-Prohibit modifying cgroupfs' release_agent.
+禁止改写 cgroupfs 的 release_agent。
 
-:::note[Description]
-Attackers may attempt container escape within **privileged container** by directly modifying the cgroupfs release_agent.
+:::note[说明]
+攻击者可能会在特权容器（**Privileged Container**）中，通过改写 cgroupfs release_agent，来实施容器逃逸。
 :::
 
-:::info[Principle & Impact]
-Disallow writing to the cgroupfs' release_agent file.
+:::info[原理与影响]
+禁止修改 cgroupfs 的 release_agent。
 :::
 
-:::tip[Supported Enforcer]
+:::tip[支持的强制访问控制器]
 * AppArmor
 * BPF
 :::
@@ -82,20 +82,21 @@ Disallow writing to the cgroupfs' release_agent file.
 
 ### `disallow-mount-cgroupfs`
 
-Prohibit remounting cgroupfs.
+禁止重新挂载 cgroupfs。
 
-:::note[Description]
+:::note[说明]
+攻击者可能会在特权容器（**w/ CAP_SYS_ADMIN**）中，以读写权限重新挂载 cgroupfs。然后再通过改写 release_agent、设备访问权限等方式进行容器逃逸、修改系统配置。
 Attackers may attempt to escape from containers (**w/ CAP_SYS_ADMIN**) by remounting cgroupfs with read-write permissions. Subsequently, they can modify release_agent and device access permissions, among other things.
 :::
 
-:::info[Principle & Impact]
-1. Disallow mounting new cgroup file systems.
-2. Prohibit using bind, rbind, move, remount options to remount `/sys/fs/cgroup**`.
-3. Prohibit using rbind option to remount `/sys**`.
-4. When using BPF enforcer, it also prevents unmounting `/sys**`.
+:::info[原理与影响]
+1. 禁止挂载新的 cgroupfs。
+2. 禁止使用 bind, rbind, move, remount 选项重新挂载 `/sys/fs/cgroup**`。
+3. 禁止使用 rbind 选项重新挂载 `/sys**`。
+4. 使用 BPF enforcer 时，还将禁止卸载 `/sys**`。
 :::
 
-:::tip[Supported Enforcer]
+:::tip[支持的强制访问控制器]
 * AppArmor
 * BPF
 :::
@@ -103,19 +104,19 @@ Attackers may attempt to escape from containers (**w/ CAP_SYS_ADMIN**) by remoun
 
 ### `disallow-debug-disk-device`
 
-Prohibit debugging of disk devices.
+禁止调试磁盘设备。
 
-:::note[Description]
-Attackers may attempt to read and write host machine files by debugging host machine disk devices within a **privileged container**.
+:::note[说明]
+攻击者可能会在特权容器（**Privileged Container**）中，通过调试宿主机磁盘设备，从而实现宿主机文件的读写。
 
-It is recommended to use this rule in conjunction with [disable-cap-mknod](#disable-cap-cap) to prevent attackers from bypassing the rule with mknod.
+建议配合 [disable-cap-mknod](#disable-cap-cap) 使用，从而防止攻击者利用 mknod 创建新的设备文件，从而绕过此规则。
 :::
 
-:::info[Principle & Impact]
-Dynamically acquire host disk devices and restrict container access them with read-write permissions.
+:::info[原理与影响]
+动态获取宿主机磁盘设备文件，并禁止在容器内以读写权限访问。
 :::
 
-:::tip[Supported Enforcer]
+:::tip[支持的强制访问控制器]
 * AppArmor
 * BPF
 :::
@@ -124,19 +125,19 @@ Dynamically acquire host disk devices and restrict container access them with re
 
 ### `disallow-mount-disk-device`
 
-Prohibit mounting of host's disk devices.
+禁止挂载宿主机磁盘设备并访问。
 
-:::note[Description]
-Attackers may attempt to mount host machine disk devices within a **privileged container**, thereby gaining read-write access to host machine files.
+:::note[说明]
+攻击者可能会在特权容器（**Privileged Container**）中，挂载宿主机磁盘设备，从而实现宿主机文件的读写。
 
-It is recommended to use this rule in conjunction with [disable-cap-mknod](#disable-cap-cap) to prevent attackers from bypassing the rule with mknod.
+建议配合 [disable-cap-mknod](#disable-cap-cap) 使用，从而防止攻击者利用 mknod 创建新的设备文件，从而绕过此规则。
 :::
 
-:::info[Principle & Impact]
-Dynamically acquire host machine disk device files and prevent mounting within containers.
+:::info[原理与影响]
+动态获取宿主机磁盘设备文件，并禁止在容器内挂载。
 :::
 
-:::tip[Supported Enforcer]
+:::tip[支持的强制访问控制器]
 * AppArmor
 * BPF
 :::
@@ -145,19 +146,19 @@ Dynamically acquire host machine disk device files and prevent mounting within c
 
 ### `disallow-mount`
 
-Disable the mount system call.
+禁用 mount 系统调用。
 
-:::note[Description]
-[MOUNT(2)](https://man7.org/linux/man-pages/man2/mount.2.html) is often used for privilege escalation, container escapes, and other attacks. Most microservices applications do not require mount operations. Therefore, it is recommended to use this rule to restrict container processes from using the `mount()` system call.
+:::note[说明]
+[MOUNT(2)](https://man7.org/linux/man-pages/man2/mount.2.html) 常被用于权限提升、容器逃逸等攻击。而几乎所有的微服务应用都无需 mount 操作，因此建议使用此规则限制容器内进程访问 mount 系统调用。
 
-Note: The mount system call will be disabled by default if the `spec.policy.privileged` field is false.
+注：当 `spec.policy.privileged` 为 false 时，将默认禁用 `mount()` 系统调用。
 :::
 
-:::info[Principle & Impact]
-Disable the mount system call.
+:::info[原理与影响]
+禁用 mount 系统调用。
 :::
 
-:::tip[Supported Enforcer]
+:::tip[支持的强制访问控制器]
 * AppArmor
 * BPF
 :::
@@ -166,17 +167,17 @@ Disable the mount system call.
 
 ### `disallow-umount`
 
-Disable the umount system call.
+禁用 umount 系统调用。
 
-:::note[Description]
-[UMOUNT(2)](https://man7.org/linux/man-pages/man2/umount.2.html) can be used to remove the attachment of topmost mount points(such as maskedPaths), leading to privilege escalation and information disclosure. Most microservices applications do not require umount operations. Therefore, it is recommended to use this rule to restrict container processes from using the `umount()` system call.
+:::note[说明]
+[UMOUNT(2)](https://man7.org/linux/man-pages/man2/umount.2.html) 可被用于卸载敏感的挂载点（例如 maskedPaths），从而导致权限提升、信息泄露。而几乎所有的微服务应用都无需 umount 操作，因此建议使用此规则限制容器内进程访问 `umount()` 系统调用。
 :::
 
-:::info[Principle & Impact]
-Disable the umount system call.
+:::info[原理与影响]
+禁用 umount 系统调用。
 :::
 
-:::tip[Supported Enforcer]
+:::tip[支持的强制访问控制器]
 * AppArmor
 * BPF
 :::
@@ -185,17 +186,17 @@ Disable the umount system call.
 
 ### `disallow-insmod`
 
-Prohibit loading kernel modules.
+禁止加载内核模块。
 
-:::note[Description]
-Attackers may attempt to inject code into the kernel within a container (**w/ CAP_SYS_MODULE**) by executing kernel module loading command.
+:::note[说明]
+攻击者可能会在特权容器中（**w/ CAP_SYS_MODULE**），通过执行内核模块加载命令 insmod，向内核中注入代码。
 :::
 
-:::info[Principle & Impact]
-Disable CAP_SYS_MODULE.
+:::info[原理与影响]
+禁用 CAP_SYS_MODULE。
 :::
 
-:::tip[Supported Enforcer]
+:::tip[支持的强制访问控制器]
 * AppArmor
 * BPF
 :::
@@ -204,19 +205,19 @@ Disable CAP_SYS_MODULE.
 
 ### `disallow-load-ebpf`
 
-Prohibit loading eBPF programs.
+禁止加载 ebpf Program
 
-:::note[Description]
-Attackers may load eBPF programs within a container (**w/ CAP_SYS_ADMIN & CAP_BPF**) to theft data or create rootkit.
+:::note[说明]
+攻击者可能会在特权容器中（**w/ CAP_SYS_ADMIN & CAP_BPF**），加载 ebpf Program 实现数据窃取和隐藏。
 
-Note: CAP_BPF was introduced starting from Linux 5.8.
+注：CAP_BPF 自 Linux 5.8 引入。
 :::
 
-:::info[Principle & Impact]
-Disable CAP_SYS_ADMIN & CAP_BPF.
+:::info[原理与影响]
+禁用 CAP_SYS_ADMIN, CAP_BPF。
 :::
 
-:::tip[Supported Enforcer]
+:::tip[支持的强制访问控制器]
 * AppArmor
 * BPF
 :::
@@ -225,19 +226,19 @@ Disable CAP_SYS_ADMIN & CAP_BPF.
 
 ### `disallow-access-procfs-root`
 
-Prohibit accessing process's root directory.
+禁止访问进程文件系统的根目录。
 
-:::note[Description]
-This policy prohibits processes within containers from accessing the root directory of the process filesystem (i.e., `/proc/[PID]/root`), preventing attackers from exploiting shared PID namespaces to launch attacks.
+:::note[说明]
+本策略禁止容器内进程访问进程文件系统的根目录（即 `/proc/[PID]/root`），防止攻击者利用共享 pid ns 的进程进行攻击。
 
-Attackers may attempt to access the process filesystem outside the container by reading and writing to `/proc/*/root` in environments where the PID namespace is shared with the host or other containers. This could lead to information disclosure, privilege escalation, lateral movement, and other attacks.
+攻击者可能会在共享了宿主机 pid ns、与其他容器共享 pid ns 的容器环境中，通过读写 `/proc/*/root` 来访问容器外的进程文件系统，实现信息泄露、权限提升、横向移动等攻击。
 :::
 
-:::info[Principle & Impact]
-Disable [PTRACE_MODE_READ](https://man7.org/linux/man-pages/man2/ptrace.2.html) permission.
+:::info[原理与影响]
+禁用 [PTRACE_MODE_READ](https://man7.org/linux/man-pages/man2/ptrace.2.html) 权限。
 :::
 
-:::tip[Supported Enforcer]
+:::tip[支持的强制访问控制器]
 * AppArmor
 * BPF
 :::
@@ -246,37 +247,37 @@ Disable [PTRACE_MODE_READ](https://man7.org/linux/man-pages/man2/ptrace.2.html) 
 
 ### `disallow-access-kallsyms`
 
-Prohibit accessing kernel exported symbol.
+禁止读取内核符号文件。
 
-:::note[Description]
-Attackers may attempt to leak the base address of kernel modules from containers (**w/ CAP_SYSLOG**) by reading the kernel's exported symbol definitions file. This assists attackers in bypassing KASLR protection to exploit kernel vulnerabilities more easily.
+:::note[说明]
+攻击者可能会在特权容器中（**w/ CAP_SYSLOG**），通过读取内核符号文件来获取内核模块地址。从而绕过 KASLR 防护，降低内核漏洞的难度与成本。
 :::
 
-:::info[Principle & Impact]
-Disallow reading `/proc/kallsyms` file.
+:::info[原理与影响]
+禁止读取 `/proc/kallsyms` 文件。
 :::
 
-:::tip[Supported Enforcer]
+:::tip[支持的强制访问控制器]
 * AppArmor
 * BPF
 :::
 
 
-## Disabling Capabilities
+## 禁用能力
 
 ### `disable-cap-all`
 
-Disable all capabilities.
+禁用所有 capabilities。
 
-:::note[Description]
-Disable all capabilities.
+:::note[说明]
+禁用所有 capabilities
 :::
 
-:::info[Principle & Impact]
-None
+:::info[原理与影响]
+无
 :::
 
-:::tip[Supported Enforcer]
+:::tip[支持的强制访问控制器]
 * AppArmor
 * BPF
 :::
@@ -285,19 +286,19 @@ None
 
 ### `disable-cap-all-except-net-bind-service`
 
-Disable all capabilities except for NET_BIND_SERVICE.
+禁用除 net_bind_service 外的 capabilities。
 
-:::note[Description]
-Disable all capabilities except for NET_BIND_SERVICE.
+:::note[说明]
+禁用除 net-bind-service 以外的 capabilities.
 
-This rule complies with the [*Restricted Policy*](https://kubernetes.io/concepts/security/pod-security-standards/#restricted) of the Pod Security Standards.
+此规则符合 Pod Security Standards 的 [*Restricted Policy*](https://kubernetes.io/concepts/security/pod-security-standards/#restricted) 要求。
 :::
 
-:::info[Principle & Impact]
-None
+:::info[原理与影响]
+无
 :::
 
-:::tip[Supported Enforcer]
+:::tip[支持的强制访问控制器]
 * AppArmor
 * BPF
 :::
@@ -306,19 +307,19 @@ None
 
 ### `disable-cap-privileged`
 
-Disable privileged capabilities.
+禁用特权 capability。
 
-:::note[Description]
-Disable all privileged capabilities that can directly lead to escapes or affect host availability. Only allow the [default capabilities](https://github.com/containerd/containerd/blob/release/1.7/oci/spec.go#L115).
+:::note[说明]
+禁用所有的特权 capabilities（可直接造成逃逸、影响宿主机可用性的 capabilities），仅允许运行时的[默认 capabilities](https://github.com/containerd/containerd/blob/release/1.7/oci/spec.go#L115)。
 
-This rule complies with the [*Baseline Policy*](https://kubernetes.io/concepts/security/pod-security-standards/#restricted) of the Pod Security Standards, except for the NET_RAW capability.
+此规则符合 Pod Security Standards 的 [*Baseline Policy*](https://kubernetes.io/concepts/security/pod-security-standards/#restricted) 要求，但 net_raw capability 除外。
 :::
 
-:::info[Principle & Impact]
-None
+:::info[原理与影响]
+无
 :::
 
-:::tip[Supported Enforcer]
+:::tip[支持的强制访问控制器]
 * AppArmor
 * BPF
 :::
@@ -327,42 +328,41 @@ None
 
 ### `disable-cap-[CAP]`
 
-Disable specified capability.
+禁用特定 capability。
 
-:::note[Description]
-Disable any specified capabilities, replacing [CAP] with the values from [capabilities(7)](https://man7.org/linux/man-pages/man7/capabilities.7.html), for example, disable-cap-net-raw.
+:::note[说明]
+禁用任意指定的 capabilities，请将 [CAP] 替换为 [capabilities(7)](https://man7.org/linux/man-pages/man7/capabilities.7.html) 中的值，例如 disable-cap-net-raw。
 :::
 
-:::info[Principle & Impact]
-None
+:::info[原理与影响]
+无
 :::
 
-:::tip[Supported Enforcer]
+:::tip[支持的强制访问控制器]
 * AppArmor
 * BPF
 :::
 
 
 
-## Blocking Exploit Vectors
+## 阻断内核漏洞利用向量
 
 ### `disallow-abuse-user-ns`
 
-Prohibit abusing user namespaces.
+禁止滥用 User Namespace。
 
-:::note[Description]
-User namespaces can be used to enhance container isolation. However, it also increases the kernel's attack surface, making certain kernel vulnerabilities easier to exploit. Attackers can use a container to create a user namespace, gaining full privileges and thereby expanding the kernel's attack surface.
+:::note[说明]
+User Namespace 可以被用于增强容器隔离性。但它的出现同时也增大了内核的攻击面，或使得某些内核漏洞更容易被利用。攻击者可以在容器内，通过创建 User Namespace 来获取全部特权，从而扩大内核攻击面。
 
-Disallowing container processes from abusing CAP_SYS_ADMIN privileges via user namespaces can reduce the kernel's attack surface and block certain exploitation paths for kernel vulnerabilities.
-
-This rule can be used to harden containers on systems where `kernel.unprivileged_userns_clone=0` or `user.max_user_namespaces=0` is not set or applicable.
+禁止容器进程通过 User Namesapce 滥用 CAP_SYS_ADMIN 特权可用于降低内核攻击面，阻断部分内核漏洞的利用路径。
+在未设置 `kernel.unprivileged_userns_clone=0` 或 `user.max_user_namespaces=0` 的系统上，可通过此规则来为容器进行加固。
 :::
 
-:::info[Principle & Impact]
-Disable CAP_SYS_ADMIN.
+:::info[原理与影响]
+禁用 CAP_SYS_ADMIN。
 :::
 
-:::tip[Supported Enforcer]
+:::tip[支持的强制访问控制器]
 * AppArmor
 * BPF
 :::
@@ -371,21 +371,20 @@ Disable CAP_SYS_ADMIN.
 
 ### `disallow-create-user-ns`
 
-Prohibit creating user namespace.
+禁止创建 User Namespace。
 
-:::note[Description]
-User namespaces can be used to enhance container isolation. However, it also increases the kernel's attack surface, making certain kernel vulnerabilities easier to exploit. Attackers can use a container to create a user namespace, gaining full privileges and thereby expanding the kernel's attack surface.
+:::note[说明]
+User Namespace 可以被用于增强容器隔离性。但它的出现同时也增大了内核的攻击面，或使得某些内核漏洞更容易被利用。攻击者可以在容器内，通过创建 User Namespace 来获取全部特权，从而扩大内核攻击面。
 
-Disallowing container processes from creating new user namespaces can reduce the kernel's attack surface and block certain exploitation paths for kernel vulnerabilities.
-
-This rule can be used to harden containers on systems where `kernel.unprivileged_userns_clone=0` or `user.max_user_namespaces=0` is not set or applicable.
+禁止容器进程创建新的 User Namesapce 从而获取 CAP_SYS_ADMIN 特权可用于降低内核攻击面，阻断部分内核漏洞的利用路径。
+在未设置 `kernel.unprivileged_userns_clone=0` 或 `user.max_user_namespaces=0` 的系统上，可通过此规则来为容器进行加固。
 :::
 
-:::info[Principle & Impact]
-Disallow creating user namespace.
+:::info[原理与影响]
+禁止创建 User Namespace。
 :::
 
-:::tip[Supported Enforcer]
+:::tip[支持的强制访问控制器]
 * Seccomp
 :::
 

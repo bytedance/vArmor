@@ -1,77 +1,76 @@
 ---
 sidebar_position: 2
-description: Compare different enforcers in real scenarios.
+description: 在真实场景下比较不同 Enforcer 的性能。
 ---
 
-# Comparison Testing
+# 对比测试
 
-To further compare different Enforcers in real scenarios, we used the [Phoronix Test Suite (PTS)](https://github.com/phoronix-test-suite/phoronix-test-suite) to conduct a series of automated performance tests on some common loads (Redis, Apache, etc.).
+本测试模拟真实场景，对不同的 enforcer 进行对比测试。我们使用 [Phoronix Test Suite (PTS)](https://github.com/phoronix-test-suite/phoronix-test-suite)，针对一些常见负载（Redis、Apache 等）进行了一系列自动化性能测试。
 
-## Test Environment
+## 测试环境
 
-* Cluster version: v1.26.10-vke.18
-*  Number of nodes: 3
-*  Nodes with AppArmor & BPF LSM enabled by default
-*  Node specifications: ecs.g3i.xlarge (4vCPU 16GiB)
+* 集群版本 v1.26.10-vke.18
+* 节点数 3
+* 节点主机默认启用 AppArmor & BPF LSM
+* 节点规格 ecs.g3i.xlarge (4vCPU 16GiB)
 
-## Test Scenarios
+## 测试场景
+在本轮测试中，我们对 AppArmor、BPF 这两种 enforcer 进行横向对比测试，每个 enforcer 都选取三种典型场景，包括 AlwaysAllow、RuntimeDefault、EnhanceProtect，每个场景的 policy 如下所示：
 
-In this round of testing, we performed horizontal comparisons of two enforcers: AppArmor and BPF. Each enforcer was tested in three typical scenarios, including AlwaysAllow, RuntimeDefault, and EnhanceProtect. The policies for each scenario are as follows:
+* **Init 基准测试**
 
-* **Init Benchmark**
-  
-  No policy applied
+  不应用任何策略。
 
 * **AlwaysAllow**
-  
-  Tested with AlwaysAllow Mode, no rules enabled
+
+  使用 AlwaysAllow Mode 进行测试，不开启任何 rule。
 
 * **RuntimeDefault**
-  
-  Tested with RuntimeDefault Mode, no rules enabled
+
+  使用 RuntimeDefault Mode 进行测试，不开启任何 rule。
 
 * **EnhanceProtect**
 
-  Tested with EnhanceProtect Mode, with the following rules enabled:
-    - disable-cap-privilege
-    - disallow-umount
-    - disallow-access-procfs-root
-    - mitigate-disk-device-number-leak
-    - mitigate-sa-leak
-    - mitigate-overlayfs-leak
-    - mitigate-host-ip-leak
-    - disallow-metadata-service
-    - cgroups-lxcfs-escape-mitigation
-    - runc-override-mitigation
+  使用 EnhanceProtect Mode 进行测试，开启如下 rules。
+  - disable-cap-privileged
+  - disallow-umount
+  - disallow-access-procfs-root
+  - mitigate-disk-device-number-leak
+  - mitigate-sa-leak
+  - mitigate-overlayfs-leak
+  - Mitigate-host-ip-leak
+  - Disallow-metadata-service
+  - cgroups-lxcfs-escape-mitigation
+  - runc-override-mitigation
 
-In addition, we also tested the Seccomp enforcer with the currently available four rules. This test is for reference only and is not used as a performance benchmark or comparison.
+此外，我们也对 Seccomp enforcer 进行了测试，开启了 4 条 Seccomp 内置规则（该测试仅供参考）。
+所有测试用到的 policy 文件均可在 [test/perf/policy](https://github.com/bytedance/vArmor/tree/main/test/perf/policy) 目录下找到。
 
-The policy files used for the tests can be found in the [test/perf/policy](https://github.com/bytedance/vArmor/tree/main/test/perf/policy) directory.
+## 测试步骤
 
-## Test Steps
+我们编写了一个 bash 脚本用于实现自动化测试，该脚本主要完成如下任务：
 
-We wrote a bash script to automate the testing process, which mainly completes the following tasks:
+* 在 Kubernetes 集群中创建和删除 Pod。
+* 应用和移除不同的安全策略。
+* 初始化测试配置，安装测试工具，运行 Phoronix 测试套件。
+* 记录测试结果。
 
-* Create and delete Pods in the Kubernetes cluster.
-* Apply and remove different security policies.
-* Initialize test configurations, install test tools, and run the Phoronix Test Suite.
-* Record the test results.
+特别地，对于 Init、 BPF 和 Seccomp 模式，我们使用了不同的 Pod 配置，例如通过设置 `container.apparmor.security.beta.kubernetes.io/phoronix: unconfined` 来确保禁用 AppArmor，避免运行时组件默认开启的 AppArmor Profile 影响测试结果。
 
-Specifically, for the Init Benchmark, BPF, and Seccomp modes, we used different Pod configurations and enabled `container.apparmor.security.beta.kubernetes.io/phoronix: unconfined` to ensure AppArmor was not enabled, avoiding the default AppArmor profile from affecting the test results.
+您可以在 [test/perf/policy](https://github.com/bytedance/vArmor/tree/main/test/perf/policy) 目录下找到 Pod 定义和 Phoronix 运行配置。您可以在 [test/perf](https://github.com/bytedance/vArmor/tree/main/test/perf) 目录下找到自动化测试脚本。此外我们针对 sysbench 和 unixbench 也编写了单独的测试脚本，如果您感兴趣也可以自行进行测试。
 
-You can find the Pod definitions and Phoronix runtime configurations in the [test/perf/policy](https://github.com/bytedance/vArmor/tree/main/test/perf/policy) directory. The automation test script is also located in the [test/perf](https://github.com/bytedance/vArmor/tree/main/test/perf) directory. Additionally, we have written separate test scripts for sysbench and unixbench, which you can use if you are interested in conducting your own tests.
 
-## Test Results
+## 测试结果
 
-* **EnhanceProtect**: The performance of BPF decreased by about 1.2% compared to AppArmor.
-* **RuntimeDefault**: The performance of BPF decreased by about 0.6% compared to AppArmor.
-* **AlwaysAllow**: The performance of BPF decreased by about 0.1% compared to AppArmor.
+* **EnhanceProtect**: BPF 的性能相比 AppArmor 下降了约 1.2%。
+* **RuntimeDefault**: BPF 的性能相比 AppArmor 下降了约 0.6%。
+* **AlwaysAllow**: BPF 的性能相比 AppArmor 下降了约 0.1%。
 
 ![image](../../img/pts_benchmark.png)
 
-The analysis results shows that although BPF generally exhibits slight performance degradation compared to AppArmor in different scenarios, the differences are relatively small. This indicates that BPF is a feasible alternative to AppArmor with acceptable performance overhead in security applications.
+测试结果表明，虽然 BPF 相对于 AppArmor 在不同场景下通常表现出轻微的性能下降，但差异相对较小。这表明 BPF 是 AppArmor 的可行替代方案，在安全应用中具有可接受的性能损耗。
 
-Below are the detailed test results for each scenario:
+下面是各项的详细测试结果：
 
 ### Phoronix-Apache
 

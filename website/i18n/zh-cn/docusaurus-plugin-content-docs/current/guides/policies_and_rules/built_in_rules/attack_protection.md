@@ -1,380 +1,381 @@
 ---
 sidebar_position: 2
-description: Rules against penetration tactics in the container environment.
+description: 针对容器环境中渗透手法的规则。
 ---
 
-# Attack Protection
-These rules are used to counter penetration tactics in the container environment, such as mitigating container information leakage and prohibiting execution of sensitive actions.
+# 攻击防护
 
-## Mitigating Information Leakage
+这些规则针对容器内的常见渗透手法进行防护，例如缓解容器信息泄露、禁用敏感行为等。
+
+## 缓解信息泄露
 
 ### `mitigate-sa-leak`
 
-Mitigating ServiceAccount token leakage.
+缓解 ServiceAccount 泄露。
 
-:::note[Description]
-This rule prohibits container processes from reading sensitive Service Account-related information, including tokens, namespaces, and CA certificates. It helps prevent security risks arising from the leakage of Default ServiceAccount or misconfigured ServiceAccount. In the event that attackers gain access to a container through an RCE vulnerability, they often seek to further infiltrate by leaking ServiceAccount information.
+:::note[说明]
+此规则禁止容器进程读取 ServiceAccount 相关的敏感信息，包括 token、namespace、ca 证书。避免 default SA 泄漏、错误配置的 SA 泄漏带来的安全风险，攻击者通过 RCE 漏洞获取 k8s 容器内的权限后，常倾向于通过泄漏其 SA 信息来进行进一步的渗透入侵活动。
 
-In most user scenarios, there is no need for Pods to communicate with the API Server using ServiceAccounts. However, by default, Kubernetes still sets up default ServiceAccounts for Pods that do not require communication with the API Server.
+在大部分用户场景中，并不需要使用 SA 与 API Server 进行通信。而默认情况下，k8s 会为不需要与 API Server 通信的 Pod 设置 default SA。
 :::
 
-:::info[Principle & Impact]
-Disallow reading ServiceAccount-related files.
+:::info[原理与影响]
+禁止 ServiceAccount 文件的读操作。
 :::
 
-:::tip[Supported Enforcer]
+:::tip[支持的强制访问控制器]
 * AppArmor
 * BPF
 :::
 
 ### `mitigate-disk-device-number-leak`
 
-Mitigating host disk device number leakage.
+缓解宿主机磁盘设备号泄露。
 
-:::note[Description]
-Attackers may attempt to obtain host disk device numbers for subsequent container escape by reading the container process's mount information.
+:::note[说明]
+攻击者可能会通过读取容器进程的挂载信息来获取宿主机磁盘设备的设备号，从而用于后续的容器逃逸。
 :::
 
-:::info[Principle & Impact]
-isallow reading `/proc/[PID]/mountinfo` and `/proc/partitions` files.
+:::info[原理与影响]
+禁止容器进程读取 `/proc/[PID]/mountinfo`, `/proc/partitions`。
 :::
 
-:::tip[Supported Enforcer]
+:::tip[支持的强制访问控制器]
 * AppArmor
 * BPF
 :::
 
 ### `mitigate-overlayfs-leak`
 
-Mitigating container overlayfs path leakage.
+缓解容器 overlayfs 路径泄露。
 
-:::note[Description]
-Attackers may attempt to obtain the overlayfs path of the container's rootfs on the host by accessing the container process's mount information, which could be used for subsequent container escape.
+:::note[说明]
+攻击者可能会通过获取容器进程的挂载信息来获取容器进程 rootfs 在宿主机中的 overlayfs 路径，从而用于后续的容器逃逸。
 :::
 
-:::info[Principle & Impact]
-Disallow reading `/proc/mounts`, `/proc/[PID]/mounts`, and `/proc/[PID]/mountinfo` files.
+:::info[原理与影响]
+禁止读取 `/proc/mounts`、`/proc/[PID]/mounts`、`/proc/[PID]/mountinfo` 文件。
 
-This rule may impact some functionality of the mount command or syscall within containers.
+此规则可能会影响容器内 mount 命令的部分功能。
 :::
 
-:::tip[Supported Enforcer]
+:::tip[支持的强制访问控制器]
 * AppArmor
 * BPF
 :::
 
 ### `mitigate-host-ip-leak`
 
-Mitigating host IP leakage.
+缓解宿主机 IP 泄露。
 
-:::note[Description]
-After gaining access to a container through an RCE vulnerability, attackers often attempt further network penetration attacks. Therefore, restricting attackers from obtaining sensitive information such as host IP, MAC, and network segments through this vector can increase the difficulty and cost of their network penetration activities.
+:::note[说明]
+攻击者通过 RCE 漏洞获取 k8s 容器内的权限后，会尝试进一步的网络渗透攻击。因此，限制攻击者借此获取宿主机 IP、MAC 地址、网段等敏感信息，可增加攻击者进行网络渗透的难度和成本。
 :::
 
-:::info[Principle & Impact]
-Disallow reading ARP address resolution tables (such as `/proc/net/arp`, `/proc/[PID]/net/arp`)
+:::info[原理与影响]
+禁止容器进程读取 ARP 地址解析表（`/proc/net/arp`、`/proc/[PID]/net/arp` 等），从而获取宿主机 IP 和 Mac 地址等敏感信息。
 :::
 
-:::tip[Supported Enforcer]
+:::tip[支持的强制访问控制器]
 * AppArmor
 * BPF
 :::
 
 ### `disallow-metadata-service`
 
-Disallow access to the metadata service.
+禁止访问云服务器的 metadata service。
 
-:::note[Description]
-This rule prohibits container processes from accessing the cloud server's Instance Metadata Service, including two reserved local addresses: **100.96.0.96** and **169.254.169.254**.
+:::note[说明]
+攻击者获取容器内的代码执行权限后，会尝试访问云服务器的 Metadata Service 来进行信息泄露。在某些场景下，攻击者可能会获取敏感信息，从而进行权限提升、横向渗透。
 
-Attackers, upon gaining code execution privileges within a container, may attempt to access the cloud server's Metadata Service for information disclosure. In certain scenarios, attackers may obtain sensitive information, leading to privilege escalation and lateral movement.
+此规则禁止容器进程访问云服务器的 Instance Metadata Service。包含两个本地链接保留地址：**100.96.0.96** 和 **169.254.169.254**。
 :::
 
-:::info[Principle & Impact]
-Prohibit connections to Instance Metadata Services' IP addresses.
+:::info[原理与影响]
+禁止连接 Instance Metadata Services 的 IP 地址。
 :::
 
-:::tip[Supported Enforcer]
+:::tip[支持的强制访问控制器]
 * BPF
 :::
 
-## Disabling Sensitive Operations
+## 禁止敏感操作
 
 ### `disable-write-etc`
 
-Prohibit writing to the `/etc` directory.
+禁止写入 /etc 目录。
 
-:::note[Description]
-Attackers may attempt privilege escalation by modifying sensitive files in the `/etc` directory, such as altering `/etc/bash.bashrc` for watering hole attacks, editing `/etc/passwd` and `/etc/shadow` to add users for persistence, or modifying nginx.conf or `/etc/ssh/ssh_config` for persistence.
+:::note[说明]
+攻击者可能会通过修改 /etc 目录中的敏感文件来实施权限提升，例如修改 /etc/bash.bashrc 等实施水坑攻击、修改 /etc/passwd 和 /etc/shadow 添加用户进行持久化、修改 nginx.conf 或 /etc/ssh/ssh_config 进行持久化等。
 :::
 
-:::info[Principle & Impact]
-Disallow writing to the `/etc` directory.
+:::info[原理与影响]
+禁止写入 /etc 目录。
 :::
 
-:::tip[Supported Enforcer]
+:::tip[支持的强制访问控制器]
 * AppArmor
 * BPF
 :::
 
 ### `disable-busybox`
 
-Prohibit the execution of busybox command.
+禁止执行 busybox 命令。
 
-:::note[Description]
-Some application services are packaged using base images like busybox or alpine. This also provides attackers with a lot of convenience, as they can use busybox to execute commands and assist in their attacks.
+:::note[说明]
+某些应用服务会以 busybox, alpine 等作为基础镜像进行打包，而这些镜像一般会使用 busybox 工具箱作为基础命令行工具的可执行程序。这也给攻击者提供了很多便利，攻击者可以利用 busybox 执行命令辅助攻击。
 :::
 
-:::info[Principle & Impact]
-Prohibit the execution of busybox command.
+:::info[原理与影响]
+禁止 busybox 执行。
 
-If containerized services rely on busybox or related bash commands, enabling this policy may lead to runtime errors.
+若容器内服务依赖 busybox 或相关 bash 命令，开启此策略会导致运行出错。
 :::
 
-:::tip[Supported Enforcer]
+:::tip[支持的强制访问控制器]
 * AppArmor
 * BPF
 :::
 
 ### `disable-shell`
 
-Prohibit the creation of Unix shells.
+禁止创建 Unix Shell。
 
-:::note[Description]
-After gaining remote code execution privileges through an RCE vulnerability, attackers may use a reverse shell to gain arbitrary command execution capabilities within the container.
+:::note[说明]
+攻击者通过 RCE 漏洞获取服务的远程代码执行权限后，通常会借助 reverse shell 获取容器内任意命令执行能力。
 
-This rule prohibits container processes from creating new Unix shells, thus defending against reverse shell.
+此规则禁止容器进程创建新的 Unix shell，从而实施反弹 shell 等攻击手段。
 :::
 
-:::info[Principle & Impact]
-Prohibit the creation of Unix shells.
+:::info[原理与影响]
+禁止 Unix Shell 执行。
 
-Some base images may symlink sh to `/bin/busybox`. In this scenario, it's also necessary to prohibit the execution of busybox.
+有些基础镜像会动态链接 sh 到 `/bin/busybox`，此情况下还需配合 [disable-busybox](#disable-busybox) 策略使用。
 :::
 
-:::tip[Supported Enforcer]
+:::tip[支持的强制访问控制器]
 * AppArmor
 * BPF
 :::
 
 ### `disable-wget`
 
-Prohibit the execution of wget command.
+禁止通过 wget 命令下载文件。
 
-:::note[Description]
-Attackers may use the wget command to download malicious programs for subsequent attacks, such as persistence, privilege escalation, network scanning, cryptocurrency mining, and more.
+:::note[说明]
+攻击者通常会借助 wget 命令从外部下载攻击程序进行随后的攻击（驻留、权限提升、网络扫描、挖矿等）。
 
-This rule limits file downloads by prohibiting the execution of the wget command.
+此规则通过禁止执行 wget 命令来限制文件下载。
 :::
 
-:::info[Principle & Impact]
-Prohibit the execution of wget.
+:::info[原理与影响]
+禁止 wget 执行。
 
-Some base images may symlink wget to `/bin/busybox`. In this scenario, it's also necessary to prohibit the execution of busybox.
+有些基础镜像会动态链接 wget 到 `/bin/busybox`，此情况下还需配合 [disable-busybox](#disable-busybox) 策略使用。
 :::
 
-:::tip[Supported Enforcer]
+:::tip[支持的强制访问控制器]
 * AppArmor
 * BPF
 :::
 
 ### `disable-curl`
 
-Prohibit the execution of curl command.
+禁止通过 curl 命令下载文件。
 
-:::note[Description]
-Attackers may use the curl command to initiate network access and download malicious programs from external sources for subsequent attacks, such as persistence, privilege escalation, network scanning, cryptocurrency mining, and more.
+:::note[说明]
+攻击者通常会借助 curl 命令发起网络访问、从外部下载攻击程序进行随后的攻击（驻留、权限提升、网络扫描、挖矿等）。
 
-This rule limits network access by prohibiting the execution of the curl command.
+此规则禁止容器进程通过 curl 命令访问网络。
 :::
 
-:::info[Principle & Impact]
-Prohibit the execution of curl command.
+:::info[原理与影响]
+禁止 curl 执行。
 :::
 
-:::tip[Supported Enforcer]
+:::tip[支持的强制访问控制器]
 * AppArmor
 * BPF
 :::
 
 ### `disable-chmod`
 
-Prohibit the execution of chmod command.
+禁止通过 chmod 修改文件权限。
 
-:::note[Description]
-When attackers gain control over a container through vulnerabilities, they typically attempt to download additional attack code or tools into the container for further attacks, such as privilege escalation, lateral movement, cryptocurrency mining, and more. In this attack chain, attackers often use the chmod command to modify file permissions for execution.
+:::note[说明]
+当攻击者通过漏洞获取容器内的控制权后，通常会尝试下载其他攻击代码、工具到容器内实施进一步的攻击（权限提升、横向渗透、挖矿等）。在这个攻击链路中，攻击者通常会利用 chmod 命令修改文件的执行权限。
 :::
 
-:::info[Principle & Impact]
-Prohibit the execution of chmod command.
+:::info[原理与影响]
+禁止 chmod 执行。
 
-Some base images may symlink wget to `/bin/busybox`. In this scenario, it's also necessary to prohibit the execution of busybox command.
+有些基础镜像会动态链接 chmod 到 /bin/busybox，此情况下还需配合 [disable-busybox](#disable-busybox) 策略使用。
 :::
 
-:::tip[Supported Enforcer]
+:::tip[支持的强制访问控制器]
 * AppArmor
 * BPF
 :::
 
 ### `disable-chmod-x-bit`
 
-Prohibit setting the execute/search bit of a file.
+禁止设置文件的可执行属性。
 
-:::note[Description]
-When attackers gain control over a container through vulnerabilities, they typically attempt to download additional attack code or tools into the container for further attacks, such as privilege escalation, lateral movement, cryptocurrency mining, and more. In this attack chain, attackers might use the chmod syscalls to modify file permissions for execution.
+:::note[说明]
+当攻击者通过漏洞获取容器内的控制权后，通常会尝试下载其他攻击代码、工具到容器内实施进一步的攻击（权限提升、横向渗透、挖矿等）。在这个攻击链路中，攻击者通常会调用 chmod 相关系统调用。
 :::
 
-:::info[Principle & Impact]
-Prohibit setting the execute/search bit of a file with `chmod`, `fchmod`, `fchmodat`, `fchmodat2` syscalls.
+:::info[原理与影响]
+禁止通过 chmod 相关系统调用（`chmod`、`fchmod`、`fchmodat`、`fchmodat2`），设置文件的 execute/search 权限。
 :::
 
-:::tip[Supported Enforcer]
+:::tip[支持的强制访问控制器]
 * Seccomp
 :::
 
 ### `disable-chmod-s-bit`
 
-Prohibit setting the SUID/SGID bit of a file.
+禁止设置文件的 SUID/SGID 属性。
 
-:::note[Description]
-In some scenarios, attackers may attempt to invoke chmod syscalls to perform privilege elevation attacks by setting the file's s-bit (set-user-ID, set-group-ID).
+:::note[说明]
+在某些场景下，攻击者可能会尝试调用 chmod 系列的系统调用（chmod/fchmod/fchmodat/fchmodat2），通过设置文件的 s 标记位（set-user-ID, set-group-ID）来实施权限提升攻击。
 :::
 
-:::info[Principle & Impact]
-Prohibit setting the set-user-ID/set-group-ID bit of a file with `chmod`, `fchmod`, `fchmodat`, `fchmodat2` syscalls
+:::info[原理与影响]
+禁止通过 chmod 相关系统调用（`chmod`、`fchmod`、`fchmodat`、`fchmodat2`），设置文件的 set-user-ID/set-group-ID 属性。
 :::
 
-:::tip[Supported Enforcer]
+:::tip[支持的强制访问控制器]
 * Seccomp
 :::
 
 ### `disable-su-sudo`
 
-Prohibit the execution of su and sudo command.
+禁止执行 sudo、su 命令。
 
-:::note[Description]
-When processes within a container run as non-root users, attackers often need to escalate privileges to the root user for further attacks. The sudo and su commands are common local privilege escalation avenues.
+:::note[说明]
+当容器内的进程以非 root 用户运行时，攻击者需要先提权至 root 用户进行后续攻击。而 sudo/su 命令是本地提权的常见途径之一。
 :::
 
-:::info[Principle & Impact]
-Prohibit the execution of sudo and su command.
+:::info[原理与影响]
+禁止 sudo、su 执行。
 
-Some base images may symlink su to `/bin/busybox`. In this scenario, it's also necessary to prohibit the execution of busybox command.
+有些基础镜像会动态链接 su 到 `/bin/busybox`，此情况下还需配合 [disable-busybox](#disable-busybox) 策略使用。
 :::
 
-:::tip[Supported Enforcer]
+:::tip[支持的强制访问控制器]
 * AppArmor
 * BPF
 :::
 
-## Others
+## 其他
 ### `disable-network`
-Prohibit all network access.
+禁止所有网络访问。
 
-:::note[Description]
-When you want to prevent a container from accessing the network, you can use this rule to disable it.
+:::note[说明]
+您可以使用此规则禁止容器访问网络。
 :::
 
-:::tip[Supported Enforcer]
+:::tip[支持的强制访问控制器]
 * AppArmor
 * BPF
 :::
 
 ### `disable-inet`, `disable-ipv4`
-Prohibit accessing the network via inet4 addresses.
+禁止使用 inet4 地址的网络访问。
 
-:::note[Description]
-When you want to prevent a container from accessing the network via IPv4 addresses, you can use this rule to disable it.
+:::note[说明]
+您可以使用此规则禁止容器进程通过 IPv4 地址访问网络。
 :::
 
-:::tip[Supported Enforcer]
+:::tip[支持的强制访问控制器]
 * AppArmor
 * BPF
 :::
 
 ### `disable-inet6`, `disable-ipv6`
-Prohibit accessing the network via inet6 addresses.
+禁止使用 inet6 地址的网络访问。
 
-:::note[Description]
-When you want to prevent a container from accessing the network via IPv6 addresses, you can use this rule to disable it.
+:::note[说明]
+您可以使用此规则禁止容器进程通过 IPv6 地址访问网络。
 :::
 
-:::tip[Supported Enforcer]
+:::tip[支持的强制访问控制器]
 * AppArmor
 * BPF
 :::
 
 ### `disable-unix-domain-socket`
-Prohibit accessing the network via UDS addresses.
+禁止使用 UDS 地址的网络访问。
 
-:::note[Description]
-When you want to prevent a container from accessing the network via Unix Domain Socket addresses, you can use this rule to disable it.
+:::note[说明]
+您可以使用此规则禁止容器进程通过 UNIX domain socket 地址访问网络。
 :::
 
-:::tip[Supported Enforcer]
+:::tip[支持的强制访问控制器]
 * AppArmor
 * BPF
 :::
 
 ### `disable-icmp`
-Prohibit the use of the ICMP protocol.
+禁止使用 ICMP 网络协议。
 
-:::note[Description]
-When you want to prevent a container from using ICMP protocol, you can use this rule to disable it.
+:::note[说明]
+您可以使用此规则禁止容器进程使用 ICMP 网络协议。
 :::
 
-:::tip[Supported Enforcer]
+:::tip[支持的强制访问控制器]
 * AppArmor
 * BPF
 :::
 
 ### `disable-tcp`
-Prohibit the use of the TCP protocol.
+禁止使用 TCP 网络协议。
 
-:::note[Description]
-When you want to prevent a container from using TCP protocol, you can use this rule to disable it.
+:::note[说明]
+您可以使用此规则禁止容器进程使用 TCP 网络协议。
 :::
 
-:::tip[Supported Enforcer]
+:::tip[支持的强制访问控制器]
 * AppArmor
 * BPF
 :::
 
 ### `disable-udp`
-Prohibit the use of the UDP protocol.
+禁止使用 UDP 网络协议。
 
-:::note[Description]
-When you want to prevent a container from using UDP protocol, you can use this rule to disable it.
+:::note[说明]
+您可以使用此规则禁止容器进程使用 UDP 网络协议。
 :::
 
-:::tip[Supported Enforcer]
+:::tip[支持的强制访问控制器]
 * AppArmor
 * BPF
 :::
 
-## Restricting Specific Executable
+## 限制特定可执行文件
 
-It extends the use cases of [Mitigating Information Leakage](#mitigating-information-leakage), [Disabling Sensitive Operations](#disabling-sensitive-operations) and [Others](#others), it allows user to apply restrictions only to specific executable programs within containers.
+此规则对 “[缓解信息泄露](#mitigating-information-leakage)”、“[禁止敏感操作](#disabling-sensitive-operations)”、“[其他](#others)” 三类内置规则的使用场景进行了扩充，使用户可以只对容器内的特定可执行文件及其子进程进行限制。
 
-:::note[Description]
-Restricting specified executable programs serves two purposes:
-1. Preventing sandbox policies from affecting the execution of application services within containers.
-2. Restricting specified executable programs within containers increases the cost and difficulty for attackers
+:::note[说明]
+对指定的可执行文件进行限制，可用于实现两个目的：
+1. 避免沙箱策略影响容器内应用服务的正常执行。
+2. 对容器内指定可执行文件进行限制，增加攻击者成本和难度。
 
-For example, this feature can be used to restrict programs like busybox, bash, sh, curl within containers, preventing attackers from using them to execute sensitive operations. Meanwhile, the application services is unaffected by sandbox policies and can continue to access ServiceAccount tokens and perform other tasks normally.
+例如，可以利用此功能对容器中的 busybox、bash、sh、curl 进行限制，阻止攻击者利用它们来执行敏感操作。与此同时，应用服务的运行则不受沙箱策略的限制，可以正常执行读取 ServiceAccount token 等敏感操作。
 
-*Note: Due to the implementation principles of BPF LSM, this feature cannot be **robustly** provided by the BPF enforcer.*
+*注：受限于 BPF LSM 的实现原理，BPF enforcer 无法**安全地**提供此功能。*
 :::
 
-:::info[Principle & Impact]
-Enable sandbox restrictions for specified executable programs.
+:::info[原理与影响]
+为特定可执行文件开启沙箱限制。
 :::
 
-:::tip[Supported Enforcer]
+:::tip[支持的强制访问控制器]
 * Apprmor
 :::
 
-Use case:
+示例：
 ```yaml
   policy:
     enforcer: AppArmor
