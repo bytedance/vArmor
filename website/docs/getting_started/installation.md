@@ -64,10 +64,10 @@ This is an experimental feature. Currently, only the AppArmor and Seccomp enforc
 #### Configure the search list of audit logs
 vArmor sequentially checks whether the audit logs exist and monitors the first valid file to consume AppArmor and Seccomp audit events for the violation auditing and behavioral modeling features. If you are using *auditd*, the audit events of AppArmor and Seccomp will be stored by default in `/var/log/audit/audit.log`. Otherwise they will be stored in `/var/log/kern.log`. 
 
-You can use the option to specify the audit logs or determine the search order yourself. Please use a vertical bar to separate file paths. Default: `/var/log/audit/audit.log\|/var/log/kern.log`.
+You can use the option to specify the audit logs or determine the search order yourself. Please use a vertical bar to separate file paths. Default: `/var/log/audit/audit.log|/var/log/kern.log`.
 
 ```bash
---set "agent.args={--auditLogPaths=FILE_PATH\|FILE_PATH}"
+--set "agent.args={--auditLogPaths=FILE_PATH|FILE_PATH}"
 ```
 
 #### Configure metrics

@@ -62,10 +62,10 @@ helm install varmor varmor-0.5.11.tgz \
 #### 配置审计日志的搜索列表
 vArmor 顺序检查对应的审计日志是否存在，并通过监控第一个有效的文件来获取 AppArmor 和 Seccomp 的审计事件，从而用于违规审计和行为建模功能。当您使用 *auditd* 时，AppArmor 和 Seccomp 的审计事件会默认保存在 `/var/log/audit/audit.log` 文件中。否则，他们通常会被保存在 `/var/log/kern.log` 文件中。
 
-你可以使用这个选项来配置审计日志、文件搜索顺序。请使用`|`来分割文件。默认值：`/var/log/audit/audit.log\|/var/log/kern.log`。
+你可以使用这个选项来配置审计日志、文件搜索顺序。请使用`|`来分割文件。默认值：`/var/log/audit/audit.log|/var/log/kern.log`。
 
 ```bash
---set "agent.args={--auditLogPaths=FILE_PATH\|FILE_PATH}"
+--set "agent.args={--auditLogPaths=FILE_PATH|FILE_PATH}"
 ```
 
 #### 配置监控指标
