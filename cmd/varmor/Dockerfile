@@ -43,6 +43,9 @@ FROM golang:1.22-bookworm as vArmor-builder
 LABEL maintainer="vArmor authors"
 
 ARG TARGETPLATFORM
+ARG GITVERSION
+ARG GITCOMMIT
+ARG BUILDDATE
 ADD . /varmor
 WORKDIR /varmor
 
@@ -57,10 +60,14 @@ COPY --from=vArmor-ebpf-builder /varmor/vArmor-ebpf/pkg/bpfenforcer/bpf_bpfel.o 
 
 RUN apt-get update
 RUN apt-get install -y libseccomp2 libseccomp-dev
-RUN export GOOS=$(echo ${TARGETPLATFORM} | cut -d / -f1) && \
-    export GOARCH=$(echo ${TARGETPLATFORM} | cut -d / -f2)
-RUN go env
-RUN go build -o /output/vArmor -v ./cmd/varmor/
+RUN GOOS=$(echo ${TARGETPLATFORM} | cut -d / -f1) && \
+    GOARCH=$(echo ${TARGETPLATFORM} | cut -d / -f2) && \
+    ClientGoPath="k8s.io/client-go/pkg" && \
+    go build -o /output/vArmor -v \
+        -ldflags "-w -X '${ClientGoPath}/version.gitVersion=${GITVERSION}' \
+                     -X '${ClientGoPath}/version.gitCommit=${GITCOMMIT}'   \
+                     -X '${ClientGoPath}/version.buildDate=${BUILDDATE}'"  \
+        ./cmd/varmor/
 
 
 ## Packaging vArmor
