@@ -2,6 +2,7 @@ PWD := $(CURDIR)
 GIT_VERSION := $(shell git describe --tags --match "v[0-9]*")
 GIT_COMMIT := $(shell git rev-parse "HEAD^{commit}" 2>/dev/null)
 BUILD_DATE := $(shell date -u +'%Y-%m-%dT%H:%M:%SZ')
+GO_VERSION := $(shell go version | awk '{print $$3}')
 VARMOR_PATH := cmd/varmor
 CLASSIFIER_PATH := cmd/classifier
 
@@ -160,7 +161,15 @@ test: manifests generate fmt vet test-unit ## Run tests.
 .PHONY: local
 local: ## Build local binary.
 	@echo "[+] Build local binary."
-	go build -o bin/vArmor $(PWD)/$(VARMOR_PATH)
+	go build -o bin/vArmor \
+          -ldflags "-X 'k8s.io/client-go/pkg/version.gitVersion=${GIT_VERSION}' \
+                    -X 'k8s.io/client-go/pkg/version.gitCommit=${GIT_COMMIT}' \
+                    -X 'k8s.io/client-go/pkg/version.buildDate=${BUILD_DATE}' \
+                    -X 'main.gitVersion=${GIT_VERSION}' \
+                    -X 'main.gitCommit=${GIT_COMMIT}' \
+                    -X 'main.buildDate=${BUILD_DATE}' \
+                    -X 'main.goVersion=${GO_VERSION}'" \
+          $(PWD)/$(VARMOR_PATH)
 
 .PHONY: build
 build: manifests generate build-ebpf copy-ebpf vet local ## Build local binary when apis or bpf code were modified.
