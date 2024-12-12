@@ -62,11 +62,15 @@ RUN apt-get update
 RUN apt-get install -y libseccomp2 libseccomp-dev
 RUN GOOS=$(echo ${TARGETPLATFORM} | cut -d / -f1) && \
     GOARCH=$(echo ${TARGETPLATFORM} | cut -d / -f2) && \
-    ClientGoPath="k8s.io/client-go/pkg" && \
+    GOVERSION=$(go version | awk '{print $3}') && \
     go build -o /output/vArmor -v \
-        -ldflags "-w -X '${ClientGoPath}/version.gitVersion=${GITVERSION}' \
-                     -X '${ClientGoPath}/version.gitCommit=${GITCOMMIT}'   \
-                     -X '${ClientGoPath}/version.buildDate=${BUILDDATE}'"  \
+        -ldflags "-w -X 'k8s.io/client-go/pkg/version.gitVersion=${GITVERSION}' \
+                     -X 'k8s.io/client-go/pkg/version.gitCommit=${GITCOMMIT}'   \
+                     -X 'k8s.io/client-go/pkg/version.buildDate=${BUILDDATE}'  \
+                     -X 'main.gitVersion=${GITVERSION}' \
+                     -X 'main.gitCommit=${GITCOMMIT}' \
+                     -X 'main.buildDate=${BUILDDATE}' \
+                     -X 'main.goVersion=${GOVERSION}'" \
         ./cmd/varmor/
 
 

@@ -53,6 +53,11 @@ const (
 )
 
 var (
+	versionFlag              bool
+	gitVersion               string
+	gitCommit                string
+	buildDate                string
+	goVersion                string
 	kubeconfig               string
 	agent                    bool
 	enableBpfEnforcer        bool
@@ -78,6 +83,7 @@ func main() {
 	c.AddFlags(flag.CommandLine)
 	log.SetLogger(textlogger.NewLogger(c))
 
+	flag.BoolVar(&versionFlag, "version", false, "Print the version information.")
 	flag.StringVar(&kubeconfig, "kubeconfig", "", "Path to a kubeconfig. Only required if out-of-cluster.")
 	flag.BoolVar(&agent, "agent", false, "Set this flag to run vArmor agent. Run vArmor manager default if true.")
 	flag.BoolVar(&enableBpfEnforcer, "enableBpfEnforcer", false, "Set this flag to enable BPF enforcer.")
@@ -96,6 +102,11 @@ func main() {
 	flag.BoolVar(&enableMetrics, "enableMetrics", false, "Set this flag to enable metrics.")
 	//flag.IntVar(&syncMetricsSecond, "syncMetricsSecond", 10, "Configure the profile metric update seconds")
 	flag.Parse()
+
+	if versionFlag {
+		fmt.Printf("GitVersion: %s\nGitCommit: %s\nBuildDate: %s\nGoVersion: %s\n", gitVersion, gitCommit, buildDate, goVersion)
+		return
+	}
 
 	// Set the webhook matchLabels configuration.
 	if webhookMatchLabel != "" {
