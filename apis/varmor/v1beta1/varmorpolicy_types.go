@@ -44,8 +44,8 @@ type Target struct {
 type AttackProtectionRules struct {
 	// Rules is the list of built-in attack protection rules to be used.
 	Rules []string `json:"rules"`
-	// Targets are used to specify the workloads to which the policy applies. They must be specified as full paths to executable files,
-	// and this feature is only effective when using AppArmor as the enforcer.
+	// Targets specify the executable files to which the rules apply. They must be specified as full paths to the executable files.
+	// This feature is only effective when using AppArmor as the enforcer
 	// +optional
 	Targets []string `json:"targets,omitempty"`
 }
