@@ -25,8 +25,8 @@ The requirements for the BehaviorModeling mode are as follows.
 
    * [Optional] Use the `--set "agent.args={--auditLogPaths=FILE_PATH|FILE_PATH}"` argument to specify the audit log file or determine the search order yourself.
 
-    ```
-    helm upgrade varmor varmor-0.6.0.tgz \
+    ```bash
+    helm upgrade varmor varmor-0.6.0-rc1.tgz \
         --namespace varmor --create-namespace \
         --set image.registry="elkeid-cn-beijing.cr.volces.com" \
         --set behaviorModeling.enabled=true
@@ -37,7 +37,7 @@ The requirements for the BehaviorModeling mode are as follows.
 
     * *The **varmor-agent** requires additional resources as shown below when the BehaviorModeling feature is enabled. Another component, the **varmor-classifier**, which is used to identify random patterns in the path, will also be deployed.*
 
-      ```
+      ```yaml
       resources:
         limits:
           cpu: 2

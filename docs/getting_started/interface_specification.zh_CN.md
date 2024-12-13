@@ -28,7 +28,7 @@
 |字段|描述|
 |---|----|
 |rules<br />*string array*|要使用的内置规则列表。|
-|targets<br />*string array*|可选字段。仅对指定的可执行文件列表开启 Rules 中的内置规则，此功能仅支持 AppArmor enforcer。|
+|targets<br />*string array*|可选字段。对指定可执行文件列表开启 rules 中的内置规则。可执行文件必须使用全路径，并且仅 AppArmor enforcer 支持此特性。|
 |PLACEHOLDER||
 
 ## BpfRawRules

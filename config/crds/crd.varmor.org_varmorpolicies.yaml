@@ -67,6 +67,8 @@ spec:
               or VarmorClusterPolicy
             properties:
               policy:
+                description: Policy specifies which enforcer, mode and rules you want
+                  to use to apply to the target.
                 properties:
                   enforcer:
                     description: 'Enforcer is used to specify which LSM to use for
@@ -95,10 +97,10 @@ spec:
                                 type: string
                               type: array
                             targets:
-                              description: Targets are used to specify the workloads
-                                to which the policy applies. They must be specified
-                                as full paths to executable files, and this feature
-                                is only effective when using AppArmor as the enforcer.
+                              description: Targets specify the executable files to
+                                which the rules apply. They must be specified as full
+                                paths to the executable files. This feature is only
+                                effective when using AppArmor as the enforcer
                               items:
                                 type: string
                               type: array
@@ -380,9 +382,8 @@ spec:
                 - mode
                 type: object
               target:
-                description: A label query over ArmorProfile that are managed by VarmorPolicy.
-                  Must match in order to be controlled. It must match the VarmorPolicy's
-                  labels.
+                description: Target specifies the workloads and their containers you
+                  want to harden.
                 properties:
                   containers:
                     description: Containers are used to specify the names of the protected
@@ -489,7 +490,8 @@ spec:
                       description: Status of the condition, one of True, False, Unknown.
                       type: string
                     type:
-                      description: Type of ArmorProfile condition.
+                      description: 'Type of ArmorProfile condition. Possible values:
+                        Created, Updated, Ready'
                       type: string
                   required:
                   - status

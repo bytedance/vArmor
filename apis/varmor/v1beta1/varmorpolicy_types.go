@@ -25,7 +25,6 @@ import (
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
-// Target Structure
 type Target struct {
 	// Kind is used to specify the type of workloads for the protection targets.
 	// Available values: Deployment, StatefulSet, DaemonSet, Pod.
@@ -45,8 +44,8 @@ type Target struct {
 type AttackProtectionRules struct {
 	// Rules is the list of built-in attack protection rules to be used.
 	Rules []string `json:"rules"`
-	// Targets are used to specify the workloads to which the policy applies. They must be specified as full paths to executable files,
-	// and this feature is only effective when using AppArmor as the enforcer.
+	// Targets specify the executable files to which the rules apply. They must be specified as full paths to the executable files.
+	// This feature is only effective when using AppArmor as the enforcer
 	// +optional
 	Targets []string `json:"targets,omitempty"`
 }
@@ -224,10 +223,9 @@ type VarmorPolicySpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	// A label query over ArmorProfile that are managed by VarmorPolicy.
-	// Must match in order to be controlled.
-	// It must match the VarmorPolicy's labels.
+	// Target specifies the workloads and their containers you want to harden.
 	Target Target `json:"target"`
+	// Policy specifies which enforcer, mode and rules you want to use to apply to the target.
 	Policy Policy `json:"policy"`
 	// UpdateExistingWorkloads is used to indicate whether to perform a rolling update on target existing workloads,
 	// thus enabling or disabling the protection of the target workloads when policies are created or deleted.
@@ -244,6 +242,7 @@ type VarmorPolicyConditionType string
 
 type VarmorPolicyCondition struct {
 	// Type of ArmorProfile condition.
+	// Possible values: Created, Updated, Ready
 	Type VarmorPolicyConditionType `json:"type"`
 	// Status of the condition, one of True, False, Unknown.
 	Status v1.ConditionStatus `json:"status"`

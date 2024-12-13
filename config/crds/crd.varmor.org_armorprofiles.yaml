@@ -230,7 +230,6 @@ spec:
                 - name
                 type: object
               target:
-                description: Target Structure
                 properties:
                   containers:
                     description: Containers are used to specify the names of the protected

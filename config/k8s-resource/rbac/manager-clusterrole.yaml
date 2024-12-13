@@ -109,6 +109,7 @@ rules:
   verbs:
   - delete
   resourceNames:
+  - varmor-resource-mutating-webhook-cfg
   - varmor-resource-mutating-webhook-cfg-debug
 - apiGroups:
   - authentication.k8s.io
