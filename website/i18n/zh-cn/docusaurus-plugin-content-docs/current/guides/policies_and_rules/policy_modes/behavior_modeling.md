@@ -26,8 +26,8 @@ BehaviorModeling 模式的前置条件如下所示：
 
    * [可选]使用 `--set "agent.args={--auditLogPaths=FILE_PATH|FILE_PATH}"` 选项来指定系统审计日志或搜索顺序。
 
-    ```
-    helm upgrade varmor varmor-0.6.0.tgz \
+    ```bash
+    helm upgrade varmor varmor-0.6.0-rc1.tgz \
         --namespace varmor --create-namespace \
         --set image.registry="elkeid-cn-beijing.cr.volces.com" \
         --set behaviorModeling.enabled=true
@@ -39,7 +39,7 @@ BehaviorModeling 模式的前置条件如下所示：
 
     * *启用 BehaviorModeling 特性时，**varmor-agent** 需要如下所示的追加资源。另外，**varmor-classifier** 组件也会被部署，用于识别路径中的随机字符串。*
 
-      ```
+      ```yaml
       resources:
         limits:
           cpu: 2
