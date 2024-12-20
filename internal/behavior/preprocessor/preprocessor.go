@@ -137,7 +137,12 @@ func (p *DataPreprocessor) gatherTargetPIDs() {
 			if event.ParentTgid != event.ChildTgid &&
 				p.containTargetPID(event.ParentTgid) &&
 				!p.containTargetPID(event.ChildTgid) {
+				// Add child's tgid
 				p.addTargetPID(event.ChildTgid)
+				// Add child's mnt ns id if it's in a new mnt namespace
+				if !p.containTargetMnt(event.MntNsId) {
+					p.addTargetMnt(event.MntNsId)
+				}
 				continue
 			}
 
