@@ -24,7 +24,7 @@ vArmor user-space components use the resource quotas as shown in the table below
 
 | Version | Manager CPU | Manager Memory | Agent CPU   | Agent Memory |
 | ------- |:-----------:|:--------------:|:-----------:|:-----------------------------------------------------------------------------------------:|
-| v0.6.0-rc1 | 200m / 100m | 300Mi / 200Mi  | 200m / 100m | 100Mi / 40Mi (The BPF enforcer is disabled)<br />200Mi /100Mi (The BPF enforcer is enabled) |
+| v0.6.1 | 200m / 100m | 300Mi / 200Mi  | 200m / 100m | 100Mi / 40Mi (The BPF enforcer is disabled)<br />200Mi /100Mi (The BPF enforcer is enabled) |
 
 Explanation:
 
