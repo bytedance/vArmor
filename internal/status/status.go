@@ -46,12 +46,12 @@ type StatusService struct {
 	router        *gin.Engine
 	addr          string
 	port          int
-	debug         bool
+	inContainer   bool
 	log           logr.Logger
 }
 
-func CheckAgentToken(authInterface authclientv1.AuthenticationV1Interface, debug bool) gin.HandlerFunc {
-	if debug {
+func CheckAgentToken(authInterface authclientv1.AuthenticationV1Interface, inContainer bool) gin.HandlerFunc {
+	if !inContainer {
 		return func(c *gin.Context) {
 			c.Next()
 		}
@@ -91,7 +91,7 @@ func NewStatusService(
 	addr string,
 	port int,
 	tlsPair *varmortls.PemPair,
-	debug bool,
+	inContainer bool,
 	coreInterface corev1.CoreV1Interface,
 	appsInterface appsv1.AppsV1Interface,
 	varmorInterface varmorinterface.CrdV1beta1Interface,
@@ -104,20 +104,20 @@ func NewStatusService(
 		return nil, fmt.Errorf("port is illegal")
 	}
 
-	statusManager := statusmanager.NewStatusManager(coreInterface, appsInterface, varmorInterface, statusUpdateCycle, debug, metricsModule, log)
+	statusManager := statusmanager.NewStatusManager(coreInterface, appsInterface, varmorInterface, statusUpdateCycle, inContainer, metricsModule, log)
 
 	s := StatusService{
 		StatusManager: statusManager,
 		router:        gin.New(),
 		addr:          addr,
 		port:          port,
-		debug:         debug,
+		inContainer:   inContainer,
 		log:           log,
 	}
 	s.router.Use(gin.Recovery(), varmorutils.GinLogger())
 	s.router.SetTrustedProxies(nil)
-	s.router.POST(varmorconfig.StatusSyncPath, CheckAgentToken(authInterface, debug), statusManager.Status)
-	s.router.POST(varmorconfig.DataSyncPath, CheckAgentToken(authInterface, debug), statusManager.Data)
+	s.router.POST(varmorconfig.StatusSyncPath, CheckAgentToken(authInterface, inContainer), statusManager.Status)
+	s.router.POST(varmorconfig.DataSyncPath, CheckAgentToken(authInterface, inContainer), statusManager.Data)
 	s.router.GET("/healthz", health)
 
 	cert, err := tls.X509KeyPair(tlsPair.Certificate, tlsPair.PrivateKey)

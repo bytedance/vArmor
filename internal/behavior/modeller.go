@@ -52,6 +52,7 @@ type BehaviorModeller struct {
 	managerPort     int
 	classifierPort  int
 	debug           bool
+	inContainer     bool
 	log             logr.Logger
 }
 
@@ -70,6 +71,7 @@ func NewBehaviorModeller(
 	managerPort int,
 	classifierPort int,
 	debug bool,
+	inContainer bool,
 	log logr.Logger) *BehaviorModeller {
 
 	log.Info("create a behavior modeller", "start time", startTime,
@@ -95,6 +97,7 @@ func NewBehaviorModeller(
 		managerPort:    managerPort,
 		classifierPort: classifierPort,
 		debug:          debug,
+		inContainer:    inContainer,
 		log:            log,
 	}
 
@@ -134,7 +137,7 @@ func (modeller *BehaviorModeller) PreprocessAndSendBehaviorData() {
 	data := preprocessor.Process()
 	if data != nil {
 		modeller.log.Info("send preprocess result to manager")
-		err := varmorutils.PostDataToStatusService(data, modeller.debug, modeller.managerIP, modeller.managerPort)
+		err := varmorutils.PostDataToStatusService(data, modeller.inContainer, modeller.managerIP, modeller.managerPort)
 		if err != nil {
 			modeller.log.Error(err, "PostDataToStatusService()")
 		}

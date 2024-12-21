@@ -54,6 +54,7 @@ const (
 
 var (
 	versionFlag              bool
+	debugFlag                bool
 	gitVersion               string
 	gitCommit                string
 	buildDate                string
@@ -84,6 +85,7 @@ func main() {
 	log.SetLogger(textlogger.NewLogger(c))
 
 	flag.BoolVar(&versionFlag, "version", false, "Print the version information.")
+	flag.BoolVar(&debugFlag, "debug", false, "Enable debug mode.")
 	flag.StringVar(&kubeconfig, "kubeconfig", "", "Path to a kubeconfig. Only required if out-of-cluster.")
 	flag.BoolVar(&agent, "agent", false, "Set this flag to run vArmor agent. Run vArmor manager default if true.")
 	flag.BoolVar(&enableBpfEnforcer, "enableBpfEnforcer", false, "Set this flag to enable BPF enforcer.")
@@ -118,7 +120,7 @@ func main() {
 		config.WebhookSelectorLabel[labelKvs[0]] = labelKvs[1]
 	}
 
-	debug := kubeconfig != ""
+	inContainer := kubeconfig == ""
 	stopCh := signal.SetupSignalHandler()
 
 	clientConfig, err := config.CreateClientConfig(kubeconfig, clientRateLimitQPS, clientRateLimitBurst, log.Log)
@@ -156,7 +158,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	if debug {
+	if debugFlag {
 		gin.SetMode(gin.DebugMode)
 	} else {
 		gin.SetMode(gin.ReleaseMode)
@@ -169,7 +171,7 @@ func main() {
 		setupLog.Info("vArmor agent startup")
 
 		// RemoveMemlock requires the write permission for /proc/sys/kernel/printk_ratelimit
-		if !debug {
+		if inContainer {
 			err = unix.Unmount("/proc/sys", 0)
 			if err != nil {
 				setupLog.Error(err, "unix.Unmount(\"/proc/sys\", 0)")
@@ -184,7 +186,8 @@ func main() {
 			enableBpfEnforcer,
 			unloadAllAaProfiles,
 			removeAllSeccompProfiles,
-			debug,
+			debugFlag,
+			inContainer,
 			managerIP,
 			config.StatusServicePort,
 			config.ClassifierServicePort,
@@ -202,7 +205,7 @@ func main() {
 
 		// Wait for the manager to be ready.
 		setupLog.Info("Waiting for the manager to be ready")
-		varmorutils.WaitForManagerReady(debug, managerIP, config.StatusServicePort)
+		varmorutils.WaitForManagerReady(inContainer, managerIP, config.StatusServicePort)
 
 		// Starting up agent.
 		varmorInformer.Start(stopCh)
@@ -228,7 +231,6 @@ func main() {
 		cacher, _ := policycacher.NewPolicyCacher(
 			varmorInformer.Crd().V1beta1().VarmorClusterPolicies(),
 			varmorInformer.Crd().V1beta1().VarmorPolicies(),
-			debug,
 			log.Log.WithName("POLICY-CACHER"))
 		go cacher.Run(stopCh)
 
@@ -239,7 +241,7 @@ func main() {
 			config.CertRenewalInterval,
 			config.CertValidityDuration,
 			managerIP,
-			debug,
+			inContainer,
 			log.Log.WithName("CERT-RENEWER"),
 		)
 		secretInformer := kubeinformers.NewSharedInformerFactoryWithOptions(kubeClient, resyncPeriod, kubeinformers.WithNamespace(config.Namespace))
@@ -264,7 +266,7 @@ func main() {
 			kubeInformer.Admissionregistration().V1().MutatingWebhookConfigurations(),
 			managerIP,
 			int32(webhookTimeout),
-			debug,
+			inContainer,
 			stopCh,
 			log.Log.WithName("WEBHOOK-CONFIG"),
 		)
@@ -313,7 +315,7 @@ func main() {
 			managerIP,
 			config.StatusServicePort,
 			tlsPair,
-			debug,
+			inContainer,
 			kubeClient.CoreV1(),
 			kubeClient.AppsV1(),
 			varmorClient.CrdV1beta1(),
@@ -336,7 +338,6 @@ func main() {
 			restartExistWorkloads,
 			enableBehaviorModeling,
 			bpfExclusiveMode,
-			debug,
 			log.Log.WithName("CLUSTER-POLICY"),
 		)
 		if err != nil {
@@ -353,7 +354,6 @@ func main() {
 			restartExistWorkloads,
 			enableBehaviorModeling,
 			bpfExclusiveMode,
-			debug,
 			log.Log.WithName("POLICY"),
 		)
 		if err != nil {
@@ -375,7 +375,7 @@ func main() {
 			go clusterPolicyCtrl.Run(1, stopCh)
 			go policyCtrl.Run(1, stopCh)
 			// Tag the leader Pod with "identity: leader" label so that agents can use varmor-status-svc for state synchronization.
-			if !debug {
+			if inContainer {
 				tag := func() error {
 					err := varmorutils.UnTagLeaderPod(kubeClient.CoreV1().Pods(config.Namespace))
 					if err != nil {

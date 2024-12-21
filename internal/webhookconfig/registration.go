@@ -51,7 +51,7 @@ type Register struct {
 	mwcListerSynced      func() bool
 	managerIP            string
 	timeoutSeconds       int32
-	debug                bool
+	inContainer          bool
 	stopCh               <-chan struct{}
 	createDefaultWebhook chan string
 	log                  logr.Logger
@@ -69,7 +69,7 @@ func NewRegister(
 	mwcInformer adminformers.MutatingWebhookConfigurationInformer,
 	managerIP string,
 	webhookTimeout int32,
-	debug bool,
+	inContainer bool,
 	stopCh <-chan struct{},
 	log logr.Logger) *Register {
 
@@ -81,7 +81,7 @@ func NewRegister(
 		leaseInterface:       leaseInterface,
 		managerIP:            managerIP,
 		timeoutSeconds:       webhookTimeout,
-		debug:                debug,
+		inContainer:          inContainer,
 		createDefaultWebhook: make(chan string),
 		mwcLister:            mwcInformer.Lister(),
 		mwcListerSynced:      mwcInformer.Informer().HasSynced,
@@ -95,7 +95,7 @@ func NewRegister(
 func (wrc *Register) removeWebhookConfigurations() {
 	logger := wrc.log
 
-	configName := getResourceMutatingWebhookConfigName(wrc.debug)
+	configName := getResourceMutatingWebhookConfigName(wrc.inContainer)
 	err := wrc.mutateInterface.Delete(context.Background(), configName, metav1.DeleteOptions{})
 	if err != nil {
 		if !k8errors.IsNotFound(err) {
@@ -187,7 +187,7 @@ func (wrc *Register) createResourceMutatingWebhookConfiguration(caData []byte) e
 	logger := wrc.log
 
 	var cfg *admissionregistrationapi.MutatingWebhookConfiguration
-	if wrc.debug {
+	if !wrc.inContainer {
 		cfg = wrc.generateDefaultDebugMutatingWebhookConfig(caData)
 	} else {
 		cfg = wrc.generateDefaultMutatingWebhookConfig(caData)
@@ -231,14 +231,14 @@ func (wrc *Register) Register() error {
 
 // Check returns an error if the webhook is not configured
 func (wrc *Register) Check() error {
-	_, err := wrc.mwcLister.Get(getResourceMutatingWebhookConfigName(wrc.debug))
+	_, err := wrc.mwcLister.Get(getResourceMutatingWebhookConfigName(wrc.inContainer))
 	return err
 }
 
 func (wrc *Register) ShouldRemoveVarmorResources() bool {
 	logger := wrc.log.WithName("shouldRemoveVarmorResources()")
 
-	if wrc.debug {
+	if !wrc.inContainer {
 		return true
 	}
 

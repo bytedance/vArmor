@@ -54,12 +54,20 @@ type CertRenewer struct {
 	certRenewalInterval  time.Duration
 	certValidityDuration time.Duration
 	managerIP            string
-	debug                bool
+	inContainer          bool
 	log                  logr.Logger
 }
 
 // NewCertRenewer returns an instance of CertRenewer.
-func NewCertRenewer(clientConfig *rest.Config, secretInterface corev1.SecretInterface, deploymentInterface appsv1.DeploymentInterface, certRenewalInterval, certValidityDuration time.Duration, managerIP string, debug bool, log logr.Logger) *CertRenewer {
+func NewCertRenewer(
+	clientConfig *rest.Config,
+	secretInterface corev1.SecretInterface,
+	deploymentInterface appsv1.DeploymentInterface,
+	certRenewalInterval, certValidityDuration time.Duration,
+	managerIP string,
+	inContainer bool,
+	log logr.Logger) *CertRenewer {
+
 	return &CertRenewer{
 		clientConfig:         clientConfig,
 		secretInterface:      secretInterface,
@@ -67,7 +75,7 @@ func NewCertRenewer(clientConfig *rest.Config, secretInterface corev1.SecretInte
 		certRenewalInterval:  certRenewalInterval,
 		certValidityDuration: certValidityDuration,
 		managerIP:            managerIP,
-		debug:                debug,
+		inContainer:          inContainer,
 		log:                  log,
 	}
 }
@@ -205,7 +213,7 @@ func (c *CertRenewer) buildTLSPemPairAndWriteToSecrets(props CertificateProps) (
 		return nil, fmt.Errorf("failed to write or update CA cert to secret %s: %v", secretName, err)
 	}
 
-	tlsPair, err := GenerateCertPem(caCert, props, c.certValidityDuration, c.managerIP, c.debug)
+	tlsPair, err := GenerateCertPem(caCert, props, c.certValidityDuration, c.managerIP, c.inContainer)
 	if err != nil {
 		return nil, err
 	}
