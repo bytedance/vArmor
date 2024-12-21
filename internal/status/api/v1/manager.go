@@ -62,6 +62,7 @@ type StatusManager struct {
 	dataQueue          workqueue.RateLimitingInterface
 	statusUpdateCycle  time.Duration
 	debug              bool
+	inContainer        bool
 	log                logr.Logger
 	metricsModule      *varmormetrics.MetricsModule
 	profileSuccess     metric.Float64Counter
@@ -73,7 +74,9 @@ type StatusManager struct {
 func NewStatusManager(coreInterface corev1.CoreV1Interface,
 	appsInterface appsv1.AppsV1Interface,
 	varmorInterface varmorinterface.CrdV1beta1Interface,
-	statusUpdateCycle time.Duration, debug bool,
+	statusUpdateCycle time.Duration,
+	debug bool,
+	inContainer bool,
 	metricsModule *varmormetrics.MetricsModule,
 	log logr.Logger) *StatusManager {
 
@@ -93,6 +96,7 @@ func NewStatusManager(coreInterface corev1.CoreV1Interface,
 		statusUpdateCycle: statusUpdateCycle,
 		metricsModule:     metricsModule,
 		debug:             debug,
+		inContainer:       inContainer,
 		log:               log,
 	}
 
@@ -108,7 +112,7 @@ func NewStatusManager(coreInterface corev1.CoreV1Interface,
 
 // retrieveDesiredNumber retrieve the desired number of agents.
 func (m *StatusManager) retrieveDesiredNumber() error {
-	if m.debug {
+	if !m.inContainer {
 		nodes, err := m.coreInterface.Nodes().List(context.Background(), metav1.ListOptions{ResourceVersion: "0"})
 		if err != nil {
 			return err
@@ -137,7 +141,7 @@ func (m *StatusManager) retrieveDesiredNumber() error {
 func (m *StatusManager) retrieveNodeNameList() ([]string, error) {
 	var nodes []string
 
-	if m.debug {
+	if !m.inContainer {
 		nodeList, err := m.coreInterface.Nodes().List(context.Background(), metav1.ListOptions{ResourceVersion: "0"})
 		if err != nil {
 			return nil, err

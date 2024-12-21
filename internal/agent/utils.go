@@ -130,8 +130,8 @@ func isSeccompSupported(versionInfo *version.Info) (bool, error) {
 }
 
 // retrieveNodeName retrieve nodeName from the varmor:agent pod's specification.
-func retrieveNodeName(debug bool) (string, error) {
-	if debug {
+func retrieveNodeName(inContainer bool) (string, error) {
+	if !inContainer {
 		return os.Hostname()
 	}
 

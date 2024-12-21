@@ -24,8 +24,8 @@ import (
 )
 
 // getResourceMutatingWebhookConfigName returns the webhook configuration name.
-func getResourceMutatingWebhookConfigName(debug bool) string {
-	if debug {
+func getResourceMutatingWebhookConfigName(inContainer bool) string {
+	if !inContainer {
 		return config.MutatingWebhookConfigurationDebugName
 	}
 	return config.MutatingWebhookConfigurationName
