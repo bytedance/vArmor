@@ -61,6 +61,7 @@ type StatusManager struct {
 	statusQueue        workqueue.RateLimitingInterface
 	dataQueue          workqueue.RateLimitingInterface
 	statusUpdateCycle  time.Duration
+	debug              bool
 	inContainer        bool
 	log                logr.Logger
 	metricsModule      *varmormetrics.MetricsModule
@@ -74,6 +75,7 @@ func NewStatusManager(coreInterface corev1.CoreV1Interface,
 	appsInterface appsv1.AppsV1Interface,
 	varmorInterface varmorinterface.CrdV1beta1Interface,
 	statusUpdateCycle time.Duration,
+	debug bool,
 	inContainer bool,
 	metricsModule *varmormetrics.MetricsModule,
 	log logr.Logger) *StatusManager {
@@ -93,6 +95,7 @@ func NewStatusManager(coreInterface corev1.CoreV1Interface,
 		dataQueue:         workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "data"),
 		statusUpdateCycle: statusUpdateCycle,
 		metricsModule:     metricsModule,
+		debug:             debug,
 		inContainer:       inContainer,
 		log:               log,
 	}

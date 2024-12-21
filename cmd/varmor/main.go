@@ -315,6 +315,7 @@ func main() {
 			managerIP,
 			config.StatusServicePort,
 			tlsPair,
+			debugFlag,
 			inContainer,
 			kubeClient.CoreV1(),
 			kubeClient.AppsV1(),

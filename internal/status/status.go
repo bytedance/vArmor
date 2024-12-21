@@ -91,6 +91,7 @@ func NewStatusService(
 	addr string,
 	port int,
 	tlsPair *varmortls.PemPair,
+	debug bool,
 	inContainer bool,
 	coreInterface corev1.CoreV1Interface,
 	appsInterface appsv1.AppsV1Interface,
@@ -104,7 +105,7 @@ func NewStatusService(
 		return nil, fmt.Errorf("port is illegal")
 	}
 
-	statusManager := statusmanager.NewStatusManager(coreInterface, appsInterface, varmorInterface, statusUpdateCycle, inContainer, metricsModule, log)
+	statusManager := statusmanager.NewStatusManager(coreInterface, appsInterface, varmorInterface, statusUpdateCycle, debug, inContainer, metricsModule, log)
 
 	s := StatusService{
 		StatusManager: statusManager,
