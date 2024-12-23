@@ -50,12 +50,12 @@ const (
 	debugServerURL = "http://%s:%d%s"
 )
 
-func httpsPostWithRetryAndToken(reqBody []byte, debug bool, service string, namespace string, address string, port int, path string, retryTimes int) error {
+func httpsPostWithRetryAndToken(reqBody []byte, inContainer bool, service string, namespace string, address string, port int, path string, retryTimes int) error {
 	var url string
-	if debug {
-		url = fmt.Sprintf(httpsDebugURL, address, port, path)
-	} else {
+	if inContainer {
 		url = fmt.Sprintf(httpsServerURL, service, namespace, port, path)
+	} else {
+		url = fmt.Sprintf(httpsDebugURL, address, port, path)
 	}
 	tr := &http.Transport{
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
@@ -77,13 +77,13 @@ func httpsPostWithRetryAndToken(reqBody []byte, debug bool, service string, name
 			case http.StatusOK:
 				return nil
 			case http.StatusUnauthorized:
-				if !debug {
+				if inContainer {
 					// try update token
 					updateChan <- true
 				}
-				return fmt.Errorf(fmt.Sprintf("http error code %d", httpRsp.StatusCode))
+				return fmt.Errorf("http error code %d", httpRsp.StatusCode)
 			default:
-				err = fmt.Errorf(fmt.Sprintf("http error code %d", httpRsp.StatusCode))
+				err = fmt.Errorf("http error code %d", httpRsp.StatusCode)
 			}
 		}
 		r := rand.Intn(60) + 20
@@ -93,12 +93,12 @@ func httpsPostWithRetryAndToken(reqBody []byte, debug bool, service string, name
 	return err
 }
 
-func httpPostWithRetry(reqBody []byte, debug bool, service string, namespace string, address string, port int, path string, retryTimes int) error {
+func httpPostWithRetry(reqBody []byte, inContainer bool, service string, namespace string, address string, port int, path string, retryTimes int) error {
 	var url string
-	if debug {
-		url = fmt.Sprintf(debugServerURL, address, port, path)
-	} else {
+	if inContainer {
 		url = fmt.Sprintf(serverURL, service, namespace, port, path)
+	} else {
+		url = fmt.Sprintf(debugServerURL, address, port, path)
 	}
 	client := &http.Client{Timeout: httpTimeout}
 	httpReq, err := http.NewRequest("POST", url, bytes.NewBuffer(reqBody))
@@ -115,7 +115,7 @@ func httpPostWithRetry(reqBody []byte, debug bool, service string, namespace str
 			if httpRsp.StatusCode == http.StatusOK {
 				return nil
 			} else {
-				err = fmt.Errorf(fmt.Sprintf("http error code %d", httpRsp.StatusCode))
+				err = fmt.Errorf("http error code %d", httpRsp.StatusCode)
 			}
 		}
 		r := rand.Intn(60) + 20
@@ -125,12 +125,12 @@ func httpPostWithRetry(reqBody []byte, debug bool, service string, namespace str
 	return err
 }
 
-func httpPostAndGetResponseWithRetry(reqBody []byte, debug bool, service string, namespace string, address string, port int, path string, retryTimes int) ([]byte, error) {
+func httpPostAndGetResponseWithRetry(reqBody []byte, inContainer bool, service string, namespace string, address string, port int, path string, retryTimes int) ([]byte, error) {
 	var url string
-	if debug {
-		url = fmt.Sprintf(debugServerURL, address, port, path)
-	} else {
+	if inContainer {
 		url = fmt.Sprintf(serverURL, service, namespace, port, path)
+	} else {
+		url = fmt.Sprintf(debugServerURL, address, port, path)
 	}
 	client := &http.Client{Timeout: httpTimeout}
 	httpReq, err := http.NewRequest("POST", url, bytes.NewBuffer(reqBody))
@@ -151,7 +151,7 @@ func httpPostAndGetResponseWithRetry(reqBody []byte, debug bool, service string,
 					return rspBody, nil
 				}
 			} else {
-				err = fmt.Errorf(fmt.Sprintf("http error code %d", httpRsp.StatusCode))
+				err = fmt.Errorf("http error code %d", httpRsp.StatusCode)
 			}
 		}
 		r := rand.Intn(60) + 20
@@ -161,16 +161,16 @@ func httpPostAndGetResponseWithRetry(reqBody []byte, debug bool, service string,
 	return nil, err
 }
 
-func RequestClassifierService(reqBody []byte, debug bool, address string, port int) ([]byte, error) {
-	return httpPostAndGetResponseWithRetry(reqBody, debug, varmorconfig.ClassifierServiceName, varmorconfig.Namespace, address, port, varmorconfig.ClassifierPathClassifyPath, retryTimes)
+func RequestClassifierService(reqBody []byte, inContainer bool, address string, port int) ([]byte, error) {
+	return httpPostAndGetResponseWithRetry(reqBody, inContainer, varmorconfig.ClassifierServiceName, varmorconfig.Namespace, address, port, varmorconfig.ClassifierPathClassifyPath, retryTimes)
 }
 
-func PostStatusToStatusService(reqBody []byte, debug bool, address string, port int) error {
-	return httpsPostWithRetryAndToken(reqBody, debug, varmorconfig.StatusServiceName, varmorconfig.Namespace, address, port, varmorconfig.StatusSyncPath, retryTimes)
+func PostStatusToStatusService(reqBody []byte, inContainer bool, address string, port int) error {
+	return httpsPostWithRetryAndToken(reqBody, inContainer, varmorconfig.StatusServiceName, varmorconfig.Namespace, address, port, varmorconfig.StatusSyncPath, retryTimes)
 }
 
-func PostDataToStatusService(reqBody []byte, debug bool, address string, port int) error {
-	return httpsPostWithRetryAndToken(reqBody, debug, varmorconfig.StatusServiceName, varmorconfig.Namespace, address, port, varmorconfig.DataSyncPath, retryTimes)
+func PostDataToStatusService(reqBody []byte, inContainer bool, address string, port int) error {
+	return httpsPostWithRetryAndToken(reqBody, inContainer, varmorconfig.StatusServiceName, varmorconfig.Namespace, address, port, varmorconfig.DataSyncPath, retryTimes)
 }
 
 func TagLeaderPod(podInterface corev1.PodInterface) error {
@@ -235,12 +235,12 @@ func SetAgentUnready() {
 	atomic.StoreInt32(&AgentReady, 0)
 }
 
-func WaitForManagerReady(debug bool, address string, port int) {
+func WaitForManagerReady(inContainer bool, address string, port int) {
 	var url string
-	if debug {
-		url = fmt.Sprintf(httpsDebugURL, address, port, "/healthz")
-	} else {
+	if inContainer {
 		url = fmt.Sprintf(httpsServerURL, varmorconfig.StatusServiceName, varmorconfig.Namespace, port, "/healthz")
+	} else {
+		url = fmt.Sprintf(httpsDebugURL, address, port, "/healthz")
 	}
 
 	client := &http.Client{

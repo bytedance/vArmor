@@ -60,7 +60,6 @@ type PolicyController struct {
 	restartExistWorkloads  bool
 	enableBehaviorModeling bool
 	bpfExclusiveMode       bool
-	debug                  bool
 	log                    logr.Logger
 }
 
@@ -74,7 +73,6 @@ func NewPolicyController(
 	restartExistWorkloads bool,
 	enableBehaviorModeling bool,
 	bpfExclusiveMode bool,
-	debug bool,
 	log logr.Logger) (*PolicyController, error) {
 
 	c := PolicyController{
@@ -89,7 +87,6 @@ func NewPolicyController(
 		restartExistWorkloads:  restartExistWorkloads,
 		enableBehaviorModeling: enableBehaviorModeling,
 		bpfExclusiveMode:       bpfExclusiveMode,
-		debug:                  debug,
 		log:                    log,
 	}
 
