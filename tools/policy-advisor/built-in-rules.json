@@ -110,10 +110,10 @@
       }
     },
     {
-      "id": "disallow-load-ebpf",
+      "id": "disallow-load-bpf-prog",
       "enforcers": ["apparmor", "bpf"],
       "conflicts": {
-        "features": ["mount-sth", "umount-sth", "dind"],
+        "features": ["load-bpf", "mount-sth", "umount-sth", "dind"],
         "capabilities": ["sys_admin", "bpf"]
       },
       "applicable": {
@@ -507,6 +507,14 @@
       "conflicts": {
         "features": ["dind"],
         "syscalls": ["unshare"]
+      }
+    },
+    {
+      "id": "disallow-load-all-bpf-prog",
+      "enforcers": ["seccomp"],
+      "conflicts": {
+        "features": ["load-bpf"],
+        "syscalls": ["bpf"]
       }
     }
   ],
