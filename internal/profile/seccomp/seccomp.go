@@ -86,6 +86,7 @@ func generateHardeningRules(rule string, syscalls map[string]specs.LinuxSyscall)
 	rule = strings.ReplaceAll(rule, "_", "-")
 
 	switch rule {
+	//// 3. Kernel vulnerability mitigation
 	case "disallow-create-user-ns":
 		// Note: We should append the arguments after initializing the LinuxSyscall
 		// object when we want to add new built-in rules for unshare().
@@ -99,6 +100,22 @@ func generateHardeningRules(rule string, syscalls map[string]specs.LinuxSyscall)
 						Value:    unix.CLONE_NEWUSER,
 						ValueTwo: unix.CLONE_NEWUSER,
 						Op:       specs.OpMaskedEqual,
+					},
+				},
+			}
+		}
+	case "disallow-load-all-bpf-prog":
+		// Note: We should append the arguments after initializing the LinuxSyscall
+		// object when we want to add new built-in rules for bpf().
+		if _, ok := syscalls["bpf"]; !ok {
+			syscalls["bpf"] = specs.LinuxSyscall{
+				Names:  []string{"bpf"},
+				Action: specs.ActErrno,
+				Args: []specs.LinuxSeccompArg{
+					{
+						Index: 0,
+						Value: unix.BPF_PROG_LOAD,
+						Op:    specs.OpEqualTo,
 					},
 				},
 			}
