@@ -44,12 +44,13 @@ optional arguments:
                        * dind: The target application will create a docker in docker container.
                        * require-sa: The target application needs to interact with API Server.
                        * bind-privileged-socket-port: The target application needs to listen on a socket port less than 1024.
+                       * load-bpf: The target application needs to load eBPF programs in the container.
                      For Example: "privileged-container,require-sa,bind-privileged-socket-port"
 
   -c CAPABILITIES    The capabilities required by the target application and its containers. Providing the capabilities
                      needed for the application explicitly helps generate more precise policy templates. For example,
-                     before Linux 5.8, loading BPF programs required sys_admin capability. Since Linux 5.8, loading BPF
-                     programs requires bpf, perfmon or net_admin capabilities. If your application needs to load BPF
+                     before Linux 5.8, loading BPF programs requires sys_admin capability. Since Linux 5.8, loading BPF
+                     programs requires sys_admin or bpf capabilities. If your application needs to load BPF
                      programs, please add both sys_admin and bpf, that is "sys_admin,bpf". See CAPABILITIES(7).
 
                      Available Values: CAPABILITIES(7) without 'CAP_' prefix (they should be combined with commas).

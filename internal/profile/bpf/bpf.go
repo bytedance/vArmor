@@ -202,8 +202,8 @@ func generateHardeningRules(content *varmor.BpfContent, mode uint32, privileged 
 	// disallow insmond
 	case "disallow-insmod":
 		setBpfCapabilityRule(content, mode, 1<<unix.CAP_SYS_MODULE)
-	// disallow load ebpf program
-	case "disallow-load-ebpf":
+	// disallow loading ebpf programs, except for those of the BPF_PROG_TYPE_SOCKET_FILTER and BPF_PROG_TYPE_CGROUP_SKB types
+	case "disallow-load-bpf-prog", "disallow-load-ebpf":
 		setBpfCapabilityRule(content, mode, (1<<unix.CAP_SYS_ADMIN)|(1<<unix.CAP_BPF))
 	// disallow access to the root of the task through procfs
 	case "disallow-access-procfs-root":
@@ -339,10 +339,12 @@ func generateHardeningRules(content *varmor.BpfContent, mode uint32, privileged 
 	//// 3. Kernel vulnerability mitigation
 	// diallow create user namespace
 	case "disallow-create-user-ns":
-		// TODO: add support for userns_create hook point (Linux v6.1+)
+		// TODO: add support for userns_create hook point (Since Linux v6.1)
 	// diallow abuse user namespace
 	case "disallow-abuse-user-ns":
 		setBpfCapabilityRule(content, mode, 1<<unix.CAP_SYS_ADMIN)
+	case "disallow-load-all-bpf-prog":
+		// TODO: add support for bpf hook point (Since Linux v4.15)
 	}
 	return nil
 }

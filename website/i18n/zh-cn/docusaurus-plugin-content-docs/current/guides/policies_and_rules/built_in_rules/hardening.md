@@ -122,7 +122,6 @@ Attackers may attempt to escape from containers (**w/ CAP_SYS_ADMIN**) by remoun
 :::
 
 
-
 ### `disallow-mount-disk-device`
 
 禁止挂载宿主机磁盘设备并访问。
@@ -143,7 +142,6 @@ Attackers may attempt to escape from containers (**w/ CAP_SYS_ADMIN**) by remoun
 :::
 
 
-
 ### `disallow-mount`
 
 禁用 mount 系统调用。
@@ -162,7 +160,6 @@ Attackers may attempt to escape from containers (**w/ CAP_SYS_ADMIN**) by remoun
 * AppArmor
 * BPF
 :::
-
 
 
 ### `disallow-umount`
@@ -202,26 +199,28 @@ Attackers may attempt to escape from containers (**w/ CAP_SYS_ADMIN**) by remoun
 :::
 
 
+### `disallow-load-bpf-prog`, `disallow-load-ebpf`
 
-### `disallow-load-ebpf`
-
-禁止加载 ebpf Program
+禁止加载除 BPF_PROG_TYPE_SOCKET_FILTER 和 BPF_PROG_TYPE_CGROUP_SKB 类型外的 eBPF 程序。
 
 :::note[说明]
-攻击者可能会在特权容器中（**w/ CAP_SYS_ADMIN & CAP_BPF**），加载 ebpf Program 实现数据窃取和隐藏。
+攻击者可能会在特权容器中（**w/ CAP_SYS_ADMIN, CAP_BPF**），加载 ebpf Program 实现数据窃取和创建 rootkit 后门。
 
-注：CAP_BPF 自 Linux 5.8 引入。
+在 Linux 5.8 之前，需要 CAP_SYS_ADMIN 才能加载除 BPF_PROG_TYPE_SOCKET_FILTER 和 BPF_PROG_TYPE_CGROUP_SKB 类型以外的 eBPF 程序。自 Linux 5.8 开始，需要 CAP_SYS_ADMIN 或 CAP_BPF 才能加载这些 eBPF 程序。与此同时，加载某些类型的 eBPF 程序还需要 CAP_NET_ADMIN 或 CAP_PERFMON。
+
+注：规则 ID `disallow-load-ebpf` 将会被弃用，请使用 `disallow-load-bpf-prog`。
 :::
 
 :::info[原理与影响]
-禁用 CAP_SYS_ADMIN, CAP_BPF。
+禁用 CAP_SYS_ADMIN 和 CAP_BPF。
+
+推荐您使用内置规则 [disallow-load-all-bpf-prog](#disallow-load-all-bpf-prog) 来禁止容器加载任意类型的 eBPF 程序，从而减少内核攻击面。
 :::
 
 :::tip[支持的强制访问控制器]
 * AppArmor
 * BPF
 :::
-
 
 
 ### `disallow-access-procfs-root`
@@ -242,7 +241,6 @@ Attackers may attempt to escape from containers (**w/ CAP_SYS_ADMIN**) by remoun
 * AppArmor
 * BPF
 :::
-
 
 
 ### `disallow-access-kallsyms`
@@ -283,7 +281,6 @@ Attackers may attempt to escape from containers (**w/ CAP_SYS_ADMIN**) by remoun
 :::
 
 
-
 ### `disable-cap-all-except-net-bind-service`
 
 禁用除 net_bind_service 外的 capabilities。
@@ -302,7 +299,6 @@ Attackers may attempt to escape from containers (**w/ CAP_SYS_ADMIN**) by remoun
 * AppArmor
 * BPF
 :::
-
 
 
 ### `disable-cap-privileged`
@@ -325,7 +321,6 @@ Attackers may attempt to escape from containers (**w/ CAP_SYS_ADMIN**) by remoun
 :::
 
 
-
 ### `disable-cap-[CAP]`
 
 禁用特定 capability。
@@ -344,7 +339,6 @@ Attackers may attempt to escape from containers (**w/ CAP_SYS_ADMIN**) by remoun
 :::
 
 
-
 ## 阻断内核漏洞利用向量
 
 ### `disallow-abuse-user-ns`
@@ -354,8 +348,12 @@ Attackers may attempt to escape from containers (**w/ CAP_SYS_ADMIN**) by remoun
 :::note[说明]
 User Namespace 可以被用于增强容器隔离性。但它的出现同时也增大了内核的攻击面，或使得某些内核漏洞更容易被利用。攻击者可以在容器内，通过创建 User Namespace 来获取全部特权，从而扩大内核攻击面。
 
-禁止容器进程通过 User Namesapce 滥用 CAP_SYS_ADMIN 特权可用于降低内核攻击面，阻断部分内核漏洞的利用路径。
-在未设置 `kernel.unprivileged_userns_clone=0` 或 `user.max_user_namespaces=0` 的系统上，可通过此规则来为容器进行加固。
+禁止容器进程通过 User Namesapce 滥用 CAP_SYS_ADMIN 特权可降低内核攻击面，阻断部分内核漏洞的利用路径。在未设置 `kernel.unprivileged_userns_clone=0` 或 `user.max_user_namespaces=0` 的系统上，可通过此规则来为容器进行加固。
+
+可参考下面的链接了解更多。
+* [Security analysis of user namespaces and rootless containers](https://tore.tuhh.de/entities/publication/716d05a6-08ce-48e1-bec3-817eb15e2944)
+* [CVE-2024-26808](https://github.com/google/security-research/blob/master/pocs/linux/kernelctf/CVE-2024-26808_cos/docs/exploit.md)
+* [CVE-2021-22555](https://github.com/google/security-research/blob/master/pocs/linux/cve-2021-22555/writeup.md)
 :::
 
 :::info[原理与影响]
@@ -368,7 +366,6 @@ User Namespace 可以被用于增强容器隔离性。但它的出现同时也�
 :::
 
 
-
 ### `disallow-create-user-ns`
 
 禁止创建 User Namespace。
@@ -376,8 +373,12 @@ User Namespace 可以被用于增强容器隔离性。但它的出现同时也�
 :::note[说明]
 User Namespace 可以被用于增强容器隔离性。但它的出现同时也增大了内核的攻击面，或使得某些内核漏洞更容易被利用。攻击者可以在容器内，通过创建 User Namespace 来获取全部特权，从而扩大内核攻击面。
 
-禁止容器进程创建新的 User Namesapce 从而获取 CAP_SYS_ADMIN 特权可用于降低内核攻击面，阻断部分内核漏洞的利用路径。
-在未设置 `kernel.unprivileged_userns_clone=0` 或 `user.max_user_namespaces=0` 的系统上，可通过此规则来为容器进行加固。
+禁止容器进程创建新的 User Namesapce 从而获取 CAP_SYS_ADMIN 特权可降低内核攻击面，阻断部分内核漏洞的利用路径。在未设置 `kernel.unprivileged_userns_clone=0` 或 `user.max_user_namespaces=0` 的系统上，可通过此规则来加固容器。
+
+可参考下面的链接了解更多。
+* [Security analysis of user namespaces and rootless containers](https://tore.tuhh.de/entities/publication/716d05a6-08ce-48e1-bec3-817eb15e2944)
+* [CVE-2024-26808](https://github.com/google/security-research/blob/master/pocs/linux/kernelctf/CVE-2024-26808_cos/docs/exploit.md)
+* [CVE-2021-22555](https://github.com/google/security-research/blob/master/pocs/linux/cve-2021-22555/writeup.md)
 :::
 
 :::info[原理与影响]
@@ -388,3 +389,27 @@ User Namespace 可以被用于增强容器隔离性。但它的出现同时也�
 * Seccomp
 :::
 
+
+### `disallow-load-all-bpf-prog`
+
+禁止加载任意类型的 eBPF 程序。
+
+:::note[说明]
+攻击者无需任何特权就可以加载 `BPF_PROG_TYPE_SOCKET_FILTER` 或 `BPF_PROG_TYPE_CGROUP_SKB` 类型的 eBPF 程序。因此，攻击者可以尝试使用这些类型的 eBPF 程序进行网络数据包嗅探，或利用 eBPF 验证器和 JIT 引擎的漏洞实现容器逃逸。
+
+禁止容器进程加载 eBPF 程序可降低内核攻击面，阻断部分内核漏洞的利用路径。在未设置 `kernel.unprivileged_bpf_disabled=0` 的系统上，可通过此规则来加固容器。
+
+可参考下面的链接了解更多。
+* [Taking the Elevator down to ring 0](https://blog.lumen.com/taking-the-elevator-down-to-ring-0)
+* [CVE-2022-23222](https://www.openwall.com/lists/oss-security/2022/01/18/2)
+* [CVE-2021-31440](https://www.zerodayinitiative.com/blog/2021/5/26/cve-2021-31440-an-incorrect-bounds-calculation-in-the-linux-kernel-ebpf-verifier)
+* [CVE-2020-8835](https://www.zerodayinitiative.com/blog/2020/4/8/cve-2020-8835-linux-kernel-privilege-escalation-via-improper-ebpf-program-verification)
+:::
+
+:::info[原理与影响]
+禁止加载任意类型的 eBPF 程序。
+:::
+
+:::tip[支持的强制访问控制器]
+* Seccomp
+:::
