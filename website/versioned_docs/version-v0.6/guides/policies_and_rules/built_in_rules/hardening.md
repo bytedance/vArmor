@@ -4,8 +4,10 @@ description: Rules to reduce the attack surface of system.
 ---
 
 # Hardening
+These rules are used for reduce the attack surface of system, such as blocking common escape vectors for containers has privileges, disabling capabilities, and blocking certain kernel vulnerability exploitation vectors.
 
 ## Securing Privileged Containers
+
 ### `disallow-write-core-pattern`
 
 Prohibit modifying procfs' core_pattern.
@@ -121,7 +123,6 @@ Dynamically acquire host disk devices and restrict container access them with re
 :::
 
 
-
 ### `disallow-mount-disk-device`
 
 Prohibit mounting of host's disk devices.
@@ -140,7 +141,6 @@ Dynamically acquire host machine disk device files and prevent mounting within c
 * AppArmor
 * BPF
 :::
-
 
 
 ### `disallow-mount`
@@ -163,7 +163,6 @@ Disable the mount system call.
 :::
 
 
-
 ### `disallow-umount`
 
 Disable the umount system call.
@@ -180,7 +179,6 @@ Disable the umount system call.
 * AppArmor
 * BPF
 :::
-
 
 
 ### `disallow-insmod`
@@ -201,26 +199,28 @@ Disable CAP_SYS_MODULE.
 :::
 
 
+### `disallow-load-bpf-prog`, `disallow-load-ebpf`
 
-### `disallow-load-ebpf`
-
-Prohibit loading eBPF programs.
+Prohibit loading eBPF programs, except for those of the BPF_PROG_TYPE_SOCKET_FILTER and BPF_PROG_TYPE_CGROUP_SKB types.
 
 :::note[Description]
-Attackers may load eBPF programs within a container (**w/ CAP_SYS_ADMIN & CAP_BPF**) to theft data or create rootkit.
+Attackers may load eBPF programs within a container (**w/ CAP_SYS_ADMIN, CAP_BPF**) to theft data or create rootkit.
 
-Note: CAP_BPF was introduced starting from Linux 5.8.
+Before Linux 5.8, loading eBPF programs, except for those of the BPF_PROG_TYPE_SOCKET_FILTER and BPF_PROG_TYPE_CGROUP_SKB types, needs CAP_SYS_ADMIN. Since Linux 5.8, loading eBPF programs, except for those types, needs CAP_SYS_ADMIN or CAP_BPF. And some types of eBPF programs also require CAP_NET_ADMIN or CAP_PERFMON.
+
+The id of `disallow-load-ebpf` rule will be deprecated, please use `disallow-load-bpf-prog` instead.
 :::
 
 :::info[Principle & Impact]
 Disable CAP_SYS_ADMIN & CAP_BPF.
+
+It is recommended to use the [disallow-load-all-bpf-prog](#disallow-load-all-bpf-prog) rule to prohibit loading any types of eBPF programs to reduce the attack surface of kernel.
 :::
 
 :::tip[Supported Enforcer]
 * AppArmor
 * BPF
 :::
-
 
 
 ### `disallow-access-procfs-root`
@@ -241,7 +241,6 @@ Disable [PTRACE_MODE_READ](https://man7.org/linux/man-pages/man2/ptrace.2.html) 
 * AppArmor
 * BPF
 :::
-
 
 
 ### `disallow-access-kallsyms`
@@ -282,7 +281,6 @@ None
 :::
 
 
-
 ### `disable-cap-all-except-net-bind-service`
 
 Disable all capabilities except for NET_BIND_SERVICE.
@@ -301,7 +299,6 @@ None
 * AppArmor
 * BPF
 :::
-
 
 
 ### `disable-cap-privileged`
@@ -324,7 +321,6 @@ None
 :::
 
 
-
 ### `disable-cap-[CAP]`
 
 Disable specified capability.
@@ -343,7 +339,6 @@ None
 :::
 
 
-
 ## Blocking Exploit Vectors
 
 ### `disallow-abuse-user-ns`
@@ -356,6 +351,11 @@ User namespaces can be used to enhance container isolation. However, it also inc
 Disallowing container processes from abusing CAP_SYS_ADMIN privileges via user namespaces can reduce the kernel's attack surface and block certain exploitation paths for kernel vulnerabilities.
 
 This rule can be used to harden containers on systems where `kernel.unprivileged_userns_clone=0` or `user.max_user_namespaces=0` is not set or applicable.
+
+Refer to the following links for further information.
+* [Security analysis of user namespaces and rootless containers](https://tore.tuhh.de/entities/publication/716d05a6-08ce-48e1-bec3-817eb15e2944)
+* [CVE-2024-26808](https://github.com/google/security-research/blob/master/pocs/linux/kernelctf/CVE-2024-26808_cos/docs/exploit.md)
+* [CVE-2021-22555](https://github.com/google/security-research/blob/master/pocs/linux/cve-2021-22555/writeup.md)
 :::
 
 :::info[Principle & Impact]
@@ -368,7 +368,6 @@ Disable CAP_SYS_ADMIN.
 :::
 
 
-
 ### `disallow-create-user-ns`
 
 Prohibit creating user namespace.
@@ -379,6 +378,11 @@ User namespaces can be used to enhance container isolation. However, it also inc
 Disallowing container processes from creating new user namespaces can reduce the kernel's attack surface and block certain exploitation paths for kernel vulnerabilities.
 
 This rule can be used to harden containers on systems where `kernel.unprivileged_userns_clone=0` or `user.max_user_namespaces=0` is not set or applicable.
+
+Refer to the following links for further information.
+* [Security analysis of user namespaces and rootless containers](https://tore.tuhh.de/entities/publication/716d05a6-08ce-48e1-bec3-817eb15e2944)
+* [CVE-2024-26808](https://github.com/google/security-research/blob/master/pocs/linux/kernelctf/CVE-2024-26808_cos/docs/exploit.md)
+* [CVE-2021-22555](https://github.com/google/security-research/blob/master/pocs/linux/cve-2021-22555/writeup.md)
 :::
 
 :::info[Principle & Impact]
@@ -389,3 +393,28 @@ Disallow creating user namespace.
 * Seccomp
 :::
 
+
+### `disallow-load-all-bpf-prog`
+
+Prohibit loading any types of eBPF programs.
+
+:::note[Description]
+Attacker can load `BPF_PROG_TYPE_SOCKET_FILTER` or `BPF_PROG_TYPE_CGROUP_SKB` types of eBPF programs without privileged permission.
+So they may use these types of eBPF programs to sniff network data package, or exploit vulnerabilities of the BPF verifier or JIT engine to achieve container escape.
+
+This rule can be used to harden containers on systems where `kernel.unprivileged_bpf_disabled=0`.
+
+Refer to the following links for further information.
+* [Taking the Elevator down to ring 0](https://blog.lumen.com/taking-the-elevator-down-to-ring-0)
+* [CVE-2022-23222](https://www.openwall.com/lists/oss-security/2022/01/18/2)
+* [CVE-2021-31440](https://www.zerodayinitiative.com/blog/2021/5/26/cve-2021-31440-an-incorrect-bounds-calculation-in-the-linux-kernel-ebpf-verifier)
+* [CVE-2020-8835](https://www.zerodayinitiative.com/blog/2020/4/8/cve-2020-8835-linux-kernel-privilege-escalation-via-improper-ebpf-program-verification).
+:::
+
+:::info[Principle & Impact]
+Disallow loading any types of eBPF programs.
+:::
+
+:::tip[Supported Enforcer]
+* Seccomp
+:::

@@ -25,6 +25,7 @@ Disallow writing to the procfs' core_pattern file.
 * BPF
 :::
 
+
 ### `disallow-mount-securityfs`
 
 Prohibit mounting securityfs.
@@ -41,6 +42,7 @@ Disallow mounting of new security file systems.
 * AppArmor
 * BPF
 :::
+
 
 ### `disallow-mount-procfs`
 
@@ -61,6 +63,7 @@ Attackers may attempt container escape in containers (**w/ CAP_SYS_ADMIN**) by r
 * BPF
 :::
 
+
 ### `disallow-write-release-agent`
 
 Prohibit modifying cgroupfs' release_agent.
@@ -77,6 +80,7 @@ Disallow writing to the cgroupfs' release_agent file.
 * AppArmor
 * BPF
 :::
+
 
 ### `disallow-mount-cgroupfs`
 
@@ -98,6 +102,7 @@ Attackers may attempt to escape from containers (**w/ CAP_SYS_ADMIN**) by remoun
 * BPF
 :::
 
+
 ### `disallow-debug-disk-device`
 
 Prohibit debugging of disk devices.
@@ -116,6 +121,7 @@ Dynamically acquire host disk devices and restrict container access them with re
 * AppArmor
 * BPF
 :::
+
 
 ### `disallow-mount-disk-device`
 
@@ -136,6 +142,7 @@ Dynamically acquire host machine disk device files and prevent mounting within c
 * BPF
 :::
 
+
 ### `disallow-mount`
 
 Disable the mount system call.
@@ -155,6 +162,7 @@ Disable the mount system call.
 * BPF
 :::
 
+
 ### `disallow-umount`
 
 Disable the umount system call.
@@ -171,6 +179,7 @@ Disable the umount system call.
 * AppArmor
 * BPF
 :::
+
 
 ### `disallow-insmod`
 
@@ -189,24 +198,30 @@ Disable CAP_SYS_MODULE.
 * BPF
 :::
 
-### `disallow-load-ebpf`
 
-Prohibit loading eBPF programs.
+### `disallow-load-bpf-prog`, `disallow-load-ebpf`
+
+Prohibit loading eBPF programs, except for those of the BPF_PROG_TYPE_SOCKET_FILTER and BPF_PROG_TYPE_CGROUP_SKB types.
 
 :::note[Description]
-Attackers may load eBPF programs within a container (**w/ CAP_SYS_ADMIN & CAP_BPF**) to theft data or create rootkit.
+Attackers may load eBPF programs within a container (**w/ CAP_SYS_ADMIN, CAP_BPF**) to theft data or create rootkit.
 
-Note: CAP_BPF was introduced starting from Linux 5.8.
+Before Linux 5.8, loading eBPF programs, except for those of the BPF_PROG_TYPE_SOCKET_FILTER and BPF_PROG_TYPE_CGROUP_SKB types, needs CAP_SYS_ADMIN. Since Linux 5.8, loading eBPF programs, except for those types, needs CAP_SYS_ADMIN or CAP_BPF. And some types of eBPF programs also require CAP_NET_ADMIN or CAP_PERFMON.
+
+The id of `disallow-load-ebpf` rule will be deprecated, please use `disallow-load-bpf-prog` instead.
 :::
 
 :::info[Principle & Impact]
 Disable CAP_SYS_ADMIN & CAP_BPF.
+
+It is recommended to use the [disallow-load-all-bpf-prog](#disallow-load-all-bpf-prog) rule to prohibit loading any types of eBPF programs to reduce the attack surface of kernel.
 :::
 
 :::tip[Supported Enforcer]
 * AppArmor
 * BPF
 :::
+
 
 ### `disallow-access-procfs-root`
 
@@ -227,6 +242,7 @@ Disable [PTRACE_MODE_READ](https://man7.org/linux/man-pages/man2/ptrace.2.html) 
 * BPF
 :::
 
+
 ### `disallow-access-kallsyms`
 
 Prohibit accessing kernel exported symbol.
@@ -243,6 +259,7 @@ Disallow reading `/proc/kallsyms` file.
 * AppArmor
 * BPF
 :::
+
 
 ## Disabling Capabilities
 
@@ -263,6 +280,7 @@ None
 * BPF
 :::
 
+
 ### `disable-cap-all-except-net-bind-service`
 
 Disable all capabilities except for NET_BIND_SERVICE.
@@ -281,6 +299,7 @@ None
 * AppArmor
 * BPF
 :::
+
 
 ### `disable-cap-privileged`
 
@@ -301,6 +320,7 @@ None
 * BPF
 :::
 
+
 ### `disable-cap-[CAP]`
 
 Disable specified capability.
@@ -318,6 +338,7 @@ None
 * BPF
 :::
 
+
 ## Blocking Exploit Vectors
 
 ### `disallow-abuse-user-ns`
@@ -330,6 +351,11 @@ User namespaces can be used to enhance container isolation. However, it also inc
 Disallowing container processes from abusing CAP_SYS_ADMIN privileges via user namespaces can reduce the kernel's attack surface and block certain exploitation paths for kernel vulnerabilities.
 
 This rule can be used to harden containers on systems where `kernel.unprivileged_userns_clone=0` or `user.max_user_namespaces=0` is not set or applicable.
+
+Refer to the following links for further information.
+* [Security analysis of user namespaces and rootless containers](https://tore.tuhh.de/entities/publication/716d05a6-08ce-48e1-bec3-817eb15e2944)
+* [CVE-2024-26808](https://github.com/google/security-research/blob/master/pocs/linux/kernelctf/CVE-2024-26808_cos/docs/exploit.md)
+* [CVE-2021-22555](https://github.com/google/security-research/blob/master/pocs/linux/cve-2021-22555/writeup.md)
 :::
 
 :::info[Principle & Impact]
@@ -341,6 +367,7 @@ Disable CAP_SYS_ADMIN.
 * BPF
 :::
 
+
 ### `disallow-create-user-ns`
 
 Prohibit creating user namespace.
@@ -351,10 +378,41 @@ User namespaces can be used to enhance container isolation. However, it also inc
 Disallowing container processes from creating new user namespaces can reduce the kernel's attack surface and block certain exploitation paths for kernel vulnerabilities.
 
 This rule can be used to harden containers on systems where `kernel.unprivileged_userns_clone=0` or `user.max_user_namespaces=0` is not set or applicable.
+
+Refer to the following links for further information.
+* [Security analysis of user namespaces and rootless containers](https://tore.tuhh.de/entities/publication/716d05a6-08ce-48e1-bec3-817eb15e2944)
+* [CVE-2024-26808](https://github.com/google/security-research/blob/master/pocs/linux/kernelctf/CVE-2024-26808_cos/docs/exploit.md)
+* [CVE-2021-22555](https://github.com/google/security-research/blob/master/pocs/linux/cve-2021-22555/writeup.md)
 :::
 
 :::info[Principle & Impact]
 Disallow creating user namespace.
+:::
+
+:::tip[Supported Enforcer]
+* Seccomp
+:::
+
+
+### `disallow-load-all-bpf-prog`
+
+Prohibit loading any types of eBPF programs.
+
+:::note[Description]
+Attacker can load `BPF_PROG_TYPE_SOCKET_FILTER` or `BPF_PROG_TYPE_CGROUP_SKB` types of eBPF programs without privileged permission.
+So they may use these types of eBPF programs to sniff network data package, or exploit vulnerabilities of the BPF verifier or JIT engine to achieve container escape.
+
+This rule can be used to harden containers on systems where `kernel.unprivileged_bpf_disabled=0`.
+
+Refer to the following links for further information.
+* [Taking the Elevator down to ring 0](https://blog.lumen.com/taking-the-elevator-down-to-ring-0)
+* [CVE-2022-23222](https://www.openwall.com/lists/oss-security/2022/01/18/2)
+* [CVE-2021-31440](https://www.zerodayinitiative.com/blog/2021/5/26/cve-2021-31440-an-incorrect-bounds-calculation-in-the-linux-kernel-ebpf-verifier)
+* [CVE-2020-8835](https://www.zerodayinitiative.com/blog/2020/4/8/cve-2020-8835-linux-kernel-privilege-escalation-via-improper-ebpf-program-verification).
+:::
+
+:::info[Principle & Impact]
+Disallow loading any types of eBPF programs.
 :::
 
 :::tip[Supported Enforcer]
