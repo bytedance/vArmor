@@ -408,6 +408,7 @@ Refer to the following links for further information.
 * [Taking the Elevator down to ring 0](https://blog.lumen.com/taking-the-elevator-down-to-ring-0)
 * [CVE-2022-23222](https://www.openwall.com/lists/oss-security/2022/01/18/2)
 * [CVE-2021-31440](https://www.zerodayinitiative.com/blog/2021/5/26/cve-2021-31440-an-incorrect-bounds-calculation-in-the-linux-kernel-ebpf-verifier)
+* [CVE-2021-3490](https://www.crowdstrike.com/en-us/blog/exploiting-cve-2021-3490-for-container-escapes/)
 * [CVE-2020-8835](https://www.zerodayinitiative.com/blog/2020/4/8/cve-2020-8835-linux-kernel-privilege-escalation-via-improper-ebpf-program-verification).
 :::
 
