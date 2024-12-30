@@ -362,7 +362,12 @@ func (m *StatusManager) syncData(data string) error {
 		logger.Info("2. update new behavior data to ArmorProfileModel", "namespace", behaviorData.Namespace, "name", behaviorData.ProfileName)
 		apm, err = m.updateArmorProfileModel(apm)
 		if err != nil {
-			logger.Error(err, "updateArmorProfileModel()")
+			if k8errors.IsRequestEntityTooLargeError(err) {
+				// The limit of object is 3145728. So we should return directly.
+				// TODO: Shard the behavior data to multiple objects.
+				logger.Error(err, "updateArmorProfileModel()")
+				return nil
+			}
 			return err
 		}
 	}

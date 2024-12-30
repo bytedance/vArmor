@@ -84,8 +84,8 @@ func generateHardeningRules(rule, qualifier string) (rules string) {
 	// disallow insmond
 	case "disallow-insmod":
 		rules += qualifier + "deny capability sys_module,\n"
-	// disallow load ebpf program
-	case "disallow-load-ebpf":
+	// disallow loading ebpf programs, except for those of the BPF_PROG_TYPE_SOCKET_FILTER and BPF_PROG_TYPE_CGROUP_SKB types
+	case "disallow-load-bpf-prog", "disallow-load-ebpf":
 		rules += qualifier + "deny capability sys_admin,\n"
 		rules += qualifier + "deny capability bpf,\n"
 	// disallow access to the root of the task through procfs

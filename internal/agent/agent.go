@@ -82,6 +82,7 @@ type Agent struct {
 	modellers                map[string]*varmorbehavior.BehaviorModeller
 	nodeName                 string
 	debug                    bool
+	inContainer              bool
 	managerIP                string
 	managerPort              int
 	classifierPort           int
@@ -97,6 +98,7 @@ func NewAgent(
 	unloadAllAaProfiles bool,
 	removeAllSeccompProfiles bool,
 	debug bool,
+	inContainer bool,
 	managerIP string,
 	managerPort int,
 	classifierPort int,
@@ -124,6 +126,7 @@ func NewAgent(
 		removeAllSeccompProfiles: removeAllSeccompProfiles,
 		modellers:                make(map[string]*varmorbehavior.BehaviorModeller),
 		debug:                    debug,
+		inContainer:              inContainer,
 		managerIP:                managerIP,
 		managerPort:              managerPort,
 		classifierPort:           classifierPort,
@@ -131,7 +134,7 @@ func NewAgent(
 		log:                      log,
 	}
 
-	if !debug {
+	if inContainer {
 		varmorutils.InitAndStartTokenRotation(5*time.Minute, log)
 	}
 
@@ -178,7 +181,7 @@ func NewAgent(
 	}
 
 	// Retrieve the node name where the agent is located.
-	agent.nodeName, err = retrieveNodeName(debug)
+	agent.nodeName, err = retrieveNodeName(inContainer)
 	if err != nil {
 		return nil, err
 	}
@@ -195,7 +198,7 @@ func NewAgent(
 	if agent.appArmorSupported {
 		log.Info("initialize the AppArmor LSM")
 
-		if !agent.debug {
+		if inContainer {
 			log.Info("setup the AppArmor feature ABI, abstractions, tunables and default profiles to /etc/apparmor.d")
 			ret, err := exec.Command("cp", "-r", varmorconfig.PackagedAppArmorProfiles, "/etc/").CombinedOutput()
 			if err != nil {
@@ -329,7 +332,7 @@ func (agent *Agent) sendStatus(ap *varmor.ArmorProfile, status varmortypes.Statu
 		Message:     message,
 	}
 	reqBody, _ := json.Marshal(&s)
-	return varmorutils.PostStatusToStatusService(reqBody, agent.debug, agent.managerIP, agent.managerPort)
+	return varmorutils.PostStatusToStatusService(reqBody, agent.inContainer, agent.managerIP, agent.managerPort)
 }
 
 func (agent *Agent) selectEnforcer(ap *varmor.ArmorProfile) (varmortypes.Enforcer, error) {
@@ -420,6 +423,7 @@ func (agent *Agent) handleCreateOrUpdateArmorProfile(ap *varmor.ArmorProfile, ke
 				agent.managerPort,
 				agent.classifierPort,
 				agent.debug,
+				agent.inContainer,
 				agent.log.WithName("BEHAVIOR-MODELLER"))
 			if modeller != nil {
 				agent.modellers[key] = modeller

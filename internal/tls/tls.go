@@ -121,7 +121,7 @@ func GenerateCACert(certValidityDuration time.Duration) (*KeyPair, *PemPair, err
 
 // GenerateCertPem takes the results of GenerateCACert and uses it to create the
 // PEM-encoded public certificate and private key, respectively.
-func GenerateCertPem(caCert *KeyPair, props CertificateProps, certValidityDuration time.Duration, managerIP string, debug bool) (*PemPair, error) {
+func GenerateCertPem(caCert *KeyPair, props CertificateProps, certValidityDuration time.Duration, managerIP string, inContainer bool) (*PemPair, error) {
 	now := time.Now()
 	begin := now.Add(-1 * time.Hour)
 	end := now.Add(certValidityDuration)
@@ -140,7 +140,7 @@ func GenerateCertPem(caCert *KeyPair, props CertificateProps, certValidityDurati
 		dnsNames = append(dnsNames, props.APIServerHost)
 	}
 
-	if managerIP != "" && debug {
+	if managerIP != "" && !inContainer {
 		if strings.Contains(managerIP, ":") {
 			host, _, _ := net.SplitHostPort(managerIP)
 			managerIP = host

@@ -16,13 +16,13 @@
 vArmor 推荐使用 Helm chart 进行部署。通过 Helm 安装前，请先拉取 chart 包。
 
 ```
-helm pull oci://elkeid-ap-southeast-1.cr.volces.com/varmor/varmor --version 0.6.1
+helm pull oci://elkeid-ap-southeast-1.cr.volces.com/varmor/varmor --version 0.6.2
 ```
 
 然后使用 helm 命令及[配置选项](#配置选项)进行安装和配置。
 
 ```
-helm install varmor varmor-0.6.1.tgz \
+helm install varmor varmor-0.6.2.tgz \
     --namespace varmor --create-namespace \
     --set image.registry="elkeid-cn-beijing.cr.volces.com"
 ```
@@ -130,7 +130,7 @@ vArmor 的 Agent 默认运行在独立的网络命名空间中，并在端口 `6
 
 你可以使用 helm 命令进行升级、回滚等操作。
 ```bash
-helm upgrade varmor varmor-0.6.1.tgz \
+helm upgrade varmor varmor-0.6.2.tgz \
     --namespace varmor --create-namespace \
     --set image.registry="elkeid-ap-southeast-1.cr.volces.com" \
     --set bpfLsmEnforcer.enabled=true \

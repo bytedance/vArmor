@@ -39,14 +39,12 @@ type PolicyCacher struct {
 	PolicyTargets         map[string]varmor.Target
 	PolicyEnforcer        map[string]string
 	PolicyMode            map[string]varmor.VarmorPolicyMode
-	debug                 bool
 	log                   logr.Logger
 }
 
 func NewPolicyCacher(
 	vcpInformer varmorinformer.VarmorClusterPolicyInformer,
 	vpInformer varmorinformer.VarmorPolicyInformer,
-	debug bool,
 	log logr.Logger) (*PolicyCacher, error) {
 
 	cacher := PolicyCacher{
@@ -62,7 +60,6 @@ func NewPolicyCacher(
 		PolicyTargets:         make(map[string]varmor.Target),
 		PolicyEnforcer:        make(map[string]string),
 		PolicyMode:            make(map[string]varmor.VarmorPolicyMode),
-		debug:                 debug,
 		log:                   log,
 	}
 
