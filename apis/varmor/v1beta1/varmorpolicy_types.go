@@ -191,6 +191,13 @@ type EnhanceProtect struct {
 	// Default is false.
 	// +optional
 	AuditViolations bool `json:"auditViolations,omitempty"`
+	// AllowViolations determines whether to allow the actions that are against the mandatory
+	// access control rules. Currently, this feature supports AppArmor and BPF enforcers.
+	// Any detected violation will be allowed instead of being blocked.
+	//
+	// Default is false.
+	// +optional
+	AllowViolations bool `json:"allowViolations,omitempty"`
 }
 
 type ModelingOptions struct {

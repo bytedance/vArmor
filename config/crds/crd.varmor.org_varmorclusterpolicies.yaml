@@ -80,6 +80,13 @@ spec:
                     description: EnhanceProtect is used to specify which built-in
                       or custom rules are employed to protect the target workloads.
                     properties:
+                      allowViolations:
+                        description: "AllowViolations determines whether to allow
+                          the actions that are against the mandatory access control
+                          rules. Currently, this feature supports AppArmor and BPF
+                          enforcers. Any detected violation will be allowed instead
+                          of being blocked. \n Default is false."
+                        type: boolean
                       appArmorRawRules:
                         description: AppArmorRawRules is used to set native AppArmor
                           rules, each rule must end with a comma
