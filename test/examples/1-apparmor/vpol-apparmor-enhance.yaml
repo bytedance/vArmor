@@ -25,6 +25,11 @@ spec:
       # Any detected violation will be logged to /var/log/varmor/violations.log file in the host.
       # It's disabled by default.
       auditViolations: true
+      # Allow the actions that violate the mandatory access control rules.
+      # Any detected violation will be allowed instead of being blocked and logged to the same log file 
+      # as the auditViolations feature. You can utilize the feature to achieve some kind of observation mode.
+      # It's diabled by default.
+      # allowViolations: true
       hardeningRules:
       - disable-cap-net-raw
       attackProtectionRules:
