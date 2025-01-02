@@ -151,8 +151,14 @@ func NewAgent(
 	})
 
 	go func() {
-		if err := r.Run(fmt.Sprintf(":%d", varmorconfig.AgentServicePort)); err != nil {
-			log.Error(err, "fatal error: agent service failed to start")
+		if inContainer {
+			if err := r.Run(fmt.Sprintf(":%d", varmorconfig.AgentServicePort)); err != nil {
+				log.Error(err, "fatal error: agent service failed to start")
+			}
+		} else {
+			if err := r.Run(":6080"); err != nil {
+				log.Error(err, "fatal error: agent service failed to start")
+			}
 		}
 	}()
 

@@ -95,8 +95,11 @@ func (auditor *Auditor) processAuditEvent(event string) {
 	if strings.Contains(event, "type=1400") || strings.Contains(event, "type=AVC") {
 		auditor.log.V(3).Info("receive an AppArmor audit event", "event", strings.TrimSpace(event))
 
-		if strings.Contains(event, "apparmor=\"DENIED\"") {
-			// Write violation event to log file
+		eventForEnforceMode := strings.Contains(event, "apparmor=\"DENIED\"")
+		eventForAuditMode := strings.Contains(event, "apparmor=\"AUDIT\"")
+
+		if eventForEnforceMode || eventForAuditMode {
+			// Write the violation event into the log file
 			index := strings.Index(event, "type=1400 audit")
 			if index != -1 {
 				event = strings.Replace(event[index:], "type=1400 audit", "type=AVC msg=audit", 1)
@@ -129,18 +132,34 @@ func (auditor *Auditor) processAuditEvent(event string) {
 				"pod uid", info.PodUID,
 				"pid", e.PID, "time", int64(e.Epoch), "event", strings.TrimSpace(event))
 
-			auditor.violationLogger.Warn().
-				Str("nodeName", auditor.nodeName).
-				Str("containerID", info.ContainerID).
-				Str("containerName", info.ContainerName).
-				Str("podName", info.PodName).
-				Str("podNamespace", info.PodNamespace).
-				Str("podUID", info.PodUID).
-				Uint32("pid", uint32(e.PID)).
-				Uint32("mntNsID", mntNsID).
-				Uint64("eventTimestamp", uint64(e.Epoch)).
-				Str("eventType", "AppArmor").
-				Interface("event", e).Msg("violation event")
+			if eventForEnforceMode {
+				auditor.violationLogger.Warn().
+					Str("nodeName", auditor.nodeName).
+					Str("containerID", info.ContainerID).
+					Str("containerName", info.ContainerName).
+					Str("podName", info.PodName).
+					Str("podNamespace", info.PodNamespace).
+					Str("podUID", info.PodUID).
+					Uint32("pid", uint32(e.PID)).
+					Uint32("mntNsID", mntNsID).
+					Uint64("eventTimestamp", uint64(e.Epoch)).
+					Str("eventType", "AppArmor").
+					Interface("event", e).Msg("violation event")
+			} else {
+				auditor.violationLogger.Debug().
+					Str("nodeName", auditor.nodeName).
+					Str("containerID", info.ContainerID).
+					Str("containerName", info.ContainerName).
+					Str("podName", info.PodName).
+					Str("podNamespace", info.PodNamespace).
+					Str("podUID", info.PodUID).
+					Uint32("pid", uint32(e.PID)).
+					Uint32("mntNsID", mntNsID).
+					Uint64("eventTimestamp", uint64(e.Epoch)).
+					Str("eventType", "AppArmor").
+					Interface("event", e).Msg("violation event")
+			}
+
 		} else {
 			// Send behavior event to subscribers
 			for _, ch := range auditor.auditEventChs {

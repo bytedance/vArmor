@@ -1008,9 +1008,11 @@ func GenerateEnhanceProtectProfile(enhanceProtect *varmor.EnhanceProtect, bpfCon
 	var mode uint32
 
 	if enhanceProtect.AuditViolations {
-		mode = bpfenforcer.AuditMode
-	} else {
-		mode = bpfenforcer.EnforceMode
+		mode |= bpfenforcer.AuditMode
+	}
+
+	if !enhanceProtect.AllowViolations {
+		mode |= bpfenforcer.EnforceMode
 	}
 
 	// Add default rules for unprivileged containers (securityContext.privileged:true) based on the rules of the RuntimeDefault mode

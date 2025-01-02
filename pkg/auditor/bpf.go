@@ -282,9 +282,24 @@ func (auditor *Auditor) readFromAuditEventRingBuf() {
 		}
 
 		switch eventHeader.Mode {
-		case bpfenforcer.AuditMode:
-			// Write violation event to log file
+		case bpfenforcer.EnforceMode | bpfenforcer.AuditMode:
+			// Write the violation event that is denied by vArmor into the log file
 			auditor.violationLogger.Warn().
+				Str("nodeName", auditor.nodeName).
+				Str("containerID", auditor.containerCache[eventHeader.MntNs].ContainerID).
+				Str("containerName", auditor.containerCache[eventHeader.MntNs].ContainerName).
+				Str("podName", auditor.containerCache[eventHeader.MntNs].PodName).
+				Str("podNamespace", auditor.containerCache[eventHeader.MntNs].PodNamespace).
+				Str("podUID", auditor.containerCache[eventHeader.MntNs].PodUID).
+				Uint32("pid", eventHeader.Tgid).
+				Uint32("mntNsID", eventHeader.MntNs).
+				Uint64("eventTimestamp", eventHeader.Ktime/uint64(time.Second)+auditor.bootTimestamp).
+				Str("eventType", "BPF").
+				Interface("event", e).Msg("violation event")
+
+		case bpfenforcer.AuditMode:
+			// Write the violation event into log the file
+			auditor.violationLogger.Debug().
 				Str("nodeName", auditor.nodeName).
 				Str("containerID", auditor.containerCache[eventHeader.MntNs].ContainerID).
 				Str("containerName", auditor.containerCache[eventHeader.MntNs].ContainerName).

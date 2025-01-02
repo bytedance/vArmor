@@ -119,7 +119,63 @@ profile %s flags=(attach_disconnected,mediate_deleted) {
 }
 `
 
-const runtimeDefaultChildTemplate = `
+const runtimeDefaultTemplateForEnhanceProtectMode = `
+## == Managed by vArmor == ##
+
+abi <abi/3.0>,
+#include <tunables/global>
+
+profile %s flags=(attach_disconnected,mediate_deleted) {
+
+  #include <abstractions/base>
+
+  network,
+  capability,
+  file,
+  umount,
+
+  # host (privileged) processes may send signals to container processes.
+  signal (receive) peer=unconfined,
+  # runc may send signals to container processes.
+  signal (receive) peer=runc,
+  # crun may send signals to container processes.
+  signal (receive) peer=crun,
+  # container processes may send signals amongst themselves.
+  signal (send,receive) peer=%s,
+
+  # deny write for all files directly in /proc (not in a subdir)
+  QUALIFIER @{PROC}/* w,
+  # deny write to files not in /proc/<number>/** or /proc/sys/**
+  QUALIFIER @{PROC}/{[^1-9],[^1-9][^0-9],[^1-9s][^0-9y][^0-9s],[^1-9][^0-9][^0-9][^0-9]*}/** w,
+  # deny /proc/sys except /proc/sys/k* (effectively /proc/sys/kernel)
+  QUALIFIER @{PROC}/sys/[^k]** w,
+  # deny everything except shm* in /proc/sys/kernel/
+  QUALIFIER @{PROC}/sys/kernel/{?,??,[^s][^h][^m]**} w,
+  QUALIFIER @{PROC}/sysrq-trigger rwklx,
+  QUALIFIER @{PROC}/mem rwklx,
+  QUALIFIER @{PROC}/kmem rwklx,
+  QUALIFIER @{PROC}/kcore rwklx,
+
+  QUALIFIER mount,
+
+  QUALIFIER /sys/[^f]*/** wklx,
+  QUALIFIER /sys/f[^s]*/** wklx,
+  QUALIFIER /sys/fs/[^c]*/** wklx,
+  QUALIFIER /sys/fs/c[^g]*/** wklx,
+  QUALIFIER /sys/fs/cg[^r]*/** wklx,
+  QUALIFIER /sys/firmware/** rwklx,
+  QUALIFIER /sys/devices/virtual/powercap/** rwklx,
+  QUALIFIER /sys/kernel/security/** rwklx,
+
+  # allow processes within the container to trace each other,
+  # provided all other LSM and yama setting allow it.
+  ptrace (trace,read,tracedby,readby) peer=%s,
+
+%s
+}
+`
+
+const runtimeDefaultChildTemplateForEnhanceProtectMode = `
 
 # processes with parent profile may send signal to processes with child profile
 signal (send) peer=%s,
@@ -147,42 +203,30 @@ profile %s flags=(attach_disconnected,mediate_deleted) {
   # processes with child profile may send signals amongst themselves.
   signal (send,receive) peer=%s,
 
-  deny @{PROC}/* w,
-  deny @{PROC}/{[^1-9],[^1-9][^0-9],[^1-9s][^0-9y][^0-9s],[^1-9][^0-9][^0-9][^0-9]*}/** w,
-  deny @{PROC}/sys/[^k]** w,
-  deny @{PROC}/sys/kernel/{?,??,[^s][^h][^m]**} w,
-  deny @{PROC}/sysrq-trigger rwklx,
-  deny @{PROC}/mem rwklx,
-  deny @{PROC}/kmem rwklx,
-  deny @{PROC}/kcore rwklx,
+  QUALIFIER @{PROC}/* w,
+  QUALIFIER @{PROC}/{[^1-9],[^1-9][^0-9],[^1-9s][^0-9y][^0-9s],[^1-9][^0-9][^0-9][^0-9]*}/** w,
+  QUALIFIER @{PROC}/sys/[^k]** w,
+  QUALIFIER @{PROC}/sys/kernel/{?,??,[^s][^h][^m]**} w,
+  QUALIFIER @{PROC}/sysrq-trigger rwklx,
+  QUALIFIER @{PROC}/mem rwklx,
+  QUALIFIER @{PROC}/kmem rwklx,
+  QUALIFIER @{PROC}/kcore rwklx,
 
-  deny mount,
+  QUALIFIER mount,
 
-  deny /sys/[^f]*/** wklx,
-  deny /sys/f[^s]*/** wklx,
-  deny /sys/fs/[^c]*/** wklx,
-  deny /sys/fs/c[^g]*/** wklx,
-  deny /sys/fs/cg[^r]*/** wklx,
-  deny /sys/firmware/** rwklx,
-  deny /sys/devices/virtual/powercap/** rwklx,
-  deny /sys/kernel/security/** rwklx,
+  QUALIFIER /sys/[^f]*/** wklx,
+  QUALIFIER /sys/f[^s]*/** wklx,
+  QUALIFIER /sys/fs/[^c]*/** wklx,
+  QUALIFIER /sys/fs/c[^g]*/** wklx,
+  QUALIFIER /sys/fs/cg[^r]*/** wklx,
+  QUALIFIER /sys/firmware/** rwklx,
+  QUALIFIER /sys/devices/virtual/powercap/** rwklx,
+  QUALIFIER /sys/kernel/security/** rwklx,
 
   # processes with parent profile may ptrace processes with child profile, but not vice versa.
   ptrace (tracedby,readby) peer=%s,
   # processes with child profile may ptrace processes amongst themselves.
   ptrace (trace,read,tracedby,readby) peer=%s,
-
-%s
-}
-`
-
-const customPolicyRulesTemplate = `
-## == Managed by vArmor == ##
-
-abi <abi/3.0>,
-#include <tunables/global>
-
-profile %s flags=(attach_disconnected,mediate_deleted) {
 
 %s
 }
