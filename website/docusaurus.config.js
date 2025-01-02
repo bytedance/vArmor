@@ -59,6 +59,11 @@ const config = {
               label: 'v0.6',
               path: 'v0.6',
               banner: 'none',
+            },
+            'v0.7': {
+              label: 'v0.7',
+              path: 'v0.7',
+              banner: 'unreleased',
             }
           },
           sidebarPath: './sidebars.js',
