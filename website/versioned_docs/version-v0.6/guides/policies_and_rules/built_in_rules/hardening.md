@@ -417,5 +417,5 @@ Disallow loading any types of eBPF programs.
 :::
 
 :::tip[Supported Enforcer]
-* Seccomp
+* Seccomp 🏷️ v0.6.2
 :::
