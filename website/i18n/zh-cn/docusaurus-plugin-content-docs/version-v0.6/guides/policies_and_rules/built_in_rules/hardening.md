@@ -412,5 +412,5 @@ User Namespace 可以被用于增强容器隔离性。但它的出现同时也�
 :::
 
 :::tip[支持的强制访问控制器]
-* Seccomp
+* Seccomp 🏷️ v0.6.2
 :::
