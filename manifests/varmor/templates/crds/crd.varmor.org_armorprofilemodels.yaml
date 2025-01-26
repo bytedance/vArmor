@@ -43,6 +43,8 @@ spec:
               profile
             properties:
               dynamicResult:
+                description: DynamicResult stores the behavior data that has been
+                  collected with the BehaviorModeling mode.
                 properties:
                   apparmor:
                     properties:
@@ -140,6 +142,8 @@ spec:
                     type: object
                 type: object
               profile:
+                description: Profile stores the AppArmor and Seccomp profiles that
+                  are generate from the DynamicResult and StaticResult.
                 properties:
                   bpfContent:
                     properties:
@@ -303,7 +307,13 @@ spec:
                 - name
                 type: object
               staticResult:
+                description: StaticResult stores the static analysis data.
                 type: object
+              storageType:
+                description: 'StorageType indicates which storage type to use to save
+                  the DynamicResult, StaticResult and profiles. Possible values: CRDInternal,
+                  LocalDisk'
+                type: string
             type: object
           kind:
             description: 'Kind is a string value representing the REST resource this
