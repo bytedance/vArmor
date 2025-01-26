@@ -17,6 +17,7 @@ package statusmanagerv1
 import (
 	"context"
 	"fmt"
+	"os"
 	"reflect"
 	"time"
 
@@ -105,6 +106,10 @@ func NewStatusManager(coreInterface corev1.CoreV1Interface,
 		m.profileFailure = metricsModule.RegisterFloat64Counter("varmor_profile_processing_failure", "Number of failed profile processing")
 		m.profileChangeCount = metricsModule.RegisterFloat64Counter("varmor_profile_change_count", "Number of profile change")
 		//m.profileStatusPerNode = metricsModule.RegisterFloat64Gauge("varmor_profile_status_per_node", "Profile status per node (1=success, 0=failure)")
+	}
+
+	if _, err := os.Stat(varmorconfig.BehaviorDataDirectory); os.IsNotExist(err) {
+		os.MkdirAll(varmorconfig.BehaviorDataDirectory, os.ModePerm)
 	}
 
 	return &m

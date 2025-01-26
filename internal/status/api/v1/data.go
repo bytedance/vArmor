@@ -19,6 +19,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
+	"path"
 	"reflect"
 	"time"
 
@@ -27,8 +29,10 @@ import (
 	k8errors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/client-go/util/retry"
 
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
+	varmorconfig "github.com/bytedance/vArmor/internal/config"
 	apparmorprofile "github.com/bytedance/vArmor/internal/profile/apparmor"
 	seccompprofile "github.com/bytedance/vArmor/internal/profile/seccomp"
 	varmortypes "github.com/bytedance/vArmor/internal/types"
@@ -61,14 +65,35 @@ func (m *StatusManager) retrieveArmorProfileModel(namespace, name string) (*varm
 	apm, err := m.varmorInterface.ArmorProfileModels(namespace).Get(context.Background(), name, metav1.GetOptions{})
 	if err != nil {
 		if k8errors.IsNotFound(err) {
-			newApm := varmor.ArmorProfileModel{}
-			newApm.Name = name
-			newApm.Namespace = namespace
-			apm, err := m.varmorInterface.ArmorProfileModels(namespace).Create(context.Background(), &newApm, metav1.CreateOptions{})
-			return apm, err
+			// Create a new ArmorProfileModel object
+			a := varmor.ArmorProfileModel{}
+			a.Name = name
+			a.Namespace = namespace
+			a.Data.StorageType = varmortypes.StorageTypeCRDInternal
+			return m.varmorInterface.ArmorProfileModels(namespace).Create(context.Background(), &a, metav1.CreateOptions{})
 		}
 		return nil, err
 	}
+
+	// Load behavior data of the ArmorProfileModel object from the local file
+	if apm.Data.StorageType != varmortypes.StorageTypeCRDInternal {
+		fileName := path.Join(varmorconfig.BehaviorDataDirectory, name)
+		data, err := os.ReadFile(fileName)
+		if err != nil {
+			m.log.Error(err, "Read "+fileName+" failed")
+			return apm, nil
+		}
+
+		a := varmor.ArmorProfileModel{}
+		err = json.Unmarshal(data, &a)
+		if err != nil {
+			m.log.Error(err, "Unmarshal "+fileName+" failed")
+			return apm, nil
+		}
+		apm.Data.DynamicResult = a.Data.DynamicResult
+		apm.Data.StaticResult = a.Data.StaticResult
+	}
+
 	return apm, nil
 }
 
@@ -260,7 +285,84 @@ func mergeSeccompResult(apm *varmor.ArmorProfileModel, data *varmortypes.Behavio
 }
 
 func (m *StatusManager) updateArmorProfileModel(apm *varmor.ArmorProfileModel) (*varmor.ArmorProfileModel, error) {
-	return m.varmorInterface.ArmorProfileModels(apm.Namespace).Update(context.Background(), apm, metav1.UpdateOptions{})
+	var regain bool
+	var err error
+
+	update := func() (e error) {
+		if regain {
+			a, e := m.varmorInterface.ArmorProfileModels(apm.Namespace).Get(context.Background(), apm.Name, metav1.GetOptions{})
+			if e != nil {
+				if k8errors.IsNotFound(e) {
+					err = e
+					return nil
+				}
+				return e
+			}
+			apm.ResourceVersion = a.ResourceVersion
+		}
+
+		a, e := m.varmorInterface.ArmorProfileModels(apm.Namespace).Update(context.Background(), apm, metav1.UpdateOptions{})
+		if e == nil {
+			apm = a
+		} else {
+			if k8errors.IsRequestEntityTooLargeError(e) {
+				err = e
+				return nil
+			}
+		}
+		return e
+	}
+	e := retry.RetryOnConflict(retry.DefaultRetry, update)
+	if e == nil {
+		return apm, err
+	} else {
+		return apm, e
+	}
+}
+
+func (m *StatusManager) persistArmorProfileModel(apm *varmor.ArmorProfileModel) (*varmor.ArmorProfileModel, error) {
+	if apm.Data.StorageType == varmortypes.StorageTypeCRDInternal {
+		apm, err := m.updateArmorProfileModel(apm)
+		if err == nil {
+			return apm, nil
+		}
+
+		if !k8errors.IsRequestEntityTooLargeError(err) {
+			return apm, err
+		}
+	}
+
+	// The limit of object is 3145728. Persist the object into the backend storage
+	fileName := path.Join(varmorconfig.BehaviorDataDirectory, apm.Name)
+	m.log.Info("Persist the data into a local file because the data is too large to store into an ArmorProfileModel object",
+		"namespace", apm.Namespace, "name", apm.Name, "path", fileName)
+	jsonData, err := json.MarshalIndent(apm, "", "  ")
+	if err == nil {
+		err = os.WriteFile(fileName, jsonData, 0600)
+		if err != nil {
+			m.log.Error(err, "unable persist the behavior data into the local file")
+		}
+	} else {
+		m.log.Error(err, "unable marshal the ArmorProfileModel object")
+	}
+
+	// Cache behavior data
+	dynamic := apm.Data.DynamicResult
+	static := apm.Data.StaticResult
+
+	// Update the ArmorProfileModel object without behavior data and profiles
+	apm.Data.DynamicResult = varmor.DynamicResult{}
+	apm.Data.StaticResult = varmor.StaticResult{}
+	apm.Data.Profile.Content = ""
+	apm.Data.Profile.BpfContent = nil
+	apm.Data.Profile.SeccompContent = ""
+	apm.Data.StorageType = varmortypes.StorageTypeLocalDisk
+	a, err := m.updateArmorProfileModel(apm)
+
+	// Recover behavior data
+	a.Data.DynamicResult = dynamic
+	a.Data.StaticResult = static
+	return a, err
 }
 
 // Unlike updatePolicyStatus(), behavioral modeling is an asynchronous operation so that state transitions do not need to be considered
@@ -342,7 +444,7 @@ func (m *StatusManager) syncData(data string) error {
 	}
 	logger.Info("1. receive behavior data from agent", "profile", behaviorData.ProfileName, "node", behaviorData.NodeName)
 
-	// Merge the behavior data to the ArmorProfileModel objet
+	// Merge the behavior data into the ArmorProfileModel objet
 	apm, err := m.retrieveArmorProfileModel(behaviorData.Namespace, behaviorData.ProfileName)
 	if err != nil {
 		logger.Error(err, "m.retrieveArmorProfileModel()")
@@ -360,15 +462,9 @@ func (m *StatusManager) syncData(data string) error {
 	} else {
 		// Update ArmorProfileModel object
 		logger.Info("2. update new behavior data to ArmorProfileModel", "namespace", behaviorData.Namespace, "name", behaviorData.ProfileName)
-		apm, err = m.updateArmorProfileModel(apm)
+		apm, err = m.persistArmorProfileModel(apm)
 		if err != nil {
-			if k8errors.IsRequestEntityTooLargeError(err) {
-				// The limit of object is 3145728. So we should return directly.
-				// TODO: Shard the behavior data to multiple objects.
-				logger.Error(err, "updateArmorProfileModel()")
-				return nil
-			}
-			return err
+			logger.Error(err, "m.persistArmorProfileModel()")
 		}
 	}
 
@@ -417,10 +513,9 @@ func (m *StatusManager) syncData(data string) error {
 		// Update ArmorProfileModel object
 		logger.Info("3.2. update profile to ArmorProfileModel", "namespace", behaviorData.Namespace, "name", behaviorData.ProfileName)
 		apm.Data.Profile.Name = behaviorData.ProfileName
-		apm, err = m.updateArmorProfileModel(apm)
+		apm, err = m.persistArmorProfileModel(apm)
 		if err != nil {
-			logger.Error(err, "m.updateArmorProfileModel()")
-			return err
+			logger.Error(err, "m.persistArmorProfileModel()")
 		}
 
 		logger.Info("3.3. send signal to UpdateModeCh", "status key", statusKey)
@@ -429,6 +524,8 @@ func (m *StatusManager) syncData(data string) error {
 
 	// Update ArmorProfileModel/status
 	logger.Info("4. update ArmorProfileModel/status", "namespace", behaviorData.Namespace, "name", behaviorData.ProfileName)
+	// Set the data to empty before updating the status in case the data exceeds the limit.
+	apm.Data = varmor.ArmorProfileModelData{}
 	err = m.updateArmorProfileModelStatus(apm, &modelingStatus, complete)
 	if err != nil {
 		logger.Error(err, "updateArmorProfileModelStatus()")

@@ -31,7 +31,7 @@ import (
 	bpfenforcer "github.com/bytedance/vArmor/pkg/lsm/bpfenforcer"
 )
 
-// profileNameTemplate is the name of ArmorProfile object in k8s and AppArmor profile in host machine.
+// profileNameTemplate is the name template for ArmorProfile/ArmorProfileModel objects and AppArmor/Seccomp/BPF profiles.
 //
 //	For namespace-scope profile, its format is "varmor-{VarmorProfile Namespace}-{VarmorProfile Name}"
 //	For cluster-scope profile, its format is "varmor-cluster-{vArmor Namespace}-{VarmorClusterProfile Name}"

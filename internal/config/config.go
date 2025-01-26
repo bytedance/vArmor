@@ -125,8 +125,8 @@ var (
 	// WebhookSelectorLabel is used for matching the admission requests
 	WebhookSelectorLabel = map[string]string{}
 
-	// OmuxSocketPath is used for receiving the audit logs of AppArmor from rsyslog
-	OmuxSocketPath = "/var/run/varmor/audit/omuxsock.sock"
+	// BehaviorDataDirectory saves the behavior data
+	BehaviorDataDirectory = "/var/log/varmor/data"
 )
 
 // CreateClientConfig creates client config and applies rate limit QPS and burst
