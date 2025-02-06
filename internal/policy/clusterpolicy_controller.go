@@ -256,7 +256,7 @@ func (c *ClusterPolicyController) handleAddVarmorClusterPolicy(vcp *varmor.Varmo
 		return err
 	}
 
-	ap, err := varmorprofile.NewArmorProfile(vcp, c.varmorInterface, true)
+	ap, err := varmorprofile.NewArmorProfile(vcp, c.varmorInterface, true, logger)
 	if err != nil {
 		logger.Error(err, "NewArmorProfile()")
 		err = statusmanager.UpdateVarmorClusterPolicyStatus(c.varmorInterface, vcp, "", false, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyCreated, apicorev1.ConditionFalse,
@@ -428,7 +428,7 @@ func (c *ClusterPolicyController) handleUpdateVarmorClusterPolicy(newVp *varmor.
 
 	// Second, build a new ArmorProfileSpec
 	newApSpec := oldAp.Spec.DeepCopy()
-	newProfile, err := varmorprofile.GenerateProfile(newVp.Spec.Policy, oldAp.Name, varmorconfig.Namespace, c.varmorInterface, false)
+	newProfile, err := varmorprofile.GenerateProfile(newVp.Spec.Policy, oldAp.Name, varmorconfig.Namespace, c.varmorInterface, false, logger)
 	if err != nil {
 		logger.Error(err, "GenerateProfile()")
 		err = statusmanager.UpdateVarmorClusterPolicyStatus(c.varmorInterface, newVp, "", false, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionFalse,

@@ -261,7 +261,7 @@ func (c *PolicyController) handleAddVarmorPolicy(vp *varmor.VarmorPolicy) error 
 		return err
 	}
 
-	ap, err := varmorprofile.NewArmorProfile(vp, c.varmorInterface, false)
+	ap, err := varmorprofile.NewArmorProfile(vp, c.varmorInterface, false, logger)
 	if err != nil {
 		logger.Error(err, "NewArmorProfile()")
 		err = statusmanager.UpdateVarmorPolicyStatus(c.varmorInterface, vp, "", false, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyCreated, apicorev1.ConditionFalse,
@@ -433,7 +433,7 @@ func (c *PolicyController) handleUpdateVarmorPolicy(newVp *varmor.VarmorPolicy, 
 
 	// Second, build a new ArmorProfileSpec
 	newApSpec := oldAp.Spec.DeepCopy()
-	newProfile, err := varmorprofile.GenerateProfile(newVp.Spec.Policy, oldAp.Name, oldAp.Namespace, c.varmorInterface, false)
+	newProfile, err := varmorprofile.GenerateProfile(newVp.Spec.Policy, oldAp.Name, oldAp.Namespace, c.varmorInterface, false, logger)
 	if err != nil {
 		logger.Error(err, "GenerateProfile()")
 		err = statusmanager.UpdateVarmorPolicyStatus(c.varmorInterface, newVp, "", false, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionFalse,
