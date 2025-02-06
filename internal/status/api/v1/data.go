@@ -22,6 +22,7 @@ import (
 	"os"
 	"path"
 	"reflect"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -89,6 +90,11 @@ func (m *StatusManager) retrieveArmorProfileModel(namespace, name string, create
 
 	// Load behavior data of the ArmorProfileModel object from the local file
 	if apm.Data.StorageType != varmortypes.StorageTypeCRDInternal {
+		if strings.Contains(name, "/") || strings.Contains(name, "\\") || strings.Contains(name, "..") {
+			m.log.Error(fmt.Errorf("invalid file name"), "Invalid file name: "+name)
+			return apm, nil
+		}
+
 		fileName := path.Join(varmorconfig.BehaviorDataDirectory, name)
 		data, err := os.ReadFile(fileName)
 		if err != nil {
