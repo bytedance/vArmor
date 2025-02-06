@@ -121,6 +121,7 @@ type ArmorProfileModelStatus struct {
 //+k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
+//+kubebuilder:printcolumn:name="STORAGE-TYPE",type=string,JSONPath=`.data.storageType`
 //+kubebuilder:printcolumn:name="DESIRED",type=integer,JSONPath=`.status.desiredNumber`
 //+kubebuilder:printcolumn:name="COMPLETED",type=integer,JSONPath=`.status.completedNumber`
 //+kubebuilder:printcolumn:name="READY",type=boolean,JSONPath=`.status.ready`

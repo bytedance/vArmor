@@ -16,6 +16,9 @@ spec:
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
+    - jsonPath: .data.storageType
+      name: STORAGE-TYPE
+      type: string
     - jsonPath: .status.desiredNumber
       name: DESIRED
       type: integer
