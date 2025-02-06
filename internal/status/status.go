@@ -20,14 +20,17 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-logr/logr"
-	authv1 "k8s.io/api/authentication/v1"
+	authnv1 "k8s.io/api/authentication/v1"
+	authzv1 "k8s.io/api/authorization/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	appsv1 "k8s.io/client-go/kubernetes/typed/apps/v1"
-	authclientv1 "k8s.io/client-go/kubernetes/typed/authentication/v1"
+	authnclientv1 "k8s.io/client-go/kubernetes/typed/authentication/v1"
+	authzclientv1 "k8s.io/client-go/kubernetes/typed/authorization/v1"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 
 	varmorconfig "github.com/bytedance/vArmor/internal/config"
@@ -50,7 +53,7 @@ type StatusService struct {
 	log           logr.Logger
 }
 
-func CheckAgentToken(authInterface authclientv1.AuthenticationV1Interface, inContainer bool) gin.HandlerFunc {
+func CheckAgentToken(authnInterface authnclientv1.AuthenticationV1Interface, inContainer bool) gin.HandlerFunc {
 	if !inContainer {
 		return func(c *gin.Context) {
 			c.Next()
@@ -63,15 +66,15 @@ func CheckAgentToken(authInterface authclientv1.AuthenticationV1Interface, inCon
 			c.AbortWithStatus(http.StatusUnauthorized)
 			return
 		}
-		tr := &authv1.TokenReview{
-			Spec: authv1.TokenReviewSpec{
+		tr := &authnv1.TokenReview{
+			Spec: authnv1.TokenReviewSpec{
 				Token: token,
 				Audiences: []string{
 					managerAudience,
 				},
 			},
 		}
-		result, err := authInterface.TokenReviews().Create(context.Background(), tr, metav1.CreateOptions{})
+		result, err := authnInterface.TokenReviews().Create(context.Background(), tr, metav1.CreateOptions{})
 		if err != nil {
 			c.AbortWithStatus(http.StatusUnauthorized)
 			return
@@ -83,8 +86,79 @@ func CheckAgentToken(authInterface authclientv1.AuthenticationV1Interface, inCon
 		c.Next()
 	}
 }
+
+func CheckClientBearerToken(authnInterface authnclientv1.AuthenticationV1Interface, authzInterface authzclientv1.AuthorizationV1Interface, inContainer bool) gin.HandlerFunc {
+	if !inContainer {
+		return func(c *gin.Context) {
+			c.Next()
+		}
+	}
+
+	return func(c *gin.Context) {
+		// Authentication
+		authHeader := c.GetHeader("Authorization")
+		if authHeader == "" {
+			c.String(http.StatusUnauthorized, "Unauthorized")
+			c.AbortWithError(http.StatusUnauthorized, fmt.Errorf("authentication failed: no bearer token found"))
+			return
+		}
+
+		if !strings.HasPrefix(authHeader, "Bearer ") {
+			c.String(http.StatusUnauthorized, "Unauthorized")
+			c.AbortWithError(http.StatusUnauthorized, fmt.Errorf("authentication failed: no bearer token found"))
+			return
+		}
+
+		token := strings.TrimPrefix(authHeader, "Bearer ")
+		tr := &authnv1.TokenReview{
+			Spec: authnv1.TokenReviewSpec{
+				Token: token,
+			},
+		}
+		trResult, err := authnInterface.TokenReviews().Create(context.Background(), tr, metav1.CreateOptions{})
+		if err != nil {
+			c.String(http.StatusInternalServerError, err.Error())
+			c.AbortWithError(http.StatusInternalServerError, err)
+			return
+		}
+		if !trResult.Status.Authenticated {
+			c.String(http.StatusUnauthorized, "Unauthorized")
+			c.AbortWithError(http.StatusUnauthorized, fmt.Errorf("authentication failed"))
+			return
+		}
+
+		// Authorization
+		sar := &authzv1.SubjectAccessReview{
+			Spec: authzv1.SubjectAccessReviewSpec{
+				ResourceAttributes: &authzv1.ResourceAttributes{
+					Namespace: c.Param("namespace"),
+					Verb:      "get",
+					Group:     "crd.varmor.org",
+					Resource:  "armorprofilemodels",
+					Name:      c.Param("name"),
+				},
+				User:   trResult.Status.User.Username,
+				Groups: trResult.Status.User.Groups,
+			},
+		}
+		sarResult, err := authzInterface.SubjectAccessReviews().Create(context.Background(), sar, metav1.CreateOptions{})
+		if err != nil {
+			c.String(http.StatusInternalServerError, err.Error())
+			c.AbortWithError(http.StatusInternalServerError, err)
+			return
+		}
+		if !sarResult.Status.Allowed {
+			c.String(http.StatusUnauthorized, "Unauthorized")
+			c.AbortWithError(http.StatusUnauthorized, fmt.Errorf("Unauthorized"))
+			return
+		}
+
+		c.Next()
+	}
+}
+
 func health(c *gin.Context) {
-	c.JSON(http.StatusOK, "ok")
+	c.String(http.StatusOK, "ok")
 }
 
 func NewStatusService(
@@ -96,7 +170,8 @@ func NewStatusService(
 	coreInterface corev1.CoreV1Interface,
 	appsInterface appsv1.AppsV1Interface,
 	varmorInterface varmorinterface.CrdV1beta1Interface,
-	authInterface authclientv1.AuthenticationV1Interface,
+	authnInterface authnclientv1.AuthenticationV1Interface,
+	authzInterface authzclientv1.AuthorizationV1Interface,
 	statusUpdateCycle time.Duration,
 	metricsModule *metrics.MetricsModule,
 	log logr.Logger) (*StatusService, error) {
@@ -117,9 +192,15 @@ func NewStatusService(
 	}
 	s.router.Use(gin.Recovery(), varmorutils.GinLogger())
 	s.router.SetTrustedProxies(nil)
-	s.router.POST(varmorconfig.StatusSyncPath, CheckAgentToken(authInterface, inContainer), statusManager.Status)
-	s.router.POST(varmorconfig.DataSyncPath, CheckAgentToken(authInterface, inContainer), statusManager.Data)
+
 	s.router.GET("/healthz", health)
+	s.router.POST(varmorconfig.StatusSyncPath, CheckAgentToken(authnInterface, inContainer), statusManager.Status)
+	s.router.POST(varmorconfig.DataSyncPath, CheckAgentToken(authnInterface, inContainer), statusManager.Data)
+
+	apiGroup := s.router.Group("/apis/crd.varmor.org/v1beta1")
+	{
+		apiGroup.GET(varmorconfig.ArmorProfileModelPath, CheckClientBearerToken(authnInterface, authzInterface, inContainer), statusManager.ExportArmorProfileModel)
+	}
 
 	cert, err := tls.X509KeyPair(tlsPair.Certificate, tlsPair.PrivateKey)
 	if err != nil {

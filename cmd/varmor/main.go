@@ -321,6 +321,7 @@ func main() {
 			kubeClient.AppsV1(),
 			varmorClient.CrdV1beta1(),
 			kubeClient.AuthenticationV1(),
+			kubeClient.AuthorizationV1(),
 			statusUpdateCycle,
 			metricsModule,
 			log.Log.WithName("STATUS-SERVICE"),

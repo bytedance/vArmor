@@ -61,10 +61,22 @@ func (m *StatusManager) Data(c *gin.Context) {
 	m.dataQueue.Add(string(reqBody))
 }
 
-func (m *StatusManager) retrieveArmorProfileModel(namespace, name string) (*varmor.ArmorProfileModel, error) {
+// ExportArmorProfileModel export the armorprofilemodel object with all behavior data
+func (m *StatusManager) ExportArmorProfileModel(c *gin.Context) {
+	m.log.Info("Export ArmorProfileModel object", "namespace", c.Param("namespace"), "name", c.Param("name"))
+	apm, err := m.retrieveArmorProfileModel(c.Param("namespace"), c.Param("name"), false)
+	if err != nil {
+		c.String(http.StatusInternalServerError, err.Error())
+		c.AbortWithError(http.StatusInternalServerError, err)
+		return
+	}
+	c.JSON(http.StatusOK, apm)
+}
+
+func (m *StatusManager) retrieveArmorProfileModel(namespace, name string, createNew bool) (*varmor.ArmorProfileModel, error) {
 	apm, err := m.varmorInterface.ArmorProfileModels(namespace).Get(context.Background(), name, metav1.GetOptions{})
 	if err != nil {
-		if k8errors.IsNotFound(err) {
+		if k8errors.IsNotFound(err) && createNew {
 			// Create a new ArmorProfileModel object
 			a := varmor.ArmorProfileModel{}
 			a.Name = name
@@ -445,7 +457,7 @@ func (m *StatusManager) syncData(data string) error {
 	logger.Info("1. receive behavior data from agent", "profile", behaviorData.ProfileName, "node", behaviorData.NodeName)
 
 	// Merge the behavior data into the ArmorProfileModel objet
-	apm, err := m.retrieveArmorProfileModel(behaviorData.Namespace, behaviorData.ProfileName)
+	apm, err := m.retrieveArmorProfileModel(behaviorData.Namespace, behaviorData.ProfileName, true)
 	if err != nil {
 		logger.Error(err, "m.retrieveArmorProfileModel()")
 		return err
