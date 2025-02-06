@@ -88,12 +88,6 @@ func CheckAgentToken(authnInterface authnclientv1.AuthenticationV1Interface, inC
 }
 
 func CheckClientBearerToken(authnInterface authnclientv1.AuthenticationV1Interface, authzInterface authzclientv1.AuthorizationV1Interface, inContainer bool) gin.HandlerFunc {
-	if !inContainer {
-		return func(c *gin.Context) {
-			c.Next()
-		}
-	}
-
 	return func(c *gin.Context) {
 		// Authentication
 		authHeader := c.GetHeader("Authorization")
@@ -148,8 +142,10 @@ func CheckClientBearerToken(authnInterface authnclientv1.AuthenticationV1Interfa
 			return
 		}
 		if !sarResult.Status.Allowed {
-			c.String(http.StatusUnauthorized, "Unauthorized")
-			c.AbortWithError(http.StatusUnauthorized, fmt.Errorf("Unauthorized"))
+			c.String(http.StatusUnauthorized,
+				"Unauthorized. The user '"+trResult.Status.User.Username+"' has no permission to access the ArmorProfileModel object.")
+			c.AbortWithError(http.StatusUnauthorized,
+				fmt.Errorf("Unauthorized. The user '"+trResult.Status.User.Username+"' has no permission to access the ArmorProfileModel object."))
 			return
 		}
 
