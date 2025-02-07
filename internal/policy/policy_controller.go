@@ -239,7 +239,7 @@ func (c *PolicyController) ignoreAdd(vp *varmor.VarmorPolicy, logger logr.Logger
 	if len(profileName) > 63 {
 		err := fmt.Errorf("the length of ArmorProfile name is exceed 63. name: %s, length: %d", profileName, len(profileName))
 		logger.Error(err, "update VarmorPolicy/status with forbidden info")
-		msg := fmt.Sprintf("The length of VarmorProfile object name is too long, please limit it to %d bytes", 63-len(varmorprofile.ProfileNameTemplate)+4-len(vp.Namespace))
+		msg := fmt.Sprintf("The length of VarmorProfile object name is too long, please limit it to %d bytes.", 63-len(varmorprofile.ProfileNameTemplate)+4-len(vp.Namespace))
 		err = statusmanager.UpdateVarmorPolicyStatus(c.varmorInterface, vp, "", false, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyCreated, apicorev1.ConditionFalse,
 			"Forbidden",
 			msg)
@@ -294,6 +294,12 @@ func (c *PolicyController) handleAddVarmorPolicy(vp *varmor.VarmorPolicy) error 
 	ap, err = c.varmorInterface.ArmorProfiles(vp.Namespace).Create(context.Background(), ap, metav1.CreateOptions{})
 	if err != nil {
 		logger.Error(err, "ArmorProfile().Create()")
+		if k8errors.IsRequestEntityTooLargeError(err) {
+			return statusmanager.UpdateVarmorPolicyStatus(
+				c.varmorInterface, vp, "", false, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyCreated, apicorev1.ConditionFalse,
+				"Error",
+				"The profiles are too large to create an ArmorProfile object.")
+		}
 		return err
 	}
 
@@ -483,6 +489,12 @@ func (c *PolicyController) handleUpdateVarmorPolicy(newVp *varmor.VarmorPolicy, 
 		_, err = c.varmorInterface.ArmorProfiles(oldAp.Namespace).Update(context.Background(), oldAp, metav1.UpdateOptions{})
 		if err != nil {
 			logger.Error(err, "ArmorProfile().Update()")
+			if k8errors.IsRequestEntityTooLargeError(err) {
+				return statusmanager.UpdateVarmorPolicyStatus(
+					c.varmorInterface, newVp, "", false, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionFalse,
+					"Error",
+					"The profiles are too large to update the existing ArmorProfile object.")
+			}
 			return err
 		}
 	} else if len(oldAp.OwnerReferences) == 0 {
@@ -491,6 +503,12 @@ func (c *PolicyController) handleUpdateVarmorPolicy(newVp *varmor.VarmorPolicy, 
 		_, err = c.varmorInterface.ArmorProfiles(oldAp.Namespace).Update(context.Background(), oldAp, metav1.UpdateOptions{})
 		if err != nil {
 			logger.Error(err, "ArmorProfile().Update()")
+			if k8errors.IsRequestEntityTooLargeError(err) {
+				return statusmanager.UpdateVarmorPolicyStatus(
+					c.varmorInterface, newVp, "", false, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionFalse,
+					"Error",
+					"The profiles are too large to update the existing ArmorProfile object.")
+			}
 			return err
 		}
 	} else {
