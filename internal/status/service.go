@@ -34,7 +34,8 @@ import (
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 
 	varmorconfig "github.com/bytedance/vArmor/internal/config"
-	statusmanager "github.com/bytedance/vArmor/internal/status/api/v1"
+	statusmanager "github.com/bytedance/vArmor/internal/status/apis/v1"
+	modelmanager "github.com/bytedance/vArmor/internal/status/apis/v1beta1"
 	varmortls "github.com/bytedance/vArmor/internal/tls"
 	varmorutils "github.com/bytedance/vArmor/internal/utils"
 	varmorinterface "github.com/bytedance/vArmor/pkg/client/clientset/versioned/typed/varmor/v1beta1"
@@ -53,6 +54,8 @@ type StatusService struct {
 	log           logr.Logger
 }
 
+// CheckAgentToken verify the token of the client.
+// Check if the requester is the varmor-agent.
 func CheckAgentToken(authnInterface authnclientv1.AuthenticationV1Interface, inContainer bool) gin.HandlerFunc {
 	if !inContainer {
 		return func(c *gin.Context) {
@@ -87,6 +90,8 @@ func CheckAgentToken(authnInterface authnclientv1.AuthenticationV1Interface, inC
 	}
 }
 
+// CheckClientBearerToken verify the Kubernetes bearer token of the client.
+// Check if it has read access to the armorprofilemodels objects.
 func CheckClientBearerToken(authnInterface authnclientv1.AuthenticationV1Interface, authzInterface authzclientv1.AuthorizationV1Interface, inContainer bool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Authentication
@@ -157,6 +162,8 @@ func health(c *gin.Context) {
 	c.String(http.StatusOK, "ok")
 }
 
+// NewStatusService creates and initializes a new StatusService instance.
+// It sets up routes and an HTTP server with TLS configuration, returning the service pointer and an error if any issues occur.
 func NewStatusService(
 	addr string,
 	port int,
@@ -195,7 +202,9 @@ func NewStatusService(
 
 	apiGroup := s.router.Group("/apis/crd.varmor.org/v1beta1")
 	{
-		apiGroup.GET(varmorconfig.ArmorProfileModelPath, CheckClientBearerToken(authnInterface, authzInterface, inContainer), statusManager.ExportArmorProfileModel)
+		apiGroup.GET(varmorconfig.ArmorProfileModelPath,
+			CheckClientBearerToken(authnInterface, authzInterface, inContainer),
+			modelmanager.ExportArmorProfileModelHandler(varmorInterface, log))
 	}
 
 	cert, err := tls.X509KeyPair(tlsPair.Certificate, tlsPair.PrivateKey)
@@ -213,6 +222,7 @@ func NewStatusService(
 	}
 	return &s, nil
 }
+
 func (s *StatusService) Run(stopCh <-chan struct{}) {
 	s.log.Info("starting", "addr", s.srv.Addr)
 

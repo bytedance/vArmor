@@ -69,10 +69,10 @@ var (
 	StatusServicePort = 8080
 
 	// StatusSyncPath is the path for syncing status
-	StatusSyncPath = "/api/v1/status"
+	StatusSyncPath = "/apis/v1/status"
 
 	// DataSyncPath is the path for syncing data
-	DataSyncPath = "/api/v1/data"
+	DataSyncPath = "/apis/v1/data"
 
 	// ArmorProfileModelPath is the path for exporting the complete ArmorProfileModel object
 	ArmorProfileModelPath = "/namespace/:namespace/armorprofilemodels/:name"

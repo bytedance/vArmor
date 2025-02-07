@@ -36,7 +36,7 @@ import (
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
 	varmorconfig "github.com/bytedance/vArmor/internal/config"
 	varmorprofile "github.com/bytedance/vArmor/internal/profile"
-	statusmanager "github.com/bytedance/vArmor/internal/status/api/v1"
+	statusmanager "github.com/bytedance/vArmor/internal/status/apis/v1"
 	varmortypes "github.com/bytedance/vArmor/internal/types"
 	varmorutils "github.com/bytedance/vArmor/internal/utils"
 	varmorinterface "github.com/bytedance/vArmor/pkg/client/clientset/versioned/typed/varmor/v1beta1"

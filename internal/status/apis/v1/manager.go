@@ -71,6 +71,7 @@ type StatusManager struct {
 	//profileStatusPerNode metric.Float64Gauge
 }
 
+// NewStatusManager creates a StatusManager instance to manage the status of all CRD objects.
 func NewStatusManager(coreInterface corev1.CoreV1Interface,
 	appsInterface appsv1.AppsV1Interface,
 	varmorInterface varmorinterface.CrdV1beta1Interface,
@@ -284,6 +285,7 @@ func (m *StatusManager) updateVarmorClusterPolicyStatus(
 	return UpdateVarmorClusterPolicyStatus(m.varmorInterface, vcp, "", ready, phase, varmortypes.VarmorPolicyReady, status, reason, message)
 }
 
+// updateAllCRStatus periodically updates all of the objects' statuses to avoid interference from offline nodes.
 func (m *StatusManager) updateAllCRStatus(logger logr.Logger) {
 	if len(m.PolicyStatuses) == 0 {
 		return
@@ -323,6 +325,7 @@ func (m *StatusManager) updateAllCRStatus(logger logr.Logger) {
 	}
 }
 
+// reconcileStatus handles status update events in a loop to reconcile the status of all CRD objects
 func (m *StatusManager) reconcileStatus(stopCh <-chan struct{}) {
 	logger := m.log.WithName("reconcileStatus")
 
@@ -578,6 +581,7 @@ func (m *StatusManager) Run(stopCh <-chan struct{}) {
 	<-stopCh
 }
 
+// CleanUp shutdown all queues.
 func (m *StatusManager) CleanUp() {
 	m.statusQueue.ShutDown()
 	m.dataQueue.ShutDown()

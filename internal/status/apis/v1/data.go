@@ -31,7 +31,8 @@ import (
 	varmortypes "github.com/bytedance/vArmor/internal/types"
 )
 
-// Data is the API interface that receives the BehaviorData coming from agents.
+// Data is the API interface that receives the behavior data from agents.
+// The behavioral data is cached to a queue and then processed asynchronously.
 func (m *StatusManager) Data(c *gin.Context) {
 	logger := m.log.WithName("Data()")
 
@@ -54,20 +55,7 @@ func (m *StatusManager) Data(c *gin.Context) {
 	m.dataQueue.Add(string(reqBody))
 }
 
-// ExportArmorProfileModel is the API interface which exports the armorprofilemodel object with all behavior data.
-func (m *StatusManager) ExportArmorProfileModel(c *gin.Context) {
-	logger := m.log.WithName("ExportArmorProfileModel()")
-
-	logger.Info("Export ArmorProfileModel object", "namespace", c.Param("namespace"), "name", c.Param("name"))
-	apm, err := varmorapm.RetrieveArmorProfileModel(m.varmorInterface, c.Param("namespace"), c.Param("name"), false, logger)
-	if err != nil {
-		c.String(http.StatusInternalServerError, err.Error())
-		c.AbortWithError(http.StatusInternalServerError, err)
-		return
-	}
-	c.JSON(http.StatusOK, apm)
-}
-
+// updateModelingStatus update StatusManager.ModelingStatuses[statusKey] with behaviorData which comes from agent.
 func (m *StatusManager) updateModelingStatus(statusKey string, behaviorData *varmortypes.BehaviorData) error {
 	// Unlike updatePolicyStatus(), behavioral modeling is an asynchronous operation
 	// so that state transitions do not need to be considered.
@@ -99,6 +87,7 @@ func (m *StatusManager) updateModelingStatus(statusKey string, behaviorData *var
 	return nil
 }
 
+// syncData processes the behavior data asynchronously.
 func (m *StatusManager) syncData(data string) error {
 	logger := m.log.WithName("syncData()")
 

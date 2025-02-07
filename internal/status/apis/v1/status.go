@@ -35,6 +35,7 @@ const (
 )
 
 // Status is the API interface which receives the status come from agents.
+// The status is cached to a queue and then processed asynchronously.
 func (m *StatusManager) Status(c *gin.Context) {
 	logger := m.log.WithName("Status()")
 
@@ -177,6 +178,7 @@ func (m *StatusManager) updatePolicyStatus(statusKey string, profileStatus *varm
 	return nil
 }
 
+// syncData processes the status of profiles asynchronously.
 func (m *StatusManager) syncStatus(profileStatus varmortypes.ProfileStatus) error {
 	logger := m.log.WithName("syncStatus()")
 
