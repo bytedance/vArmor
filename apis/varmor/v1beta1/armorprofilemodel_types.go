@@ -81,9 +81,6 @@ type ArmorProfileModelData struct {
 	StaticResult StaticResult `json:"staticResult,omitempty"`
 	// Profile stores the AppArmor and Seccomp profiles that are generate from the DynamicResult and StaticResult.
 	Profile Profile `json:"profile,omitempty"`
-	// StorageType indicates which storage type to use to save the DynamicResult, StaticResult and profiles.
-	// Possible values: CRDInternal, LocalDisk
-	StorageType StorageType `json:"storageType,omitempty"`
 }
 
 type ArmorProfileModelConditionType string
@@ -121,7 +118,7 @@ type ArmorProfileModelStatus struct {
 //+k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
-//+kubebuilder:printcolumn:name="STORAGE-TYPE",type=string,JSONPath=`.data.storageType`
+//+kubebuilder:printcolumn:name="STORAGE-TYPE",type=string,JSONPath=`.storageType`
 //+kubebuilder:printcolumn:name="DESIRED",type=integer,JSONPath=`.status.desiredNumber`
 //+kubebuilder:printcolumn:name="COMPLETED",type=integer,JSONPath=`.status.completedNumber`
 //+kubebuilder:printcolumn:name="READY",type=boolean,JSONPath=`.status.ready`
@@ -132,8 +129,11 @@ type ArmorProfileModel struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Data   ArmorProfileModelData   `json:"data"`
-	Status ArmorProfileModelStatus `json:"status,omitempty"`
+	// StorageType indicates which storage type to use to save the DynamicResult, StaticResult and profiles.
+	// Possible values: CRDInternal, LocalDisk
+	StorageType StorageType             `json:"storageType,omitempty"`
+	Data        ArmorProfileModelData   `json:"data"`
+	Status      ArmorProfileModelStatus `json:"status,omitempty"`
 }
 
 //+k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

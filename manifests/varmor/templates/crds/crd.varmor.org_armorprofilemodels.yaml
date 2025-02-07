@@ -16,7 +16,7 @@ spec:
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
-    - jsonPath: .data.storageType
+    - jsonPath: .storageType
       name: STORAGE-TYPE
       type: string
     - jsonPath: .status.desiredNumber
@@ -312,11 +312,6 @@ spec:
               staticResult:
                 description: StaticResult stores the static analysis data.
                 type: object
-              storageType:
-                description: 'StorageType indicates which storage type to use to save
-                  the DynamicResult, StaticResult and profiles. Possible values: CRDInternal,
-                  LocalDisk'
-                type: string
             type: object
           kind:
             description: 'Kind is a string value representing the REST resource this
@@ -368,6 +363,11 @@ spec:
             required:
             - ready
             type: object
+          storageType:
+            description: 'StorageType indicates which storage type to use to save
+              the DynamicResult, StaticResult and profiles. Possible values: CRDInternal,
+              LocalDisk'
+            type: string
         required:
         - data
         type: object

@@ -46,14 +46,14 @@ func RetrieveArmorProfileModel(
 			a := varmor.ArmorProfileModel{}
 			a.Name = name
 			a.Namespace = namespace
-			a.Data.StorageType = varmortypes.StorageTypeCRDInternal
+			a.StorageType = varmortypes.StorageTypeCRDInternal
 			return varmorInterface.ArmorProfileModels(namespace).Create(context.Background(), &a, metav1.CreateOptions{})
 		}
 		return nil, err
 	}
 
 	// Load behavior data and profile of the ArmorProfileModel object from the local file
-	if apm.Data.StorageType != varmortypes.StorageTypeCRDInternal {
+	if apm.StorageType != varmortypes.StorageTypeCRDInternal {
 		if strings.Contains(name, "/") || strings.Contains(name, "\\") || strings.Contains(name, "..") {
 			logger.Error(fmt.Errorf("invalid file name"), "Invalid file name: "+name)
 			return apm, nil
@@ -72,9 +72,7 @@ func RetrieveArmorProfileModel(
 			logger.Error(err, "Unmarshal "+fileName+" failed")
 			return apm, nil
 		}
-		apm.Data.DynamicResult = a.Data.DynamicResult
-		apm.Data.StaticResult = a.Data.StaticResult
-		apm.Data.Profile = a.Data.Profile
+		apm.Data = a.Data
 	}
 
 	return apm, nil
@@ -117,7 +115,7 @@ func UpdateArmorProfileModel(varmorInterface varmorinterface.CrdV1beta1Interface
 }
 
 func PersistArmorProfileModel(varmorInterface varmorinterface.CrdV1beta1Interface, apm *varmor.ArmorProfileModel, logger logr.Logger) (*varmor.ArmorProfileModel, error) {
-	if apm.Data.StorageType == varmortypes.StorageTypeCRDInternal {
+	if apm.StorageType == varmortypes.StorageTypeCRDInternal {
 		apm, err := UpdateArmorProfileModel(varmorInterface, apm)
 		if err == nil {
 			return apm, nil
@@ -144,20 +142,14 @@ func PersistArmorProfileModel(varmorInterface varmorinterface.CrdV1beta1Interfac
 	}
 
 	// Cache behavior data
-	dynamic := apm.Data.DynamicResult
-	static := apm.Data.StaticResult
+	data := apm.Data
 
 	// Update the ArmorProfileModel object without behavior data and profiles
-	apm.Data.DynamicResult = varmor.DynamicResult{}
-	apm.Data.StaticResult = varmor.StaticResult{}
-	apm.Data.Profile.Content = ""
-	apm.Data.Profile.BpfContent = nil
-	apm.Data.Profile.SeccompContent = ""
-	apm.Data.StorageType = varmortypes.StorageTypeLocalDisk
+	apm.Data = varmor.ArmorProfileModelData{}
+	apm.StorageType = varmortypes.StorageTypeLocalDisk
 	a, err := UpdateArmorProfileModel(varmorInterface, apm)
 
-	// Recover behavior data
-	a.Data.DynamicResult = dynamic
-	a.Data.StaticResult = static
+	// Recover behavior data and profiles
+	a.Data = data
 	return a, err
 }
