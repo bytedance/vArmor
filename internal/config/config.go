@@ -75,7 +75,7 @@ var (
 	DataSyncPath = "/apis/v1/data"
 
 	// ArmorProfileModelPath is the path for exporting the complete ArmorProfileModel object
-	ArmorProfileModelPath = "/namespace/:namespace/armorprofilemodels/:name"
+	ArmorProfileModelPath = "/namespaces/:namespace/armorprofilemodels/:name"
 
 	// WebhookServiceName is the name of webhook service
 	WebhookServiceName = "varmor-webhook-svc"
