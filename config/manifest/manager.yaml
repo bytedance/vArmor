@@ -46,3 +46,10 @@ spec:
         - containerPort: 8080
           name: status
           protocol: TCP
+        volumeMounts:
+        - mountPath: /var/log/varmor/data
+          name: data-volume
+      volumes:
+      - emptyDir:
+          sizeLimit: 500Mi
+        name: data-volume

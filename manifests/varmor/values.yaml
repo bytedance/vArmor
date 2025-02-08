@@ -85,6 +85,13 @@ manager:
   behaviorModeling:
     args:
     - --enableBehaviorModeling
+    volumeMounts:
+    - mountPath: /var/log/varmor/data
+      name: data-volume
+    volumes:
+    - emptyDir:
+        sizeLimit: 500Mi
+      name: data-volume
 
   restartExistWorkloads:
     args:

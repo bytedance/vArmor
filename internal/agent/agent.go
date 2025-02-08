@@ -18,6 +18,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"os/exec"
 	"path/filepath"
 	"reflect"
@@ -144,9 +145,9 @@ func NewAgent(
 	r.SetTrustedProxies(nil)
 	r.GET(varmorconfig.AgentReadinessPath, func(c *gin.Context) {
 		if atomic.LoadInt32(&varmorutils.AgentReady) == 1 {
-			c.String(200, "ok")
+			c.String(http.StatusOK, "ok")
 		} else {
-			c.Status(503)
+			c.Status(http.StatusServiceUnavailable)
 		}
 	})
 

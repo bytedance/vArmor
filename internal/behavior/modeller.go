@@ -129,6 +129,7 @@ func (modeller *BehaviorModeller) PreprocessAndSendBehaviorData() {
 		modeller.managerIP,
 		modeller.classifierPort,
 		modeller.debug,
+		modeller.inContainer,
 		modeller.log.WithName("DATA-PREPROCESSOR"))
 	if preprocessor == nil {
 		return

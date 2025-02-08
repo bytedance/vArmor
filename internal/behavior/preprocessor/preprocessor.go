@@ -44,6 +44,7 @@ type DataPreprocessor struct {
 	mlIP            string
 	mlPort          int
 	debug           bool
+	inContainer     bool
 	debugFilePath   string
 	debugFile       *os.File
 	debugFileWriter *bufio.Writer
@@ -60,6 +61,7 @@ func NewDataPreprocessor(
 	mlIP string,
 	mlPort int,
 	debug bool,
+	inContainer bool,
 	log logr.Logger) *DataPreprocessor {
 
 	p := DataPreprocessor{
@@ -76,6 +78,7 @@ func NewDataPreprocessor(
 		mlIP:            mlIP,
 		mlPort:          mlPort,
 		debug:           debug,
+		inContainer:     inContainer,
 		log:             log,
 	}
 

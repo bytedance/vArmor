@@ -34,7 +34,8 @@ const (
 	maxRetries = 5
 )
 
-// Status is an HTTP interface used for receiving the status come from agents.
+// Status is the API interface which receives the status come from agents.
+// The status is cached to a queue and then processed asynchronously.
 func (m *StatusManager) Status(c *gin.Context) {
 	logger := m.log.WithName("Status()")
 
@@ -65,11 +66,11 @@ func (m *StatusManager) Status(c *gin.Context) {
 	m.statusQueue.Add(profileStatus)
 
 	if m.metricsModule.Enabled {
-		go m.HandleProfileStatusUpdate(profileStatus)
+		go m.handleProfileStatusUpdate(profileStatus)
 	}
 }
 
-func (m *StatusManager) HandleProfileStatusUpdate(status varmortypes.ProfileStatus) {
+func (m *StatusManager) handleProfileStatusUpdate(status varmortypes.ProfileStatus) {
 	ctx := context.Background()
 	// label info
 	labels := []attribute.KeyValue{
@@ -97,9 +98,9 @@ func (m *StatusManager) HandleProfileStatusUpdate(status varmortypes.ProfileStat
 //		logger.Info("start syncing status metrics")
 //		m.profileStatusPerNode = m.metricsModule.RegisterFloat64Gauge("varmor_profile_status_per_node", "Profile status per node (1=success, 0=failure)")
 //		for key, status := range m.PolicyStatuses {
-//			namespace, name, err := PolicyStatusKeyGetInfo(key)
+//			namespace, name, err := policyStatusKeyGetInfo(key)
 //			if err != nil {
-//				logger.Error(err, "PolicyStatusKeyGetInfo()")
+//				logger.Error(err, "policyStatusKeyGetInfo()")
 //				continue
 //			}
 //			for nodeName, nodeMessage := range status.NodeMessages {
@@ -177,6 +178,7 @@ func (m *StatusManager) updatePolicyStatus(statusKey string, profileStatus *varm
 	return nil
 }
 
+// syncData processes the status of profiles asynchronously.
 func (m *StatusManager) syncStatus(profileStatus varmortypes.ProfileStatus) error {
 	logger := m.log.WithName("syncStatus()")
 

@@ -253,7 +253,7 @@ func WaitForManagerReady(inContainer bool, address string, port int) {
 
 	for {
 		resp, err := client.Get(url)
-		if err == nil && resp.StatusCode == 200 {
+		if err == nil && resp.StatusCode == http.StatusOK {
 			return
 		}
 		time.Sleep(2 * time.Second)

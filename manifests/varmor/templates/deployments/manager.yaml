@@ -77,8 +77,20 @@ spec:
           containerPort: 8081
           protocol: TCP
         {{- end }}
+        {{- if .Values.behaviorModeling.enabled }}
+        volumeMounts:
+        {{- with .Values.manager.behaviorModeling.volumeMounts }}
+          {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- end }}
         resources:
           {{- toYaml .Values.manager.resources | nindent 10 }}
+      {{- if .Values.behaviorModeling.enabled }}
+      volumes:
+      {{- with .Values.manager.behaviorModeling.volumes }}
+        {{- toYaml . | nindent 6 }}
+      {{- end }}
+      {{- end }}
       {{- with .Values.manager.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

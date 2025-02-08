@@ -69,10 +69,13 @@ var (
 	StatusServicePort = 8080
 
 	// StatusSyncPath is the path for syncing status
-	StatusSyncPath = "/api/v1/status"
+	StatusSyncPath = "/apis/v1/status"
 
 	// DataSyncPath is the path for syncing data
-	DataSyncPath = "/api/v1/data"
+	DataSyncPath = "/apis/v1/data"
+
+	// ArmorProfileModelPath is the path for exporting the complete ArmorProfileModel object
+	ArmorProfileModelPath = "/namespaces/:namespace/armorprofilemodels/:name"
 
 	// WebhookServiceName is the name of webhook service
 	WebhookServiceName = "varmor-webhook-svc"
@@ -125,8 +128,8 @@ var (
 	// WebhookSelectorLabel is used for matching the admission requests
 	WebhookSelectorLabel = map[string]string{}
 
-	// OmuxSocketPath is used for receiving the audit logs of AppArmor from rsyslog
-	OmuxSocketPath = "/var/run/varmor/audit/omuxsock.sock"
+	// BehaviorDataDirectory saves the behavior data
+	BehaviorDataDirectory = "/var/log/varmor/data"
 )
 
 // CreateClientConfig creates client config and applies rate limit QPS and burst
