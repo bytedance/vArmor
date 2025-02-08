@@ -23,6 +23,8 @@ import (
 	"strings"
 
 	"github.com/go-logr/logr"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	k8errors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/util/retry"
@@ -121,12 +123,16 @@ func PersistArmorProfileModel(varmorInterface varmorinterface.CrdV1beta1Interfac
 			return apm, nil
 		}
 
-		if !k8errors.IsRequestEntityTooLargeError(err) {
+		isResourceExhausted := false
+		s, ok := status.FromError(err)
+		if ok && s.Code() == codes.ResourceExhausted {
+			isResourceExhausted = true
+		}
+		if !k8errors.IsRequestEntityTooLargeError(err) && !isResourceExhausted {
 			return apm, err
 		}
 	}
 
-	// The limit of object is 3145728.
 	// Persist the object into the backend storage
 	fileName := path.Join(varmorconfig.BehaviorDataDirectory, apm.Name)
 	logger.Info("Persist the data into a local file because the data is too large to store into an ArmorProfileModel object",
