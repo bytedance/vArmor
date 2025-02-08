@@ -263,7 +263,7 @@ func (p *DataPreprocessor) trimPath(path, dmask string) string {
 	}
 
 	// Replace the random pattern of path with the classifier.
-	output, err := varmorutils.RequestClassifierService([]byte(path), p.debug, p.mlIP, p.mlPort)
+	output, err := varmorutils.RequestClassifierService([]byte(path), p.inContainer, p.mlIP, p.mlPort)
 	if err != nil {
 		p.log.Error(err, "varmorutils.RequestClassifierService() failed")
 		return path
