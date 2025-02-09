@@ -294,7 +294,7 @@ func (c *PolicyController) handleAddVarmorPolicy(vp *varmor.VarmorPolicy) error 
 	ap, err = c.varmorInterface.ArmorProfiles(vp.Namespace).Create(context.Background(), ap, metav1.CreateOptions{})
 	if err != nil {
 		logger.Error(err, "ArmorProfile().Create()")
-		if k8errors.IsRequestEntityTooLargeError(err) {
+		if varmorutils.IsRequestSizeError(err) {
 			return statusmanager.UpdateVarmorPolicyStatus(
 				c.varmorInterface, vp, "", false, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyCreated, apicorev1.ConditionFalse,
 				"Error",
@@ -489,7 +489,7 @@ func (c *PolicyController) handleUpdateVarmorPolicy(newVp *varmor.VarmorPolicy, 
 		_, err = c.varmorInterface.ArmorProfiles(oldAp.Namespace).Update(context.Background(), oldAp, metav1.UpdateOptions{})
 		if err != nil {
 			logger.Error(err, "ArmorProfile().Update()")
-			if k8errors.IsRequestEntityTooLargeError(err) {
+			if varmorutils.IsRequestSizeError(err) {
 				return statusmanager.UpdateVarmorPolicyStatus(
 					c.varmorInterface, newVp, "", false, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionFalse,
 					"Error",
@@ -503,7 +503,7 @@ func (c *PolicyController) handleUpdateVarmorPolicy(newVp *varmor.VarmorPolicy, 
 		_, err = c.varmorInterface.ArmorProfiles(oldAp.Namespace).Update(context.Background(), oldAp, metav1.UpdateOptions{})
 		if err != nil {
 			logger.Error(err, "ArmorProfile().Update()")
-			if k8errors.IsRequestEntityTooLargeError(err) {
+			if varmorutils.IsRequestSizeError(err) {
 				return statusmanager.UpdateVarmorPolicyStatus(
 					c.varmorInterface, newVp, "", false, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionFalse,
 					"Error",

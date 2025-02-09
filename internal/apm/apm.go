@@ -23,8 +23,6 @@ import (
 	"strings"
 
 	"github.com/go-logr/logr"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 	k8errors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/util/retry"
@@ -32,6 +30,7 @@ import (
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
 	varmorconfig "github.com/bytedance/vArmor/internal/config"
 	varmortypes "github.com/bytedance/vArmor/internal/types"
+	varmorutils "github.com/bytedance/vArmor/internal/utils"
 	varmorinterface "github.com/bytedance/vArmor/pkg/client/clientset/versioned/typed/varmor/v1beta1"
 )
 
@@ -123,13 +122,8 @@ func PersistArmorProfileModel(varmorInterface varmorinterface.CrdV1beta1Interfac
 			return apm, nil
 		}
 
-		isResourceExhausted := false
-		s, ok := status.FromError(err)
-		if ok && s.Code() == codes.ResourceExhausted {
-			isResourceExhausted = true
-		}
-		if !k8errors.IsRequestEntityTooLargeError(err) && !isResourceExhausted {
-			return apm, err
+		if !varmorutils.IsRequestSizeError(err) {
+			return nil, err
 		}
 	}
 

@@ -310,3 +310,13 @@ func RemoveArmorProfileFinalizers(i varmorinterface.CrdV1beta1Interface, namespa
 	}
 	return retry.RetryOnConflict(retry.DefaultRetry, removeFinalizers)
 }
+
+func IsRequestSizeError(err error) bool {
+	errMsg := err.Error()
+	if strings.Contains(errMsg, "trying to send message larger than max") ||
+		strings.Contains(errMsg, "etcdserver: request is too large") ||
+		strings.Contains(errMsg, "Request entity too large") {
+		return true
+	}
+	return false
+}
