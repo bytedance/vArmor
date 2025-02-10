@@ -208,7 +208,9 @@ demo        varmor-cluster-demo-demo-4   CRDInternal    2         2           tr
     - 访问 `/apis/crd.varmor.org/v1beta1/namespaces/{namespace}/armorprofilemodels/{name}` 接口导出数据
     
       ```bash
-      curl -k -X GET -H 'Authorization: Bearer $token' https://localhost:8081/apis/crd.varmor.org/v1beta1/namespaces/demo/armorprofilemodels/varmor-demo-demo-4 > varmor-demo-demo-4.json
+      curl -k -X GET \
+        -H 'Authorization: Bearer $token' \
+        https://localhost:8080/apis/crd.varmor.org/v1beta1/namespaces/demo/armorprofilemodels/varmor-demo-demo-4 > varmor-demo-demo-4.json
       ```
 
 ## 示例

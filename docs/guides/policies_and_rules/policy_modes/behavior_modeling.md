@@ -197,7 +197,9 @@ Different storage types have different methods for exporting ArmorProfileModel o
     - Access the `/apis/crd.varmor.org/v1beta1/namespaces/{namespace}/armorprofilemodels/{name}` interface to export data
 
       ```bash
-      curl -k -X GET -H 'Authorization: Bearer $token' https://localhost:8081/apis/crd.varmor.org/v1beta1/namespaces/demo/armorprofilemodels/varmor-demo-demo-4 > varmor-demo-demo-4.json
+      curl -k -X GET \
+        -H 'Authorization: Bearer $token' \
+        https://localhost:8080/apis/crd.varmor.org/v1beta1/namespaces/demo/armorprofilemodels/varmor-demo-demo-4 > varmor-demo-demo-4.json
       ```
 
 ## Use Case
