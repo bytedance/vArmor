@@ -17,11 +17,15 @@ vArmor 当前利用一个内置的 BPF tracer 和 Linux 审计系统来捕获目
 BehaviorModeling 模式的前置条件如下所示：
 
 1. containerd v1.6.0 及以上版本
+
 2. 系统需支持 BTF (BPF Type Format)
-3. vArmor 启用了此模式
+
+    一般来说，当节点存在 `/sys/kernel/btf/vmlinux` 文件时，意味着系统支持 BTF。
+
+3. vArmor 启用了此特性
    * 通过 `--set behaviorModeling.enabled=true` 选项开启 BehaviorModeling 特性。
 
-   * [可选]使用 `--set "agent.args={--auditLogPaths=FILE_PATH|FILE_PATH}"` 选项来指定系统审计日志或搜索顺序。
+   * [可选] 使用 `--set "agent.args={--auditLogPaths=FILE_PATH|FILE_PATH}"` 选项来指定系统审计日志或搜索顺序。
 
     ```
     helm upgrade varmor varmor-0.6.2.tgz \
@@ -46,9 +50,163 @@ BehaviorModeling 模式的前置条件如下所示：
           memory: 500Mi
       ```
 
+## 使用说明
+
+### 基本用法
+使用 BehaviorModeling 功能的基本步骤如下所示。
+
+**1. 创建 BehaviorModeling 模式的策略**
+
+您可以通过 `.spec.policy.modelingOptions.duration` 字段设置建模时长，并在建模完成前按需调整。您还可以通过 `.spec.updateExistingWorkloads` 字段设置是否对符合条件的目标工作负载进行滚动重启（仅支持 Deployment, DaemonSet, StatefulSet 类型的目标工作负载），从而立即开始行为建模。
+
+```yaml
+apiVersion: crd.varmor.org/v1beta1
+kind: VarmorPolicy
+metadata:
+  name: demo-4
+  namespace: demo
+spec:
+  # Perform a rolling update on existing workloads.
+  # It's disabled by default.
+  updateExistingWorkloads: true
+  target:
+    kind: Deployment
+    selector:
+      matchLabels:
+        app: demo-4
+  policy:
+    enforcer: AppArmorSeccomp
+    # Note: Switching the mode from BehaviorModeling to others is prohibited, and vice versa.
+    #       You need recraete the policy to switch the mode from BehaviorModeling to DefenseInDepth.
+    # mode: DefenseInDepth
+    mode: BehaviorModeling
+    modelingOptions:
+      # The duration in minutes to modeling
+      duration: 3
+```
+
+**2. 创建符合条件的目标工作负载**
+
+如果 `updateExistingWorkloads=true` 且目标工作负载的类型不为 Pod，那么您可以跳过此步骤。否则您应当创建新的符合条件的工作负载。
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo-4
+  namespace: demo
+  labels:
+    app: demo-4
+    # This label is required with target workloads. 
+    # You can disable the feature with --set 'manager.args={--webhookMatchLabel=}'
+    sandbox.varmor.org/enable: "true"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: demo-4
+  template:
+    metadata:
+      labels:
+        app: demo-4
+      annotations:
+        # Use these annotation to explicitly disable the protection for the container named c0.
+        # It always takes precedence over the '.spec.target.containers' field of VarmorPolicy 
+        # or VarmorClusterPolicy object.
+        container.apparmor.security.beta.varmor.org/c0: unconfined
+        container.seccomp.security.beta.varmor.org/c0: unconfined
+    spec:
+      shareProcessNamespace: true
+      containers:
+      - name: c0
+        image: curlimages/curl:7.87.0
+        command: ["/bin/sh", "-c", "sleep infinity"]
+        imagePullPolicy: IfNotPresent
+      - name: c1
+        image: debian:10
+        command: ["/bin/sh", "-c", "sleep infinity"]
+        imagePullPolicy: IfNotPresent
+```
+
+**3. 更新建模时长（按需）**
+
+您可以根据需要，通过更新策略的 `.spec.policy.modelingOptions.duration` 字段来修改建模时长。例如将其修改为 1 从而提前结束建模。
+
+```bash
+kubectl patch vpol -n demo demo-4 --type='json' -p='[{"op": "replace", "path": "/spec/policy/modelingOptions/duration", "value":1}]'
+```
+
+**4. 等待建模完成**
+
+```bash
+$ kubectl get vpol -n demo
+NAME     ENFORCER          MODE               TARGET-KIND   TARGET-NAME   TARGET-SELECTOR                    PROFILE-NAME         READY   STATUS     AGE
+demo-4   AppArmorSeccomp   BehaviorModeling   Deployment                  {"matchLabels":{"app":"demo-4"}}   varmor-demo-demo-4   true    Modeling   2s
+
+$ kubectl get vpol -n demo
+NAME     ENFORCER          MODE               TARGET-KIND   TARGET-NAME   TARGET-SELECTOR                    PROFILE-NAME         READY   STATUS     AGE
+demo-4   AppArmorSeccomp   BehaviorModeling   Deployment                  {"matchLabels":{"app":"demo-4"}}   varmor-demo-demo-4   true    Completed  30m
+```
+
+建模完成后，agent 会对在节点上采集到的（目标工作负载的）行为数据进行预处理，然后将其发送到 manager。而 manager 将对所有节点采集的数据进行分析，并将其保存在对应命名空间的 [ArmorProfileModel](https://github.com/bytedance/vArmor/blob/main/apis/varmor/v1beta1/armorprofilemodel_types.go) 对象的 `.data.dynamicResult` 字段中。
+  
+manager 处理完所有节点的行为数据后，它会以白名单方式（Deny-by-Default）为目标工作负载生成 AppArmor 或 Seccomp Profile，并保存在 ArmorProfileModel 对象的 `.data.profile.content` 和 `.data.profile.seccompContent` 字段中（以 base64 编码）。
+  
+当数据量过大导致无法保存在 CRD 对象中时，manager 会将其保存在本地。您可以通过 ArmorProfileModel 对象的 `.storageType` 字段判断行为数据和 Profile 的存储形式。
+
+```bash
+$ kubectl get ArmorProfileModel -A
+NAMESPACE   NAME                         STORAGE-TYPE   DESIRED   COMPLETED   READY   AGE
+demo        varmor-cluster-demo-demo-4   CRDInternal    2         2           true    23h  
+```
+
+### 注意事项
+
+* 目标工作负载需要拥有 `sandbox.varmor.org/enable="true"` 标签。您可以通过 [设置 Webhook 的匹配标签](../../../getting_started/installation.zh_CN.md#设置-webhook-的匹配标签) 配置选项关闭此特性。
+* 不支持将 BehaviorModeling 模式的策略切换为其他模式，反之亦然。您需要删除策略后重新创建策略才可切换。
+* 建模完成后，不支持修改策略的建模时长。您需要删除策略后重新创建策略才可以重新开始建模，但已有的行为数据会被保留。
+
+### 数据导出
+
+您可以将目标负载的行为数据和 Profiles 导出用于其他目的。例如：使用 [策略顾问](../../policy_advisor.zh_CN.md) 分析哪些内置规则能够被用于加固目标应用，基于行为数据指导用户对工作负载的安全上下文进行权限最小化等。
+
+不同存储类型的 ArmorProfileModel 对象导出方法不同：
+
+  * **CRDInternal**
+
+    - 直接使用 kubectl 导出
+
+      ```bash
+      kubectl get ArmorProfileModel -n demo varmor-demo-demo-4 -o json > varmor-demo-demo-4.json
+      ```
+
+  * **LocalDisk**
+
+    - 将本地端口 8080 转发到集群 varmor-status-svc Service 的 8080 端口
+
+      ```bash
+      kubectl port-forward -n varmor service/varmor-status-svc 8080:8080
+      ```
+
+    - 获取 varmor-manager 的 ServiceAccount token
+
+      ```bash
+      token=$(kubectl create token varmor-manager -n varmor)
+      ```
+
+    - 访问 `/apis/crd.varmor.org/v1beta1/namespaces/{namespace}/armorprofilemodels/{name}` 接口导出数据
+    
+      ```bash
+      curl -k -X GET \
+        -H 'Authorization: Bearer $token' \
+        https://localhost:8080/apis/crd.varmor.org/v1beta1/namespaces/demo/armorprofilemodels/varmor-demo-demo-4 > varmor-demo-demo-4.json
+      ```
+
 ## 示例
 
 ### 1. 部署目标工作负载
+
+分别在 defalut 和 demo 命名空间创建目标工作负载。
 
 ```yaml
 cat << EOF | kubectl create -f -
@@ -59,11 +217,9 @@ metadata:
   namespace: default
   labels:
     app: demo-4
-    // highlight-start
     # This label is required with target workloads. 
     # You can disable the feature with --set 'manager.args={--webhookMatchLabel=}'
     sandbox.varmor.org/enable: "true"
-    // highlight-end
 spec:
   replicas: 2
   selector:
@@ -91,11 +247,9 @@ metadata:
   namespace: demo
   labels:
     app: demo-4
-    // highlight-start
     # This label is required with target workloads. 
     # You can disable the feature with --set 'manager.args={--webhookMatchLabel=}'
     sandbox.varmor.org/enable: "true"
-    // highlight-end
 spec:
   replicas: 2
   selector:
@@ -106,13 +260,11 @@ spec:
       labels:
         app: demo-4
       annotations:
-        // highlight-start
         # Use these annotation to explicitly disable the protection for the container named c0.
         # It always takes precedence over the '.spec.target.containers' field of VarmorPolicy 
         # or VarmorClusterPolicy object.
         container.apparmor.security.beta.varmor.org/c0: unconfined
         container.seccomp.security.beta.varmor.org/c0: unconfined
-        // highlight-end
     spec:
       shareProcessNamespace: true
       containers:
@@ -155,10 +307,8 @@ spec:
     # mode: DefenseInDepth
     mode: BehaviorModeling
     modelingOptions:
-      // highlight-start
       # 30 minutes
       duration: 30
-      // highlight-end
 EOF
 ```
 

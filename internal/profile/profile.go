@@ -15,13 +15,14 @@
 package profile
 
 import (
-	"context"
 	"fmt"
 	"strings"
 
+	"github.com/go-logr/logr"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
+	varmorapm "github.com/bytedance/vArmor/internal/apm"
 	varmorconfig "github.com/bytedance/vArmor/internal/config"
 	apparmorprofile "github.com/bytedance/vArmor/internal/profile/apparmor"
 	bpfprofile "github.com/bytedance/vArmor/internal/profile/bpf"
@@ -31,7 +32,7 @@ import (
 	bpfenforcer "github.com/bytedance/vArmor/pkg/lsm/bpfenforcer"
 )
 
-// profileNameTemplate is the name of ArmorProfile object in k8s and AppArmor profile in host machine.
+// profileNameTemplate is the name template for ArmorProfile/ArmorProfileModel objects and AppArmor/Seccomp/BPF profiles.
 //
 //	For namespace-scope profile, its format is "varmor-{VarmorProfile Namespace}-{VarmorProfile Name}"
 //	For cluster-scope profile, its format is "varmor-cluster-{vArmor Namespace}-{VarmorClusterProfile Name}"
@@ -52,7 +53,12 @@ func GenerateArmorProfileName(ns string, name string, clusterScope bool) string 
 	return strings.ToLower(profileName)
 }
 
-func GenerateProfile(policy varmor.Policy, name string, namespace string, varmorInterface varmorinterface.CrdV1beta1Interface, complete bool) (*varmor.Profile, error) {
+func GenerateProfile(
+	policy varmor.Policy,
+	name string, namespace string,
+	varmorInterface varmorinterface.CrdV1beta1Interface,
+	complete bool,
+	logger logr.Logger) (*varmor.Profile, error) {
 	var err error
 
 	profile := varmor.Profile{
@@ -171,7 +177,7 @@ func GenerateProfile(policy varmor.Policy, name string, namespace string, varmor
 		}
 		// AppArmor
 		if (e & varmortypes.AppArmor) != 0 {
-			apm, err := varmorInterface.ArmorProfileModels(namespace).Get(context.Background(), name, metav1.GetOptions{})
+			apm, err := varmorapm.RetrieveArmorProfileModel(varmorInterface, namespace, name, false, logger)
 			if err == nil && apm.Data.Profile.Content != "" {
 				profile.Content = apm.Data.Profile.Content
 			} else {
@@ -180,7 +186,7 @@ func GenerateProfile(policy varmor.Policy, name string, namespace string, varmor
 		}
 		// Seccomp
 		if (e & varmortypes.Seccomp) != 0 {
-			apm, err := varmorInterface.ArmorProfileModels(namespace).Get(context.Background(), name, metav1.GetOptions{})
+			apm, err := varmorapm.RetrieveArmorProfileModel(varmorInterface, namespace, name, false, logger)
 			if err == nil && apm.Data.Profile.SeccompContent != "" {
 				profile.SeccompContent = apm.Data.Profile.SeccompContent
 			} else {
@@ -195,7 +201,12 @@ func GenerateProfile(policy varmor.Policy, name string, namespace string, varmor
 	return &profile, nil
 }
 
-func NewArmorProfile(obj interface{}, varmorInterface varmorinterface.CrdV1beta1Interface, clusterScope bool) (*varmor.ArmorProfile, error) {
+func NewArmorProfile(
+	obj interface{},
+	varmorInterface varmorinterface.CrdV1beta1Interface,
+	clusterScope bool,
+	logger logr.Logger) (*varmor.ArmorProfile, error) {
+
 	ap := varmor.ArmorProfile{}
 	controller := true
 
@@ -216,7 +227,7 @@ func NewArmorProfile(obj interface{}, varmorInterface varmorinterface.CrdV1beta1
 		}
 		ap.Finalizers = []string{"varmor.org/ap-protection"}
 
-		profile, err := GenerateProfile(vcp.Spec.Policy, ap.Name, ap.Namespace, varmorInterface, false)
+		profile, err := GenerateProfile(vcp.Spec.Policy, ap.Name, ap.Namespace, varmorInterface, false, logger)
 		if err != nil {
 			return nil, err
 		}
@@ -249,7 +260,7 @@ func NewArmorProfile(obj interface{}, varmorInterface varmorinterface.CrdV1beta1
 		}
 		ap.Finalizers = []string{"varmor.org/ap-protection"}
 
-		profile, err := GenerateProfile(vp.Spec.Policy, ap.Name, ap.Namespace, varmorInterface, false)
+		profile, err := GenerateProfile(vp.Spec.Policy, ap.Name, ap.Namespace, varmorInterface, false, logger)
 		if err != nil {
 			return nil, err
 		}

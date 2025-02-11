@@ -85,6 +85,14 @@ manager:
   behaviorModeling:
     args:
     - --enableBehaviorModeling
+    # The volume saves the ArmorProfileModel objects in the manager pod
+    volumeMounts:
+    - mountPath: /var/log/varmor/apmdata
+      name: data-volume
+    volumes:
+    - emptyDir:
+        sizeLimit: 500Mi
+      name: data-volume
 
   restartExistWorkloads:
     args:
@@ -204,14 +212,14 @@ agent:
   behaviorModeling:
     args:
     - --enableBehaviorModeling
+    # The volume caches the audit data in the agent pod during modeling
     volumeMounts:
-    - mountPath: /var/run/varmor/audit
-      name: audit-dir
+    - mountPath: /var/log/varmor/auditdata
+      name: data-volume
     volumes:
-    - hostPath:
-        path: /var/run/varmor/audit
-        type: DirectoryOrCreate
-      name: audit-dir
+    - emptyDir:
+        sizeLimit: 500Mi
+      name: data-volume
     resources:
       limits:
         cpu: 2

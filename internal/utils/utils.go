@@ -253,7 +253,7 @@ func WaitForManagerReady(inContainer bool, address string, port int) {
 
 	for {
 		resp, err := client.Get(url)
-		if err == nil && resp.StatusCode == 200 {
+		if err == nil && resp.StatusCode == http.StatusOK {
 			return
 		}
 		time.Sleep(2 * time.Second)
@@ -309,4 +309,14 @@ func RemoveArmorProfileFinalizers(i varmorinterface.CrdV1beta1Interface, namespa
 		return err
 	}
 	return retry.RetryOnConflict(retry.DefaultRetry, removeFinalizers)
+}
+
+func IsRequestSizeError(err error) bool {
+	errMsg := err.Error()
+	if strings.Contains(errMsg, "trying to send message larger than max") ||
+		strings.Contains(errMsg, "etcdserver: request is too large") ||
+		strings.Contains(errMsg, "Request entity too large") {
+		return true
+	}
+	return false
 }

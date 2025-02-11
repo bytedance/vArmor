@@ -29,12 +29,14 @@ func Test_parseAppArmorEvent(t *testing.T) {
 	p := NewDataPreprocessor(
 		"LOCALHOST",
 		"test",
+		"/",
 		"test",
 		"AppArmor",
 		targetPIDs,
 		targetMnts,
 		"127.0.0.1",
 		0,
+		true,
 		true,
 		log.Log.WithName("TEST"))
 
@@ -51,12 +53,14 @@ func Test_parseSeccompEvent(t *testing.T) {
 	p := NewDataPreprocessor(
 		"LOCALHOST",
 		"test",
+		"/",
 		"test",
 		"Seccomp",
 		targetPIDs,
 		targetMnts,
 		"127.0.0.1",
 		0,
+		true,
 		true,
 		log.Log.WithName("TEST"))
 

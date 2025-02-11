@@ -17,7 +17,7 @@ package statusmanagerv1
 import (
 	"context"
 	"fmt"
-	"reflect"
+	"os"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -71,6 +71,7 @@ type StatusManager struct {
 	//profileStatusPerNode metric.Float64Gauge
 }
 
+// NewStatusManager creates a StatusManager instance to manage the status of all CRD objects.
 func NewStatusManager(coreInterface corev1.CoreV1Interface,
 	appsInterface appsv1.AppsV1Interface,
 	varmorInterface varmorinterface.CrdV1beta1Interface,
@@ -105,6 +106,10 @@ func NewStatusManager(coreInterface corev1.CoreV1Interface,
 		m.profileFailure = metricsModule.RegisterFloat64Counter("varmor_profile_processing_failure", "Number of failed profile processing")
 		m.profileChangeCount = metricsModule.RegisterFloat64Counter("varmor_profile_change_count", "Number of profile change")
 		//m.profileStatusPerNode = metricsModule.RegisterFloat64Gauge("varmor_profile_status_per_node", "Profile status per node (1=success, 0=failure)")
+	}
+
+	if _, err := os.Stat(varmorconfig.ArmorProfileModelDataDirectory); os.IsNotExist(err) {
+		os.MkdirAll(varmorconfig.ArmorProfileModelDataDirectory, os.ModePerm)
 	}
 
 	return &m
@@ -222,51 +227,6 @@ func (m *StatusManager) rebuildPolicyStatuses() error {
 	return nil
 }
 
-func (m *StatusManager) updateArmorProfileStatus(
-	ap *varmor.ArmorProfile,
-	policyStatus *varmortypes.PolicyStatus) error {
-
-	var conditions []varmor.ArmorProfileCondition
-	for nodeName, message := range policyStatus.NodeMessages {
-		if message != string(varmortypes.ArmorProfileReady) {
-			c := newArmorProfileCondition(nodeName, varmortypes.ArmorProfileReady, v1.ConditionFalse, "", message)
-			conditions = append(conditions, *c)
-		}
-	}
-
-	regain := false
-	update := func() (err error) {
-		if regain {
-			ap, err = m.varmorInterface.ArmorProfiles(ap.Namespace).Get(context.Background(), ap.Name, metav1.GetOptions{})
-			if err != nil {
-				if k8errors.IsNotFound(err) {
-					return nil
-				}
-				return err
-			}
-		}
-		// Nothing needs to be updated.
-		if reflect.DeepEqual(ap.Status.Conditions, conditions) &&
-			ap.Status.CurrentNumberLoaded == policyStatus.SuccessedNumber &&
-			ap.Status.DesiredNumberLoaded == m.desiredNumber {
-			return nil
-		}
-		ap.Status.DesiredNumberLoaded = m.desiredNumber
-		ap.Status.CurrentNumberLoaded = policyStatus.SuccessedNumber
-		if len(conditions) > 0 {
-			ap.Status.Conditions = conditions
-		} else {
-			ap.Status.Conditions = nil
-		}
-		_, err = m.varmorInterface.ArmorProfiles(ap.Namespace).UpdateStatus(context.Background(), ap, metav1.UpdateOptions{})
-		if err != nil {
-			regain = true
-		}
-		return err
-	}
-	return retry.RetryOnConflict(retry.DefaultRetry, update)
-}
-
 func (m *StatusManager) updateVarmorPolicyStatus(
 	vp *varmor.VarmorPolicy,
 	ready bool,
@@ -325,6 +285,7 @@ func (m *StatusManager) updateVarmorClusterPolicyStatus(
 	return UpdateVarmorClusterPolicyStatus(m.varmorInterface, vcp, "", ready, phase, varmortypes.VarmorPolicyReady, status, reason, message)
 }
 
+// updateAllCRStatus periodically updates all of the objects' statuses to avoid interference from offline nodes.
 func (m *StatusManager) updateAllCRStatus(logger logr.Logger) {
 	if len(m.PolicyStatuses) == 0 {
 		return
@@ -364,6 +325,7 @@ func (m *StatusManager) updateAllCRStatus(logger logr.Logger) {
 	}
 }
 
+// reconcileStatus handles status update events in a loop to reconcile the status of all CRD objects
 func (m *StatusManager) reconcileStatus(stopCh <-chan struct{}) {
 	logger := m.log.WithName("reconcileStatus")
 
@@ -437,9 +399,9 @@ func (m *StatusManager) reconcileStatus(stopCh <-chan struct{}) {
 				logger.Error(err, "m.varmorInterface.ArmorProfiles().Get()")
 				break
 			}
-			err = m.updateArmorProfileStatus(ap, &policyStatus)
+			err = UpdateArmorProfileStatus(m.varmorInterface, ap, &policyStatus, m.desiredNumber)
 			if err != nil {
-				logger.Error(err, "m.updateArmorProfileStatus()")
+				logger.Error(err, "UpdateArmorProfileStatus()")
 				break
 			}
 
@@ -562,7 +524,7 @@ func (m *StatusManager) reconcileStatus(stopCh <-chan struct{}) {
 			}
 
 			apName := varmorprofile.GenerateArmorProfileName(namespace, vpName, clusterScope)
-			profile, err := varmorprofile.GenerateProfile(vPolicy, apName, namespace, m.varmorInterface, true)
+			profile, err := varmorprofile.GenerateProfile(vPolicy, apName, namespace, m.varmorInterface, true, logger)
 			if err != nil {
 				logger.Error(err, "varmorprofile.GenerateProfile()")
 				break
@@ -619,6 +581,7 @@ func (m *StatusManager) Run(stopCh <-chan struct{}) {
 	<-stopCh
 }
 
+// CleanUp shutdown all queues.
 func (m *StatusManager) CleanUp() {
 	m.statusQueue.ShutDown()
 	m.dataQueue.ShutDown()

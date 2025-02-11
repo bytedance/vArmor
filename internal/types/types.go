@@ -55,6 +55,11 @@ const (
 	ArmorProfileReady      varmor.ArmorProfileConditionType      = "Ready"
 	ArmorProfileModelReady varmor.ArmorProfileModelConditionType = "Ready"
 
+	// ArmorProfileModelData Storage Type
+	StorageTypeCRDInternal varmor.StorageType = "CRDInternal"
+	StorageTypeLocalDisk   varmor.StorageType = "LocalDisk"
+	StorageTypePVPVC       varmor.StorageType = "PV/PVC"
+
 	// AppArmor Profile process Status
 	Succeeded Status = "succeeded"
 	Failed    Status = "failed"

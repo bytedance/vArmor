@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"strings"
 
 	"github.com/go-logr/logr"
@@ -44,6 +45,7 @@ type DataPreprocessor struct {
 	mlIP            string
 	mlPort          int
 	debug           bool
+	inContainer     bool
 	debugFilePath   string
 	debugFile       *os.File
 	debugFileWriter *bufio.Writer
@@ -53,6 +55,7 @@ type DataPreprocessor struct {
 func NewDataPreprocessor(
 	nodeName string,
 	namespace string,
+	directory string,
 	name string,
 	enforcer string,
 	targetPIDs map[uint32]struct{},
@@ -60,6 +63,7 @@ func NewDataPreprocessor(
 	mlIP string,
 	mlPort int,
 	debug bool,
+	inContainer bool,
 	log logr.Logger) *DataPreprocessor {
 
 	p := DataPreprocessor{
@@ -69,13 +73,14 @@ func NewDataPreprocessor(
 		enforcer:        varmortypes.GetEnforcerType(enforcer),
 		targetPIDs:      targetPIDs,
 		targetMnts:      targetMnts,
-		auditRecordPath: fmt.Sprintf("%s_audit_records.log", name),
-		bpfRecordPath:   fmt.Sprintf("%s_process_records.log", name),
-		debugFilePath:   fmt.Sprintf("%s_preprocessor_debug.log", name),
+		auditRecordPath: path.Join(directory, fmt.Sprintf("%s_audit_records.log", name)),
+		bpfRecordPath:   path.Join(directory, fmt.Sprintf("%s_process_records.log", name)),
+		debugFilePath:   path.Join(directory, fmt.Sprintf("%s_preprocessor_debug.log", name)),
 		syscall:         make(map[string]struct{}, 0),
 		mlIP:            mlIP,
 		mlPort:          mlPort,
 		debug:           debug,
+		inContainer:     inContainer,
 		log:             log,
 	}
 

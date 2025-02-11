@@ -36,7 +36,7 @@ import (
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
 	varmorconfig "github.com/bytedance/vArmor/internal/config"
 	varmorprofile "github.com/bytedance/vArmor/internal/profile"
-	statusmanager "github.com/bytedance/vArmor/internal/status/api/v1"
+	statusmanager "github.com/bytedance/vArmor/internal/status/apis/v1"
 	varmortypes "github.com/bytedance/vArmor/internal/types"
 	varmorutils "github.com/bytedance/vArmor/internal/utils"
 	varmorinterface "github.com/bytedance/vArmor/pkg/client/clientset/versioned/typed/varmor/v1beta1"
@@ -234,7 +234,7 @@ func (c *ClusterPolicyController) ignoreAdd(vcp *varmor.VarmorClusterPolicy, log
 	if len(profileName) > 63 {
 		err := fmt.Errorf("the length of ArmorProfile name is exceed 63. name: %s, length: %d", profileName, len(profileName))
 		logger.Error(err, "update VarmorClusterPolicy/status with forbidden info")
-		msg := fmt.Sprintf("The length of VarmorClusterPolicy object name is too long, please limit it to %d bytes", 63-len(varmorprofile.ClusterProfileNameTemplate)+4-len(varmorconfig.Namespace))
+		msg := fmt.Sprintf("The length of VarmorClusterPolicy object name is too long, please limit it to %d bytes.", 63-len(varmorprofile.ClusterProfileNameTemplate)+4-len(varmorconfig.Namespace))
 		err = statusmanager.UpdateVarmorClusterPolicyStatus(c.varmorInterface, vcp, "", false, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyCreated, apicorev1.ConditionFalse,
 			"Forbidden",
 			msg)
@@ -256,7 +256,7 @@ func (c *ClusterPolicyController) handleAddVarmorClusterPolicy(vcp *varmor.Varmo
 		return err
 	}
 
-	ap, err := varmorprofile.NewArmorProfile(vcp, c.varmorInterface, true)
+	ap, err := varmorprofile.NewArmorProfile(vcp, c.varmorInterface, true, logger)
 	if err != nil {
 		logger.Error(err, "NewArmorProfile()")
 		err = statusmanager.UpdateVarmorClusterPolicyStatus(c.varmorInterface, vcp, "", false, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyCreated, apicorev1.ConditionFalse,
@@ -289,6 +289,12 @@ func (c *ClusterPolicyController) handleAddVarmorClusterPolicy(vcp *varmor.Varmo
 	ap, err = c.varmorInterface.ArmorProfiles(varmorconfig.Namespace).Create(context.Background(), ap, metav1.CreateOptions{})
 	if err != nil {
 		logger.Error(err, "ArmorProfile().Create()")
+		if varmorutils.IsRequestSizeError(err) {
+			return statusmanager.UpdateVarmorClusterPolicyStatus(
+				c.varmorInterface, vcp, "", false, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyCreated, apicorev1.ConditionFalse,
+				"Error",
+				"The profiles are too large to create an ArmorProfile object.")
+		}
 		return err
 	}
 
@@ -428,7 +434,7 @@ func (c *ClusterPolicyController) handleUpdateVarmorClusterPolicy(newVp *varmor.
 
 	// Second, build a new ArmorProfileSpec
 	newApSpec := oldAp.Spec.DeepCopy()
-	newProfile, err := varmorprofile.GenerateProfile(newVp.Spec.Policy, oldAp.Name, varmorconfig.Namespace, c.varmorInterface, false)
+	newProfile, err := varmorprofile.GenerateProfile(newVp.Spec.Policy, oldAp.Name, varmorconfig.Namespace, c.varmorInterface, false, logger)
 	if err != nil {
 		logger.Error(err, "GenerateProfile()")
 		err = statusmanager.UpdateVarmorClusterPolicyStatus(c.varmorInterface, newVp, "", false, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionFalse,
@@ -478,6 +484,12 @@ func (c *ClusterPolicyController) handleUpdateVarmorClusterPolicy(newVp *varmor.
 		_, err = c.varmorInterface.ArmorProfiles(varmorconfig.Namespace).Update(context.Background(), oldAp, metav1.UpdateOptions{})
 		if err != nil {
 			logger.Error(err, "ArmorProfile().Update()")
+			if varmorutils.IsRequestSizeError(err) {
+				return statusmanager.UpdateVarmorClusterPolicyStatus(
+					c.varmorInterface, newVp, "", false, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionFalse,
+					"Error",
+					"The profiles are too large to update the existing ArmorProfile object.")
+			}
 			return err
 		}
 	} else if len(oldAp.OwnerReferences) == 0 {
@@ -486,6 +498,12 @@ func (c *ClusterPolicyController) handleUpdateVarmorClusterPolicy(newVp *varmor.
 		_, err = c.varmorInterface.ArmorProfiles(varmorconfig.Namespace).Update(context.Background(), oldAp, metav1.UpdateOptions{})
 		if err != nil {
 			logger.Error(err, "ArmorProfile().Update()")
+			if varmorutils.IsRequestSizeError(err) {
+				return statusmanager.UpdateVarmorClusterPolicyStatus(
+					c.varmorInterface, newVp, "", false, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionFalse,
+					"Error",
+					"The profiles are too large to update the existing ArmorProfile object.")
+			}
 			return err
 		}
 	} else {
