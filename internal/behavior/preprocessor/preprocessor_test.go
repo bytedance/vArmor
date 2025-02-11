@@ -29,6 +29,7 @@ func Test_parseAppArmorEvent(t *testing.T) {
 	p := NewDataPreprocessor(
 		"LOCALHOST",
 		"test",
+		"/",
 		"test",
 		"AppArmor",
 		targetPIDs,
@@ -52,6 +53,7 @@ func Test_parseSeccompEvent(t *testing.T) {
 	p := NewDataPreprocessor(
 		"LOCALHOST",
 		"test",
+		"/",
 		"test",
 		"Seccomp",
 		targetPIDs,
