@@ -128,8 +128,11 @@ var (
 	// WebhookSelectorLabel is used for matching the admission requests
 	WebhookSelectorLabel = map[string]string{}
 
-	// BehaviorDataDirectory saves the behavior data
-	BehaviorDataDirectory = "/var/log/varmor/data"
+	// AuditDataDirectory caches the audit data in the agent pod during modeling
+	AuditDataDirectory = "/var/log/varmor/auditdata"
+
+	// ArmorProfileModelDataDirectory saves the ArmorProfileModel objects in the manager pod
+	ArmorProfileModelDataDirectory = "/var/log/varmor/apmdata"
 )
 
 // CreateClientConfig creates client config and applies rate limit QPS and burst

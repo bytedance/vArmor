@@ -60,7 +60,7 @@ func RetrieveArmorProfileModel(
 			return apm, nil
 		}
 
-		fileName := path.Join(varmorconfig.BehaviorDataDirectory, name)
+		fileName := path.Join(varmorconfig.ArmorProfileModelDataDirectory, name)
 		data, err := os.ReadFile(fileName)
 		if err != nil {
 			logger.Error(err, "Read "+fileName+" failed")
@@ -128,7 +128,7 @@ func PersistArmorProfileModel(varmorInterface varmorinterface.CrdV1beta1Interfac
 	}
 
 	// Persist the object into the backend storage
-	fileName := path.Join(varmorconfig.BehaviorDataDirectory, apm.Name)
+	fileName := path.Join(varmorconfig.ArmorProfileModelDataDirectory, apm.Name)
 	logger.Info("Persist the data into a local file because the data is too large to store into an ArmorProfileModel object",
 		"namespace", apm.Namespace, "name", apm.Name, "path", fileName)
 	jsonData, err := json.MarshalIndent(apm, "", "  ")

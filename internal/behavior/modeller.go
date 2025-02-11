@@ -23,6 +23,7 @@ import (
 
 	varmorpreprocessor "github.com/bytedance/vArmor/internal/behavior/preprocessor"
 	varmorrecorder "github.com/bytedance/vArmor/internal/behavior/recorder"
+	varmorconfig "github.com/bytedance/vArmor/internal/config"
 	varmorutils "github.com/bytedance/vArmor/internal/utils"
 	varmorauditor "github.com/bytedance/vArmor/pkg/auditor"
 	varmorptracer "github.com/bytedance/vArmor/pkg/processtracer"
@@ -101,14 +102,14 @@ func NewBehaviorModeller(
 		log:            log,
 	}
 
-	auditRecorder := varmorrecorder.NewAuditRecorder(name, stopCh, debug, log.WithName("AUDIT-RECORDER"))
+	auditRecorder := varmorrecorder.NewAuditRecorder(varmorconfig.AuditDataDirectory, name, stopCh, debug, log.WithName("AUDIT-RECORDER"))
 	if auditRecorder != nil {
 		modeller.auditRecorder = auditRecorder
 	} else {
 		return nil
 	}
 
-	ProcessRecorder := varmorrecorder.NewProcessRecorder(name, stopCh, debug, log.WithName("BPF-RECORDER"))
+	ProcessRecorder := varmorrecorder.NewProcessRecorder(varmorconfig.AuditDataDirectory, name, stopCh, debug, log.WithName("BPF-RECORDER"))
 	if ProcessRecorder != nil {
 		modeller.processRecorder = ProcessRecorder
 	} else {
@@ -122,6 +123,7 @@ func (modeller *BehaviorModeller) PreprocessAndSendBehaviorData() {
 	preprocessor := varmorpreprocessor.NewDataPreprocessor(
 		modeller.nodeName,
 		modeller.namespace,
+		varmorconfig.AuditDataDirectory,
 		modeller.name,
 		modeller.enforcer,
 		modeller.targetPIDs,

@@ -18,6 +18,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"path"
 
 	"github.com/go-logr/logr"
 )
@@ -32,18 +33,17 @@ type AuditRecorder struct {
 	recordDebugFile       *os.File
 	recordFileWriter      *bufio.Writer
 	recordDebugFileWriter *bufio.Writer
-	auditLogMark          string
 	debug                 bool
 	log                   logr.Logger
 }
 
-func NewAuditRecorder(profileName string, stopCh <-chan struct{}, debug bool, log logr.Logger) *AuditRecorder {
+func NewAuditRecorder(directory string, profileName string, stopCh <-chan struct{}, debug bool, log logr.Logger) *AuditRecorder {
 	r := AuditRecorder{
 		profileName:     profileName,
 		stopCh:          stopCh,
 		AuditEventCh:    make(chan string, 500),
-		recordPath:      fmt.Sprintf("%s_audit_records.log", profileName),
-		recordDebugPath: fmt.Sprintf("%s_audit_records_debug.log", profileName),
+		recordPath:      path.Join(directory, fmt.Sprintf("%s_audit_records.log", profileName)),
+		recordDebugPath: path.Join(directory, fmt.Sprintf("%s_audit_records_debug.log", profileName)),
 		debug:           debug,
 		log:             log,
 	}

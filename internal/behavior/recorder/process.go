@@ -19,6 +19,7 @@ import (
 	"encoding/gob"
 	"fmt"
 	"os"
+	"path"
 
 	"github.com/go-logr/logr"
 
@@ -36,18 +37,17 @@ type ProcessRecorder struct {
 	recordDebugFile       *os.File
 	recordFileEncoder     *gob.Encoder
 	recordDebugFileWriter *bufio.Writer
-	auditLogMark          string
 	debug                 bool
 	log                   logr.Logger
 }
 
-func NewProcessRecorder(profileName string, stopCh <-chan struct{}, debug bool, log logr.Logger) *ProcessRecorder {
+func NewProcessRecorder(directory string, profileName string, stopCh <-chan struct{}, debug bool, log logr.Logger) *ProcessRecorder {
 	r := ProcessRecorder{
 		profileName:     profileName,
 		stopCh:          stopCh,
 		ProcessEventCh:  make(chan varmortracer.BpfProcessEvent, 500),
-		recordPath:      fmt.Sprintf("%s_process_records.log", profileName),
-		recordDebugPath: fmt.Sprintf("%s_process_records_debug.log", profileName),
+		recordPath:      path.Join(directory, fmt.Sprintf("%s_process_records.log", profileName)),
+		recordDebugPath: path.Join(directory, fmt.Sprintf("%s_process_records_debug.log", profileName)),
 		debug:           debug,
 		log:             log,
 	}

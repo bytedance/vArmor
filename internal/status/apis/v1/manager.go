@@ -108,8 +108,8 @@ func NewStatusManager(coreInterface corev1.CoreV1Interface,
 		//m.profileStatusPerNode = metricsModule.RegisterFloat64Gauge("varmor_profile_status_per_node", "Profile status per node (1=success, 0=failure)")
 	}
 
-	if _, err := os.Stat(varmorconfig.BehaviorDataDirectory); os.IsNotExist(err) {
-		os.MkdirAll(varmorconfig.BehaviorDataDirectory, os.ModePerm)
+	if _, err := os.Stat(varmorconfig.ArmorProfileModelDataDirectory); os.IsNotExist(err) {
+		os.MkdirAll(varmorconfig.ArmorProfileModelDataDirectory, os.ModePerm)
 	}
 
 	return &m
