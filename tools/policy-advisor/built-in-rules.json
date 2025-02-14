@@ -516,6 +516,13 @@
         "features": ["load-bpf"],
         "syscalls": ["bpf"]
       }
+    },
+    {
+      "id": "disallow-load-bpf-via-setsockopt",
+      "enforcers": ["seccomp"],
+      "conflicts": {
+        "syscalls": ["setsockopt"]
+      }
     }
   ],
   "information_leak": [
