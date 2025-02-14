@@ -395,7 +395,7 @@ User Namespace 可以被用于增强容器隔离性。但它的出现同时也�
 禁止加载任意类型的 eBPF 程序。
 
 :::note[说明]
-攻击者无需任何特权就可以加载 `BPF_PROG_TYPE_SOCKET_FILTER` 或 `BPF_PROG_TYPE_CGROUP_SKB` 类型的 eBPF 程序。因此，攻击者可以尝试使用这些类型的 eBPF 程序进行网络数据包嗅探，或利用 eBPF 验证器和 JIT 引擎的漏洞实现容器逃逸。
+攻击者无需任何特权就可以加载 `BPF_PROG_TYPE_SOCKET_FILTER` 或 `BPF_PROG_TYPE_CGROUP_SKB` 类型的 extended BPF (eBPF) 程序。因此，攻击者可以尝试使用这些类型的 eBPF 程序进行网络数据包嗅探，或利用 eBPF 验证器和 JIT 引擎的漏洞实现容器逃逸。
 
 禁止容器进程加载 eBPF 程序可降低内核攻击面，阻断部分内核漏洞的利用路径。在未设置 `kernel.unprivileged_bpf_disabled=0` 的系统上，可通过此规则来加固容器。
 
@@ -408,9 +408,32 @@ User Namespace 可以被用于增强容器隔离性。但它的出现同时也�
 :::
 
 :::info[原理与影响]
-禁止通过 `bpf` 系统调用和 `BPF_PROG_LOAD` 参数加载任意类型的 eBPF 程序。
+禁止通过 `bpf` 系统调用，使用 `BPF_PROG_LOAD` 参数加载任意类型的 eBPF 程序。
 :::
 
 :::tip[支持的强制访问控制器]
 * Seccomp 🏷️ v0.6.2
+:::
+
+### `disallow-load-bpf-via-setsockopt`
+
+禁止通过 setsockopt 系统调用加载 cBPF 程序。
+
+:::note[说明]
+攻击者无需特权便可通过 `setsockopt` 系统调用加载 classic BPF (cBPF) 程序。
+攻击者可以利用此方法进行 BPF JIT 喷射，这将是一种强大的内核漏洞利用方法。因为此方法不依赖任何 capability，也不受 `kernel.unprivileged_bpf_disabled` 安全开关的控制。
+
+可参考下面的链接了解更多。
+* [CVE-2024-36972 vulnerability description](https://github.com/google/security-research/blob/master/pocs/linux/kernelctf/CVE-2024-36972_lts_cos/docs/vulnerability.md)
+* [CVE-2024-36972 exploit description](https://github.com/google/security-research/blob/master/pocs/linux/kernelctf/CVE-2024-36972_lts_cos/docs/exploit.md)
+:::
+
+:::info[原理与影响]
+禁止通过 `setsockopt` 系统调用，使用 `SO_ATTACH_FILTER` 或 `SO_ATTACH_REUSEPORT_CBPF` 参数加载 cBPF 程序。
+
+推荐您组合使用 [disallow-load-all-bpf-prog](#disallow-load-all-bpf-prog) 规则来禁止加载人任意类型的 eBPF 程序。
+:::
+
+:::tip[支持的强制访问控制器]
+* Seccomp 🏷️ v0.6.3
 :::
