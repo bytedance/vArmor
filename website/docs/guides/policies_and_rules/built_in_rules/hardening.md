@@ -399,7 +399,7 @@ Disallow creating user namespace.
 Prohibit loading any types of eBPF programs.
 
 :::note[Description]
-Attacker can load `BPF_PROG_TYPE_SOCKET_FILTER` or `BPF_PROG_TYPE_CGROUP_SKB` types of eBPF programs without privileged permission.
+Attackers can load `BPF_PROG_TYPE_SOCKET_FILTER` or `BPF_PROG_TYPE_CGROUP_SKB` types of extended BPF (eBPF) programs without privileged permission.
 So they may use these types of eBPF programs to sniff network data package, or exploit vulnerabilities of the BPF verifier or JIT engine to achieve container escape.
 
 This rule can be used to harden containers on systems where `kernel.unprivileged_bpf_disabled=0`.
@@ -413,7 +413,31 @@ Refer to the following links for further information.
 :::
 
 :::info[Principle & Impact]
-Disallow loading any types of eBPF programs.
+Disallow loading any types of eBPF programs via `bpf` syscall with `BPF_PROG_LOAD` parameters.
+:::
+
+:::tip[Supported Enforcer]
+* Seccomp
+:::
+
+
+### `disallow-load-bpf-via-setsockopt`
+
+Prohibit loading cBPF programs via setsockopt system call
+
+:::note[Description]
+Attackers can load classic BPF (cBPF) programs via the `setsockopt` syscall without privileged permission. 
+They may use this way to perform some BPF JIT spraying. This can be a powerful means to exploit kernel vulnerabilities. Because this exploit vector does not rely on any capability and is outside the control of the `kernel.unprivileged_bpf_disabled` sysctl.
+
+Refer to the following links for further information.
+* [CVE-2024-36972 vulnerability description](https://github.com/google/security-research/blob/master/pocs/linux/kernelctf/CVE-2024-36972_lts_cos/docs/vulnerability.md)
+* [CVE-2024-36972 exploit description](https://github.com/google/security-research/blob/master/pocs/linux/kernelctf/CVE-2024-36972_lts_cos/docs/exploit.md)
+:::
+
+:::info[Principle & Impact]
+Disallow loading classic BPF programs via `setsockopt` syscall with `SO_ATTACH_FILTER` or `SO_ATTACH_REUSEPORT_CBPF` parameter.
+
+It is recommended to use it in conjunction with the [disallow-load-all-bpf-prog](#disallow-load-all-bpf-prog) rule to prohibit loading any types of extended BPF programs.
 :::
 
 :::tip[Supported Enforcer]
