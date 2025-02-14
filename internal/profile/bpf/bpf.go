@@ -345,6 +345,8 @@ func generateHardeningRules(content *varmor.BpfContent, mode uint32, privileged 
 		setBpfCapabilityRule(content, mode, 1<<unix.CAP_SYS_ADMIN)
 	case "disallow-load-all-bpf-prog":
 		// TODO: add support for bpf hook point (Since Linux v4.15)
+	case "disallow-load-bpf-via-setsockopt":
+		// TODO: add support for setsockopt hook point security_socket_setsockopt
 	}
 	return nil
 }
@@ -384,7 +386,6 @@ func generateVulMitigationRules(content *varmor.BpfContent, mode uint32, rule st
 			return err
 		}
 		content.Files = append(content.Files, *fileContent)
-
 	}
 	return nil
 }
