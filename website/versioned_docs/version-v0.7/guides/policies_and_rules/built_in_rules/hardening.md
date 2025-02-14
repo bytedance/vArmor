@@ -413,7 +413,7 @@ Refer to the following links for further information.
 :::
 
 :::info[Principle & Impact]
-Disallow loading any types of eBPF programs.
+Disallow loading any types of eBPF programs via `bpf` syscall and `BPF_PROG_LOAD` parameters.
 :::
 
 :::tip[Supported Enforcer]
