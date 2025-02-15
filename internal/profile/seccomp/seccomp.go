@@ -141,6 +141,14 @@ func generateHardeningRules(rule string, syscalls map[string]specs.LinuxSyscall)
 				},
 			}
 		}
+	case "disallow-userfaultfd-creation":
+		if _, ok := syscalls["userfaultfd"]; !ok {
+			syscalls["userfaultfd"] = specs.LinuxSyscall{
+				Names:  []string{"userfaultfd"},
+				Action: specs.ActErrno,
+				Args:   []specs.LinuxSeccompArg{},
+			}
+		}
 	}
 }
 
