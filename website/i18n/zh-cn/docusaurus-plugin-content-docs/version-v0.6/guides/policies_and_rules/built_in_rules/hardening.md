@@ -415,6 +415,7 @@ User Namespace 可以被用于增强容器隔离性。但它的出现同时也�
 * Seccomp 🏷️ v0.6.2
 :::
 
+
 ### `disallow-load-bpf-via-setsockopt`
 
 禁止通过 setsockopt 系统调用加载 cBPF 程序。
@@ -432,6 +433,27 @@ User Namespace 可以被用于增强容器隔离性。但它的出现同时也�
 禁止通过 `setsockopt` 系统调用，使用 `SO_ATTACH_FILTER` 或 `SO_ATTACH_REUSEPORT_CBPF` 参数加载 cBPF 程序。
 
 推荐您组合使用 [disallow-load-all-bpf-prog](#disallow-load-all-bpf-prog) 规则来禁止加载人任意类型的 eBPF 程序。
+:::
+
+:::tip[支持的强制访问控制器]
+* Seccomp 🏷️ v0.6.3
+:::
+
+
+### `disallow-userfaultfd-creation`
+
+禁止创建 userfaultfd 对象。
+
+:::note[说明]
+在 Linux 内核漏洞利用中，`userfaultfd` 常被攻击者滥用来操纵内存访问的时序，从而辅助实现漏洞利用（如条件竞争漏洞、UAF 漏洞）。其核心作用在于精确控制页错误（Page Fault）的处理时机，为攻击者创造可预测的漏洞触发窗口。
+
+自 Linux 5.11 起，内核 fs/userfaultfd.c 中的全局变量 `sysctl_unprivileged_userfaultfd` 被初始化为 0。因此，只有当进程拥有 SYS_CAP_PTRACE 权限时才可以创建 userfaultfs 对象。
+
+在设置了 `kernel.unprivileged_userfaultfd=1` 的系统上，可通过此规则来加固容器。另外，容器运行时组件的默认 Seccomp profile 也禁用了 `userfaultfd` 系统调用。
+:::
+
+:::info[原理与影响]
+禁止调用 `userfaultfd` 系统调用。
 :::
 
 :::tip[支持的强制访问控制器]
