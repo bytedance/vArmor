@@ -423,7 +423,7 @@ Disallow loading any types of eBPF programs via `bpf` syscall with `BPF_PROG_LOA
 
 ### `disallow-load-bpf-via-setsockopt`
 
-Prohibit loading classic BPF programs via setsockopt system call
+Prohibit loading cBPF programs via setsockopt system call
 
 :::note[Description]
 Attackers can load classic BPF (cBPF) programs via the `setsockopt` syscall without privileged permission. 
@@ -438,6 +438,27 @@ Refer to the following links for further information.
 Disallow loading classic BPF programs via `setsockopt` syscall with `SO_ATTACH_FILTER` or `SO_ATTACH_REUSEPORT_CBPF` parameter.
 
 It is recommended to use it in conjunction with the [disallow-load-all-bpf-prog](#disallow-load-all-bpf-prog) rule to prohibit loading any types of extended BPF programs.
+:::
+
+:::tip[Supported Enforcer]
+* Seccomp
+:::
+
+
+### `disallow-userfaultfd-creation`
+
+Prohibit creating userfaultfd objects.
+
+:::note[Description]
+In Linux kernel exploits, `userfaultfd` is often abused by attackers to manipulate the timing of memory accesses, thus assisting in the implementation of exploits (such as conditional race vulnerabilities, UAF vulnerabilities). Its core function is to precisely control the processing timing of page errors (Page Fault), creating a predictable vulnerability trigger window for attackers.
+
+Since Linux 5.11, the global variable `sysctl_unprivileged_userfaultfd` in kernel fs/userfaultfd.c is initialized to 0, and a userfaultfs object can be created only if the process has SYS_CAP_PTRACE permissions.
+
+This rule can be used to harden containers on systems where `kernel.unprivileged_userfaultfd=1`. And the `userfaultfd` syscall is also disabled in the default Seccomp profile of the container runtime.
+:::
+
+:::info[Principle & Impact]
+Disallow calling the `userfaultfd` system call.
 :::
 
 :::tip[Supported Enforcer]

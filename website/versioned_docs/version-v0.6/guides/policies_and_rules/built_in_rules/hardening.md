@@ -443,3 +443,24 @@ It is recommended to use it in conjunction with the [disallow-load-all-bpf-prog]
 :::tip[Supported Enforcer]
 * Seccomp 🏷️ v0.6.3
 :::
+
+
+### `disallow-userfaultfd-creation`
+
+Prohibit creating userfaultfd objects.
+
+:::note[Description]
+In Linux kernel exploits, `userfaultfd` is often abused by attackers to manipulate the timing of memory accesses, thus assisting in the implementation of exploits (such as conditional race vulnerabilities, UAF vulnerabilities). Its core function is to precisely control the processing timing of page errors (Page Fault), creating a predictable vulnerability trigger window for attackers.
+
+Since Linux 5.11, the global variable `sysctl_unprivileged_userfaultfd` in kernel fs/userfaultfd.c is initialized to 0, and a userfaultfs object can be created only if the process has SYS_CAP_PTRACE permissions.
+
+This rule can be used to harden containers on systems where `kernel.unprivileged_userfaultfd=1`. And the `userfaultfd` syscall is also disabled in the default Seccomp profile of the container runtime.
+:::
+
+:::info[Principle & Impact]
+Disallow calling the `userfaultfd` system call.
+:::
+
+:::tip[Supported Enforcer]
+* Seccomp 🏷️ v0.6.3
+:::
