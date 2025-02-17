@@ -57,68 +57,39 @@ func httpsPostWithRetryAndToken(reqBody []byte, inContainer bool, service string
 	} else {
 		url = fmt.Sprintf(httpsDebugURL, address, port, path)
 	}
+
 	tr := &http.Transport{
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 	}
 	client := &http.Client{Timeout: httpTimeout, Transport: tr}
-	httpReq, err := http.NewRequest("POST", url, bytes.NewBuffer(reqBody))
-	if err != nil {
-		return err
-	}
-	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("Token", GetToken())
+
+	var httpReq *http.Request
 	var httpRsp *http.Response
+	var err error
 
 	for i := 0; i < retryTimes; i++ {
-		httpRsp, err = client.Do(httpReq)
+		httpReq, err = http.NewRequest("POST", url, bytes.NewBuffer(reqBody))
 		if err == nil {
-			defer httpRsp.Body.Close()
-			switch httpRsp.StatusCode {
-			case http.StatusOK:
-				return nil
-			case http.StatusUnauthorized:
-				if inContainer {
-					// try update token
-					updateChan <- true
+			httpReq.Header.Set("Content-Type", "application/json")
+			httpReq.Header.Set("Token", GetToken())
+			httpRsp, err = client.Do(httpReq)
+			if err == nil {
+				switch httpRsp.StatusCode {
+				case http.StatusOK:
+					return nil
+				case http.StatusUnauthorized:
+					if inContainer {
+						// try update token
+						updateChan <- true
+					}
+				default:
+					err = fmt.Errorf("http error code %d", httpRsp.StatusCode)
 				}
-				return fmt.Errorf("http error code %d", httpRsp.StatusCode)
-			default:
-				err = fmt.Errorf("http error code %d", httpRsp.StatusCode)
+				httpRsp.Body.Close()
 			}
 		}
-		r := rand.Intn(60) + 20
-		time.Sleep(time.Duration(r) * time.Millisecond)
-	}
 
-	return err
-}
-
-func httpPostWithRetry(reqBody []byte, inContainer bool, service string, namespace string, address string, port int, path string, retryTimes int) error {
-	var url string
-	if inContainer {
-		url = fmt.Sprintf(serverURL, service, namespace, port, path)
-	} else {
-		url = fmt.Sprintf(debugServerURL, address, port, path)
-	}
-	client := &http.Client{Timeout: httpTimeout}
-	httpReq, err := http.NewRequest("POST", url, bytes.NewBuffer(reqBody))
-	if err != nil {
-		return err
-	}
-	httpReq.Header.Set("Content-Type", "application/json")
-	var httpRsp *http.Response
-
-	for i := 0; i < retryTimes; i++ {
-		httpRsp, err = client.Do(httpReq)
-		if err == nil {
-			defer httpRsp.Body.Close()
-			if httpRsp.StatusCode == http.StatusOK {
-				return nil
-			} else {
-				err = fmt.Errorf("http error code %d", httpRsp.StatusCode)
-			}
-		}
-		r := rand.Intn(60) + 20
+		r := rand.Intn(500) + 200
 		time.Sleep(time.Duration(r) * time.Millisecond)
 	}
 
@@ -132,29 +103,34 @@ func httpPostAndGetResponseWithRetry(reqBody []byte, inContainer bool, service s
 	} else {
 		url = fmt.Sprintf(debugServerURL, address, port, path)
 	}
+
 	client := &http.Client{Timeout: httpTimeout}
-	httpReq, err := http.NewRequest("POST", url, bytes.NewBuffer(reqBody))
-	if err != nil {
-		return nil, err
-	}
-	httpReq.Header.Set("Content-Type", "application/json")
+
+	var httpReq *http.Request
 	var httpRsp *http.Response
+	var err error
+
 	for i := 0; i < retryTimes; i++ {
-		httpRsp, err = client.Do(httpReq)
+		httpReq, err = http.NewRequest("POST", url, bytes.NewBuffer(reqBody))
 		if err == nil {
-			defer httpRsp.Body.Close()
-			if httpRsp.StatusCode == http.StatusOK {
-				rspBody := make([]byte, len(reqBody))
-				var n int
-				n, err = httpRsp.Body.Read(rspBody)
-				if n > 0 && err == io.EOF {
-					return rspBody, nil
+			httpReq.Header.Set("Content-Type", "application/json")
+			httpRsp, err = client.Do(httpReq)
+			if err == nil {
+				if httpRsp.StatusCode == http.StatusOK {
+					rspBody := make([]byte, len(reqBody))
+					var n int
+					n, err = httpRsp.Body.Read(rspBody)
+					if n > 0 && err == io.EOF {
+						return rspBody, nil
+					}
+				} else {
+					err = fmt.Errorf("http error code %d", httpRsp.StatusCode)
 				}
-			} else {
-				err = fmt.Errorf("http error code %d", httpRsp.StatusCode)
+				httpRsp.Body.Close()
 			}
 		}
-		r := rand.Intn(60) + 20
+
+		r := rand.Intn(500) + 200
 		time.Sleep(time.Duration(r) * time.Millisecond)
 	}
 
