@@ -149,7 +149,7 @@ spec:
       allowViolations: false
 ```
 
-* **Response to High-risk Vulnerabilities**: When a high - risk vulnerability occurs, you can analyze the corresponding mitigation solution based on the type of vulnerability or the exploitation vector, and defend before the vulnerability is repaired by updating the sandbox policy (adding built-in rules, custom rules).
+* **Response to High-risk Vulnerabilities**: When a high-risk vulnerability occurs, you can analyze the corresponding mitigation solution based on the type of vulnerability or the exploitation vector, and defend before the vulnerability is repaired by updating the sandbox policy (adding built-in rules, custom rules).
 
 ```yaml
 spec:
@@ -195,13 +195,13 @@ spec:
           op: SCMP_CMP_MASKED_EQ
 ```
 
-* **Policy Impact Troubleshooting**: When users suspect that the sandbox policy affects the normal execution of the target application, the policy mode can be dynamically switched to the AlwaysAllow or RuntimeDefault mode for troubleshooting (Note: the Seccomp profiles of existing containers do not support dynamic updating).
+* **Policy Impact Troubleshooting**: When users suspect that the sandbox policy affects the normal execution of the target application, the policy mode can be dynamically switched to the AlwaysAllow or RuntimeDefault mode for troubleshooting. Please note that the Seccomp profiles of existing containers do not support dynamic updating.
 
 ```bash
 kubectl patch vcpol $POLICY_NAME --type='json' -p='[{"op": "replace", "path": "/spec/policy/mode", "value":"AlwaysAllow"}]'
 ```
 
-* **Behavior Modeling Mode**: You can use the experimental function - the [behavior modeling mode](../guides/policies_and_rules/policy_modes/behavior_modeling.md) to model the target application. After the modeling is completed, use the [policy advisor](../guides/policy_advisor.md) to generate a sandbox policy template to assist in the formulation of the sandbox policy.
+* **Behavior Modeling Mode**: You can use the experimental function, the [behavior modeling mode](../guides/policies_and_rules/policy_modes/behavior_modeling.md) to model the target application. After the modeling is completed, use the [policy advisor](../guides/policy_advisor.md) to generate a sandbox policy template to assist in the formulation of the sandbox policy.
 
 ```yaml
 spec:
@@ -223,7 +223,7 @@ Many enterprises, due to historical issues, system design requirements, and insu
 
 #### Reducing Risks of Privileged Containers
 
-Enterprises are recommended to first evaluate and remove the risky configurations that lead to "privileged containers" based on the principle of least privilege. If high risk configurations cannot be removed, please consider eliminating the risks through refactoring. When the above measures cannot be implemented, it is recommended to choose security boundaries with different isolation levels to harden containers based on business scenarios, taking into account factors such as compliance, data sensitivity, and cost.
+Enterprises are recommended to first evaluate and remove the risky configurations that lead to "privileged containers" based on the principle of least privilege. If high-risk configurations cannot be removed, please consider eliminating the risks through refactoring. When the above measures cannot be implemented, it is recommended to choose security boundaries with different isolation levels to harden containers based on business scenarios, taking into account factors such as compliance, data sensitivity, and cost.
 
 vArmor can be used as a supplement to harden before completely eliminating the security risks of "privileged containers". Users can use the [built-in rules](../guides/policies_and_rules/built_in_rules/index.md) and [custom rules](../guides/policies_and_rules/custom_rules.md) provided by vArmor to restrict the behavior of potential attackers, block known attack vectors, and increase the attack cost and the probability of intrusion detection. vArmor has three types of built-in rules: "container hardening", "attack protection", and "vulnerability mitigation", and is constantly updated. In the "container hardening" type of rules, a series of rules are specifically built-in for the security risks of "privileged containers" to block some known attack vectors.
 

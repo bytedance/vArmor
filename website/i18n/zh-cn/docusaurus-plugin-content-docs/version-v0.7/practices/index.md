@@ -193,7 +193,7 @@ spec:
           op: SCMP_CMP_MASKED_EQ
 ```
 
-* **策略影响排查**：当用户怀疑沙箱策略影响目标应用正常执行时，可将策略模式动态切换为 AlwaysAllow、RuntimeDefault 模式排查（注：Seccomp Profile 不支持动态切换。
+* **策略影响排查**：当用户怀疑沙箱策略影响目标应用正常执行时，可将策略模式动态切换为 AlwaysAllow、RuntimeDefault 模式排查（注：已启动容器的 Seccomp Profile 不支持动态更新）。
 
 ```bash
 kubectl patch vcpol $POLICY_NAME --type='json' -p='[{"op": "replace", "path": "/spec/policy/mode", "value":"AlwaysAllow"}]'
@@ -275,7 +275,7 @@ spec:
       duration: 30
 ```
 
-行为数据包括目标应用所需的 capability、执行的进程、读写的文件、调用的 syscall 等，用户可以利用这些信息来辅助降权。请参考[使用说明](../guides/policies_and_rules/policy_modes/behavior_modeling.md#使用说明)进一步了解如何使用 vArmor 的行为建模功能。注：当前仅 AppArmor 和 Seccomp enforcer 支持行为建模功能。
+行为数据包括目标应用所需的 capability、执行的进程、读写的文件、调用的 syscall 等，用户可以利用这些信息来辅助降权。请参考[使用说明](../guides/policies_and_rules/policy_modes/behavior_modeling.md#使用说明)进一步了解如何使用 vArmor 的行为建模功能（注：当前仅 AppArmor 和 Seccomp enforcer 支持行为建模功能）。
 
 
 ## 总结
