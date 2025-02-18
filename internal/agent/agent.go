@@ -293,7 +293,7 @@ func (agent *Agent) addArmorProfile(obj interface{}) {
 		// This shouldn't have happened.
 		logger.Error(fmt.Errorf("the name of ArmorProfile should equal with its spec.profile.name"), "illegal object")
 	} else {
-		logger.V(3).Info("enqueue ArmorPolicy")
+		logger.V(2).Info("enqueue ArmorPolicy")
 		agent.enqueuePolicy(ap, logger)
 	}
 }
@@ -307,7 +307,7 @@ func (agent *Agent) deleteArmorProfile(obj interface{}) {
 		// This shouldn't have happened.
 		logger.Error(fmt.Errorf("the name of ArmorProfile should equal with its spec.profile.name"), "illegal object")
 	} else {
-		logger.V(3).Info("enqueue ArmorPolicy")
+		logger.V(2).Info("enqueue ArmorPolicy")
 		agent.enqueuePolicy(ap, logger)
 	}
 }
@@ -320,12 +320,12 @@ func (agent *Agent) updateArmorProfile(oldObj interface{}, newObj interface{}) {
 
 	if newAp.ResourceVersion == oldAp.ResourceVersion ||
 		reflect.DeepEqual(newAp.Spec, oldAp.Spec) {
-		logger.V(3).Info("Nothing need to be updated")
+		logger.V(2).Info("Nothing need to be updated")
 	} else if newAp.Name != newAp.Spec.Profile.Name {
 		// This shouldn't have happened.
 		logger.Error(fmt.Errorf("new and old objects should have same spec.profile.name"), "illegal object")
 	} else {
-		logger.V(3).Info("enqueue ArmorPolicy")
+		logger.V(2).Info("enqueue ArmorPolicy")
 		agent.enqueuePolicy(newAp, logger)
 	}
 }
@@ -566,9 +566,9 @@ func (agent *Agent) syncProfile(key string) error {
 	logger := agent.log.WithName("syncProfile()")
 
 	startTime := time.Now()
-	logger.V(3).Info("started syncing profile", "key", key, "startTime", startTime)
+	logger.V(2).Info("started syncing profile", "key", key, "startTime", startTime)
 	defer func() {
-		logger.V(3).Info("finished syncing profile", "key", key, "processingTime", time.Since(startTime).String())
+		logger.V(2).Info("finished syncing profile", "key", key, "processingTime", time.Since(startTime).String())
 	}()
 
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
@@ -581,7 +581,7 @@ func (agent *Agent) syncProfile(key string) error {
 	if err != nil {
 		if k8errors.IsNotFound(err) {
 			// ArmorProfile delete event
-			logger.V(3).Info("processing ArmorProfile delete event")
+			logger.V(2).Info("processing ArmorProfile delete event")
 			return agent.handleDeleteArmorProfile(namespace, name, key)
 		} else {
 			logger.Error(err, "agent.varmorInterface.ArmorProfiles().Get()")
@@ -589,7 +589,7 @@ func (agent *Agent) syncProfile(key string) error {
 		}
 	} else {
 		// ArmorProfile create or update event
-		logger.V(3).Info("processing ArmorProfile create or update event")
+		logger.V(2).Info("processing ArmorProfile create or update event")
 		return agent.handleCreateOrUpdateArmorProfile(ap, key)
 	}
 }
@@ -602,7 +602,7 @@ func (agent *Agent) handleErr(err error, key interface{}) {
 	}
 
 	if agent.queue.NumRequeues(key) < maxRetries {
-		logger.V(3).Error(err, "failed to sync profile", "key", key)
+		logger.V(2).Error(err, "failed to sync profile", "key", key)
 		agent.queue.AddRateLimited(key)
 		return
 	}

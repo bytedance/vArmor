@@ -172,7 +172,7 @@ func (tracer *ProcessTracer) handleBpfEvents() {
 		record, err := tracer.reader.Read()
 		if err != nil {
 			if errors.Is(err, perf.ErrClosed) {
-				tracer.log.V(3).Info("perf buffer reader is closed")
+				tracer.log.V(2).Info("perf buffer reader is closed")
 				return
 			}
 			tracer.log.Error(err, "reading from perf buffer failed")

@@ -107,7 +107,7 @@ func (c *PolicyController) addVarmorPolicy(obj interface{}) {
 
 	vp := obj.(*varmor.VarmorPolicy)
 
-	logger.V(3).Info("enqueue VarmorPolicy")
+	logger.V(2).Info("enqueue VarmorPolicy")
 	c.enqueuePolicy(vp, logger)
 }
 
@@ -116,7 +116,7 @@ func (c *PolicyController) deleteVarmorPolicy(obj interface{}) {
 
 	vp := obj.(*varmor.VarmorPolicy)
 
-	logger.V(3).Info("enqueue VarmorPolicy")
+	logger.V(2).Info("enqueue VarmorPolicy")
 	c.enqueuePolicy(vp, logger)
 }
 
@@ -129,9 +129,9 @@ func (c *PolicyController) updateVarmorPolicy(oldObj, newObj interface{}) {
 	if newVp.ResourceVersion == oldVp.ResourceVersion ||
 		reflect.DeepEqual(newVp.Spec, oldVp.Spec) ||
 		!reflect.DeepEqual(newVp.Status, oldVp.Status) {
-		logger.V(3).Info("nothing need to be updated")
+		logger.V(2).Info("nothing need to be updated")
 	} else {
-		logger.V(3).Info("enqueue VarmorPolicy")
+		logger.V(2).Info("enqueue VarmorPolicy")
 		c.enqueuePolicy(newVp, logger)
 	}
 }
@@ -145,7 +145,7 @@ func (c *PolicyController) handleDeleteVarmorPolicy(namespace, name string) erro
 	ap, err := c.varmorInterface.ArmorProfiles(namespace).Get(context.Background(), apName, metav1.GetOptions{})
 	if err != nil {
 		if k8errors.IsNotFound(err) {
-			logger.V(3).Info("ArmorProfiles object is not found", "namespace", namespace, "name", apName)
+			logger.V(2).Info("ArmorProfiles object is not found", "namespace", namespace, "name", apName)
 		} else {
 			logger.Error(err, "c.varmorInterface.ArmorProfiles().Get()")
 			return err
@@ -525,9 +525,9 @@ func (c *PolicyController) syncPolicy(key string) error {
 	logger := c.log.WithName("syncPolicy()")
 
 	startTime := time.Now()
-	logger.V(3).Info("started syncing policy", "key", key, "startTime", startTime)
+	logger.V(2).Info("started syncing policy", "key", key, "startTime", startTime)
 	defer func() {
-		logger.V(3).Info("finished syncing policy", "key", key, "processingTime", time.Since(startTime).String())
+		logger.V(2).Info("finished syncing policy", "key", key, "processingTime", time.Since(startTime).String())
 	}()
 
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
@@ -540,7 +540,7 @@ func (c *PolicyController) syncPolicy(key string) error {
 	if err != nil {
 		if k8errors.IsNotFound(err) {
 			// VarmorPolicy delete event
-			logger.V(3).Info("processing VarmorPolicy delete event")
+			logger.V(2).Info("processing VarmorPolicy delete event")
 			return c.handleDeleteVarmorPolicy(namespace, name)
 		} else {
 			logger.Error(err, "c.varmorInterface.VarmorPolicies().Get()")
@@ -554,7 +554,7 @@ func (c *PolicyController) syncPolicy(key string) error {
 	if err == nil {
 		if policyOwnArmorProfile(vp, ap, false) {
 			// VarmorPolicy update event
-			logger.V(3).Info("processing VarmorPolicy update event")
+			logger.V(2).Info("processing VarmorPolicy update event")
 			return c.handleUpdateVarmorPolicy(vp, ap)
 		} else {
 			logger.Info("remove the finalizers of zombie ArmorProfile", "namespace", ap.Namespace, "name", ap.Name)
@@ -568,7 +568,7 @@ func (c *PolicyController) syncPolicy(key string) error {
 
 	if k8errors.IsNotFound(err) || newPolicy {
 		// VarmorPolicy create event
-		logger.V(3).Info("processing VarmorPolicy create event")
+		logger.V(2).Info("processing VarmorPolicy create event")
 		return c.handleAddVarmorPolicy(vp)
 	}
 
@@ -589,7 +589,7 @@ func (c *PolicyController) handleErr(err error, key interface{}) {
 	}
 
 	utilruntime.HandleError(err)
-	logger.V(3).Info("dropping policy out of queue", "key", key)
+	logger.V(2).Info("dropping policy out of queue", "key", key)
 	c.queue.Forget(key)
 }
 

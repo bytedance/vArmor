@@ -223,7 +223,7 @@ func (monitor *RuntimeMonitor) eventHandler(stopCh <-chan struct{}) {
 					logger.Error(err, "monitor.retrieveContainerInfo() failed", "container id", info.ContainerID, "pid", info.PID)
 					continue
 				} else if info.PodID == "" {
-					logger.V(3).Info("sandbox was started, just ignore it")
+					logger.V(2).Info("sandbox was started, just ignore it")
 					continue
 				}
 
@@ -240,7 +240,7 @@ func (monitor *RuntimeMonitor) eventHandler(stopCh <-chan struct{}) {
 				}
 
 				if shouldNotifySubscriber(info) {
-					logger.V(3).Info("notify subscribers of the '/tasks/start'", "info", info)
+					logger.V(2).Info("notify subscribers of the '/tasks/start'", "info", info)
 					for _, ch := range monitor.taskStartChs {
 						ch <- info
 					}
@@ -259,7 +259,7 @@ func (monitor *RuntimeMonitor) eventHandler(stopCh <-chan struct{}) {
 					ContainerID: deleteEvent.ContainerID,
 				}
 
-				logger.V(3).Info("notify subscribers of the '/tasks/delete' event", "info", info)
+				logger.V(2).Info("notify subscribers of the '/tasks/delete' event", "info", info)
 				for _, ch := range monitor.taskDeleteChs {
 					ch <- info
 				}
@@ -285,7 +285,7 @@ func (monitor *RuntimeMonitor) eventHandler(stopCh <-chan struct{}) {
 				monitor.running = true
 				monitor.status = nil
 
-				logger.V(3).Info("notify subscribers to handle the containers that exit or are created while the monitor is offline")
+				logger.V(2).Info("notify subscribers to handle the containers that exit or are created while the monitor is offline")
 				for _, ch := range monitor.taskDeleteSyncChs {
 					ch <- true
 				}
@@ -340,7 +340,7 @@ func (monitor *RuntimeMonitor) CollectExistingTargetContainers() error {
 			logger.Error(err, "monitor.retrieveContainerInfo() failed", "container id", info.ContainerID, "pid", info.PID)
 			continue
 		} else if info.PodID == "" {
-			logger.V(3).Info("sandbox was created, just ignore it", "container id", info.ContainerID, "pid", info.PID)
+			logger.V(2).Info("sandbox was created, just ignore it", "container id", info.ContainerID, "pid", info.PID)
 			continue
 		}
 

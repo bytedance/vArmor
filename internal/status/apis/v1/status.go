@@ -62,7 +62,7 @@ func (m *StatusManager) Status(c *gin.Context) {
 		return
 	}
 
-	logger.V(3).Info("enqueue ProfileStatus from agent")
+	logger.V(2).Info("enqueue ProfileStatus from agent")
 	m.statusQueue.Add(profileStatus)
 
 	if m.metricsModule.Enabled {
@@ -183,9 +183,9 @@ func (m *StatusManager) syncStatus(profileStatus varmortypes.ProfileStatus) erro
 	logger := m.log.WithName("syncStatus()")
 
 	startTime := time.Now()
-	logger.V(3).Info("started syncing status", "startTime", startTime)
+	logger.V(2).Info("started syncing status", "startTime", startTime)
 	defer func() {
-		logger.V(3).Info("finished syncing status", "processingTime", time.Since(startTime).String())
+		logger.V(2).Info("finished syncing status", "processingTime", time.Since(startTime).String())
 	}()
 
 	logger.Info("1. receive profile status from agent", "profile", profileStatus.ProfileName, "node", profileStatus.NodeName, "status", profileStatus.Status)
@@ -225,7 +225,7 @@ func (m *StatusManager) handleStatusErr(err error, status interface{}) {
 	}
 
 	utilruntime.HandleError(err)
-	logger.V(3).Info("dropping status out of statusQueue", "key", status)
+	logger.V(2).Info("dropping status out of statusQueue", "key", status)
 	m.statusQueue.Forget(status)
 }
 

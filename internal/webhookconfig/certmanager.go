@@ -120,7 +120,7 @@ func (m *certManager) addSecretFunc(obj interface{}) {
 	if !ok || val != "true" {
 		return
 	}
-	logger.V(3).Info("varmor secret added, reconciling webhook configurations")
+	logger.V(2).Info("varmor secret added, reconciling webhook configurations")
 	m.secretQueue <- true
 }
 
@@ -142,7 +142,7 @@ func (m *certManager) updateSecretFunc(oldObj interface{}, newObj interface{}) {
 		return
 	}
 
-	logger.V(3).Info("varmor secret updated, reconciling webhook configurations")
+	logger.V(2).Info("varmor secret updated, reconciling webhook configurations")
 	m.secretQueue <- true
 }
 
