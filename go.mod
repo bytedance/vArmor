@@ -10,6 +10,7 @@ require (
 	github.com/dlclark/regexp2 v1.9.0
 	github.com/gin-gonic/gin v1.9.1
 	github.com/go-logr/logr v1.4.2
+	github.com/go-logr/zerologr v1.2.3
 	github.com/hashicorp/go-version v1.6.0
 	github.com/julienschmidt/httprouter v1.3.0
 	github.com/kyverno/kyverno v1.7.4
@@ -23,6 +24,7 @@ require (
 	go.opentelemetry.io/otel/exporters/prometheus v0.52.0
 	go.opentelemetry.io/otel/metric v1.30.0
 	go.opentelemetry.io/otel/sdk/metric v1.30.0
+	go.uber.org/automaxprocs v1.6.0
 	golang.org/x/sys v0.28.0
 	google.golang.org/grpc v1.64.1
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
@@ -105,7 +107,6 @@ require (
 	go.opencensus.io v0.24.0 // indirect
 	go.opentelemetry.io/otel/sdk v1.30.0 // indirect
 	go.opentelemetry.io/otel/trace v1.30.0 // indirect
-	go.uber.org/automaxprocs v1.6.0 // indirect
 	golang.org/x/arch v0.3.0 // indirect
 	golang.org/x/crypto v0.31.0 // indirect
 	golang.org/x/exp v0.0.0-20241009180824-f66d83c29e7c // indirect
