@@ -35,6 +35,7 @@ helm install varmor varmor-0.6.2.tgz \
 *You can use the domain `elkeid-cn-beijing.cr.volces.com` inside of the CN region.*
 
 ## Configuration
+
 vArmor allows you to configure its functionality during installation using the helm command.
 
 ### General Options
@@ -82,6 +83,12 @@ You can use the following command to create a `ServiceMonitor` object in the nam
 --set metrics.serviceMonitorEnabled=true
 ```
 
+#### Set the log output format to JSON
+The default format of agent and manager is TEXT. You can use the following command to set it to JSON.
+
+```bash
+--set jsonLogFormat.enabled=true
+```
 
 ### Advanced Options
 
@@ -133,6 +140,7 @@ You can use the following option to change this behavior. Default: disabled.
 
 
 ## Upgrade
+
 You can use helm commands to upgrade, rollback, and perform other operations.
 
 ```bash

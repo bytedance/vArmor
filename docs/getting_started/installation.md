@@ -79,6 +79,13 @@ You can use the following command to create a `ServiceMonitor` object in the nam
 --set metrics.serviceMonitorEnabled=true
 ```
 
+#### Set the log output format to JSON
+The default format of agent and manager is TEXT. You can use the following command to set it to JSON.
+
+```bash
+--set jsonLogFormat.enabled=true
+```
+
 ### Advanced Options
 #### Set the match label of webhook
 vArmor will only enable sandbox protection for workloads that contain a specific label. You can set the label you want or disable this feature by using `--set 'manager.args={--webhookMatchLabel=}'`. Default: `sandbox.varmor.org/enable=true`.

@@ -83,6 +83,12 @@ You can use the following command to create a `ServiceMonitor` object in the nam
 --set metrics.serviceMonitorEnabled=true
 ```
 
+#### Set the log output format to JSON
+The default format of agent and manager is TEXT. You can use the following command to set it to JSON.
+
+```bash
+--set jsonLogFormat.enabled=true
+```
 
 ### Advanced Options
 
@@ -136,6 +142,7 @@ You can use the following option to change this behavior. Default: disabled.
 ## Upgrade
 
 You can use helm commands to upgrade, rollback, and perform other operations.
+
 ```bash
 helm upgrade varmor varmor-0.6.2.tgz \
     --namespace varmor --create-namespace \

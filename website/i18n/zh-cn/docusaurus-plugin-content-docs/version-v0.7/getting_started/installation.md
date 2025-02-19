@@ -81,6 +81,13 @@ vArmor 顺序检查对应的审计日志是否存在，并通过监控第一个�
 --set metrics.serviceMonitorEnabled=true
 ```
 
+#### 设置日志格式为 JSON
+Agent 和 Manager 的日志格式默认为文本格式，您可以使用下面的选项将其设置为 JSON 格式。
+
+```bash
+--set jsonLogFormat.enabled=true
+```
+
 ### 高级选项
 
 #### 设置 Webhook 的匹配标签
