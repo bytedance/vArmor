@@ -61,7 +61,7 @@ vArmor 主要由 Manager 和 Agent 两个组件构成。Manager 用于响应和�
 
 ### 关键术语
 #### 强制访问控制器
-vArmor 将 AppArmor, BPF, Seccomp 抽象为强制访问控制器（即 enforcer）。安全策略可以单独、组合使用它们来加固工作负载，例如：BPF、AppArmorBPF、AppArmorSeccomp、AppArmorBPFSeccomp 等。
+vArmor 将 AppArmor, BPF, Seccomp 抽象为强制访问控制器（即 Enforcer）。安全策略可以单独、组合使用它们来加固工作负载，例如：BPF、AppArmorBPF、AppArmorSeccomp、AppArmorBPFSeccomp 等。
 
 您可以在 [VarmorPolicy](getting_started/usage_instructions.md#varmorpolicy) 或 [VarmorClusterPolicy](getting_started/usage_instructions.md#varmorclusterpolicy) 对象的 `spec.policy.enforcer` 字段中设置要使用的强制访问控制器。
 
@@ -89,14 +89,14 @@ vArmor 的策略可以运行在五种模式中：*AlwaysAllow, RuntimeDefault, E
 ### 步骤 1. 拉取 chart 包
 
 ```bash
-helm pull oci://elkeid-ap-southeast-1.cr.volces.com/varmor/varmor --version 0.6.2
+helm pull oci://elkeid-ap-southeast-1.cr.volces.com/varmor/varmor --version 0.7.0-beta2
 ```
 
 ### 步骤 2. 安装
 vArmor 默认支持 AppArmor 和 Seccomp enforcer。请参照 [配置选项](getting_started/installation#配置选项) 查看更多信息。
 
 ```bash
-helm install varmor varmor-0.6.2.tgz \
+helm install varmor varmor-0.7.0-beta2.tgz \
     --namespace varmor --create-namespace \
     --set image.registry="elkeid-cn-beijing-1.cr.volces.com"
 ```
