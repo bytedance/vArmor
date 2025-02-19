@@ -86,14 +86,14 @@ vArmor 的策略可以运行在五种模式中：*AlwaysAllow, RuntimeDefault, E
 ### Step 1. 拉取 chart 包
 
 ```bash
-helm pull oci://elkeid-ap-southeast-1.cr.volces.com/varmor/varmor --version 0.6.2
+helm pull oci://elkeid-ap-southeast-1.cr.volces.com/varmor/varmor --version 0.6.3
 ```
 
 ### Step 2. 安装
 vArmor 默认支持 AppArmor 和 Seccomp enforcer。请参照 [配置选项](getting_started/installation.zh_CN.md#配置选项) 查看更多信息。
 
 ```bash
-helm install varmor varmor-0.6.2.tgz \
+helm install varmor varmor-0.6.3.tgz \
     --namespace varmor --create-namespace \
     --set image.registry="elkeid-cn-beijing-1.cr.volces.com"
 ```

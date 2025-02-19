@@ -23,7 +23,7 @@ vArmor 用户态组件默认使用下表所示的值进行资源申请。
 
 | Version | Manager CPU | Manager Memory | Agent CPU   | Agent Memory |
 | ------- |:-----------:|:--------------:|:-----------:|:--------------------------------------------------------------------:|
-| v0.6.2 | 200m / 100m | 300Mi / 200Mi  | 200m / 100m | 100Mi / 40Mi (关闭 BPF enforcer 时)<br />200Mi /100Mi (开启 BPF enforcer 时) |
+| v0.6.3 | 200m / 100m | 300Mi / 200Mi  | 200m / 100m | 100Mi / 40Mi (关闭 BPF enforcer 时)<br />200Mi /100Mi (开启 BPF enforcer 时) |
 
 说明：
 
