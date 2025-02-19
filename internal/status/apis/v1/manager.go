@@ -364,7 +364,7 @@ func (m *StatusManager) reconcileStatus(stopCh <-chan struct{}) {
 				break
 			}
 
-			logger.V(3).Info("PolicyStatus cache", "key", statusKey, "value", policyStatus)
+			logger.V(2).Info("PolicyStatus cache", "key", statusKey, "value", policyStatus)
 
 			namespace, vpName, err := cache.SplitMetaNamespaceKey(statusKey)
 			if err != nil {
@@ -572,7 +572,7 @@ func (m *StatusManager) Run(stopCh <-chan struct{}) {
 	if err != nil {
 		m.log.Error(err, "m.rebuildPolicyStatuses() failed")
 	}
-	m.log.V(3).Info("PolicyStatuses cache rebuilt", "length", len(m.PolicyStatuses), "content", m.PolicyStatuses)
+	m.log.V(2).Info("PolicyStatuses cache rebuilt", "length", len(m.PolicyStatuses), "content", m.PolicyStatuses)
 
 	go m.reconcileStatus(stopCh)
 	go wait.Until(m.statusWorker, time.Second, stopCh)

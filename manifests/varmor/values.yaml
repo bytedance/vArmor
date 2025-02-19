@@ -32,6 +32,11 @@ unloadAllAaProfiles:
 removeAllSeccompProfiles:
   enabled: false
 
+jsonLogFormat:
+  enabled: false
+  args:
+  - --logFormat=json
+
 # [Experimental feature]
 behaviorModeling:
   enabled: false

@@ -103,7 +103,7 @@ func (c *ClusterPolicyController) addVarmorClusterPolicy(obj interface{}) {
 
 	vcp := obj.(*varmor.VarmorClusterPolicy)
 
-	logger.V(3).Info("enqueue VarmorClusterPolicy")
+	logger.V(2).Info("enqueue VarmorClusterPolicy")
 	c.enqueueClusterPolicy(vcp, logger)
 }
 
@@ -112,7 +112,7 @@ func (c *ClusterPolicyController) deleteVarmorClusterPolicy(obj interface{}) {
 
 	vcp := obj.(*varmor.VarmorClusterPolicy)
 
-	logger.V(3).Info("enqueue VarmorClusterPolicy")
+	logger.V(2).Info("enqueue VarmorClusterPolicy")
 	c.enqueueClusterPolicy(vcp, logger)
 }
 
@@ -125,9 +125,9 @@ func (c *ClusterPolicyController) updateVarmorClusterPolicy(oldObj, newObj inter
 	if newVcp.ResourceVersion == oldVcp.ResourceVersion ||
 		reflect.DeepEqual(newVcp.Spec, oldVcp.Spec) ||
 		!reflect.DeepEqual(newVcp.Status, oldVcp.Status) {
-		logger.V(3).Info("nothing need to be updated")
+		logger.V(2).Info("nothing need to be updated")
 	} else {
-		logger.V(3).Info("enqueue VarmorClusterPolicy")
+		logger.V(2).Info("enqueue VarmorClusterPolicy")
 		c.enqueueClusterPolicy(newVcp, logger)
 	}
 }
@@ -520,9 +520,9 @@ func (c *ClusterPolicyController) syncClusterPolicy(key string) error {
 	logger := c.log.WithName("syncClusterPolicy()")
 
 	startTime := time.Now()
-	logger.V(3).Info("started syncing policy", "key", key, "startTime", startTime)
+	logger.V(2).Info("started syncing policy", "key", key, "startTime", startTime)
 	defer func() {
-		logger.V(3).Info("finished syncing policy", "key", key, "processingTime", time.Since(startTime).String())
+		logger.V(2).Info("finished syncing policy", "key", key, "processingTime", time.Since(startTime).String())
 	}()
 
 	_, name, err := cache.SplitMetaNamespaceKey(key)
@@ -535,7 +535,7 @@ func (c *ClusterPolicyController) syncClusterPolicy(key string) error {
 	if err != nil {
 		if k8errors.IsNotFound(err) {
 			// VarmorClusterPolicy delete event
-			logger.V(3).Info("processing VarmorClusterPolicy delete event")
+			logger.V(2).Info("processing VarmorClusterPolicy delete event")
 			return c.handleDeleteVarmorClusterPolicy(name)
 		} else {
 			logger.Error(err, "c.varmorInterface.VarmorClusterPolicies().Get()")
@@ -549,7 +549,7 @@ func (c *ClusterPolicyController) syncClusterPolicy(key string) error {
 	if err == nil {
 		if policyOwnArmorProfile(vcp, ap, true) {
 			// VarmorClusterPolicy update event
-			logger.V(3).Info("processing VarmorClusterPolicy update event")
+			logger.V(2).Info("processing VarmorClusterPolicy update event")
 			return c.handleUpdateVarmorClusterPolicy(vcp, ap)
 		} else {
 			logger.Info("remove the finalizers of zombie ArmorProfile", "namespace", ap.Namespace, "name", ap.Name)
@@ -563,7 +563,7 @@ func (c *ClusterPolicyController) syncClusterPolicy(key string) error {
 
 	if k8errors.IsNotFound(err) || newPolicy {
 		// VarmorClusterPolicy create event
-		logger.V(3).Info("processing VarmorClusterPolicy create event")
+		logger.V(2).Info("processing VarmorClusterPolicy create event")
 		return c.handleAddVarmorClusterPolicy(vcp)
 	}
 
@@ -584,7 +584,7 @@ func (c *ClusterPolicyController) handleErr(err error, key interface{}) {
 	}
 
 	utilruntime.HandleError(err)
-	logger.V(3).Info("dropping policy out of queue", "key", key)
+	logger.V(2).Info("dropping policy out of queue", "key", key)
 	c.queue.Forget(key)
 }
 

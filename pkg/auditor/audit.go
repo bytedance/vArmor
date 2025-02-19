@@ -93,7 +93,7 @@ func (auditor *Auditor) convertAppArmorEvent(e string) (*AppArmorEvent, error) {
 func (auditor *Auditor) processAuditEvent(event string) {
 	// AppArmor audit event
 	if strings.Contains(event, "type=1400") || strings.Contains(event, "type=AVC") {
-		auditor.log.V(3).Info("receive an AppArmor audit event", "event", strings.TrimSpace(event))
+		auditor.log.V(2).Info("receive an AppArmor audit event", "event", strings.TrimSpace(event))
 
 		eventForEnforceMode := strings.Contains(event, "apparmor=\"DENIED\"")
 		eventForAuditMode := strings.Contains(event, "apparmor=\"AUDIT\"")
@@ -124,7 +124,7 @@ func (auditor *Auditor) processAuditEvent(event string) {
 			}
 
 			info := auditor.containerCache[mntNsID]
-			auditor.log.V(3).Info("audit event",
+			auditor.log.V(2).Info("audit event",
 				"container id", info.ContainerID,
 				"container name", info.ContainerName,
 				"pod name", info.PodName,
@@ -170,7 +170,7 @@ func (auditor *Auditor) processAuditEvent(event string) {
 
 	// Seccomp audit event
 	if strings.Contains(event, "type=1326") || strings.Contains(event, "type=SECCOMP") {
-		auditor.log.V(3).Info("receive a Seccomp audit event", "event", strings.TrimSpace(event))
+		auditor.log.V(2).Info("receive a Seccomp audit event", "event", strings.TrimSpace(event))
 
 		// Send behavior event to subscribers
 		for _, ch := range auditor.auditEventChs {

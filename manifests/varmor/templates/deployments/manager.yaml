@@ -23,9 +23,9 @@ spec:
     spec:
       {{- if .Values.image.password }}
       imagePullSecrets:
-      {{- with .Values.imagePullSecrets }}
-      {{- toYaml . | nindent 6 }}
-      {{- end }}
+        {{- with .Values.imagePullSecrets }}
+          {{- toYaml . | nindent 6 }}
+        {{- end }}
       {{- end }}
       serviceAccountName: {{ include "varmor.manager.serviceAccountName" . }}
       securityContext:
@@ -35,33 +35,38 @@ spec:
         image: "{{ .Values.image.registry }}/{{ .Values.image.namespace }}/{{ .Values.manager.image.name }}:{{ .Values.manager.image.tag | default .Chart.AppVersion }}"
         imagePullPolicy: {{ .Values.manager.image.pullPolicy }}
         command: ["/varmor/vArmor"]
-        {{- if or .Values.manager.args .Values.behaviorModeling.enabled .Values.restartExistWorkloads.enabled  }}
+        {{- if or .Values.jsonLogFormat.enabled .Values.manager.args .Values.behaviorModeling.enabled .Values.restartExistWorkloads.enabled  }}
         args:
-        {{- if .Values.manager.args }}
-        {{- with .Values.manager.args }}
-          {{- toYaml . | nindent 8 }}
-        {{- end }}
-        {{- end }}
-        {{- if .Values.behaviorModeling.enabled }}
-        {{- with .Values.manager.behaviorModeling.args }}
-          {{- toYaml . | nindent 8 }}
-        {{- end }}
-        {{- end }}
-        {{- if .Values.restartExistWorkloads.enabled }}
-        {{- with .Values.manager.restartExistWorkloads.args }}
-          {{- toYaml . | nindent 8 }}
-        {{- end }}
-        {{- end }}
-        {{- if .Values.bpfExclusiveMode.enabled }}
-        {{- with .Values.manager.bpfExclusiveMode.args }}
-          {{- toYaml . | nindent 8 }}
-        {{- end }}
-        {{- end }}
-        {{- if .Values.metrics.enabled }}
-        {{- with .Values.manager.metrics.args }}
-          {{- toYaml . | nindent 8 }}
-        {{- end }}
-        {{- end }}
+          {{- if .Values.jsonLogFormat.enabled }}
+            {{- with .Values.jsonLogFormat.args }}
+              {{- toYaml . | nindent 8 }}
+            {{- end }}
+          {{- end }}
+          {{- if .Values.manager.args }}
+            {{- with .Values.manager.args }}
+              {{- toYaml . | nindent 8 }}
+            {{- end }}
+          {{- end }}
+          {{- if .Values.behaviorModeling.enabled }}
+            {{- with .Values.manager.behaviorModeling.args }}
+              {{- toYaml . | nindent 8 }}
+            {{- end }}
+          {{- end }}
+          {{- if .Values.restartExistWorkloads.enabled }}
+            {{- with .Values.manager.restartExistWorkloads.args }}
+              {{- toYaml . | nindent 8 }}
+            {{- end }}
+          {{- end }}
+          {{- if .Values.bpfExclusiveMode.enabled }}
+            {{- with .Values.manager.bpfExclusiveMode.args }}
+              {{- toYaml . | nindent 8 }}
+            {{- end }}
+          {{- end }}
+          {{- if .Values.metrics.enabled }}
+            {{- with .Values.manager.metrics.args }}
+              {{- toYaml . | nindent 8 }}
+            {{- end }}
+          {{- end }}
         {{- end }}
         securityContext:
           {{- toYaml .Values.manager.securityContext | nindent 10 }}
@@ -79,17 +84,17 @@ spec:
         {{- end }}
         {{- if .Values.behaviorModeling.enabled }}
         volumeMounts:
-        {{- with .Values.manager.behaviorModeling.volumeMounts }}
-          {{- toYaml . | nindent 8 }}
-        {{- end }}
+          {{- with .Values.manager.behaviorModeling.volumeMounts }}
+            {{- toYaml . | nindent 8 }}
+          {{- end }}
         {{- end }}
         resources:
           {{- toYaml .Values.manager.resources | nindent 10 }}
       {{- if .Values.behaviorModeling.enabled }}
       volumes:
-      {{- with .Values.manager.behaviorModeling.volumes }}
-        {{- toYaml . | nindent 6 }}
-      {{- end }}
+        {{- with .Values.manager.behaviorModeling.volumes }}
+          {{- toYaml . | nindent 6 }}
+        {{- end }}
       {{- end }}
       {{- with .Values.manager.nodeSelector }}
       nodeSelector:

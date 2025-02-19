@@ -134,7 +134,7 @@ func (auditor *Auditor) readFromAuditEventRingBuf() {
 			break
 		}
 
-		auditor.log.V(3).Info("receive an BPF audit event", "remaining bytes", record.Remaining)
+		auditor.log.V(2).Info("receive an BPF audit event", "remaining bytes", record.Remaining)
 
 		// Parse the header of audit event
 		if err := binary.Read(bytes.NewBuffer(record.RawSample[:bpfenforcer.EventHeaderSize]), binary.LittleEndian, &eventHeader); err != nil {
@@ -156,7 +156,7 @@ func (auditor *Auditor) readFromAuditEventRingBuf() {
 
 			e = auditor.convertBpfEvent(bpfenforcer.CapabilityType, &event)
 
-			auditor.log.V(3).Info("audit event",
+			auditor.log.V(2).Info("audit event",
 				"container id", auditor.containerCache[eventHeader.MntNs].ContainerID,
 				"container name", auditor.containerCache[eventHeader.MntNs].ContainerName,
 				"pod name", auditor.containerCache[eventHeader.MntNs].PodName,
@@ -176,7 +176,7 @@ func (auditor *Auditor) readFromAuditEventRingBuf() {
 
 			e = auditor.convertBpfEvent(bpfenforcer.FileType, &event)
 
-			auditor.log.V(3).Info("audit event",
+			auditor.log.V(2).Info("audit event",
 				"container id", auditor.containerCache[eventHeader.MntNs].ContainerID,
 				"container name", auditor.containerCache[eventHeader.MntNs].ContainerName,
 				"pod name", auditor.containerCache[eventHeader.MntNs].PodName,
@@ -196,7 +196,7 @@ func (auditor *Auditor) readFromAuditEventRingBuf() {
 
 			e = auditor.convertBpfEvent(bpfenforcer.BprmType, &event)
 
-			auditor.log.V(3).Info("audit event",
+			auditor.log.V(2).Info("audit event",
 				"container id", auditor.containerCache[eventHeader.MntNs].ContainerID,
 				"container name", auditor.containerCache[eventHeader.MntNs].ContainerName,
 				"pod name", auditor.containerCache[eventHeader.MntNs].PodName,
@@ -218,7 +218,7 @@ func (auditor *Auditor) readFromAuditEventRingBuf() {
 
 			switch event.Type {
 			case bpfenforcer.SocketType:
-				auditor.log.V(3).Info("audit event",
+				auditor.log.V(2).Info("audit event",
 					"container id", auditor.containerCache[eventHeader.MntNs].ContainerID,
 					"container name", auditor.containerCache[eventHeader.MntNs].ContainerName,
 					"pod name", auditor.containerCache[eventHeader.MntNs].PodName,
@@ -229,7 +229,7 @@ func (auditor *Auditor) readFromAuditEventRingBuf() {
 					"type", e.(*BpfNetworkCreateEvent).Type,
 					"protocol", e.(*BpfNetworkCreateEvent).Protocol)
 			case bpfenforcer.ConnectType:
-				auditor.log.V(3).Info("audit event",
+				auditor.log.V(2).Info("audit event",
 					"container id", auditor.containerCache[eventHeader.MntNs].ContainerID,
 					"container name", auditor.containerCache[eventHeader.MntNs].ContainerName,
 					"pod name", auditor.containerCache[eventHeader.MntNs].PodName,
@@ -250,7 +250,7 @@ func (auditor *Auditor) readFromAuditEventRingBuf() {
 
 			e = auditor.convertBpfEvent(bpfenforcer.PtraceType, &event)
 
-			auditor.log.V(3).Info("audit event",
+			auditor.log.V(2).Info("audit event",
 				"container id", auditor.containerCache[eventHeader.MntNs].ContainerID,
 				"container name", auditor.containerCache[eventHeader.MntNs].ContainerName,
 				"pod name", auditor.containerCache[eventHeader.MntNs].PodName,
@@ -270,7 +270,7 @@ func (auditor *Auditor) readFromAuditEventRingBuf() {
 
 			e = auditor.convertBpfEvent(bpfenforcer.MountType, &event)
 
-			auditor.log.V(3).Info("audit event",
+			auditor.log.V(2).Info("audit event",
 				"container id", auditor.containerCache[eventHeader.MntNs].ContainerID,
 				"container name", auditor.containerCache[eventHeader.MntNs].ContainerName,
 				"pod name", auditor.containerCache[eventHeader.MntNs].PodName,

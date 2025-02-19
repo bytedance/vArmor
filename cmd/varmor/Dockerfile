@@ -22,7 +22,7 @@ RUN echo "policy-features=/etc/apparmor.d/abi/varmor" >> /etc/apparmor/parser.co
 
 RUN git clone https://github.com/seccomp/libseccomp.git /libseccomp
 WORKDIR /libseccomp
-RUN git checkout v2.5.5
+RUN git checkout v2.6.0
 RUN ./autogen.sh && ./configure --prefix=/usr && \
     make && make install
 

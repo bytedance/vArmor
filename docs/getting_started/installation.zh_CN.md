@@ -16,13 +16,13 @@
 vArmor 推荐使用 Helm chart 进行部署。通过 Helm 安装前，请先拉取 chart 包。
 
 ```
-helm pull oci://elkeid-ap-southeast-1.cr.volces.com/varmor/varmor --version 0.6.2
+helm pull oci://elkeid-ap-southeast-1.cr.volces.com/varmor/varmor --version 0.7.0-beta2
 ```
 
 然后使用 helm 命令及[配置选项](#配置选项)进行安装和配置。
 
 ```
-helm install varmor varmor-0.6.2.tgz \
+helm install varmor varmor-0.7.0-beta2.tgz \
     --namespace varmor --create-namespace \
     --set image.registry="elkeid-cn-beijing.cr.volces.com"
 ```
@@ -78,6 +78,13 @@ vArmor 顺序检查对应的审计日志是否存在，并通过监控第一个�
 --set metrics.serviceMonitorEnabled=true
 ```
 
+#### 设置日志格式为 JSON
+Agent 和 Manager 的日志格式默认为文本格式，您可以使用下面的选项将其设置为 JSON 格式。
+
+```bash
+--set jsonLogFormat.enabled=true
+```
+
 ### 高级选项
 
 #### 设置 Webhook 的匹配标签
@@ -130,7 +137,7 @@ vArmor 的 Agent 默认运行在独立的网络命名空间中，并在端口 `6
 
 你可以使用 helm 命令进行升级、回滚等操作。
 ```bash
-helm upgrade varmor varmor-0.6.2.tgz \
+helm upgrade varmor varmor-0.7.0-beta2.tgz \
     --namespace varmor --create-namespace \
     --set image.registry="elkeid-ap-southeast-1.cr.volces.com" \
     --set bpfLsmEnforcer.enabled=true \

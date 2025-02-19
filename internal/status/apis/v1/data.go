@@ -51,7 +51,7 @@ func (m *StatusManager) Data(c *gin.Context) {
 		return
 	}
 
-	logger.V(3).Info("enqueue dynamicResult from agent")
+	logger.V(2).Info("enqueue dynamicResult from agent")
 	m.dataQueue.Add(string(reqBody))
 }
 
@@ -92,9 +92,9 @@ func (m *StatusManager) syncData(data string) error {
 	logger := m.log.WithName("syncData()")
 
 	startTime := time.Now()
-	logger.V(3).Info("started syncing data", "startTime", startTime)
+	logger.V(2).Info("started syncing data", "startTime", startTime)
 	defer func() {
-		logger.V(3).Info("finished syncing data", "processingTime", time.Since(startTime).String())
+		logger.V(2).Info("finished syncing data", "processingTime", time.Since(startTime).String())
 	}()
 
 	// Unmarshal the behavior data comes from agent
@@ -210,7 +210,7 @@ func (m *StatusManager) handleDataErr(err error, data interface{}) {
 	}
 
 	utilruntime.HandleError(err)
-	logger.V(3).Info("dropping data out of dataQueue", "key", data)
+	logger.V(2).Info("dropping data out of dataQueue", "key", data)
 	m.dataQueue.Forget(data)
 }
 

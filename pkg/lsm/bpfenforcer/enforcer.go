@@ -461,14 +461,14 @@ func (enforcer *BpfEnforcer) SaveAndApplyBpfProfile(profileName string, bpfConte
 	if profile, ok := enforcer.bpfProfileCache[profileName]; ok {
 		if reflect.DeepEqual(bpfContent, profile.bpfContent) {
 			// nothing need to update
-			enforcer.log.V(3).Info("the BPF profile is not changed, nothing need to update", "profile", profileName, "old", profile.bpfContent)
+			enforcer.log.V(2).Info("the BPF profile is not changed, nothing need to update", "profile", profileName, "old", profile.bpfContent)
 			return nil
 		}
-		enforcer.log.V(3).Info("update the BPF profile", "profile", profileName, "new", bpfContent)
+		enforcer.log.V(2).Info("update the BPF profile", "profile", profileName, "new", bpfContent)
 		profile.bpfContent = bpfContent
 		enforcer.bpfProfileCache[profileName] = profile
 	} else {
-		enforcer.log.V(3).Info("save the BPF profile", "profile", profileName, "new", bpfContent)
+		enforcer.log.V(2).Info("save the BPF profile", "profile", profileName, "new", bpfContent)
 		profile := bpfProfile{
 			bpfContent:     bpfContent,
 			containerCache: make(map[string]enforceID),
@@ -479,7 +479,7 @@ func (enforcer *BpfEnforcer) SaveAndApplyBpfProfile(profileName string, bpfConte
 	// apply the BPF profile to the kernel for the existing containers
 	profile := enforcer.bpfProfileCache[profileName]
 	for _, enforceID := range profile.containerCache {
-		enforcer.log.V(3).Info("apply the BPF profile", "profile", profileName, "new", profile.bpfContent)
+		enforcer.log.V(2).Info("apply the BPF profile", "profile", profileName, "new", profile.bpfContent)
 		err := enforcer.applyProfile(enforceID.mntNsID, profile.bpfContent)
 		if err != nil {
 			return err

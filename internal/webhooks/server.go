@@ -151,7 +151,7 @@ func (ws *WebhookServer) handlerFunc(handler func(request *admissionv1.Admission
 			UID:     admissionReview.Request.UID,
 		}
 
-		logger.V(3).Info("AdmissionRequest received",
+		logger.V(2).Info("AdmissionRequest received",
 			"uid", request.UID, "kind", request.Kind.String(),
 			"namespace", request.Namespace, "name", request.Name,
 			"operation", request.Operation)
@@ -182,7 +182,7 @@ func (ws *WebhookServer) handlerFunc(handler func(request *admissionv1.Admission
 			attrSet := attribute.NewSet(keyValues...)
 			ws.webhookLatency.Record(ctx, time.Since(startTime).Seconds(), metric.WithAttributeSet(attrSet))
 		}
-		logger.V(3).Info("AdmissionRequest processed", "time", time.Since(startTime).String())
+		logger.V(2).Info("AdmissionRequest processed", "time", time.Since(startTime).String())
 	}
 }
 
@@ -213,7 +213,7 @@ func (ws *WebhookServer) matchAndPatch(request *admissionv1.AdmissionRequest, ke
 	if err != nil {
 		return nil
 	}
-	logger.V(3).Info("policy matching", "policy namespace", policyNamespace, "policy name", policyName)
+	logger.V(2).Info("policy matching", "policy namespace", policyNamespace, "policy name", policyName)
 
 	clusterScope := policyNamespace == ""
 	if !clusterScope && policyNamespace != request.Namespace {
@@ -255,7 +255,7 @@ func (ws *WebhookServer) matchAndPatch(request *admissionv1.AdmissionRequest, ke
 			logger.Error(err, "ws.buildPatch()")
 			return nil
 		}
-		logger.V(3).Info("mutating resource", "json patch", patch)
+		logger.V(2).Info("mutating resource", "json patch", patch)
 		return successResponse(request.UID, []byte(patch))
 	} else if target.Selector != nil {
 		selector, err := metav1.LabelSelectorAsSelector(target.Selector)
@@ -269,7 +269,7 @@ func (ws *WebhookServer) matchAndPatch(request *admissionv1.AdmissionRequest, ke
 				logger.Error(err, "ws.buildPatch()")
 				return nil
 			}
-			logger.V(3).Info("mutating resource", "json patch", patch)
+			logger.V(2).Info("mutating resource", "json patch", patch)
 			return successResponse(request.UID, []byte(patch))
 		}
 	}
@@ -298,7 +298,7 @@ func (ws *WebhookServer) resourceMutation(request *admissionv1.AdmissionRequest)
 		}
 	}
 
-	logger.V(3).Info("no mutation required")
+	logger.V(2).Info("no mutation required")
 	return successResponse(request.UID, nil)
 }
 

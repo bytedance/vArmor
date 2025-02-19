@@ -23,9 +23,9 @@ spec:
     spec:
       {{- if .Values.image.password }}
       imagePullSecrets:
-      {{- with .Values.imagePullSecrets }}
-      {{- toYaml . | nindent 6 }}
-      {{- end }}
+        {{- with .Values.imagePullSecrets }}
+          {{- toYaml . | nindent 6 }}
+        {{- end }}
       {{- end }}
       serviceAccountName: {{ include "varmor.agent.serviceAccountName" . }}
       securityContext:
@@ -48,8 +48,13 @@ spec:
               fieldPath: spec.nodeName
         - name: READINESS_PORT
           value: "{{ .Values.agent.network.readinessPort }}"
-        {{- if or .Values.agent.args .Values.behaviorModeling.enabled .Values.bpfLsmEnforcer.enabled .Values.unloadAllAaProfiles.enabled .Values.removeAllSeccompProfiles.enabled }}
+        {{- if or .Values.jsonLogFormat.enabled .Values.agent.args .Values.behaviorModeling.enabled .Values.bpfLsmEnforcer.enabled .Values.unloadAllAaProfiles.enabled .Values.removeAllSeccompProfiles.enabled }}
         args:
+          {{- if .Values.jsonLogFormat.enabled }}
+            {{- with .Values.jsonLogFormat.args }}
+              {{- toYaml . | nindent 8 }}
+            {{- end }}
+          {{- end }}
           {{- if .Values.agent.args }}
             {{- with .Values.agent.args }}
               {{- toYaml . | nindent 8 }}
@@ -112,11 +117,11 @@ spec:
         {{- end }}
         resources:
         {{- if .Values.behaviorModeling.enabled }}
-        {{- toYaml .Values.agent.behaviorModeling.resources | nindent 10 }}
+          {{- toYaml .Values.agent.behaviorModeling.resources | nindent 10 }}
         {{- else if .Values.bpfLsmEnforcer.enabled }}
-        {{- toYaml .Values.agent.bpfLsmEnforcer.resources | nindent 10 }}
+          {{- toYaml .Values.agent.bpfLsmEnforcer.resources | nindent 10 }}
         {{- else }}
-        {{- toYaml .Values.agent.appArmorLsmEnforcer.resources | nindent 10 }}
+          {{- toYaml .Values.agent.appArmorLsmEnforcer.resources | nindent 10 }}
         {{- end }}
         readinessProbe:
           httpGet:

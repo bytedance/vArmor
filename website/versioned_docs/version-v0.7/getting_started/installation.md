@@ -21,13 +21,13 @@ vArmor can be deployed via a Helm chart which is the recommended and preferred m
 In order to install vArmor with Helm, first fetch the chart.
 
 ```
-helm pull oci://elkeid-ap-southeast-1.cr.volces.com/varmor/varmor --version 0.6.2
+helm pull oci://elkeid-ap-southeast-1.cr.volces.com/varmor/varmor --version 0.7.0-beta2
 ```
 
 Then install it with helm optional [configurations](#configuration).
 
 ```
-helm install varmor varmor-0.6.2.tgz \
+helm install varmor varmor-0.7.0-beta2.tgz \
     --namespace varmor --create-namespace \
     --set image.registry="elkeid-ap-southeast-1.cr.volces.com"
 ```
@@ -35,6 +35,7 @@ helm install varmor varmor-0.6.2.tgz \
 *You can use the domain `elkeid-cn-beijing.cr.volces.com` inside of the CN region.*
 
 ## Configuration
+
 vArmor allows you to configure its functionality during installation using the helm command.
 
 ### General Options
@@ -82,6 +83,12 @@ You can use the following command to create a `ServiceMonitor` object in the nam
 --set metrics.serviceMonitorEnabled=true
 ```
 
+#### Set the log output format to JSON
+The default format of agent and manager is TEXT. You can use the following command to set it to JSON.
+
+```bash
+--set jsonLogFormat.enabled=true
+```
 
 ### Advanced Options
 
@@ -133,10 +140,11 @@ You can use the following option to change this behavior. Default: disabled.
 
 
 ## Upgrade
+
 You can use helm commands to upgrade, rollback, and perform other operations.
 
 ```bash
-helm upgrade varmor varmor-0.6.2.tgz \
+helm upgrade varmor varmor-0.7.0-beta2.tgz \
     --namespace varmor --create-namespace \
     --set image.registry="elkeid-ap-southeast-1.cr.volces.com" \
     --set bpfLsmEnforcer.enabled=true \

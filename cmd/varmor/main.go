@@ -23,12 +23,16 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/go-logr/logr"
+	"github.com/go-logr/zerologr"
 	"github.com/kyverno/kyverno/pkg/leaderelection"
-	_ "go.uber.org/automaxprocs"
+	"github.com/rs/zerolog"
+	"go.uber.org/automaxprocs/maxprocs"
 	"golang.org/x/sys/unix"
 	kubeinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/util/retry"
+	"k8s.io/klog/v2"
 	"k8s.io/klog/v2/textlogger"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
@@ -75,15 +79,33 @@ var (
 	statusUpdateCycle        time.Duration
 	auditLogPaths            string
 	enableMetrics            bool
+	logFormat                string
+	verbosity                int
 	//syncMetricsSecond        int
 	setupLog = log.Log.WithName("SETUP")
 )
 
-func main() {
-	c := textlogger.NewConfig()
-	c.AddFlags(flag.CommandLine)
-	log.SetLogger(textlogger.NewLogger(c))
+func setLogger() {
+	// Disable the log of automaxprocs
+	maxprocs.Set()
 
+	// Setup logger
+	var logrLogger logr.Logger
+	switch logFormat {
+	case "json":
+		zerolog.TimeFieldFormat = zerolog.TimeFormatUnixMicro
+		zerologger := zerolog.New(os.Stdout).With().Timestamp().Caller().Logger()
+		zerologr.SetMaxV(verbosity)
+		logrLogger = zerologr.New(&zerologger)
+	default:
+		c := textlogger.NewConfig(textlogger.Verbosity(verbosity))
+		logrLogger = textlogger.NewLogger(c)
+	}
+	log.SetLogger(logrLogger)
+	klog.SetLogger(logrLogger)
+}
+
+func main() {
 	flag.BoolVar(&versionFlag, "version", false, "Print the version information.")
 	flag.BoolVar(&debugFlag, "debug", false, "Enable debug mode.")
 	flag.StringVar(&kubeconfig, "kubeconfig", "", "Path to a kubeconfig. Only required if out-of-cluster.")
@@ -102,6 +124,9 @@ func main() {
 	flag.DurationVar(&statusUpdateCycle, "statusUpdateCycle", time.Hour*2, "Configure the status update cycle for VarmorPolicy and ArmorProfile")
 	flag.StringVar(&auditLogPaths, "auditLogPaths", "/var/log/audit/audit.log|/var/log/kern.log", "Configure the file search list to select the audit log file and read the AppArmor and Seccomp audit events. Please use a vertical bar to separate the file paths, the first valid file will be used to track the audit events.")
 	flag.BoolVar(&enableMetrics, "enableMetrics", false, "Set this flag to enable metrics.")
+	flag.StringVar(&logFormat, "logFormat", "text", "Log format (text or json). Default is text.")
+	flag.IntVar(&verbosity, "v", 0, "Log verbosity level (higher value means more verbose).")
+	flag.IntVar(&verbosity, "verbosity", 0, "Log verbosity level (higher value means more verbose).")
 	//flag.IntVar(&syncMetricsSecond, "syncMetricsSecond", 10, "Configure the profile metric update seconds")
 	flag.Parse()
 
@@ -109,6 +134,9 @@ func main() {
 		fmt.Printf("GitVersion: %s\nGitCommit: %s\nBuildDate: %s\nGoVersion: %s\n", gitVersion, gitCommit, buildDate, goVersion)
 		return
 	}
+
+	// Setup logger
+	setLogger()
 
 	// Set the webhook matchLabels configuration.
 	if webhookMatchLabel != "" {
