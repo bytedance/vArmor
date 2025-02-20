@@ -35,6 +35,18 @@ spec:
       attackProtectionRules:
       - rules:
         - disable-write-etc
+      - rules:
         - mitigate-sa-leak
+        targets:
+        - "/bin/bash"
+        - "/usr/bin/bash"
+        - "/bin/dash"
+        - "/usr/bin/dash"
       appArmorRawRules:
-      - "deny /etc/hosts r,"
+      - rules: |
+          audit deny /etc/hosts r,
+          audit deny /etc/shadow r,
+      - rules: "audit deny /etc/hostname r,"
+        targets:
+        - "/bin/bash"
+        - "/usr/bin/bash"

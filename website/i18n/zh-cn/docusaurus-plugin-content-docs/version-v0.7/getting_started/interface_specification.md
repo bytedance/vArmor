@@ -18,7 +18,7 @@ description: vArmor 的接口规范。
 |      |enhanceProtect|hardeningRules<br />*string array*|可选字段。用于指定要使用的内置加固规则。|
 |      ||attackProtectionRules<br />*[AttackProtectionRules](#attackprotectionrules) array*|可选字段。用于指定要使用的内置规则。|
 |      ||vulMitigationRules<br />*string array*|可选字段。用于指定要使用的内置规则。|
-|      ||appArmorRawRules<br />*string array*|可选字段。用于设置自定义的 AppArmor 黑名单规则。每条规则必须以逗号结尾，请参考 [AppArmor 语法](https://manpages.ubuntu.com/manpages/jammy/man5/apparmor.d.5.html) 进行编写。|
+|      ||appArmorRawRules<br />*[AppArmorRawRules](#apparmorrawrules) array*|可选字段。用于设置自定义的 AppArmor 规则。|
 |      ||bpfRawRules<br />*[BpfRawRules](#bpfrawrules)*|可选字段。用于支持用户设置自定义的 BPF 黑名单规则。|
 |      ||syscallRawRules<br />*[LinuxSyscall](https://pkg.go.dev/github.com/opencontainers/runtime-spec@v1.1.0/specs-go#LinuxSyscall) array*|可选字段。用于支持用户使用 Seccomp enforcer 设置自定义的 Syscall 黑名单规则。请参考 [此文档](https://github.com/opencontainers/runtime-spec/blob/main/config-linux.md#seccomp) 创建自定义规则。|
 |      ||privileged<br />*bool*|可选字段。当对特权容器进行加固，请务必将此值设置为 true。若为 false，将在 **RuntimeDefault** 模式的基础上构造 AppArmor/BPF Profiles。若为 ture，则在 **AlwaysAllow** 模式的基础上构造 AppArmor/BPF Profiles。<br /><br />注意：当为 true 时，vArmor 不会为目标构造 Seccomp Profiles。（默认值：false）|
@@ -33,8 +33,15 @@ description: vArmor 的接口规范。
 |字段|描述|
 |---|----|
 |rules<br />*string array*|要使用的内置规则列表。|
-|targets<br />*string array*|可选字段。对指定可执行文件列表开启 rules 中的内置规则。可执行文件必须使用全路径，并且仅 AppArmor enforcer 支持此特性。|
+|targets<br />*string array*|可选字段。对指定可执行文件列表开启 rules 中的内置规则，可执行文件必须使用全路径。仅 AppArmor enforcer 支持此特性。|
 |PLACEHOLDER||
+
+## AppArmorRawRules
+
+|字段|描述|
+|-------|-------------|
+|rules<br />*string*|自定义的 AppArmor 规则。您应当自行确保规则符合 [AppArmor 语法](https://manpages.ubuntu.com/manpages/jammy/man5/apparmor.d.5.html)。|
+|targets<br />*string*|可选字段。对指定可执行文件列表开启 rules 中定义的自定义规则，可执行文件必须使用全路径。|
 
 ## BpfRawRules
 

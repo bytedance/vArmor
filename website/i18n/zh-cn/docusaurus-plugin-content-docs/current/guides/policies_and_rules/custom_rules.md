@@ -13,13 +13,73 @@ vArmor 支持用户基于 enforcer 的语法，在 **EhanceProtect** 模式的 [
 
 AppArmor enforcer 支持用户根据 AppArmor 的语法定制策略。
 
-请参见此 [文档](https://manpages.ubuntu.com/manpages/jammy/man5/apparmor.d.5.html) 在 [`.spec.policy.enhanceProtect.appArmorRawRules`](../../getting_started/interface_specification) 字段中设置自定义规则。请确保每条规则以 ',' 结尾。
+请参见此 [文档](https://manpages.ubuntu.com/manpages/jammy/man5/apparmor.d.5.html) 在 [`.spec.policy.enhanceProtect.appArmorRawRules`](../../getting_started/interface_specification.md) 字段中设置自定义规则。请确保每条规则以 ',' 结尾。
+
+**示例：**
+
+```yaml
+policy:
+  enforcer: AppArmor
+  mode: EnhanceProtect
+  enhanceProtect:
+    # Audit the actions that violate the mandatory access control rules.
+    # Any detected violation will be logged to /var/log/varmor/violations.log file in the host.
+    # It's disabled by default.
+    auditViolations: true
+    attackProtectionRules:
+    - rules:
+      - disable-chmod
+    - rules:
+      - mitigate-sa-leak
+      targets:
+      - "/bin/bash"
+      - "/bin/dash"
+      - "/bin/sh"
+    // highlight-start
+    appArmorRawRules:
+    - rules: |
+        audit deny /etc/hosts r,
+        audit deny /etc/shadow r,
+    - rules: "audit deny /etc/hostname r,"
+      targets:
+      - "/bin/bash"
+    // highlight-end
+```
 
 ### Seccomp enforcer
 
 Seccomp enforcer 支持用户根据 OCI 规范的语法定制策略。
 
 请参见此 [文档](https://github.com/opencontainers/runtime-spec/blob/main/config-linux.md#seccomp) 在 [`.spec.policy.enhanceProtect.syscallRawRules`](../../getting_started/interface_specification.md) 字段中设置自定义的系统调用规则。
+
+**示例：**
+
+```yaml
+policy:
+  enforcer: Seccomp
+  mode: EnhanceProtect
+  enhanceProtect:
+    // highlight-start
+    syscallRawRules:
+    # disallow chmod +x XXX, chmod 111 XXX, chmod 001 XXX, chmod 010 XXX...
+    - names:
+      - fchmodat
+      action: SCMP_ACT_ERRNO
+      args:
+      - index: 2
+        value: 0x40     # S_IXUSR
+        valueTwo: 0x40
+        op: SCMP_CMP_MASKED_EQ
+      - index: 2
+        value: 0x8      # S_IXGRP
+        valueTwo: 0x8
+        op: SCMP_CMP_MASKED_EQ
+      - index: 2
+        value: 1        # S_IXOTH
+        valueTwo: 1
+        op: SCMP_CMP_MASKED_EQ
+    // highlight-end
+```
 
 ### BPF enforcer
 
@@ -46,6 +106,35 @@ BPF enforcer 支持用户根据语法定制策略。每类规则的数量上限�
   |\**|- 在多级目录中，匹配零个、一个、多个字符<br />- 匹配 dot 文件，但不匹配 . 和 .. 文件<br />- 仅支持单个 \*\*，且不支持 ** 和 * 一起出现|- /tmp/\*\*/33 代表匹配任意以 /tmp 开头，且以 /33 结尾的文件，包含 /tmp/33<br />- /tmp/\*\* 代表匹配任意以 /tmp 开头的文件、目录<br />- /tm** 代表匹配任意以 /tm 开头的文件、目录<br />- /t**/33 代表匹配任意以 /t 开头，以 /33 结尾的文件、目录
 
 * **Network Permission**
+
   * 当前 vArmor 支持对指定的 IP 地址、IP 地址块（CIDR 块）、端口进行外联访问控制。
   * 当指定了 IP 地址、IP 地址块，但未指定端口时，默认对所有端口生效。
   * 具体请参见 [NetworkEgressRule](../../getting_started/interface_specification.md#networkegressrule)。
+
+**示例：**
+
+```yaml
+policy:
+  enforcer: BPF
+  mode: EnhanceProtect
+  enhanceProtect:
+    # Audit the actions that violate the mandatory access control rules.
+    # Any detected violation will be logged to /var/log/varmor/violations.log file in the host.
+    # It's disabled by default.
+    auditViolations: true
+    // highlight-start
+    bpfRawRules:
+      processes:
+      - pattern: "**ping"
+        permissions:
+        - exec
+      network:
+        egresses:
+        - ip: fdbd:dc01:ff:307:9329:268d:3a27:2ca7
+        - ipBlock: 192.168.1.1/24 # 192.168.1.0 to 192.168.1.255
+          port: 80
+        sockets:
+        - protocols:
+          - "udp"
+    // highlight-end
+```

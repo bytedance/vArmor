@@ -14,7 +14,7 @@ English | [简体中文](interface_specification.zh_CN.md)
 |      |enhanceProtect|hardeningRules<br />*string array*|Optional. HardeningRules are used to specify the built-in hardening rules.|
 |      ||attackProtectionRules<br />*[AttackProtectionRules](#attackprotectionrules) array*|Optional. AttackProtectionRules are used to specify the built-in attack protection rules.|
 |      ||vulMitigationRules<br />*string array*|Optional. VulMitigationRules are used to specify the built-in vulnerability mitigation rules.|
-|      ||appArmorRawRules<br />*string array*|Optional. AppArmorRawRules is used to set custom AppArmor rules, each rule must end with a comma, please refer to the [AppArmor Syntax](https://manpages.ubuntu.com/manpages/jammy/man5/apparmor.d.5.html).|
+|      ||appArmorRawRules<br />*[AppArmorRawRules](#apparmorrawrules) array*|Optional. AppArmorRawRules is used to set custom AppArmor rules.|
 |      ||bpfRawRules<br />*[BpfRawRules](#bpfrawrules) array*|Optional. BpfRawRules is used to set custom BPF rules.|
 |      ||syscallRawRules<br />*[LinuxSyscall](https://pkg.go.dev/github.com/opencontainers/runtime-spec@v1.1.0/specs-go#LinuxSyscall) array*|Optional. SyscallRawRules is used to set the custom syscalls blocklist rules with Seccomp enforcer. Please refer to [this document](https://github.com/opencontainers/runtime-spec/blob/main/config-linux.md#seccomp) to create custom rules.|
 |      ||privileged<br />*bool*|Optional. Privileged is used to identify whether the policy is for the privileged container. If set to false, vArmor will build AppArmor or BPF profiles on top of the **RuntimeDefault** mode. Otherwise, it will build AppArmor or BPF profiles on top of the **AlwaysAllow** mode. (Default: false)<br /><br />Note: If set to true, vArmor will not build Seccomp profile for the target workloads.|
@@ -31,6 +31,13 @@ English | [简体中文](interface_specification.zh_CN.md)
 |rules<br />*string array*|List of built-in attack protection rules to be used.
 |targets<br />*string array*|Optional. Targets specify the executable files to which the rules apply. They must be specified as full paths to the executable files. This feature is only effective when using AppArmor as the enforcer.
 |PLACEHOLDER
+
+## AppArmorRawRules
+
+| Field | Description |
+|-------|-------------|
+|rules<br />*string*|Rules define the custom AppArmor rules. You should make sure that they satisfy the [AppArmor Syntax](https://manpages.ubuntu.com/manpages/jammy/man5/apparmor.d.5.html) on your own.|
+|targets<br />*string*|Optional. Targets specify the executable files for which the rules apply. They must be specified as full paths to the executable files.|
 
 ## BpfRawRules
 
