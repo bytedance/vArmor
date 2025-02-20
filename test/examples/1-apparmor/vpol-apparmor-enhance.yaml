@@ -29,7 +29,7 @@ spec:
       # Any detected violation will be allowed instead of being blocked and logged to the same log file 
       # as the auditViolations feature. You can utilize the feature to achieve some kind of observation mode.
       # It's diabled by default.
-      allowViolations: true
+      # allowViolations: true
       hardeningRules:
       - disable-cap-net-raw
       attackProtectionRules:
@@ -39,7 +39,9 @@ spec:
         - mitigate-sa-leak
         targets:
         - "/bin/bash"
+        - "/usr/bin/bash"
         - "/bin/dash"
+        - "/usr/bin/dash"
       appArmorRawRules:
       - rules: |
           audit deny /etc/hosts r,
@@ -47,3 +49,4 @@ spec:
       - rules: "audit deny /etc/hostname r,"
         targets:
         - "/bin/bash"
+        - "/usr/bin/bash"
