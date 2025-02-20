@@ -36,7 +36,8 @@ type Target struct {
 	// will be enabled for all containers within the workload (excluding initContainers and ephemeralContainers).
 	// +optional
 	Containers []string `json:"containers,omitempty"`
-	// LabelSelector is used to match workloads that meet the specified conditions. Note that the selector field and name field are mutually exclusive.
+	// LabelSelector is used to match workloads that meet the specified conditions.
+	// Note that the selector field and name field are mutually exclusive.
 	// +optional
 	Selector *metav1.LabelSelector `json:"selector,omitempty"`
 }
@@ -44,14 +45,16 @@ type Target struct {
 type AttackProtectionRules struct {
 	// Rules is the list of built-in attack protection rules to be used.
 	Rules []string `json:"rules"`
-	// Targets specify the executable files to which the rules apply. They must be specified as full paths to the executable files.
-	// This feature is only effective when using AppArmor as the enforcer
+	// Targets specify the executable files for which the rules and rawRules apply.
+	// They must be specified as full paths to the executable files.
+	// This feature is only effective when using AppArmor as the enforcer.
 	// +optional
 	Targets []string `json:"targets,omitempty"`
 }
 
 type FileRule struct {
-	// Pattern can be any string (maximum length 128 bytes) that conforms to the policy syntax, used for matching file paths and filenames
+	// Pattern can be any string (maximum length 128 bytes) that conforms to the policy syntax,
+	// used for matching file paths and filenames
 	Pattern string `json:"pattern"`
 	// Permissions are used to specify the file permissions to be disabled.
 	//
@@ -88,8 +91,8 @@ type NetworkSocketRule struct {
 	// Available values: all(*), stream, dgram, raw, rdm, seqpacket, dccp, packet
 	//
 	Types []string `json:"types,omitempty"`
-	// Protocols specifies the particular protocols to be used with the socket. Note that the protocols field
-	// and types field are mutually exclusive.
+	// Protocols specifies the particular protocols to be used with the socket.
+	// Note that the protocols field and types field are mutually exclusive.
 	//
 	// Available values: all(*), icmp, tcp, udp
 	//
@@ -123,12 +126,14 @@ type PtraceRule struct {
 	//  ptrace attaching (PTRACE_ATTACH) to another process or calling process_vm_writev(2).
 	//
 	//  The read, readby permissions for "read" operations or other operations that are less dangerous, such as:
-	//  get_robust_list(2); kcmp(2); reading /proc/pid/auxv, /proc/pid/environ, or /proc/pid/stat; or readlink(2) of a /proc/pid/ns/* file.
+	//  get_robust_list(2); kcmp(2); reading /proc/pid/auxv, /proc/pid/environ, or /proc/pid/stat; or readlink(2)
+	//  of a /proc/pid/ns/* file.
 	Permissions []string `json:"permissions"`
 }
 
 type MountRule struct {
-	// SourcePattern can be any string (maximum length 128 bytes) that conforms to the policy syntax, used for matching file paths and filenames
+	// SourcePattern can be any string (maximum length 128 bytes) that conforms to the policy syntax,
+	// used for matching file paths and filenames
 	SourcePattern string `json:"sourcePattern"`
 	// Fstype is used to specify the type of filesystem to enforce. It can be '*' to match any type.
 	Fstype string `json:"fstype"`
@@ -156,20 +161,30 @@ type BpfRawRules struct {
 	Mounts    []MountRule  `json:"mounts,omitempty"`
 }
 
+type AppArmorRawRules struct {
+	// Rules define the custom AppArmor rules. You should make sure that they satisfy
+	// the AppArmor syntax on your own.
+	Rules string `json:"rules"`
+	// Targets specify the executable files for which the rules apply.
+	// They must be specified as full paths to the executable files.
+	// +optional
+	Targets []string `json:"targets,omitempty"`
+}
+
 type EnhanceProtect struct {
-	// HardeningRules are used to specify the built-in hardening rules
+	// HardeningRules are used to specify the built-in hardening rules.
 	// +optional
 	HardeningRules []string `json:"hardeningRules,omitempty"`
-	// AttackProtectionRules are used to specify the built-in attack protection rules
+	// AttackProtectionRules are used to specify the built-in attack protection rules.
 	// +optional
 	AttackProtectionRules []AttackProtectionRules `json:"attackProtectionRules,omitempty"`
-	// VulMitigationRules are used to specify the built-in vulnerability mitigation rules
+	// VulMitigationRules are used to specify the built-in vulnerability mitigation rules.
 	// +optional
 	VulMitigationRules []string `json:"vulMitigationRules,omitempty"`
-	// AppArmorRawRules is used to set native AppArmor rules, each rule must end with a comma
+	// AppArmorRawRules is used to set custom AppArmor rules.
 	// +optional
-	AppArmorRawRules []string `json:"appArmorRawRules,omitempty"`
-	// BpfRawRules is used to set native BPF rules
+	AppArmorRawRules []AppArmorRawRules `json:"appArmorRawRules,omitempty"`
+	// BpfRawRules is used to set custom BPF rules.
 	// +optional
 	BpfRawRules *BpfRawRules `json:"bpfRawRules,omitempty"`
 	// SyscallRawRules is used to set the syscalls blocklist rules with Seccomp enforcer.
