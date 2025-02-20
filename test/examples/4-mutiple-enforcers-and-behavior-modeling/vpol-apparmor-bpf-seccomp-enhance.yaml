@@ -29,7 +29,8 @@ spec:
         - mitigate-sa-leak
       # The custom AppArmor rules:
       appArmorRawRules:
-      - "deny /etc/shadow r,"
+      - rules: |
+          audit deny /etc/shadow r,
       # The custom BPF rules:
       bpfRawRules:
         network:
