@@ -12,11 +12,67 @@ The AppArmor enforcer supports users in customizing policies based on the syntax
 
 Please refer to the [syntax](https://manpages.ubuntu.com/manpages/jammy/man5/apparmor.d.5.html) of security profiles for AppArmor to set custom rules in the [`.spec.policy.enhanceProtect.appArmorRawRules`](../../getting_started/interface_specification.md) field. Please ensure that each rule ends with a comma.
 
+**Use case:**
+
+```yaml
+policy:
+  enforcer: AppArmor
+  mode: EnhanceProtect
+  enhanceProtect:
+    # Audit the actions that violate the mandatory access control rules.
+    # Any detected violation will be logged to /var/log/varmor/violations.log file in the host.
+    # It's disabled by default.
+    auditViolations: true
+    attackProtectionRules:
+    - rules:
+      - disable-chmod
+    - rules:
+      - mitigate-sa-leak
+      targets:
+      - "/bin/bash"
+      - "/bin/dash"
+      - "/bin/sh"
+    appArmorRawRules:
+    - rules: |
+        audit deny /etc/hosts r,
+        audit deny /etc/shadow r,
+    - rules: "audit deny /etc/hostname r,"
+      targets:
+      - "/bin/bash"
+```
+
 ## Seccomp enforcer
 
 The Seccomp enforcer supports users in customizing policies based on the syntax of OCI specification.
 
 Please refer to this [document](https://github.com/opencontainers/runtime-spec/blob/main/config-linux.md#seccomp) to set custom syscalls blocklist rules in the [`.spec.policy.enhanceProtect.syscallRawRules`](../../getting_started/interface_specification.md) field.
+
+**Use case:**
+
+```yaml
+policy:
+  enforcer: Seccomp
+  mode: EnhanceProtect
+  enhanceProtect:
+    syscallRawRules:
+    # disallow chmod +x XXX, chmod 111 XXX, chmod 001 XXX, chmod 010 XXX...
+    - names:
+      - fchmodat
+      action: SCMP_ACT_ERRNO
+      args:
+      - index: 2
+        value: 0x40     # S_IXUSR
+        valueTwo: 0x40
+        op: SCMP_CMP_MASKED_EQ
+      - index: 2
+        value: 0x8      # S_IXGRP
+        valueTwo: 0x8
+        op: SCMP_CMP_MASKED_EQ
+      - index: 2
+        value: 1        # S_IXOTH
+        valueTwo: 1
+        op: SCMP_CMP_MASKED_EQ
+```
 
 ## BPF enforcer
 
@@ -44,3 +100,29 @@ Please refer to the syntaxes below to set custom rules in the [`.spec.policy.enh
 * Currently, vArmor supports connection access control for specified IP addresses, IP address blocks (CIDR blocks), and ports.
 * When specific IP addresses or IP address blocks are specified without specifying ports, it defaults to affecting all ports.
 * Please refer to [NetworkEgressRule](../../getting_started/interface_specification.md#networkegressrule) for specific details.
+
+**Use case:**
+
+```yaml
+policy:
+  enforcer: BPF
+  mode: EnhanceProtect
+  enhanceProtect:
+    # Audit the actions that violate the mandatory access control rules.
+    # Any detected violation will be logged to /var/log/varmor/violations.log file in the host.
+    # It's disabled by default.
+    auditViolations: true
+    bpfRawRules:
+      processes:
+      - pattern: "**ping"
+        permissions:
+        - exec
+      network:
+        egresses:
+        - ip: fdbd:dc01:ff:307:9329:268d:3a27:2ca7
+        - ipBlock: 192.168.1.1/24 # 192.168.1.0 to 192.168.1.255
+          port: 80
+        sockets:
+        - protocols:
+          - "udp"
+```

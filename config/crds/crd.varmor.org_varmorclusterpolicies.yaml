@@ -88,14 +88,29 @@ spec:
                           of being blocked. \n Default is false."
                         type: boolean
                       appArmorRawRules:
-                        description: AppArmorRawRules is used to set native AppArmor
-                          rules, each rule must end with a comma
+                        description: AppArmorRawRules is used to set custom AppArmor
+                          rules.
                         items:
-                          type: string
+                          properties:
+                            rules:
+                              description: Rules define the custom AppArmor rules.
+                                You should make sure that they satisfy the AppArmor
+                                syntax on your own.
+                              type: string
+                            targets:
+                              description: Targets specify the executable files for
+                                which the rules apply. They must be specified as full
+                                paths to the executable files.
+                              items:
+                                type: string
+                              type: array
+                          required:
+                          - rules
+                          type: object
                         type: array
                       attackProtectionRules:
                         description: AttackProtectionRules are used to specify the
-                          built-in attack protection rules
+                          built-in attack protection rules.
                         items:
                           properties:
                             rules:
@@ -105,10 +120,10 @@ spec:
                                 type: string
                               type: array
                             targets:
-                              description: Targets specify the executable files to
-                                which the rules apply. They must be specified as full
-                                paths to the executable files. This feature is only
-                                effective when using AppArmor as the enforcer
+                              description: Targets specify the executable files for
+                                which the rules and rawRules apply. They must be specified
+                                as full paths to the executable files. This feature
+                                is only effective when using AppArmor as the enforcer.
                               items:
                                 type: string
                               type: array
@@ -124,7 +139,7 @@ spec:
                           file in the host. \n Default is false."
                         type: boolean
                       bpfRawRules:
-                        description: BpfRawRules is used to set native BPF rules
+                        description: BpfRawRules is used to set custom BPF rules.
                         properties:
                           files:
                             items:
@@ -305,7 +320,7 @@ spec:
                         type: object
                       hardeningRules:
                         description: HardeningRules are used to specify the built-in
-                          hardening rules
+                          hardening rules.
                         items:
                           type: string
                         type: array
@@ -365,7 +380,7 @@ spec:
                         type: array
                       vulMitigationRules:
                         description: VulMitigationRules are used to specify the built-in
-                          vulnerability mitigation rules
+                          vulnerability mitigation rules.
                         items:
                           type: string
                         type: array

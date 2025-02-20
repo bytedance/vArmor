@@ -176,7 +176,6 @@ profile %s flags=(attach_disconnected,mediate_deleted) {
 `
 
 const runtimeDefaultChildTemplateForEnhanceProtectMode = `
-
 # processes with parent profile may send signal to processes with child profile
 signal (send) peer=%s,
 # processes with parent profile may ptrace processes with child profile, but not vice versa.

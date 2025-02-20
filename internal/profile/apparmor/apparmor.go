@@ -17,10 +17,22 @@ package apparmor
 import (
 	"encoding/base64"
 	"fmt"
+	"reflect"
 	"strings"
 
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
 )
+
+// appArmorRules caches the AppArmor rules for specific executable files
+type appArmorRules struct {
+	// Rules cache the list of attack protection rules to be used.
+	Rules []string `json:"rules"`
+	// RawRules cache the custom rules to be used.
+	RawRules []string `json:"rawRules"`
+	// Targets specify the executable files for which the rules and rawRules apply.
+	// They must be specified as full paths to the executable files.
+	Targets []string `json:"targets"`
+}
 
 func GenerateAlwaysAllowProfile(profileName string) string {
 	c := []byte(fmt.Sprintf(alwaysAllowTemplate, profileName, ""))
@@ -367,6 +379,162 @@ func generateVulMitigationRules(rule, qualifier string) (rules string) {
 	return rules
 }
 
+func mergeRulesForSameTarget(tempRules []appArmorRules) []appArmorRules {
+	var finalRules []appArmorRules
+
+	for _, tempRule := range tempRules {
+		merged := false
+		for index, finalRule := range finalRules {
+			if reflect.DeepEqual(finalRule.Targets, tempRule.Targets) {
+				finalRules[index].Rules = append(finalRules[index].Rules, tempRule.Rules...)
+				finalRules[index].RawRules = append(finalRules[index].RawRules, tempRule.RawRules...)
+				merged = true
+			}
+		}
+
+		if !merged {
+			finalRules = append(finalRules, appArmorRules{
+				Rules:    tempRule.Rules,
+				RawRules: tempRule.RawRules,
+				Targets:  tempRule.Targets,
+			})
+		}
+	}
+
+	return finalRules
+}
+
+func mergeTargetForSameRules(tempRules []appArmorRules) []appArmorRules {
+	var finalRules []appArmorRules
+
+	for _, tempRule := range tempRules {
+		merged := false
+		for index, finalRule := range finalRules {
+			if reflect.DeepEqual(finalRule.Rules, tempRule.Rules) &&
+				reflect.DeepEqual(finalRule.RawRules, tempRule.RawRules) {
+				finalRules[index].Targets = append(finalRules[index].Targets, tempRule.Targets...)
+				merged = true
+			}
+		}
+
+		if !merged {
+			finalRules = append(finalRules, appArmorRules{
+				Rules:    tempRule.Rules,
+				RawRules: tempRule.RawRules,
+				Targets:  tempRule.Targets,
+			})
+		}
+	}
+
+	return finalRules
+}
+
+func preprocessAttackProtectionAndCustomRulesForTargets(enhanceProtect *varmor.EnhanceProtect) []appArmorRules {
+	var tempRules []appArmorRules
+
+	// Break down the rules at the granularity of the AttackProtectionRules' target
+	for _, attackProtectionRule := range enhanceProtect.AttackProtectionRules {
+		if len(attackProtectionRule.Targets) == 0 {
+			continue
+		}
+
+		for _, target := range attackProtectionRule.Targets {
+			tempRules = append(tempRules, appArmorRules{
+				Rules:   attackProtectionRule.Rules,
+				Targets: []string{target},
+			})
+		}
+	}
+
+	// Break down the rules at the granularity of the AppArmorRawRules' target
+	for _, appArmorRawRules := range enhanceProtect.AppArmorRawRules {
+		if len(appArmorRawRules.Targets) == 0 {
+			continue
+		}
+
+		for _, target := range appArmorRawRules.Targets {
+			tempRules = append(tempRules, appArmorRules{
+				RawRules: []string{appArmorRawRules.Rules},
+				Targets:  []string{target},
+			})
+		}
+	}
+
+	// Merge rules which have same target
+	tempRules = mergeRulesForSameTarget(tempRules)
+
+	// Merge targets which have same rules
+	tempRules = mergeTargetForSameRules(tempRules)
+
+	// Return the final rules for specific executable files
+	return tempRules
+}
+
+func generateRulesForTargets(enhanceProtect *varmor.EnhanceProtect, profileName, baseRules, qualifier string) string {
+	parentBaseRules := baseRules
+	aarules := preprocessAttackProtectionAndCustomRulesForTargets(enhanceProtect)
+
+	for index, aarule := range aarules {
+		// Building a child profile for certain binaries
+		childProfileName := fmt.Sprintf("child_%d", index)
+		childProfilePath := fmt.Sprintf("%s//%s", profileName, childProfileName)
+		childProfileRules := parentBaseRules
+		index += 1
+
+		// Generate attack protection rules for targets
+		childProfileRules += "\n  # Attack Protection Rules For Child Profile\n"
+		for _, rule := range aarule.Rules {
+			childProfileRules += generateAttackProtectionRules(rule, qualifier, enhanceProtect.AllowViolations)
+		}
+
+		// Merge custom rules for targets
+		childProfileRules += "\n  # Custom Rules For Child Profile\n"
+		for _, rule := range aarule.RawRules {
+			childProfileRules += rule + "\n"
+		}
+
+		// Setup targets to run in the child profile
+		targetsCx := ""
+		for _, target := range aarule.Targets {
+			targetsCx += fmt.Sprintf("%s cx -> %s,\n", target, childProfileName)
+		}
+
+		targetsRix := ""
+		for _, target := range aarule.Targets {
+			targetsRix += fmt.Sprintf("%s rix,\n", target)
+		}
+
+		// Generate the final child profile for targets
+		baseRules += "\n## Child Profile ##\n"
+		if enhanceProtect.Privileged {
+			baseRules += fmt.Sprintf(alwaysAllowChildTemplate,
+				targetsCx,
+				childProfileName,
+				targetsRix,
+				childProfileRules)
+		} else {
+			templ := runtimeDefaultChildTemplateForEnhanceProtectMode
+			if enhanceProtect.AllowViolations {
+				// Note:
+				// 		'x' must be preceded by exec qualifier 'i', 'p', 'c', or 'u' if there is no deny qualifier
+				templ = strings.ReplaceAll(templ, "wklx,", "wklix,")
+			}
+
+			baseRules += fmt.Sprintf(templ,
+				childProfilePath, // parent may send signal to child
+				childProfilePath, // parent may ptrace child
+				targetsCx,
+				childProfileName,
+				targetsRix,
+				profileName, childProfilePath, // allow receiving the signal from the parent
+				profileName, childProfilePath, // allow be traced by the parent
+				childProfileRules)
+		}
+	}
+
+	return baseRules
+}
+
 func GenerateEnhanceProtectProfile(enhanceProtect *varmor.EnhanceProtect, profileName string) string {
 	var baseRules string
 	qualifier := "  "
@@ -379,79 +547,42 @@ func GenerateEnhanceProtectProfile(enhanceProtect *varmor.EnhanceProtect, profil
 		qualifier += "deny "
 	}
 
-	// Hardening
+	// Hardening Rules
+	baseRules += "  # Hardening Rules\n"
 	for _, rule := range enhanceProtect.HardeningRules {
 		baseRules += generateHardeningRules(rule, qualifier)
 	}
 
-	// Attack Protection
-	index := 0
-	parentBaseRules := baseRules
+	// Attack Protection Rules
+	baseRules += "\n  # Attack Protection Rules\n"
 	for _, attackProtectionRule := range enhanceProtect.AttackProtectionRules {
+		// Only process the global rules now
 		if len(attackProtectionRule.Targets) == 0 {
 			for _, rule := range attackProtectionRule.Rules {
 				baseRules += generateAttackProtectionRules(rule, qualifier, enhanceProtect.AllowViolations)
 			}
-		} else {
-			// build a child profile for certain binaries
-			childProfileName := fmt.Sprintf("child_%d", index)
-			childProfilePath := fmt.Sprintf("%s//%s", profileName, childProfileName)
-			childProfileRules := parentBaseRules
-			index += 1
-
-			for _, rule := range attackProtectionRule.Rules {
-				childProfileRules += generateAttackProtectionRules(rule, qualifier, enhanceProtect.AllowViolations)
-			}
-
-			targetsCx := ""
-			for _, target := range attackProtectionRule.Targets {
-				targetsCx += fmt.Sprintf("%s cx -> %s,\n", target, childProfileName)
-			}
-
-			targetsRix := ""
-			for _, target := range attackProtectionRule.Targets {
-				targetsRix += fmt.Sprintf("%s rix,\n", target)
-			}
-
-			if enhanceProtect.Privileged {
-				baseRules += fmt.Sprintf(alwaysAllowChildTemplate,
-					targetsCx,
-					childProfileName,
-					targetsRix,
-					childProfileRules)
-			} else {
-				templ := runtimeDefaultChildTemplateForEnhanceProtectMode
-				if enhanceProtect.AllowViolations {
-					// Note:
-					// 		'x' must be preceded by exec qualifier 'i', 'p', 'c', or 'u' if there is no deny qualifier
-					templ = strings.ReplaceAll(templ, "wklx,", "wklix,")
-				}
-
-				baseRules += fmt.Sprintf(templ,
-					childProfilePath, // parent may send signal to child
-					childProfilePath, // parent may ptrace child
-					targetsCx,
-					childProfileName,
-					targetsRix,
-					profileName, childProfilePath, // signal
-					profileName, childProfilePath, // ptrace
-					childProfileRules)
-			}
 		}
 	}
 
-	// Vulnerability Mitigation
+	// Vulnerability Mitigation Rules
+	baseRules += "\n  # Vulnerability Mitigation Rules\n"
 	for _, rule := range enhanceProtect.VulMitigationRules {
 		baseRules += generateVulMitigationRules(rule, qualifier)
 	}
 
-	// Custom
+	// Custom Rules
+	baseRules += "\n  # Custom Rules\n"
 	for _, rule := range enhanceProtect.AppArmorRawRules {
-		if strings.HasSuffix(rule, ",") {
-			baseRules += "  " + rule + "\n"
+		// Only process the global rules now
+		if len(rule.Targets) == 0 {
+			baseRules += rule.Rules + "\n"
 		}
 	}
 
+	// Attack protection rules and custom rules for restricting specific executable
+	baseRules = generateRulesForTargets(enhanceProtect, profileName, baseRules, qualifier)
+
+	// Generate the final profile
 	if enhanceProtect.Privileged {
 		// Create profile for privileged container based on the AlwaysAllow template
 		p := fmt.Sprintf(alwaysAllowTemplate, profileName, baseRules)
