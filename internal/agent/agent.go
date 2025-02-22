@@ -22,6 +22,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -318,8 +319,17 @@ func (agent *Agent) updateArmorProfile(oldObj interface{}, newObj interface{}) {
 	oldAp := oldObj.(*varmor.ArmorProfile)
 	newAp := newObj.(*varmor.ArmorProfile)
 
-	if newAp.ResourceVersion == oldAp.ResourceVersion ||
-		reflect.DeepEqual(newAp.Spec, oldAp.Spec) {
+	var oldReconcile, newReconcile int
+	if oldAp.Annotations != nil {
+		value := oldAp.Annotations[varmortypes.ReconcileAnnotation]
+		oldReconcile, _ = strconv.Atoi(value)
+	}
+	if newAp.Annotations != nil {
+		value := newAp.Annotations[varmortypes.ReconcileAnnotation]
+		newReconcile, _ = strconv.Atoi(value)
+	}
+
+	if reflect.DeepEqual(newAp.Spec, oldAp.Spec) && newReconcile == oldReconcile {
 		logger.V(2).Info("Nothing need to be updated")
 	} else if newAp.Name != newAp.Spec.Profile.Name {
 		// This shouldn't have happened.
