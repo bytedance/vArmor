@@ -70,6 +70,9 @@ const (
 	// Event type for the bpf tracer
 	SchedProcessFork uint32 = 1
 	SchedProcessExec uint32 = 2
+
+	// ReconcileAnnotation control whether to force agents to update the profile
+	ReconcileAnnotation string = "profile-reconcile-counter"
 )
 
 type Status string

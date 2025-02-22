@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -207,6 +208,7 @@ func (m *StatusManager) rebuildPolicyStatuses() error {
 			var policyStatus varmortypes.PolicyStatus
 			policyStatus.NodeMessages = make(map[string]string, m.desiredNumber)
 
+			// Only count the failed node that is still in the cluster
 			for _, condition := range ap.Status.Conditions {
 				if varmorutils.InStringArray(condition.NodeName, nodes) {
 					policyStatus.FailedNumber += 1
@@ -214,6 +216,7 @@ func (m *StatusManager) rebuildPolicyStatuses() error {
 				}
 			}
 
+			// The node that has not failed must be successful.
 			for _, node := range nodes {
 				if _, ok := policyStatus.NodeMessages[node]; !ok {
 					policyStatus.SuccessedNumber += 1
@@ -221,6 +224,7 @@ func (m *StatusManager) rebuildPolicyStatuses() error {
 				}
 			}
 
+			// Cache policy status
 			m.PolicyStatuses[statusKey] = policyStatus
 		}
 	}
@@ -285,7 +289,8 @@ func (m *StatusManager) updateVarmorClusterPolicyStatus(
 	return UpdateVarmorClusterPolicyStatus(m.varmorInterface, vcp, "", ready, phase, varmortypes.VarmorPolicyReady, status, reason, message)
 }
 
-// updateAllCRStatus periodically updates all of the objects' statuses to avoid interference from offline nodes.
+// updateAllCRStatus periodically reconcile all of the objects' statuses to avoid the interference from offline nodes
+// and to force agents to update profile that do not meet the expectations.
 func (m *StatusManager) updateAllCRStatus(logger logr.Logger) {
 	if len(m.PolicyStatuses) == 0 {
 		return
@@ -305,8 +310,8 @@ func (m *StatusManager) updateAllCRStatus(logger logr.Logger) {
 		return
 	}
 
-	// Remove the status cache of offline nodes from PolicyStatus.NodeMessages, and update the objects' status.
 	for statusKey, policyStatus := range m.PolicyStatuses {
+		// Remove the status cache of offline nodes from PolicyStatus.NodeMessages
 		policyStatus.FailedNumber = 0
 		policyStatus.SuccessedNumber = 0
 		for nodeName, message := range policyStatus.NodeMessages {
@@ -321,6 +326,44 @@ func (m *StatusManager) updateAllCRStatus(logger logr.Logger) {
 			}
 		}
 		m.PolicyStatuses[statusKey] = policyStatus
+
+		// Force agents to update profile that do not meet the expectations.
+		if policyStatus.FailedNumber == 0 && policyStatus.SuccessedNumber != m.desiredNumber {
+			namespace, vpName, err := cache.SplitMetaNamespaceKey(statusKey)
+			if err != nil {
+				logger.Error(err, "fatal error")
+				continue
+			} else {
+				clusterScope := false
+				if namespace == "" {
+					clusterScope = true
+					namespace = varmorconfig.Namespace
+				}
+				apName := varmorprofile.GenerateArmorProfileName(namespace, vpName, clusterScope)
+
+				logger.Info("force agents to update the ArmorProfile object", "namespace", namespace, "name", apName)
+				err = retry.RetryOnConflict(retry.DefaultRetry,
+					func() error {
+						ap, err := m.varmorInterface.ArmorProfiles(namespace).Get(context.Background(), apName, metav1.GetOptions{})
+						if err != nil {
+							return err
+						}
+						if ap.Annotations == nil {
+							ap.Annotations = make(map[string]string)
+						}
+						value := ap.Annotations[varmortypes.ReconcileAnnotation]
+						counter, _ := strconv.Atoi(value)
+						ap.Annotations[varmortypes.ReconcileAnnotation] = fmt.Sprintf("%d", counter+1)
+						_, err = m.varmorInterface.ArmorProfiles(namespace).Update(context.Background(), ap, metav1.UpdateOptions{})
+						return err
+					})
+				if err != nil {
+					logger.Error(err, "failed to update the reconcile annotation of the ArmorProfile object")
+				}
+			}
+		}
+
+		// Update the objects' status.
 		m.UpdateStatusCh <- statusKey
 	}
 }
@@ -478,7 +521,8 @@ func (m *StatusManager) reconcileStatus(stopCh <-chan struct{}) {
 				}
 			}
 
-		// Periodically update all of the objects' statuses to avoid the interference from offline nodes.
+		// Periodically update all of the objects' statuses to avoid the interference from offline nodes
+		// and force agents to update the profile that do not meet the expectations.
 		case <-ticker.C:
 			logger.Info("periodically update all of the objects' statuses")
 			m.updateAllCRStatus(logger)
