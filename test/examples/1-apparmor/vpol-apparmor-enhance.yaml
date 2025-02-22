@@ -34,9 +34,9 @@ spec:
       - disable-cap-net-raw
       attackProtectionRules:
       - rules:
-        - disable-write-etc
-      - rules:
         - mitigate-sa-leak
+      - rules:
+        - disable-write-etc
         targets:
         - "/bin/bash"
         - "/usr/bin/bash"

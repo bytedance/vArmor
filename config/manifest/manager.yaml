@@ -29,7 +29,7 @@ spec:
       - name: varmor-image-pull-secret
       containers:
       - name: manager
-        image: elkeid-test-cn-beijing.cr.volces.com/varmor/varmor:0.7.0-beta3
+        image: elkeid-test-cn-beijing.cr.volces.com/varmor/varmor:0.7.0-alpha1
         imagePullPolicy: Always
         command: ["/varmor/vArmor"]
         securityContext:
