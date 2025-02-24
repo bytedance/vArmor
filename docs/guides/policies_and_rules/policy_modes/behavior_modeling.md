@@ -28,7 +28,7 @@ The requirements for the BehaviorModeling mode are as follows.
    * [Optional] Use the `--set "agent.args={--auditLogPaths=FILE_PATH|FILE_PATH}"` argument to specify the audit log file or determine the search order yourself.
 
     ```
-    helm upgrade varmor varmor-0.7.0-beta3.tgz \
+    helm upgrade varmor varmor-0.7.0-alpha1.tgz \
         --namespace varmor --create-namespace \
         --set image.registry="elkeid-cn-beijing.cr.volces.com" \
         --set behaviorModeling.enabled=true
@@ -130,7 +130,7 @@ spec:
 
 **3. Update modeling duration (on demand)**
 
-You can modify the modeling duration as needed by updating the ".spec.policy.modelingOptions.duration" field of the policy. For example, change it to 1 to end the modeling prematurely.
+You can modify the modeling duration as needed by updating the `.spec.policy.modelingOptions.duration` field of the policy. For example, change it to 1 to end the modeling prematurely.
 
 ```bash
 kubectl patch vpol -n demo demo-4 --type='json' -p='[{"op": "replace", "path": "/spec/policy/modelingOptions/duration", "value":1}]'
@@ -164,7 +164,7 @@ demo        varmor-cluster-demo-demo-4   CRDInternal    2         2           tr
 
 * The target workload needs to have a `sandbox.varmor.org/enable="true"` label. You can turn this off via the [Set matching tags for webhooks](../../../getting_started/installation.md#set-the-match-label-of-webhook) configuration option.
 * Switching policies in BehaviorModeling mode to others and vice versa is not supported. You need to delete the policy and recreate the policy to switch.
-* After the modeling is completed, it is not supported to modify the modeling duration of the policy. You need to delete the policy and recreate the policy before you can start modeling again, but the existing behavioral data will be preserved.
+* After the modeling is completed, it is not supported to modify the modeling duration of the policy. You must delete the policy and recreate it before restarting the modeling process. However, the existing behavioral data will be preserved.
 
 ### Data Export
 

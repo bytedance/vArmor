@@ -23,9 +23,103 @@ vArmor 支持在创建或删除 VarmorPolicy/VarmorClusterPolicy 对象时，对
 
 ## 日志管理
 
-当前 vArmor 的 manager & agent 组件仅通过标准输出记录日志。
+### 组件日志
+Manager 和 Agent 组件会通过标准输出记录日志。默认为 TEXT 格式，您可以通过[安装选项](../getting_started/installation.md#设置日志格式为-json)将其切换为 JSON 格式。
 
-您可以借助日志组件采集并配置告警，例如：`\* | select count(*) as ErrCount where __content__ LIKE 'E%'`
+### 审计日志
+vArmor 支持将策略对象配置为仅告警不拦截（观察模式）、拦截并告警模式。您可以通过策略对象的 `auditViolations` 和 `allowViolations` 字段来实现此功能，常见用法请参考[此文档](../practices/index.md#常见用法)。所有违规事件都将以 JSON 格式记录到宿主机的 `/var/log/varmor/violations.log` 文件中（文件大小上限为 10MB，并最多保留 3 个旧文件）。
+
+违规事件格式如下所示，其中被拦截并告警的行为将生成 `warn` 级别的事件，仅告警不拦截的行为将生成 `debug` 级别的事件。
+
+* 当前仅 AppArmor 和 BPF Enforcer 支持违规审计。
+* 受限于 AppArmor LSM 的实现，使用 AppArmor Enforcer 时，在某些情况下无法匹配出对应的容器和 Pod 信息。
+
+```json
+{
+  "level": "warn",
+  "nodeName": "192.168.0.24",
+  "containerID": "fd808d9394a76680bd9f4de84413e6521cfc4e4c5097e0c6904b0f58e5f564cc",
+  "containerName": "c1",
+  "podName": "demo-2-57cd6498bb-472vk",
+  "podNamespace": "demo",
+  "podUID": "be8ea9dd-28c0-4401-b1e5-09fa06b14761",
+  "pid": 887808,
+  "mntNsID": 4026532637,
+  "eventTimestamp": 1740381264,
+  "eventType": "BPF",
+  "event": {
+    "permissions": [
+      "read"
+    ],
+    "path": "/run/secrets/kubernetes.io/serviceaccount/..2025_02_24_06_32_23.1519281840/token"
+  },
+  "time": 1740381264984157,
+  "message": "violation event"
+}
+```
+
+```json
+{
+  "level": "warn",
+  "nodeName": "192.168.0.8",
+  "containerID": "5b24d520534b9ad2b618cd9f014a7cca045e5d217718852af6d12d587ef2b6c6",
+  "containerName": "c1",
+  "podName": "demo-1-5bccf6777c-c8lzr",
+  "podNamespace": "demo",
+  "podUID": "7efce0ca-5609-4cf5-aba4-eba24036cc6c",
+  "pid": 3811300,
+  "mntNsID": 4026532725,
+  "eventTimestamp": 1740366282,
+  "eventType": "AppArmor",
+  "event": {
+    "version": 1,
+    "event": 4,
+    "pid": 3811300,
+    "peerPID": 0,
+    "task": 0,
+    "magicToken": 0,
+    "epoch": 1740366282,
+    "auditSubId": 674,
+    "bitMask": 0,
+    "auditID": "1740366282.121:674",
+    "operation": "mknod",
+    "deniedMask": "c",
+    "requestedMask": "c",
+    "fsuid": 0,
+    "ouid": 0,
+    "profile": "varmor-demo-demo-1//child_0",
+    "peerProfile": "",
+    "comm": "bash",
+    "name": "/etc/5",
+    "name2": "",
+    "namespace": "",
+    "attribute": "",
+    "parent": 0,
+    "info": "",
+    "peerInfo": "",
+    "errorCode": 0,
+    "activeHat": "",
+    "netFamily": "",
+    "netProtocol": "",
+    "netSockType": "",
+    "netLocalAddr": "",
+    "netLocalPort": 0,
+    "netForeignAddr": "",
+    "netForeignPort": 0,
+    "dbusBus": "",
+    "dbusPath": "",
+    "dbusInterface": "",
+    "dbusMember": "",
+    "signal": "",
+    "peer": "",
+    "fsType": "",
+    "flags": "",
+    "srcName": ""
+  },
+  "time": 1740366282125114,
+  "message": "violation event"
+}
+```
 
 ## 系统接口
 

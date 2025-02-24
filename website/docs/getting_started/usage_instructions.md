@@ -20,9 +20,104 @@ You can check the status of VarmorPolicy or VarmorClusterPolicy object to get in
 You can check the `profileName` field by examining the status of VarmorPolicy or VarmorClusterPolicy object. Afterwards, you can look at the corresponding ArmorProfile object with the same name to obtain the status and error information when the Agent processes the Profile.
 
 ## Log Management
-vArmor's manager and agent components currently log messages only to standard output.
 
-You can leverage logging components for collection and configuring alerts. Such as `\* | select count(*) as ErrCount where __content__ LIKE 'E%'`
+### Component Logs
+The Manager and Agent components log through standard output. By default, the log format is TEXT. You can switch it to JSON format through [this option](../getting_started/installation.md#set-the-log-output-format-to-json).
+
+### Audit Logs
+vArmor supports configuring policy objects in alarm-only without interception mode (observation mode) and intercept-and-alarm mode. You can achieve this through the `auditViolations` and `allowViolations` fields of the policy object. For common usage, please refer to [this document](../practices/index.md#common-usage-methods). All violation events will be logged in JSON format to the /var/log/varmor/violations.log file on the host machine (the maximum file size is 10MB, and up to 3 old files will be retained).
+
+The format of violation events is as follows. Behaviors that are intercepted and alarmed will generate `warn` level events, and behaviors that are alarmed only without interception will generate `debug` level events.
+
+* Currently, only the AppArmor and BPF Enforcers support violation auditing.
+* Limited by the implementation of the AppArmor LSM, when using the AppArmor Enforcer, in some cases, the corresponding container and Pod information cannot be matched.
+
+```json
+{
+  "level": "warn",
+  "nodeName": "192.168.0.24",
+  "containerID": "fd808d9394a76680bd9f4de84413e6521cfc4e4c5097e0c6904b0f58e5f564cc",
+  "containerName": "c1",
+  "podName": "demo-2-57cd6498bb-472vk",
+  "podNamespace": "demo",
+  "podUID": "be8ea9dd-28c0-4401-b1e5-09fa06b14761",
+  "pid": 887808,
+  "mntNsID": 4026532637,
+  "eventTimestamp": 1740381264,
+  "eventType": "BPF",
+  "event": {
+    "permissions": [
+      "read"
+    ],
+    "path": "/run/secrets/kubernetes.io/serviceaccount/..2025_02_24_06_32_23.1519281840/token"
+  },
+  "time": 1740381264984157,
+  "message": "violation event"
+}
+```
+
+```json
+{
+  "level": "warn",
+  "nodeName": "192.168.0.8",
+  "containerID": "5b24d520534b9ad2b618cd9f014a7cca045e5d217718852af6d12d587ef2b6c6",
+  "containerName": "c1",
+  "podName": "demo-1-5bccf6777c-c8lzr",
+  "podNamespace": "demo",
+  "podUID": "7efce0ca-5609-4cf5-aba4-eba24036cc6c",
+  "pid": 3811300,
+  "mntNsID": 4026532725,
+  "eventTimestamp": 1740366282,
+  "eventType": "AppArmor",
+  "event": {
+    "version": 1,
+    "event": 4,
+    "pid": 3811300,
+    "peerPID": 0,
+    "task": 0,
+    "magicToken": 0,
+    "epoch": 1740366282,
+    "auditSubId": 674,
+    "bitMask": 0,
+    "auditID": "1740366282.121:674",
+    "operation": "mknod",
+    "deniedMask": "c",
+    "requestedMask": "c",
+    "fsuid": 0,
+    "ouid": 0,
+    "profile": "varmor-demo-demo-1//child_0",
+    "peerProfile": "",
+    "comm": "bash",
+    "name": "/etc/5",
+    "name2": "",
+    "namespace": "",
+    "attribute": "",
+    "parent": 0,
+    "info": "",
+    "peerInfo": "",
+    "errorCode": 0,
+    "activeHat": "",
+    "netFamily": "",
+    "netProtocol": "",
+    "netSockType": "",
+    "netLocalAddr": "",
+    "netLocalPort": 0,
+    "netForeignAddr": "",
+    "netForeignPort": 0,
+    "dbusBus": "",
+    "dbusPath": "",
+    "dbusInterface": "",
+    "dbusMember": "",
+    "signal": "",
+    "peer": "",
+    "fsType": "",
+    "flags": "",
+    "srcName": ""
+  },
+  "time": 1740366282125114,
+  "message": "violation event"
+}
+```
 
 ## System Interface
 ### VarmorPolicy
