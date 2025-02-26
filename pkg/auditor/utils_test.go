@@ -1,0 +1,96 @@
+// Copyright 2025 vArmor Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package audit
+
+import (
+	"reflect"
+	"testing"
+
+	seccomp "github.com/seccomp/libseccomp-golang"
+	"gotest.tools/assert"
+)
+
+func getSyscallName(syscall int) string {
+	name, _ := seccomp.ScmpSyscall(syscall).GetName()
+	return name
+}
+
+func Test_parseSeccompLineByte(t *testing.T) {
+	testCases := []struct {
+		name          string
+		line          string
+		expectedEvent SeccompEvent
+	}{
+		{
+			name: "test_1",
+			line: `Dec 21 15:35:05 n57-061-048 kernel: [26083697.716609][   T55] audit: type=1326 audit(1734766505.185:6623933): auid=4294967295 uid=0 gid=0 ses=4294967295 subj==unconfined pid=699016 comm="runc:[2:INIT]" exe="/" sig=0 arch=c000003e syscall=72 compat=0 ip=0x7fb83dc5e92e code=0x7ffc0000`,
+			expectedEvent: SeccompEvent{
+				AuditID: "1734766505.185:6623933",
+				Epoch:   1734766505,
+				Subj:    "unconfined",
+				PID:     699016,
+				Comm:    "runc:[2:INIT]",
+				Exe:     "/",
+				Syscall: getSyscallName(72),
+			},
+		},
+		{
+			name: "test_2",
+			line: `Dec 21 15:35:04 n87-043-070 kernel: [26083697.172104][   T55] audit: type=1326 audit(1734766503.316:6623924): auid=4294967295 uid=0 gid=0 ses=4294967295 subj==varmor-cluster-varmor-demo-4//null-/bin/sleep (complain) pid=698839 comm="sleep" exe="/bin/sleep" sig=0 arch=c000003e syscall=11 compat=0 ip=0x7f24913a87b7 code=0x7ffc0000`,
+			expectedEvent: SeccompEvent{
+				AuditID: "1734766503.316:6623924",
+				Epoch:   1734766503,
+				Subj:    "varmor-cluster-varmor-demo-4//null-/bin/sleep (complain)",
+				PID:     698839,
+				Comm:    "sleep",
+				Exe:     "/bin/sleep",
+				Syscall: getSyscallName(11),
+			},
+		},
+		{
+			name: "test_3",
+			line: `type=SECCOMP msg=audit(1740535410.396:1727850): auid=4294967295 uid=0 gid=0 ses=4294967295 subj==cri-containerd.apparmor.d (enforce) pid=3315793 comm="chmod" exe="/bin/chmod" sig=0 arch=c000003e syscall=268 compat=0 ip=0x7fd8c219ef24 code=0x7ffc0000`,
+			expectedEvent: SeccompEvent{
+				AuditID: "1740535410.396:1727850",
+				Epoch:   1740535410,
+				Subj:    "cri-containerd.apparmor.d (enforce)",
+				PID:     3315793,
+				Comm:    "chmod",
+				Exe:     "/bin/chmod",
+				Syscall: getSyscallName(268),
+			},
+		},
+		{
+			name: "test_4",
+			line: `<5>Jan 15 16:27:18 n37-031-068 kernel: [22734288.221628][   T55] audit: type=1326 audit(1705307237.424:9332888): auid=4294967295 uid=0 gid=0 ses=4294967295 subj==unconfined pid=2684228 comm="runc:[2:INIT]" exe="/" sig=0 arch=c000003e syscall=439 compat=0 ip=0x7f0ef217692e code=0x7ffc0000`,
+			expectedEvent: SeccompEvent{
+				AuditID: "1705307237.424:9332888",
+				Epoch:   1705307237,
+				Subj:    "unconfined",
+				Comm:    "runc:[2:INIT]",
+				Exe:     "/",
+				Syscall: getSyscallName(439),
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			event := ParseSeccompAuditEvent(tc.line)
+			ret := reflect.DeepEqual(event, tc.expectedEvent)
+			assert.Equal(t, ret, true)
+		})
+	}
+}
