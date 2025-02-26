@@ -34,9 +34,40 @@ import (
 	"unsafe"
 
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
-	varmortypes "github.com/bytedance/vArmor/internal/types"
 	varmorutils "github.com/bytedance/vArmor/internal/utils"
 )
+
+type AaLogRecord struct {
+	Resource      string
+	ActiveHat     string
+	AaMode        string
+	Time          int64
+	Operation     string
+	Profile       string
+	Name          string
+	Name2         string
+	Attr          string
+	Parent        uint64
+	Pid           uint64
+	Task          uint64
+	Info          string
+	ErrorCode     int32
+	DeniedMask    string
+	RequestedMask string
+	MagicToken    uint64
+	Family        string
+	Protocol      string
+	SockType      string
+	Fsuid         uint64
+	Ouid          uint64
+	Signal        string
+	Peer          string
+	PeerProfile   string
+	Bus           string
+	Path          string
+	Interface     string
+	Member        string
+}
 
 const (
 	regexProc      = "\\/proc\\/[0-9]+"
@@ -137,7 +168,7 @@ func (p *DataPreprocessor) converProfileToParents(profile string) string {
 }
 
 // Returns the operation type if known, unknown otherwise.
-func (p *DataPreprocessor) opType(event *varmortypes.AaLogRecord) string {
+func (p *DataPreprocessor) opType(event *AaLogRecord) string {
 	if strings.HasPrefix(event.Operation, "file_") ||
 		strings.HasPrefix(event.Operation, "inode_") ||
 		event.Operation == "create" ||
@@ -279,7 +310,7 @@ func (p *DataPreprocessor) trimPath(path, dmask string) string {
 	return path
 }
 
-func (p *DataPreprocessor) parseAppArmorEventForTree(event *varmortypes.AaLogRecord) error {
+func (p *DataPreprocessor) parseAppArmorEventForTree(event *AaLogRecord) error {
 	// aamode is aa_log_record.event, the type of aa_log_record.event is aa_record_event_type
 	// aa_record_event_type was defined in /apparmor/libraries/libapparmor/include/aalogparse.h
 	switch event.AaMode {
@@ -512,7 +543,7 @@ func (p *DataPreprocessor) parseAppArmorEventForTree(event *varmortypes.AaLogRec
 	return nil
 }
 
-func parseAppArmorEvent(line string) (*varmortypes.AaLogRecord, error) {
+func parseAppArmorEvent(line string) (*AaLogRecord, error) {
 	// Normalize audit events from rsyslog.
 	// 		rsyslog format: <5>Nov 28 10:12:32 n248-145-253 kernel: [5326493.467434] audit: type=1400 audit(1669601552.623:916365): apparmor="STATUS" ...
 	// 		auditd format: type=AVC msg=audit(1669252886.558:860805): apparmor="STATUS" ...
@@ -531,7 +562,7 @@ func parseAppArmorEvent(line string) (*varmortypes.AaLogRecord, error) {
 		return nil, fmt.Errorf("parse_record() failed")
 	}
 
-	r := varmortypes.AaLogRecord{
+	r := AaLogRecord{
 		Resource:      C.GoString(record.info),
 		ActiveHat:     C.GoString(record.active_hat),
 		Time:          int64(record.epoch),

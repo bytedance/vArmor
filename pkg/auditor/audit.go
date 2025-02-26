@@ -40,7 +40,7 @@ func (auditor *Auditor) processAuditEvent(event string) {
 			// and convert it to AppArmorEvent object
 			e, err := ParseAppArmorEvent(event)
 			if err != nil {
-				auditor.log.Error(err, "ParseAppArmorEvent() failed")
+				auditor.log.Error(err, "ParseAppArmorEvent() failed", "event", event)
 				return
 			}
 
@@ -105,7 +105,11 @@ func (auditor *Auditor) processAuditEvent(event string) {
 
 		// Only record the event when there is no policy in the BehaviorModeling mode.
 		if len(auditor.auditEventChs) == 0 {
-			e := ParseSeccompAuditEvent(event)
+			e, err := ParseSeccompAuditEvent(event)
+			if err != nil {
+				auditor.log.Error(err, "ParseSeccompAuditEvent() failed", "event", event)
+				return
+			}
 
 			// Try to read the process' mnt ns id from the proc filesystem.
 			// Note:

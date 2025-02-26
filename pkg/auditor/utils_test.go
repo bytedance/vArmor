@@ -79,6 +79,7 @@ func Test_parseSeccompLineByte(t *testing.T) {
 				AuditID: "1705307237.424:9332888",
 				Epoch:   1705307237,
 				Subj:    "unconfined",
+				PID:     2684228,
 				Comm:    "runc:[2:INIT]",
 				Exe:     "/",
 				Syscall: getSyscallName(439),
@@ -88,8 +89,9 @@ func Test_parseSeccompLineByte(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			event := ParseSeccompAuditEvent(tc.line)
-			ret := reflect.DeepEqual(event, tc.expectedEvent)
+			event, err := ParseSeccompAuditEvent(tc.line)
+			assert.NilError(t, err)
+			ret := reflect.DeepEqual(*event, tc.expectedEvent)
 			assert.Equal(t, ret, true)
 		})
 	}

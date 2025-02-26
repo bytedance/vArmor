@@ -110,46 +110,6 @@ type ModelingStatus struct {
 	NodeMessages    map[string]string // Use NodeName as its key
 }
 
-type AaLogRecord struct {
-	Resource      string
-	ActiveHat     string
-	AaMode        string
-	Time          int64
-	Operation     string
-	Profile       string
-	Name          string
-	Name2         string
-	Attr          string
-	Parent        uint64
-	Pid           uint64
-	Task          uint64
-	Info          string
-	ErrorCode     int32
-	DeniedMask    string
-	RequestedMask string
-	MagicToken    uint64
-	Family        string
-	Protocol      string
-	SockType      string
-	Fsuid         uint64
-	Ouid          uint64
-	Signal        string
-	Peer          string
-	PeerProfile   string
-	Bus           string
-	Path          string
-	Interface     string
-	Member        string
-}
-
-type SeccompLogRecord struct {
-	Time    int64
-	Pid     uint64
-	Exe     string
-	Comm    string
-	Syscall string
-}
-
 var enforcerMap = map[string]Enforcer{
 	"apparmor":           AppArmor,
 	"bpf":                BPF,

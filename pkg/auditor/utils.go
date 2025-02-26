@@ -237,10 +237,11 @@ func ParseAppArmorEvent(e string) (*AppArmorEvent, error) {
 	return &event, nil
 }
 
-func ParseSeccompAuditEvent(e string) *SeccompEvent {
+func ParseSeccompAuditEvent(e string) (*SeccompEvent, error) {
 	var event SeccompEvent
-	var i int
-	var pid string
+	var err error
+	var auditid, subj, pid, comm, exe, syscall string
+	var i, s int
 
 	buf := []byte(e)
 
@@ -252,9 +253,7 @@ func ParseSeccompAuditEvent(e string) *SeccompEvent {
 			for i < len(buf) && buf[i] != ')' {
 				i++
 			}
-			event.AuditID = string(buf[start:i])
-			t := event.AuditID[:strings.Index(event.AuditID, ".")]
-			event.Epoch, _ = strconv.ParseUint(t, 10, 64)
+			auditid = string(buf[start:i])
 			break
 		}
 		i++
@@ -268,7 +267,7 @@ func ParseSeccompAuditEvent(e string) *SeccompEvent {
 			// We assume that the pid field is following the subj field
 			for i < len(buf)-5 {
 				if buf[i] == ' ' && buf[i+1] == 'p' && buf[i+2] == 'i' && buf[i+3] == 'd' && buf[i+4] == '=' {
-					event.Subj = strings.Trim(string(buf[start:i]), "\"")
+					subj = strings.Trim(string(buf[start:i]), "\"")
 					break
 				} else {
 					i++
@@ -276,7 +275,7 @@ func ParseSeccompAuditEvent(e string) *SeccompEvent {
 			}
 		}
 
-		// extract others field
+		// extract other fields
 		extractField := func(prefix string, target *string) {
 			if len(*target) == 0 && i+len(prefix) <= len(buf) && string(buf[i:i+len(prefix)]) == prefix {
 				i += len(prefix)
@@ -290,18 +289,41 @@ func ParseSeccompAuditEvent(e string) *SeccompEvent {
 		}
 
 		extractField(" pid=", &pid)
-		extractField(" comm=", &event.Comm)
-		extractField(" exe=", &event.Exe)
-		extractField(" syscall=", &event.Syscall)
+		extractField(" comm=", &comm)
+		extractField(" exe=", &exe)
+		extractField(" syscall=", &syscall)
 
 		i++
 	}
 
-	event.PID, _ = strconv.ParseUint(pid, 10, 64)
-	syscallNum, err := strconv.Atoi(event.Syscall)
-	if err == nil {
-		event.Syscall, _ = seccomp.ScmpSyscall(syscallNum).GetName()
+	if auditid == "" || subj == "" || pid == "" || comm == "" || exe == "" || syscall == "" {
+		return nil, fmt.Errorf("failed to extract the fields of seccomp event")
 	}
 
-	return &event
+	event.AuditID = auditid
+	event.Subj = subj
+	event.Comm = comm
+	event.Exe = exe
+
+	t := auditid[:strings.Index(auditid, ".")]
+	event.Epoch, err = strconv.ParseUint(t, 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse epoch")
+	}
+
+	event.PID, err = strconv.ParseUint(pid, 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse pid")
+	}
+
+	s, err = strconv.Atoi(syscall)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse syscall")
+	}
+	event.Syscall, err = seccomp.ScmpSyscall(s).GetName()
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse syscall with seccomp.ScmpSyscall()")
+	}
+
+	return &event, nil
 }
