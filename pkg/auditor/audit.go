@@ -61,7 +61,7 @@ func (auditor *Auditor) processAuditEvent(event string) {
 				"pod name", info.PodName,
 				"pod namespace", info.PodNamespace,
 				"pod uid", info.PodUID,
-				"pid", e.PID, "time", int64(e.Epoch), "event", strings.TrimSpace(event))
+				"pid", e.PID, "time", e.Epoch, "event", strings.TrimSpace(event))
 
 			if eventForEnforceMode {
 				auditor.violationLogger.Warn().
@@ -128,7 +128,7 @@ func (auditor *Auditor) processAuditEvent(event string) {
 				"pod name", info.PodName,
 				"pod namespace", info.PodNamespace,
 				"pod uid", info.PodUID,
-				"pid", e.PID, "time", int64(e.Epoch), "event", strings.TrimSpace(event))
+				"pid", e.PID, "time", e.Epoch, "event", strings.TrimSpace(event))
 
 			auditor.violationLogger.Debug().
 				Str("nodeName", auditor.nodeName).
@@ -139,7 +139,7 @@ func (auditor *Auditor) processAuditEvent(event string) {
 				Str("podUID", info.PodUID).
 				Uint32("pid", uint32(e.PID)).
 				Uint32("mntNsID", mntNsID).
-				Uint64("eventTimestamp", uint64(e.Epoch)).
+				Uint64("eventTimestamp", e.Epoch).
 				Str("eventType", "Seccomp").
 				Interface("event", e).Msg("violation event")
 		}
