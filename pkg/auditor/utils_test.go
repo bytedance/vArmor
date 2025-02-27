@@ -85,6 +85,45 @@ func Test_parseSeccompLineByte(t *testing.T) {
 				Syscall: getSyscallName(439),
 			},
 		},
+		{
+			name: "test_5",
+			line: `Feb 27 15:08:27 aks-nodepool-83529136-vmss000005 kernel: [28000740.608619] audit: type=1326 audit(1740668907.734:6970): auid=4294967295 uid=0 gid=0 ses=4294967295 subj=? pid=2045941 comm="chmod" exe="/usr/bin/chmod" sig=0 arch=c000003e syscall=268 compat=0 ip=0x7ff84e0733c7 code=0x7ffc0000`,
+			expectedEvent: SeccompEvent{
+				AuditID: "1740668907.734:6970",
+				Epoch:   1740668907,
+				Subj:    "?",
+				PID:     2045941,
+				Comm:    "chmod",
+				Exe:     "/usr/bin/chmod",
+				Syscall: getSyscallName(268),
+			},
+		},
+		{
+			name: "test_6",
+			line: `Feb 27 15:22:58 aks-nodepool-83529136-vmss000000 kernel: [9983249.522470] audit: type=1326 audit(1740669778.647:6964): auid=4294967295 uid=0 gid=0 ses=4294967295 subj=? pid=2159619 comm="unshare" exe="/usr/bin/unshare" sig=0 arch=c000003e syscall=272 compat=0 ip=0x7f3a2617de1b code=0x7ffc0000`,
+			expectedEvent: SeccompEvent{
+				AuditID: "1740669778.647:6964",
+				Epoch:   1740669778,
+				Subj:    "?",
+				PID:     2159619,
+				Comm:    "unshare",
+				Exe:     "/usr/bin/unshare",
+				Syscall: getSyscallName(272),
+			},
+		},
+		{
+			name: "test_7",
+			line: `type=SECCOMP msg=audit(1740670474.406:2766278): auid=4294967295 uid=0 gid=0 ses=4294967295 pid=6412 comm="chmod" exe="/usr/bin/chmod" sig=0 arch=c000003e syscall=268 compat=0 ip=0x7f5c0fae83c7 code=0x7ffc0000`,
+			expectedEvent: SeccompEvent{
+				AuditID: "1740670474.406:2766278",
+				Epoch:   1740670474,
+				Subj:    "",
+				PID:     6412,
+				Comm:    "chmod",
+				Exe:     "/usr/bin/chmod",
+				Syscall: getSyscallName(268),
+			},
+		},
 	}
 
 	for _, tc := range testCases {
