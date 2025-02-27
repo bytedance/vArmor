@@ -120,6 +120,33 @@ The format of violation events is as follows. Behaviors that are intercepted and
 }
 ```
 
+```json
+{
+  "level": "debug",
+  "nodeName": "192.168.0.8",
+  "containerID": "8c1058d1159d3ed20960c0c9f53fc26968a1c75cd3b390a503e060ffd8c972da",
+  "containerName": "c0",
+  "podName": "demo-5-5f689fcfc4-5gxll",
+  "podNamespace": "demo",
+  "podUID": "72ae1199-c061-4bc0-a00e-9dc8061caddf",
+  "pid": 1448697,
+  "mntNsID": 4026533364,
+  "eventTimestamp": 1740621808,
+  "eventType": "Seccomp",
+  "event": {
+    "auditID": "1740621808.346:683",
+    "epoch": 1740621808,
+    "subj": "varmor-demo-demo-5 (enforce)",
+    "pid": 1448697,
+    "comm": "unshare",
+    "exe": "/usr/bin/unshare",
+    "syscall": "unshare"
+  },
+  "time": "2025-02-27T02:03:28Z",
+  "message": "violation event"
+}
+```
+
 ## System Interface
 ### VarmorPolicy
 * Namespace-scoped resource, consistent with the namespace of the protected object.
