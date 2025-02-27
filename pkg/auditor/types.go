@@ -90,3 +90,13 @@ type AppArmorEvent struct {
 	Flags          string `json:"flags"`
 	SrcName        string `json:"srcName"`
 }
+
+type SeccompEvent struct {
+	AuditID string `json:"auditID"`
+	Epoch   uint64 `json:"epoch"`
+	Subj    string `json:"subj"`
+	PID     uint64 `json:"pid"`
+	Comm    string `json:"comm"`
+	Exe     string `json:"exe"`
+	Syscall string `json:"syscall"`
+}

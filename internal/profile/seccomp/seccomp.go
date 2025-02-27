@@ -81,7 +81,7 @@ func GenerateProfileWithBehaviorModel(seccomp *varmor.Seccomp) (string, error) {
 	return base64.StdEncoding.EncodeToString(p), nil
 }
 
-func generateHardeningRules(rule string, syscalls map[string]specs.LinuxSyscall) {
+func generateHardeningRules(rule string, syscalls map[string]specs.LinuxSyscall, action specs.LinuxSeccompAction) {
 	rule = strings.ToLower(rule)
 	rule = strings.ReplaceAll(rule, "_", "-")
 
@@ -93,7 +93,7 @@ func generateHardeningRules(rule string, syscalls map[string]specs.LinuxSyscall)
 		if _, ok := syscalls["unshare"]; !ok {
 			syscalls["unshare"] = specs.LinuxSyscall{
 				Names:  []string{"unshare"},
-				Action: specs.ActErrno,
+				Action: action,
 				Args: []specs.LinuxSeccompArg{
 					{
 						Index:    0,
@@ -110,7 +110,7 @@ func generateHardeningRules(rule string, syscalls map[string]specs.LinuxSyscall)
 		if _, ok := syscalls["bpf"]; !ok {
 			syscalls["bpf"] = specs.LinuxSyscall{
 				Names:  []string{"bpf"},
-				Action: specs.ActErrno,
+				Action: action,
 				Args: []specs.LinuxSeccompArg{
 					{
 						Index: 0,
@@ -126,7 +126,7 @@ func generateHardeningRules(rule string, syscalls map[string]specs.LinuxSyscall)
 		if _, ok := syscalls["setsockopt"]; !ok {
 			syscalls["setsockopt"] = specs.LinuxSyscall{
 				Names:  []string{"setsockopt"},
-				Action: specs.ActErrno,
+				Action: action,
 				Args: []specs.LinuxSeccompArg{
 					{
 						Index: 2,
@@ -145,14 +145,14 @@ func generateHardeningRules(rule string, syscalls map[string]specs.LinuxSyscall)
 		if _, ok := syscalls["userfaultfd"]; !ok {
 			syscalls["userfaultfd"] = specs.LinuxSyscall{
 				Names:  []string{"userfaultfd"},
-				Action: specs.ActErrno,
+				Action: action,
 				Args:   []specs.LinuxSeccompArg{},
 			}
 		}
 	}
 }
 
-func generateVulMitigationRules(rule string, syscalls map[string]specs.LinuxSyscall) {
+func generateVulMitigationRules(rule string, syscalls map[string]specs.LinuxSyscall, action specs.LinuxSeccompAction) {
 	rule = strings.ToLower(rule)
 	rule = strings.ReplaceAll(rule, "_", "-")
 
@@ -161,14 +161,14 @@ func generateVulMitigationRules(rule string, syscalls map[string]specs.LinuxSysc
 		if _, ok := syscalls["splice"]; !ok {
 			syscalls["splice"] = specs.LinuxSyscall{
 				Names:  []string{"splice"},
-				Action: specs.ActErrno,
+				Action: action,
 				Args:   []specs.LinuxSeccompArg{},
 			}
 		}
 	}
 }
 
-func generateAttackProtectionRules(rule string, syscalls map[string]specs.LinuxSyscall) {
+func generateAttackProtectionRules(rule string, syscalls map[string]specs.LinuxSyscall, action specs.LinuxSeccompAction) {
 	rule = strings.ToLower(rule)
 	rule = strings.ReplaceAll(rule, "_", "-")
 
@@ -178,7 +178,7 @@ func generateAttackProtectionRules(rule string, syscalls map[string]specs.LinuxS
 		if _, ok := syscalls["chmod"]; !ok {
 			syscalls["chmod"] = specs.LinuxSyscall{
 				Names:  []string{"chmod"},
-				Action: specs.ActErrno,
+				Action: action,
 				Args:   []specs.LinuxSeccompArg{},
 			}
 		}
@@ -209,7 +209,7 @@ func generateAttackProtectionRules(rule string, syscalls map[string]specs.LinuxS
 		if _, ok := syscalls["fchmod"]; !ok {
 			syscalls["fchmod"] = specs.LinuxSyscall{
 				Names:  []string{"fchmod"},
-				Action: specs.ActErrno,
+				Action: action,
 				Args:   []specs.LinuxSeccompArg{},
 			}
 		}
@@ -240,7 +240,7 @@ func generateAttackProtectionRules(rule string, syscalls map[string]specs.LinuxS
 		if _, ok := syscalls["fchmodat"]; !ok {
 			syscalls["fchmodat"] = specs.LinuxSyscall{
 				Names:  []string{"fchmodat"},
-				Action: specs.ActErrno,
+				Action: action,
 				Args:   []specs.LinuxSeccompArg{},
 			}
 		}
@@ -271,7 +271,7 @@ func generateAttackProtectionRules(rule string, syscalls map[string]specs.LinuxS
 		if _, ok := syscalls["fchmodat2"]; !ok {
 			syscalls["fchmodat2"] = specs.LinuxSyscall{
 				Names:  []string{"fchmodat2"},
-				Action: specs.ActErrno,
+				Action: action,
 				Args:   []specs.LinuxSeccompArg{},
 			}
 		}
@@ -303,7 +303,7 @@ func generateAttackProtectionRules(rule string, syscalls map[string]specs.LinuxS
 		if _, ok := syscalls["chmod"]; !ok {
 			syscalls["chmod"] = specs.LinuxSyscall{
 				Names:  []string{"chmod"},
-				Action: specs.ActErrno,
+				Action: action,
 				Args:   []specs.LinuxSeccompArg{},
 			}
 		}
@@ -328,7 +328,7 @@ func generateAttackProtectionRules(rule string, syscalls map[string]specs.LinuxS
 		if _, ok := syscalls["fchmod"]; !ok {
 			syscalls["fchmod"] = specs.LinuxSyscall{
 				Names:  []string{"fchmod"},
-				Action: specs.ActErrno,
+				Action: action,
 				Args:   []specs.LinuxSeccompArg{},
 			}
 		}
@@ -353,7 +353,7 @@ func generateAttackProtectionRules(rule string, syscalls map[string]specs.LinuxS
 		if _, ok := syscalls["fchmodat"]; !ok {
 			syscalls["fchmodat"] = specs.LinuxSyscall{
 				Names:  []string{"fchmodat"},
-				Action: specs.ActErrno,
+				Action: action,
 				Args:   []specs.LinuxSeccompArg{},
 			}
 		}
@@ -378,7 +378,7 @@ func generateAttackProtectionRules(rule string, syscalls map[string]specs.LinuxS
 		if _, ok := syscalls["fchmodat2"]; !ok {
 			syscalls["fchmodat2"] = specs.LinuxSyscall{
 				Names:  []string{"fchmodat2"},
-				Action: specs.ActErrno,
+				Action: action,
 				Args:   []specs.LinuxSeccompArg{},
 			}
 		}
@@ -462,21 +462,30 @@ func GenerateEnhanceProtectProfile(enhanceProtect *varmor.EnhanceProtect, profil
 
 	syscalls := make(map[string]specs.LinuxSyscall)
 
+	var action specs.LinuxSeccompAction
+	if enhanceProtect.AllowViolations && enhanceProtect.AuditViolations {
+		// alarm-only without interception mode (observation mode)
+		action = specs.ActLog
+	} else {
+		// intercept mode
+		action = specs.ActErrno
+	}
+
 	// Hardening
 	for _, rule := range enhanceProtect.HardeningRules {
-		generateHardeningRules(rule, syscalls)
+		generateHardeningRules(rule, syscalls, action)
 	}
 
 	// Vulnerability Mitigation
 	for _, rule := range enhanceProtect.VulMitigationRules {
-		generateVulMitigationRules(rule, syscalls)
+		generateVulMitigationRules(rule, syscalls, action)
 	}
 
 	// Attack Protection
 	for _, attackProtectionRule := range enhanceProtect.AttackProtectionRules {
 		if len(attackProtectionRule.Targets) == 0 {
 			for _, rule := range attackProtectionRule.Rules {
-				generateAttackProtectionRules(rule, syscalls)
+				generateAttackProtectionRules(rule, syscalls, action)
 			}
 		}
 	}

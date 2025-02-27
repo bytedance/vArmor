@@ -28,6 +28,7 @@ import (
 
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
 	varmortypes "github.com/bytedance/vArmor/internal/types"
+	varmorauditor "github.com/bytedance/vArmor/pkg/auditor"
 	varmortracer "github.com/bytedance/vArmor/pkg/processtracer"
 )
 
@@ -185,7 +186,7 @@ func (p *DataPreprocessor) processAuditRecords() error {
 			// process AppArmor event
 			event, err := parseAppArmorEvent(line)
 			if err != nil {
-				p.log.Error(err, "p.parseAppArmorEvent() failed", "line", line)
+				p.log.Error(err, "p.parseAppArmorEvent() failed", "event", line)
 				if p.debug {
 					p.debugFileWriter.WriteString(fmt.Sprintf("[!] p.parseAppArmorEvent() failed: %s [%s]\n", err.Error(), line))
 				}
@@ -217,16 +218,16 @@ func (p *DataPreprocessor) processAuditRecords() error {
 		if (p.enforcer&varmortypes.Seccomp != 0) &&
 			(strings.Contains(line, "type=1326") || strings.Contains(line, "type=SECCOMP")) {
 			// process Seccomp event
-			event, err := parseSeccompEvent(line)
+			event, err := varmorauditor.ParseSeccompAuditEvent(line)
 			if err != nil {
-				p.log.Error(err, "p.parseSeccompEvent() failed", "line", line)
+				p.log.Error(err, "varmorauditor.ParseSeccompAuditEvent() failed", "event", line)
 				if p.debug {
-					p.debugFileWriter.WriteString(fmt.Sprintf("[!] p.parseSeccompEvent() failed: %s [%s]\n", err.Error(), line))
+					p.debugFileWriter.WriteString(fmt.Sprintf("[!] varmorauditor.ParseSeccompAuditEvent() failed: %s [%s]\n", err.Error(), line))
 				}
 				continue
 			}
 
-			if _, exists := p.targetPIDs[uint32(event.Pid)]; exists {
+			if _, exists := p.targetPIDs[uint32(event.PID)]; exists {
 				if p.debug {
 					p.debugFileWriter.WriteString("\n[+] ----------------------\n")
 					data, err := json.Marshal(event)

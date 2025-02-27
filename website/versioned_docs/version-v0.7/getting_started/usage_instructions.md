@@ -29,8 +29,9 @@ vArmor supports configuring policy objects in alarm-only without interception mo
 
 The format of violation events is as follows. Behaviors that are intercepted and alarmed will generate `warn` level events, and behaviors that are alarmed only without interception will generate `debug` level events.
 
-* Currently, only the AppArmor and BPF Enforcers support violation auditing.
-* Limited by the implementation of the AppArmor LSM, when using the AppArmor Enforcer, in some cases, the corresponding container and Pod information cannot be matched.
+* Currently, only the AppArmor and BPF enforcers support violation auditing.
+* Limited by the principle and performance impact of Seccomp, you can only use `auditViolations=true` and `allowViolations=true` in combination to implement the alarm-only without interception mode (observation mode) for the Seccomp enforcer when there is no policy in the BehaviorModeling mode.
+* Limited by the principle of the AppArmor LSM, when using the AppArmor enforcer, in some cases, the corresponding container and Pod information cannot be matched.
 
 ```json
 {
@@ -115,6 +116,33 @@ The format of violation events is as follows. Behaviors that are intercepted and
     "srcName": ""
   },
   "time": 1740366282125114,
+  "message": "violation event"
+}
+```
+
+```json
+{
+  "level": "debug",
+  "nodeName": "192.168.0.8",
+  "containerID": "8c1058d1159d3ed20960c0c9f53fc26968a1c75cd3b390a503e060ffd8c972da",
+  "containerName": "c0",
+  "podName": "demo-5-5f689fcfc4-5gxll",
+  "podNamespace": "demo",
+  "podUID": "72ae1199-c061-4bc0-a00e-9dc8061caddf",
+  "pid": 1448697,
+  "mntNsID": 4026533364,
+  "eventTimestamp": 1740621808,
+  "eventType": "Seccomp",
+  "event": {
+    "auditID": "1740621808.346:683",
+    "epoch": 1740621808,
+    "subj": "varmor-demo-demo-5 (enforce)",
+    "pid": 1448697,
+    "comm": "unshare",
+    "exe": "/usr/bin/unshare",
+    "syscall": "unshare"
+  },
+  "time": "2025-02-27T02:03:28Z",
   "message": "violation event"
 }
 ```

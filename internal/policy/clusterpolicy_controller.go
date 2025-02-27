@@ -202,11 +202,11 @@ func (c *ClusterPolicyController) ignoreAdd(vcp *varmor.VarmorClusterPolicy, log
 	}
 
 	if vcp.Spec.Policy.Mode == varmortypes.EnhanceProtectMode && vcp.Spec.Policy.EnhanceProtect == nil {
-		err := fmt.Errorf("the EnhanceProtect field is not set when running with EnhanceProtect mode")
+		err := fmt.Errorf("the EnhanceProtect field is not set when running in the EnhanceProtect mode")
 		logger.Error(err, "update VarmorClusterPolicy/status with forbidden info")
 		err = statusmanager.UpdateVarmorClusterPolicyStatus(c.varmorInterface, vcp, "", false, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyCreated, apicorev1.ConditionFalse,
 			"Forbidden",
-			"The EnhanceProtect field should be set when running with EnhanceProtect mode.")
+			"The EnhanceProtect field should be set when running in the EnhanceProtect mode.")
 		return true, err
 	}
 
@@ -220,11 +220,11 @@ func (c *ClusterPolicyController) ignoreAdd(vcp *varmor.VarmorClusterPolicy, log
 	}
 
 	if c.enableBehaviorModeling && vcp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode && vcp.Spec.Policy.ModelingOptions == nil {
-		err := fmt.Errorf("the ModelingOptions field is not set when running with BehaviorModeling mode")
+		err := fmt.Errorf("the ModelingOptions field is not set when running in the BehaviorModeling mode")
 		logger.Error(err, "update VarmorClusterPolicy/status with forbidden info")
 		err = statusmanager.UpdateVarmorClusterPolicyStatus(c.varmorInterface, vcp, "", false, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyCreated, apicorev1.ConditionFalse,
 			"Forbidden",
-			"The ModelingOptions field should be set when running with BehaviorModeling mode.")
+			"The ModelingOptions field should be set when running in the BehaviorModeling mode.")
 		return true, err
 	}
 
@@ -370,27 +370,27 @@ func (c *ClusterPolicyController) ignoreUpdate(newVp *varmor.VarmorClusterPolicy
 		return true, err
 	}
 
-	// Make sure the EnhanceProtect field has been set when running with EnhanceProtect mode.
+	// Make sure the EnhanceProtect field has been set when running in the EnhanceProtect mode.
 	if newVp.Spec.Policy.Mode == varmortypes.EnhanceProtectMode &&
 		newVp.Spec.Policy.EnhanceProtect == nil {
-		err := fmt.Errorf("the EnhanceProtect field is not set when running with EnhanceProtect mode")
+		err := fmt.Errorf("the EnhanceProtect field is not set when running in the EnhanceProtect mode")
 		logger.Error(err, "update VarmorClusterPolicy/status with forbidden info")
 		err = statusmanager.UpdateVarmorClusterPolicyStatus(c.varmorInterface, newVp, "", false, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionFalse,
 			"Forbidden",
-			"The EnhanceProtect field should be set when running with EnhanceProtect mode.")
+			"The EnhanceProtect field should be set when running in the EnhanceProtect mode.")
 		return true, err
 	}
 
-	// Disallow modifying the VarmorClusterPolicy that run as BehaviorModeling mode and already completed.
+	// Disallow modifying the VarmorClusterPolicy that runs in the BehaviorModeling mode and has already been completed.
 	if newVp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode &&
 		newVp.Status.Phase == varmortypes.VarmorPolicyCompleted {
 		if newVp.Spec.Policy.ModelingOptions == nil ||
 			newVp.Spec.Policy.ModelingOptions.Duration != oldAp.Spec.BehaviorModeling.Duration {
-			err := fmt.Errorf("disallow modifying the VarmorClusterPolicy that run as BehaviorModeling mode and already completed")
+			err := fmt.Errorf("disallow modifying the VarmorClusterPolicy that runs in the BehaviorModeling mode and has already been completed")
 			logger.Error(err, "update VarmorClusterPolicy/status with forbidden info")
 			err = statusmanager.UpdateVarmorClusterPolicyStatus(c.varmorInterface, newVp, "", false, varmortypes.VarmorPolicyUnchanged, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionFalse,
 				"Forbidden",
-				"Modifying the VarmorClusterPolicy that run as BehaviorModeling mode and already completed is not allowed. You need to recreate the VarmorClusterPolicy object.")
+				"Modifying the VarmorClusterPolicy that runs in the BehaviorModeling mode and has already been completed is not allowed. You need to recreate the VarmorClusterPolicy object.")
 			return true, err
 		} else {
 			err := statusmanager.UpdateVarmorClusterPolicyStatus(c.varmorInterface, newVp, "", true, varmortypes.VarmorPolicyUnchanged, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionTrue, "", "")
@@ -401,11 +401,11 @@ func (c *ClusterPolicyController) ignoreUpdate(newVp *varmor.VarmorClusterPolicy
 	// Make sure the ModelingOptions field has been set.
 	if newVp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode &&
 		newVp.Spec.Policy.ModelingOptions == nil {
-		err := fmt.Errorf("the ModelingOptions field is not set when running with BehaviorModeling mode")
+		err := fmt.Errorf("the ModelingOptions field is not set when running in the BehaviorModeling mode")
 		logger.Error(err, "update VarmorClusterPolicy/status with forbidden info")
 		err = statusmanager.UpdateVarmorClusterPolicyStatus(c.varmorInterface, newVp, "", false, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionFalse,
 			"Forbidden",
-			"The ModelingOptions field should be set when running with BehaviorModeling mode.")
+			"The ModelingOptions field should be set when running in the BehaviorModeling mode.")
 		return true, err
 	}
 
