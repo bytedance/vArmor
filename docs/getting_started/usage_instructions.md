@@ -50,7 +50,7 @@ The format of violation events is as follows. Behaviors that are intercepted and
     ],
     "path": "/run/secrets/kubernetes.io/serviceaccount/..2025_02_24_06_32_23.1519281840/token"
   },
-  "time": 1740381264984157,
+  "time": "2025-02-24T07:14:24Z",
   "message": "violation event"
 }
 ```
@@ -113,7 +113,7 @@ The format of violation events is as follows. Behaviors that are intercepted and
     "flags": "",
     "srcName": ""
   },
-  "time": 1740366282125114,
+  "time": "2025-02-24T03:04:42Z",
   "message": "violation event"
 }
 ```

@@ -13,7 +13,7 @@ This article will analyze the purpose of our vArmor project, and explain how it 
 
 ## Why vArmor Was Launched
 
-Container runtime components and Kubernetes have added support for LSM and Seccomp. Seccomp became generally available in Kubernetes v1.19, and AppArmor LSM became generally available in Kubernetes v1.30. Users can write and manage AppArmor, SELinux, and Seccomp profiles on their own and configure security policies in workloads' specification for hardening. Nearly all container runtime components come with default AppArmor and Seccomp security profiles. However, the default Seccomp profile needs to be explicitly set to be enabled for containers, and the default AppArmor profile requires operating system support to be enabled for containers.
+Container runtime components and Kubernetes have added support for LSM and Seccomp. Seccomp became generally available in Kubernetes v1.19, and AppArmor LSM became generally available in Kubernetes v1.30. Users can write and manage AppArmor, SELinux, and Seccomp profiles on their own and configure security policies in workloads' specification for hardening. Almost all container runtime components come with a default AppArmor profile and Seccomp profile. However, the default Seccomp profile needs to be explicitly set to be enabled for containers, and the default AppArmor profile requires operating system support to be enabled for containers automatically.
 
 Fully leveraging the security mechanisms of the Linux system can effectively harden containers. For example, technologies such as LSM and Seccomp can be used to enforce mandatory access control on container processes, reducing the kernel attack surface and increasing the difficulty and cost of container escape or lateral movement attacks. Their basic principles are shown in the following figure.
 
@@ -31,7 +31,7 @@ However, writing and managing security profiles face numerous challenges:
 * AppArmor or SELinux LSM depends on the operating system distribution, thus having limitations.
 * In a Kubernetes environment, automating the management and application of different security profiles is complex.
 
-To address these issues, vArmor emerged. It provides multiple policy modes, built-in rules, and configuration options. Users can configure policy objects as needed to meet different scenario requirements. vArmor will generate and update security profiles (AppArmor, BPF, Seccomp profiles) based on the definition of policy objects, and harden different target workloads.
+To address these issues, vArmor emerged. It provides multiple policy modes, built-in rules, and configuration options. Users can configure policy objects as needed to meet different scenario requirements. vArmor will generate and update security profiles (AppArmor, BPF, Seccomp profiles) based on the definition of policy objects, and harden different workloads.
 
 At the same time, vArmor supports three features: intercept, intercept and alarm, and alarm-only without interception, to meet the different scenario needs. vArmor has also implemented a behavior modeling feature based on BPF and Audit technologies. It can collect the behaviors of different applications and generate behavior models, thereby building security policies in the Allow-by-Default and Deny-by-Default modes.
 
@@ -43,9 +43,9 @@ Next, we will introduce in detail the various scenarios of vArmor in practical a
 
 #### Risks of Multi-tenant Applications
 
-Most modern SaaS, PaaS, and MaaS applications adopt a multi-tenant model. Severe vulnerabilities and exploit chains may lead to malicious users accessing the data of other tenants. With the advent of the large model era, the usage of cloud services has gradually increased. Those building these services need to pay more attention to multi-tenant isolation risks and take preventive measures to reduce the risk of cross-tenant attacks.
- 
-The following is a typical vulnerability-enabled cross-tenant attack sequence<sup><a href="#ref1">1</a></sup>.
+Most modern SaaS applications adopt a multi-tenant mode. Severe vulnerabilities and the corresponding exploitation chains are highly likely to enable malicious users to access the data of other tenants. With the advent of the era of large language models, the usage volume of cloud services will further increase. Therefore, those who build such services need to pay more attention to the risks of multi-tenant isolation and take preventive measures to reduce the risk of cross-tenant attacks.  
+
+The following is a typical vulnerability-enabled cross-tenant attack sequence depicted by Wiz in the PEACH framework<sup><a href="#ref1">1</a></sup>.
 
 ![image](../img/attack-sequence.png)
 
@@ -79,7 +79,7 @@ Tenant isolation is used to compensate for the multi-tenant isolation security r
 | Data entry form | String | Parsing | Low |
 | Bucket file upload | Arbitrary | Storage | Low |
 
-For complex interfaces, such as components that support tenants to execute arbitrary code, it is recommended to choose a high isolation-level security boundary (such as containers based on lightweight virtual machine technology) to ensure the security of tenant data. For less complex tenant scenarios and interfaces, such as file scanner, data parsing, web page rendering, file upload, etc., technologies such as vArmor can be considered for hardening.
+For complex interfaces, such as components that support tenants to execute arbitrary code, it is recommended to choose a high isolation-level security boundary (such as containers based on lightweight virtual machine technology) to ensure the security of tenant data. For less complex tenant scenarios and interfaces, such as file scanner, data parsing, web page rendering, file upload, etc., technical solutions such as vArmor can be considered for hardening.
 
 #### What Else Needs to Be Done
 
@@ -98,9 +98,9 @@ We recommend that you cooperate with the following security practices to increas
 
 #### Benefits of Hardening
 
-Some strong isolation solutions based on hardware virtualization technology and user-space kernels (such as Kata, gVisor, etc.) have been introduced in the industry. However, their technical thresholds and costs are relatively high, making runc containers still the mainstream in most business scenarios and thus widely used. While enjoying the performance and convenience brought by runc containers, security problems such as weak container isolation also arise. In recent years, vulnerabilities in the Linux kernel, runc, and container runtime components have occurred frequently. New vulnerabilities can be used for container escape and other attacks at regular intervals. Many enterprises are also prone to introducing escape risks due to incorrect design and configuration during the design, development, and deployment of containerized applications.
+Some strong isolation solutions based on hardware virtualization technology and user-space kernels (such as Kata, gVisor, etc.) have been introduced in the industry for years. However, their technical thresholds and costs are relatively high, making runc containers still the mainstream in most business scenarios and thus widely used. While people are enjoying the performance and convenience brought by runc containers, security problems such as weak container isolation also arise. In recent years, vulnerabilities in the Linux kernel, runc, and container runtime components have occurred frequently. New vulnerabilities can be used for container escape and other attacks at regular intervals. Many enterprises are also prone to introducing escape risks due to incorrect design and configuration during the design, development, and deployment of containerized applications.
 
-The research report<sup><a href="#ref1">4</a></sup> released by Verizon shows that on average, enterprises need 55 days to fix 50% of critical vulnerabilities after patches are available. And the vulnerability repair time for infrastructure may be even longer. After a high-risk vulnerability is fully repaired, new vulnerabilities may emerge and wait to be fixed. Therefore, during the vulnerability repair period, enterprises lack defensive measures other than intrusion detection.
+The research report<sup><a href="#ref1">4</a></sup> released by Verizon shows that on average, enterprises need 55 days to fix 50% of critical vulnerabilities after patches are available. And the vulnerability repair time for infrastructure may be even longer. After a high-risk vulnerability is fully repaired, new vulnerabilities may emerge and wait to be fixed. During the vulnerability repair period, enterprises may lack defensive measures other than intrusion detection.
 
 #### Reasons for Using vArmor
 
@@ -223,7 +223,7 @@ Many enterprises, due to historical issues, system design requirements, and insu
 
 #### Reducing Risks of Privileged Containers
 
-Enterprises are recommended to first evaluate and remove the risky configurations that lead to "privileged containers" based on the principle of least privilege. If high-risk configurations cannot be removed, please consider eliminating the risks through refactoring. When the above measures cannot be implemented, it is recommended to choose security boundaries with different isolation levels to harden containers based on business scenarios, taking into account factors such as compliance, data sensitivity, and cost.
+We recommend that companies prioritize the principle of least privilege in evaluating and removing risk configurations that lead to "privilege containers.". If high-risk configurations cannot be removed, please consider eliminating the risks through refactoring. When the above measures cannot be implemented, it is recommended to choose security boundaries with different isolation levels to harden containers based on business scenarios, taking into account factors such as compliance, data sensitivity, and cost.
 
 vArmor can be used as a supplement to harden before completely eliminating the security risks of "privileged containers". Users can use the [built-in rules](../guides/policies_and_rules/built_in_rules/index.md) and [custom rules](../guides/policies_and_rules/custom_rules.md) provided by vArmor to restrict the behavior of potential attackers, block known attack vectors, and increase the attack cost and the probability of intrusion detection. vArmor has three types of built-in rules: "container hardening", "attack protection", and "vulnerability mitigation", and is constantly updated. In the "container hardening" type of rules, a series of rules are specifically built-in for the security risks of "privileged containers" to block some known attack vectors.
 

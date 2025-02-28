@@ -261,8 +261,13 @@ func ParseSeccompAuditEvent(e string) (*SeccompEvent, error) {
 
 	for i < len(buf) {
 		// extract subj
-		if len(event.Subj) == 0 && i+6 < len(buf) && buf[i] == 's' && buf[i+1] == 'u' && buf[i+2] == 'b' && buf[i+3] == 'j' && buf[i+4] == '=' && buf[i+5] == '=' {
-			i += len("subj==")
+		if len(event.Subj) == 0 && i+6 < len(buf) && buf[i] == 's' && buf[i+1] == 'u' && buf[i+2] == 'b' && buf[i+3] == 'j' && buf[i+4] == '=' {
+			if buf[i+5] == '=' {
+				i += len("subj==")
+			} else {
+				i += len("subj=")
+			}
+
 			start := i
 			// We assume that the pid field is following the subj field
 			for i < len(buf)-5 {
@@ -296,7 +301,7 @@ func ParseSeccompAuditEvent(e string) (*SeccompEvent, error) {
 		i++
 	}
 
-	if auditid == "" || subj == "" || pid == "" || comm == "" || exe == "" || syscall == "" {
+	if auditid == "" || pid == "" || syscall == "" {
 		return nil, fmt.Errorf("failed to extract the fields of seccomp event")
 	}
 
