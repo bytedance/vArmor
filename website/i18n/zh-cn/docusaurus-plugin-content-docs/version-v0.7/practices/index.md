@@ -157,7 +157,12 @@ spec:
     enhanceProtect:
       # The custom AppArmor rules:
       appArmorRawRules:
-      - "deny /etc/shadow r,"
+      - rules: |
+          audit deny /etc/hosts r,
+          audit deny /etc/shadow r,
+      - rules: "audit deny /etc/hostname r,"
+        targets:
+        - "/bin/bash"
       # The custom BPF LSM rules:
       bpfRawRules:
         processes:
