@@ -79,7 +79,7 @@ Tenant isolation is used to compensate for the multi-tenant isolation security r
 | Data entry form | String | Parsing | Low |
 | Bucket file upload | Arbitrary | Storage | Low |
 
-For complex interfaces, such as components that support tenants to execute arbitrary code, it is recommended to choose a high isolation-level security boundary (such as containers based on lightweight virtual machine technology) to ensure the security of tenant data. For less complex tenant scenarios and interfaces, such as file scanner, data parsing, web page rendering, file upload, etc.,  technical solutions such as vArmor can be considered for hardening.
+For complex interfaces, such as components that support tenants to execute arbitrary code, it is recommended to choose a high isolation-level security boundary (such as containers based on lightweight virtual machine technology) to ensure the security of tenant data. For less complex tenant scenarios and interfaces, such as file scanner, data parsing, web page rendering, file upload, etc., technical solutions such as vArmor can be considered for hardening.
 
 #### What Else Needs to Be Done
 
