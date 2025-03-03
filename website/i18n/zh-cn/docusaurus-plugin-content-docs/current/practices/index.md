@@ -9,7 +9,7 @@ import ThemeImage from '@site/src/components/ThemeImage';
 
 ## 简介
 
-本文将剖析我们推出 vArmor 项目的目的，阐述其如何解决当前容器安全策略管理中的挑战。我们将从技术视角出发，介绍 vArmor 在多租户隔离、核心业务加固、特权容器加固等云原生技术栈中的多元使用场景和方式，并展示如何凭借项目的技术特性来解决特定问题，达成技术和业务目标，从而助力企业在云原生环境中筑牢安全防线。
+本文将阐述我们推出 vArmor 项目的目的，解析其在容器安全策略管理中的挑战与解决方案。然后从技术角度出发，介绍其在多租户隔离、核心业务加固与特权容器加固等场景的应用，展示如何凭借项目的技术特性来解决特定问题，从而实现技术与业务目标，助力企业构建云原生环境下的安全防线。
 
 ## 为什么推出 vArmor
 
@@ -31,12 +31,9 @@ import ThemeImage from '@site/src/components/ThemeImage';
 * AppArmor 或 SELinux LSM 依赖操作系统发行版，存在一定局限性。
 * 在 Kubernetes 环境中，自动化管理和应用不同的安全策略比较复杂。
 
-为了解决这些问题，vArmor 应运而生。它提供了多种策略模式、内置规则和配置选项，用户可以按需配置策略对象，从而满足不同场景的需求。vArmor 会根据策略对象的定义，进行安全策略（AppArmor Profile、BPF Profile、Seccomp Profile）的生成和更新，对不同的工作负载进行加固。
+为了解决这些问题，vArmor 应运而生。它提供了多种策略模式、内置规则和配置选项，vArmor 会根据策略对象的定义，管理安全策略（AppArmor Profile、BPF Profile、Seccomp Profile）对不同工作负载的容器进行加固。vArmor 还基于 BPF 和 Audit 技术实现了行为建模功能，可以对不同应用进行行为采集并生成行为模型，从而辅助构建安全策略。
 
-同时，vArmor 支持拦截、拦截并告警、只告警不拦截三种特性，以满足不同场景的需求。vArmor 还基于 BPF 和 Audit 技术实现了行为建模功能，可以对不同应用进行行为采集并生成行为模型，从而构建 Allow-by-Default、Deny-by-Default 模式的安全策略等。
-
-下面我们将详细介绍 vArmor 在实际应用中的多种场景，展示其如何助力企业提升容器安全防护能力。
-
+例如，用户可以按需配置策略对象，实现违规拦截、拦截并告警、只告警不拦截三种效果，并使用内置规则和自定义规则动态更新策略对象，从而满足不同应用场景的需要。下面我们将用几个实际应用场景来展示 vArmor 如何助力企业提升云原生环境中的容器安全防护能力。
 
 ## vArmor 的应用场景
 
@@ -62,7 +59,7 @@ import ThemeImage from '@site/src/components/ThemeImage';
 
 #### 如何选择加固方案
 
-Wiz 在 PEACH 框架中指出，针对多租户应用，应根据安全建模结果，综合考虑合规、数据敏感度、成本等因素选择租户隔离技术方案。企业可以通过选择不同类型的安全边界和防御技术，将不可控风险转化为可控成本。
+Wiz 在 PEACH 框架中指出，针对多租户应用，应根据安全建模结果，综合合规、数据敏感度、成本等因素选择租户隔离技术方案。企业可以通过选择不同类型的安全边界和防御技术，将不可控风险转化为可控成本。
 
 租户隔离用于弥补由于接口的复杂性而带来的多租户隔离安全风险。而接口复杂度则与漏洞出现概率正相关，下表描述了接口复杂度的简单评估方法<sup><a href="#ref1">1</a></sup>。
 
@@ -96,7 +93,7 @@ Wiz 在 PEACH 框架中指出，针对多租户应用，应根据安全建模结
 
 #### 加固的收益
 
-虽然业内已经推出了一些基于硬件虚拟化技术和用户态内核的强隔离方案（例如 Kata、gVisor 等），但由于其技术门槛和成本较高，使得 runc 容器仍将是大部分业务场景的主流。用户在享受 runc 容器带来的性能与便捷时，也面临着诸如容器隔离性较弱的安全问题。例如近年来 Linux 内核、runc 组件、容器运行时组件的漏洞频发，每隔一段时间就会有新的漏洞可被用于容器逃逸等攻击；许多企业在容器化应用设计、开发、部署时，也易因错误设计和配置引入了逃逸风险。
+虽然业内已经推出了一些基于硬件虚拟化技术和用户态内核的强隔离方案（例如 Kata、gVisor 等），但由于其技术门槛和成本较高，使得 runc 容器仍将是大部分业务场景的主流。用户在享受 runc 容器带来的性能与便捷时，也面临着诸如容器隔离性较弱的安全问题。例如近年来 Linux 内核、runc 组件、容器运行时组件的漏洞频发，每隔一段时间就会有新的漏洞可被用于容器逃逸等攻击；许多企业在容器化应用设计、开发、部署时，也易因错误设计和配置引入逃逸风险。
 
 Verizon 发布的研究报告<sup><a href="#ref1">4</a></sup>表明，企业在补丁可用后平均需 55 天才能解决 50% 的关键漏洞，而影响基础设施的漏洞修复时间可能更长。当某个高危漏洞被全量修复后，可能又有新的漏洞出现并等待修复。在漏洞修复期间，企业往往缺乏除了入侵检测以外的防御措施。
 
@@ -105,7 +102,7 @@ Verizon 发布的研究报告<sup><a href="#ref1">4</a></sup>表明，企业在�
 vArmor 的以下特性，使其成为加固核心业务的选择：
 
 * **云原生**：遵循 Kubernetes Operator 设计模式，贴近云原生应用开发和运维习惯，从业务视角加固容器化应用，因此易于理解和上手。
-* **灵活性**：策略支持多种运行模式（例如 AlwaysAllow、RuntimeDefault、EnhanceProtect 模式），可动态切换，无需重启工作负载。支持拦截、拦截并告警、仅告警不拦截三种特性，有助于策略调试和安全监控。
+* **灵活性**：策略支持多种运行模式（例如 AlwaysAllow、RuntimeDefault、EnhanceProtect 模式），可动态切换且无需重启工作负载。支持拦截、拦截并告警、仅告警不拦截三种特性，有助于策略调试和安全监控。
 * **开箱即用**：基于字节跳动在容器安全领域的攻防实践，提供了一系列内置规则，用户可按需在策略对象中选择使用。vArmor 会根据策略对象的配置，生成和管理 Allow-by-Default 模式的 AppArmor、BPF、Seccomp Profile，降低了对专业知识的要求。
 * **易用性**：提供了行为建模功能、策略顾问工具，从而辅助策略制定，进一步降低了使用门槛。
 
@@ -120,14 +117,11 @@ spec:
     enforcer: BPF
     mode: EnhanceProtect
     enhanceProtect:
-      # Audit the actions that violate the mandatory access control rules.
-      # Any detected violation will be logged to /var/log/varmor/violations.log file in the host.
+      # AuditViolations determines whether to audit the actions that violate the mandatory access control rules. Any detected violation will be logged to /var/log/varmor/violations.log file in the host.
       # It's disabled by default.
       auditViolations: true
-      # Allow the actions that violate the mandatory access control rules.
-      # Any detected violation will be allowed instead of being blocked and logged to the same log file 
-      # as the auditViolations feature. You can utilize the feature to achieve some kind of observation mode.
-      # It's diabled by default.
+      # AllowViolations determines whether to allow the actions that are against the mandatory access control rules.
+      # It's disabled by default.
       allowViolations: true
 ```
 
@@ -139,15 +133,12 @@ spec:
     enforcer: BPF
     mode: EnhanceProtect
     enhanceProtect:
-      # Audit the actions that violate the mandatory access control rules.
-      # Any detected violation will be logged to /var/log/varmor/violations.log file in the host.
+      # AuditViolations determines whether to audit the actions that violate the mandatory access control rules. Any detected violation will be logged to /var/log/varmor/violations.log file in the host.
       # It's disabled by default.
       auditViolations: true
-      # This is different from the observation mode. Set it to false, that is, illegal behaviors are not allowed. Intercept and record logs.
-      allowViolations: false
 ```
 
-* **高危漏洞应对**：当出现高危漏洞时，您可以基于漏洞类型或利用向量分析对应的缓解方案，并通过更新沙箱策略（添加内置规则、自定义规则），在漏洞修复前进行防御。
+* **高危漏洞应对**：当出现高危漏洞时，您可以基于漏洞类型或利用向量分析对应的缓解方案，并通过更新策略对象（添加内置规则、自定义规则），在漏洞修复前进行防御。
 
 ```yaml
 spec:
@@ -172,14 +163,13 @@ spec:
         network:
           egresses:
           - ip: fdbd:dc01:ff:307:9329:268d:3a27:2ca7
-          - ipBlock: 192.168.1.1/24 # 192.168.1.0 to 192.168.1.255
+          - ipBlock: 192.168.1.1/24
             port: 80
           sockets:
           - protocols:
             - "udp"
       # The custom Seccomp rules:
       syscallRawRules:
-      # disallow chmod +x XXX, chmod 111 XXX, chmod 001 XXX, chmod 010 XXX...
       - names:
         - fchmodat
         action: SCMP_ACT_ERRNO
@@ -227,7 +217,7 @@ spec:
 
 #### 降低特权容器的风险
 
-我们建议企业优先以最小权限原则评估并移除导致 “特权容器” 的风险配置。若无法移除高风险配置，则考虑通过重构来消除风险。当以上措施都无法实施时，建议基于业务场景，综合合规、数据敏感度、成本等因素选择不同隔离级别的安全边界来加固容器。
+我们建议企业优先以最小权限原则评估并移除导致 “特权容器” 的风险配置。并在无法移除时，使用强隔离级别的安全边界来加固容器。
 
 vArmor 可以作为补充，在彻底消除 “特权容器” 安全风险前进行加固。用户可利用 vArmor 提供的[内置规则](../guides/policies_and_rules/built_in_rules/index.md)和[自定义规则](../guides/policies_and_rules/custom_rules.md)来限制潜在攻击者的行为，阻断已知的攻击手法，提升攻击成本和入侵检测几率。vArmor 内置了 “容器加固”、“攻击防护” 和 “漏洞缓解” 三类规则，并且还在不断更新。在 “容器加固” 类规则中，vArmor 专门为 “特权容器” 安全风险内置了一系列规则，可用于阻断一些已知的攻击手法。
 
@@ -254,10 +244,6 @@ policy:
   enhanceProtect:
     hardeningRules:
     - disallow-mount-procfs
-    # Privileged is used to identify whether the policy is for the privileged container.
-    # If set to `nil` or `false`, the EnhanceProtect mode will build AppArmor or BPF profile on
-    # top of the RuntimeDefault mode. Otherwise, it will build AppArmor or BPF profile on top of the AlwaysAllow mode.
-    # Default is false.
     privileged: true
 ```
 
@@ -265,7 +251,7 @@ policy:
 
 企业生产环境中往往存在许多“特权容器”，虽然大量研究报告和案例都阐明过使用“特权容器”的危害，但企业可能仍然难以对已有的“特权容器”进行降权，也无法按照最小权限原则授予新增容器必要的 capabilities。
 
-vArmor 提供了实验功能 —— 行为建模模式。用户可以创建此模式的安全策略，并在指定时间范围内收集和处理目标工作负载的行为。建模结束后，vArmor 会生成一个 ArmorProfileModel 对象，用来保存目标工作负载的行为模型。当行为数据较大时，行为数据会被缓存在数据卷中，用户可以通过对应接口将其导出。
+vArmor 提供了实验功能 —— 行为建模模式。用户可以创建此模式的安全策略，并在指定时间范围内收集和处理目标工作负载的行为。建模结束后，vArmor 会生成一个 ArmorProfileModel 对象，用来保存目标工作负载的行为模型。当行为数据较多时，行为数据会被缓存在数据卷中，用户可以通过对应接口将其导出。
 
 ```yaml
 
@@ -285,7 +271,7 @@ spec:
 
 ## 总结
 
-vArmor 针对当前容器安全领域在安全策略编写与管理方面的难题，提供了有效的解决方案。在多租户隔离场景下，尽管无法达到硬件虚拟化容器的隔离级别，但通过配合一系列安全实践，可降低跨租户攻击风险；在核心业务加固方面，凭借云原生、灵活、开箱即用和易用等特性，为企业在享受 runc 容器性能与便捷的同时，提供了有效的安全防护手段；对于特权容器，vArmor 既能通过内置和自定义规则加固，阻断常见攻击手法，又能利用行为建模功能辅助降权。
+vArmor 针对当前容器安全领域在安全策略编写与管理方面的难题，提供了有效的解决方案。在多租户隔离场景下，尽管无法达到硬件虚拟化容器的隔离级别，但通过配合一系列安全实践，可降低跨租户攻击风险；在核心业务加固方面，vArmor 凭借云原生、灵活、开箱即用和易用等特性，为企业在享受 runc 容器性能与便捷的同时，提供了有效的安全防护手段；对于特权容器，vArmor 既能通过内置和自定义规则加固，阻断常见攻击手法，又能利用行为建模功能辅助降权。
 
 vArmor 以其丰富的特性和灵活的应用方式，为容器安全提供了全面且实用的保障，助力企业在云原生环境中平衡安全与业务发展的需求。
 
