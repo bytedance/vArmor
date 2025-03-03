@@ -9,7 +9,7 @@ import ThemeImage from '@site/src/components/ThemeImage';
 
 ## Introduction
 
-This article will analyze the purpose of our vArmor project, and explain how it addresses the challenges in current container security policy management. From a technical perspective, we will introduce the diverse usage scenarios and methods of vArmor in cloud-native technology stacks such as multi-tenant isolation, core business hardening, and privileged container hardening. We will also demonstrate how to leverage the project's technical features to solve specific problems, achieve technical and business goals, and thus help enterprises build a solid security defense line in the cloud-native environment.
+This article will introduce the purpose of the vArmor project and then introduce its applications in different scenarios from a technical perspective. This article will show you how to solve specific problems by relying on the technical features of vArmor, to achieve technical and business goals and help enterprises build a solid security defense line in a cloud-native environment.
 
 ## Why vArmor Was Launched
 
@@ -31,11 +31,9 @@ However, writing and managing security profiles face numerous challenges:
 * AppArmor or SELinux LSM depends on the operating system distribution, thus having limitations.
 * In a Kubernetes environment, automating the management and application of different security profiles is complex.
 
-To address these issues, vArmor emerged. It provides multiple policy modes, built-in rules, and configuration options. Users can configure policy objects as needed to meet different scenario requirements. vArmor will generate and update security profiles (AppArmor, BPF, Seccomp profiles) based on the definition of policy objects, and harden different workloads.
+To address these issues, vArmor emerged. It provides multiple policy modes, built-in rules, and configuration options. According to the definition of policy objects, vArmor manages security profiles (AppArmor Profile, BPF Profile, Seccomp Profile) to harden containers for different workloads. vArmor also implements behavior modeling functions based on BPF and Audit technologies, which can collect behaviors of different applications and generate behavior models to assist in building security policies.
 
-At the same time, vArmor supports three features: intercept, intercept and alarm, and alarm-only without interception, to meet the different scenario needs. vArmor has also implemented a behavior modeling feature based on BPF and Audit technologies. It can collect the behaviors of different applications and generate behavior models, thereby building security policies in the Allow-by-Default and Deny-by-Default modes.
-
-Next, we will introduce in detail the various scenarios of vArmor in practical applications, and show how it helps enterprises enhance their container security protection capabilities.
+For example, users can configure policy objects according to their needs to achieve three effects: interception only, interception with alarm, and alarm only. They can also use built-in rules and custom rules to update policy objects to meet the requirements of different application scenarios. Next, we will use several application scenarios to show how vArmor helps enterprises enhance container security capabilities in the cloud-native environment.
 
 ## vArmor's Application Scenarios
 
@@ -114,7 +112,7 @@ vArmor has the following features, making it a choice for core business hardenin
 
 The rich features of vArmor provide diverse choices for the formulation and operation of security policies. The following are some common usage methods:
 
-* **Alarm-only without Interception Mode (Observation Mode)**: Configure the sandbox policy to the alarm-only without interception mode, collect alarm logs, and analyze the impact of the security policy on the target application.
+* **Alarm-only Mode (Observation Mode)**: Configure the sandbox policy to the alarm-only mode, collect alarm logs, and analyze the impact of the security policy on the target application.
 
 ```yaml
 spec:
@@ -122,18 +120,15 @@ spec:
     enforcer: BPF
     mode: EnhanceProtect
     enhanceProtect:
-      # Audit the actions that violate the mandatory access control rules.
-      # Any detected violation will be logged to /var/log/varmor/violations.log file in the host.
+      # AuditViolations determines whether to audit the actions that violate the mandatory access control rules. Any detected violation will be logged to /var/log/varmor/violations.log file in the host.
       # It's disabled by default.
       auditViolations: true
-      # Allow the actions that violate the mandatory access control rules.
-      # Any detected violation will be allowed instead of being blocked and logged to the same log file 
-      # as the auditViolations feature. You can utilize the feature to achieve some kind of observation mode.
-      # It's diabled by default.
+      # AllowViolations determines whether to allow the actions that are against the mandatory access control rules.
+      # It's disabled by default.
       allowViolations: true
 ```
 
-* **Intercept and Alarm Mode**: After the sandbox policy is formulated, it can be adjusted to run in the intercept and alarm mode, and continuously collect alarm logs. Thus, mandatory access control of the target workload can be achieved, and violation behaviors can be detected in a timely manner.
+* **Alarm-interception Mode**: After the sandbox policy is formulated, it can be adjusted to run in the alarm-interception mode, and continuously collect alarm logs. Thus, mandatory access control of the target workload can be achieved, and violation behaviors can be detected in a timely manner.
 
 ```yaml
 spec:
@@ -141,15 +136,12 @@ spec:
     enforcer: BPF
     mode: EnhanceProtect
     enhanceProtect:
-      # Audit the actions that violate the mandatory access control rules.
-      # Any detected violation will be logged to /var/log/varmor/violations.log file in the host.
+      # AuditViolations determines whether to audit the actions that violate the mandatory access control rules. Any detected violation will be logged to /var/log/varmor/violations.log file in the host.
       # It's disabled by default.
       auditViolations: true
-      # This is different from the observation mode. Set it to false, that is, illegal behaviors are not allowed. Intercept and record logs.
-      allowViolations: false
 ```
 
-* **Response to High-risk Vulnerabilities**: When a high-risk vulnerability occurs, you can analyze the corresponding mitigation solution based on the type of vulnerability or the exploitation vector, and defend before the vulnerability is repaired by updating the sandbox policy (adding built-in rules, custom rules).
+* **Response to High-risk Vulnerabilities**: When a high-risk vulnerability occurs, you can analyze the corresponding mitigation solution based on the type of vulnerability or the exploitation vector, and defend before the vulnerability is repaired by updating the policy object (adding built-in rules, custom rules).
 
 ```yaml
 spec:
@@ -174,14 +166,13 @@ spec:
         network:
           egresses:
           - ip: fdbd:dc01:ff:307:9329:268d:3a27:2ca7
-          - ipBlock: 192.168.1.1/24 # 192.168.1.0 to 192.168.1.255
+          - ipBlock: 192.168.1.1/24
             port: 80
           sockets:
           - protocols:
             - "udp"
       # The custom Seccomp rules:
       syscallRawRules:
-      # disallow chmod +x XXX, chmod 111 XXX, chmod 001 XXX, chmod 010 XXX...
       - names:
         - fchmodat
         action: SCMP_ACT_ERRNO
@@ -228,7 +219,7 @@ Many enterprises, due to historical issues, system design requirements, and insu
 
 #### Reducing Risks of Privileged Containers
 
-We recommend that companies prioritize the principle of least privilege in evaluating and removing risk configurations that lead to "privilege containers.". If high-risk configurations cannot be removed, please consider eliminating the risks through refactoring. When the above measures cannot be implemented, it is recommended to choose security boundaries with different isolation levels to harden containers based on business scenarios, taking into account factors such as compliance, data sensitivity, and cost.
+We recommend that enterprises evaluate and remove risk configurations that lead to "privileged containers" based on the principle of least privilege as a priority. When removal is not possible, use a security boundary with a strong isolation level to harden the container.
 
 vArmor can be used as a supplement to harden before completely eliminating the security risks of "privileged containers". Users can use the [built-in rules](../guides/policies_and_rules/built_in_rules/index.md) and [custom rules](../guides/policies_and_rules/custom_rules.md) provided by vArmor to restrict the behavior of potential attackers, block known attack vectors, and increase the attack cost and the probability of intrusion detection. vArmor has three types of built-in rules: "container hardening", "attack protection", and "vulnerability mitigation", and is constantly updated. In the "container hardening" type of rules, a series of rules are specifically built-in for the security risks of "privileged containers" to block some known attack vectors.
 
@@ -256,8 +247,6 @@ policy:
     hardeningRules:
     - disallow-mount-procfs
     # Privileged is used to identify whether the policy is for the privileged container.
-    # If set to `nil` or `false`, the EnhanceProtect mode will build AppArmor or BPF profile on
-    # top of the RuntimeDefault mode. Otherwise, it will build AppArmor or BPF profile on top of the AlwaysAllow mode.
     # Default is false.
     privileged: true
 ```
@@ -266,7 +255,7 @@ policy:
 
 There are often many "privileged containers" in the enterprise production environment. Although a large number of research reports and cases have clarified the hazards of using "privileged containers", enterprises may still find it difficult to deprivilege existing "privileged containers" and cannot grant new containers the necessary capabilities according to the principle of least privilege.
 
-vArmor provides an experimental feature - the BehaviorModeling mode. Users can create a security policy in this mode, collect and process the behaviors of the target workload within a specified duration. After the modeling is completed, vArmor will generate an ArmorProfileModel object to save the behavior model of the target workload. When the behavior data is large, it will be cached in the data volume, and users can export it through the corresponding interface.
+vArmor provides an experimental feature - the BehaviorModeling mode. Users can create a security policy in this mode, collect and process the behaviors of the target workload within a specified duration. After the modeling is completed, vArmor will generate an ArmorProfileModel object to save the behavior model of the target workload. When the amount of behavior data is abundant, it will be cached in the data volume, and users can export it through the corresponding interface.
 
 ```yaml
 

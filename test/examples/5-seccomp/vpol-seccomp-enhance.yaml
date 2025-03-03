@@ -17,7 +17,7 @@ spec:
     mode: EnhanceProtect
     enhanceProtect:
       # For the Seccomp enforcer, you can only use auditViolations=true and allowViolations=true 
-      # in combination to implement the alarm-only without interception mode (observation mode).
+      # in combination to implement the alarm-only mode (observation mode).
       # auditViolations: true
       # allowViolations: true
       hardeningRules:
