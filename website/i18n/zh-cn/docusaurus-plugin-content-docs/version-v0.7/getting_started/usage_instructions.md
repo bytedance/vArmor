@@ -31,9 +31,9 @@ vArmor 支持将策略对象配置为仅告警不拦截（观察模式）、拦�
 
 违规事件格式如下所示，其中被拦截并告警的行为将生成 `warn` 级别的事件，仅告警不拦截的行为将生成 `debug` 级别的事件。
 
-* 当前仅 AppArmor 和 BPF enforcer 支持违规审计。
+* 当前仅 AppArmor 和 BPF enforcer 支持拦截并告警模式。
 * 受限于 Seccomp 的原理和性能影响，您只能组合使用 `auditViolations=true` 和 `allowViolations=true`，在没有策略处于 BehaviorModeling 模式时，为 Seccomp enforcer 实现仅告警不拦截模式（观察模式）。
-* 受限于 AppArmor LSM 的原理，使用 AppArmor enforcer 时，在某些情况下无法匹配出对应的容器和 Pod 信息。
+* 受限于 AppArmor LSM 和 Seccomp 的原理，使用 AppArmor 或 Seccomp enforcer 时，在某些情况下无法匹配出对应的容器和 Pod 信息。
 
 ```json
 {

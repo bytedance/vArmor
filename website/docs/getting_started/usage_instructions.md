@@ -29,9 +29,9 @@ vArmor supports configuring policy objects in alarm-only mode (observation mode)
 
 The format of violation events is as follows. Behaviors that are intercepted and alarmed will generate `warn` level events, and behaviors that are alarmed only without interception will generate `debug` level events.
 
-* Currently, only the AppArmor and BPF enforcers support violation auditing.
+* Currently, only the AppArmor and BPF enforcers support the alarm-interception mode.
 * Limited by the principle and performance impact of Seccomp, you can only use `auditViolations=true` and `allowViolations=true` in combination to implement the alarm-only mode (observation mode) for the Seccomp enforcer when there is no policy in the BehaviorModeling mode.
-* Limited by the principle of the AppArmor LSM, when using the AppArmor or Seccomp enforcer, in some cases, the corresponding container and Pod information cannot be matched.
+* Limited by the principle of the AppArmor LSM and Seccomp, when using the AppArmor or Seccomp enforcer, in some cases, the corresponding container and Pod information cannot be matched.
 
 ```json
 {
