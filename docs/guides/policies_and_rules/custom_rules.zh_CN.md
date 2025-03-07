@@ -82,18 +82,18 @@ BPF enforcer 支持用户根据语法定制策略。每类规则的数量上限�
 
 ### 文件权限定义
 
-  | 权限 | 缩写 | 隐含权限 | 备注 |
-  |-----|-----|---------|-----|
-  |read|r|-<br />rename<br />hard link|禁止读<br />禁止利用 rename **oldpath** newpath 绕过 oldpath 的读限制<br />禁止利用 ln **TARGET** LINK_NAME 绕过 TARGET 的读限制
-  |write|w|-<br />append<br />rename<br />hard link<br />symbol link<br />chmod<br />chown|禁止写<br />禁止利用 O_APPEND flag 绕过 map_file_to_perms() 实现追加写操作<br />禁止利用 rename oldpath **newpath** 绕过 newpath 的写限制<br />禁止利用 ln TARGET **LINK_NAME** 绕过 LINK_NAME 的写限制<br />禁止利用创建软链接（符号链接）绕过目标文件的写限制<br />WIP<br />WIP
-  |exec|x|-|禁止执行
-  |append|a|-|禁止追加写
+  | 权限 / 权限缩写 | 隐含权限 | 说明 |
+  |---------------|---------|-----|
+  |read / r|-<br />rename<br />hard link|禁止读<br />禁止利用 rename **oldpath** newpath 绕过 oldpath 的读限制<br />禁止利用 ln **TARGET** LINK_NAME 绕过 TARGET 的读限制
+  |write / w|-<br />append<br />rename<br />hard link<br />symbol link<br />chmod<br />chown|禁止写<br />禁止利用 O_APPEND flag 绕过 map_file_to_perms() 实现追加写操作<br />禁止利用 rename oldpath **newpath** 绕过 newpath 的写限制<br />禁止利用 ln TARGET **LINK_NAME** 绕过 LINK_NAME 的写限制<br />禁止利用创建软链接（符号链接）绕过目标文件的写限制<br />WIP<br />WIP
+  |exec / x|-|禁止执行
+  |append / a|-|禁止追加写
 
 * **文件路径匹配**
 
   BPF enfocer 支持根据路径 Pattern 对文件进行匹配，并支持两种匹配模式（精确匹配、通配匹配），匹配 Pattern 的最大长度限制为 64 字节。
 
-  |通配符|语法|样例|备注|
+  |通配符|语法|样例|说明|
   |-----|---|---|----|
   |*|- 仅用于匹配叶子结点的文件名<br />- 匹配 dot 文件，但不匹配 . 和 .. 文件<br />- 仅支持单个 *，且不支持 \*\* 和 * 一起出现|- fi\* 代表匹配任意以 fi 开头的文件名<br />- *le 代表匹配任意以 le 结尾的文件名<br />- *.log 代表匹配任意以 .log 结尾的文件名|此通配符的行为可能会在后续版本中发生改变|
   |\**|- 在多级目录中，匹配零个、一个、多个字符<br />- 匹配 dot 文件，但不匹配 . 和 .. 文件<br />- 仅支持单个 \*\*，且不支持 ** 和 * 一起出现|- /tmp/\*\*/33 代表匹配任意以 /tmp 开头，且以 /33 结尾的文件，包含 /tmp/33<br />- /tmp/\*\* 代表匹配任意以 /tmp 开头的文件、目录<br />- /tm** 代表匹配任意以 /tm 开头的文件、目录<br />- /t**/33 代表匹配任意以 /t 开头，以 /33 结尾的文件、目录
