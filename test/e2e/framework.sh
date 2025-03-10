@@ -217,7 +217,6 @@ execute_command() {
     echo "Command: ${command}" >> "${RESULTS_DIR}/${TEST_NAME}.log"
     echo "Output: ${output}" >> "${RESULTS_DIR}/${TEST_NAME}.log"
     echo "Status code: ${status}" >> "${RESULTS_DIR}/${TEST_NAME}.log"
-    echo "recorded"
     return ${status}
 }
 
@@ -311,7 +310,10 @@ run_all_testcases() {
     log_info "Testing completed, result summary:"
     log_info "Total tests: ${TOTAL_TESTS}"
     log_success "Passed tests: ${PASSED_TESTS}"
-    log_error "Failed tests: ${FAILED_TESTS}"
+    if [ ${FAILED_TESTS} -gt 0 ]; then
+        log_error "Failed tests: ${FAILED_TESTS}"
+    fi
+
     
     # Clean up test environment
     cleanup_test_env

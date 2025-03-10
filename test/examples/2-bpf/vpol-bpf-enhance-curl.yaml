@@ -1,0 +1,53 @@
+apiVersion: crd.varmor.org/v1beta1
+kind: VarmorPolicy
+metadata:
+  name: demo-2
+  namespace: demo
+spec:
+  # Perform a rolling update on existing workloads.
+  # It's disabled by default.
+  updateExistingWorkloads: true
+  target:
+    # The policy protects all the containers by default if the .spec.target.containers is nil.
+    kind: Deployment
+    selector:
+      matchExpressions:
+      - key: environment
+        operator: NotIn
+        values: [dev, qa]
+      matchLabels:
+        app: demo-2
+  policy:
+    enforcer: BPF
+    mode: EnhanceProtect
+    enhanceProtect:
+      # Audit the actions that violate the mandatory access control rules.
+      # Any detected violation will be logged to /var/log/varmor/violations.log file in the host.
+      # It's disabled by default.
+      auditViolations: true
+      # Allow the actions that violate the mandatory access control rules.
+      # Any detected violation will be allowed instead of being blocked and logged to the same log file 
+      # as the auditViolations feature. You can utilize the feature to achieve some kind of observation mode.
+      # It's diabled by default.
+      # allowViolations: true
+      hardeningRules:
+      - disable-cap-privileged
+      - disallow-access-procfs-root
+      attackProtectionRules:
+      - rules:
+        - disable-write-etc
+        - mitigate-sa-leak
+        - disable-curl
+      bpfRawRules:
+        processes:
+        - pattern: "**ping"
+          permissions:
+          - exec
+        network:
+          egresses:
+          - ip: fdbd:dc01:ff:307:9329:268d:3a27:2ca7
+          - ipBlock: 192.168.1.1/24 # 192.168.1.0 to 192.168.1.255
+            port: 80
+          sockets:
+          - protocols:
+            - "udp"

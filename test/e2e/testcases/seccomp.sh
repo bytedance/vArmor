@@ -29,7 +29,7 @@ POLICY_FILES="../examples/5-seccomp/vpol-seccomp-alwaysallow.yaml"
 ENHANCED_POLICY_FILES="../examples/5-seccomp/vpol-seccomp-enhance.yaml"
 
 # 工作负载文件
-WORKLOAD_FILES="../examples/5-seccomp/deploy.yaml"
+WORKLOAD_FILES="../examples/5-seccomp/deploy-in-demo-ns.yaml"
 
 # Pod选择器
 POD_SELECTOR="app=demo-5"

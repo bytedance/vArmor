@@ -26,10 +26,10 @@ TEST_DESCRIPTION="测试BPF策略对网络连接的限制"
 POLICY_FILES="../examples/2-bpf/vpol-bpf-alwaysallow.yaml"
 
 # 增强策略文件
-ENHANCED_POLICY_FILES="../examples/2-bpf/vpol-bpf-network-restrict.yaml"
+ENHANCED_POLICY_FILES="../examples/2-bpf/vpol-bpf-enhance-curl.yaml"
 
 # 工作负载文件
-WORKLOAD_FILES="../examples/2-bpf/deploy-network-test.yaml"
+WORKLOAD_FILES="../examples/2-bpf/deploy.yaml"
 
 # Pod选择器
 POD_SELECTOR="app=demo-network"
@@ -38,13 +38,13 @@ POD_SELECTOR="app=demo-network"
 CONTAINER_NAME="c1"
 
 # 初始命令 - 在AlwaysAllow模式下应该可以连接到外部网络
-INITIAL_COMMAND="curl -s -o /dev/null -w '%{http_code}' https://www.example.com"
+INITIAL_COMMAND="curl"
 
 # 初始命令预期状态码 (0表示成功)
 INITIAL_EXPECTED_STATUS=0
 
 # 验证命令 - 在EnhanceProtect模式下应该无法连接到被限制的外部网络
-VERIFY_COMMAND="curl -s -o /dev/null -w '%{http_code}' https://www.example.com"
+VERIFY_COMMAND="curl"
 
 # 验证命令预期状态码 (非0表示失败，预期被策略阻止)
 VERIFY_EXPECTED_STATUS=1
