@@ -14,37 +14,37 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# 特权操作限制测试用例配置
+# 文件系统访问控制测试用例配置
 
 # 测试名称
-TEST_NAME="privilege-operation-restriction"
+TEST_NAME="filesystem-access-control"
 
 # 测试描述
-TEST_DESCRIPTION="测试vArmor对容器内特权操作的限制"
+TEST_DESCRIPTION="测试AppArmor策略对敏感文件访问的限制"
 
 # 初始策略文件
-POLICY_FILES="../examples/2-bpf/vpol-bpf-alwaysallow.yaml"
+POLICY_FILES="../examples/1-apparmor/vpol-apparmor-alwaysallow.yaml"
 
 # 增强策略文件
-ENHANCED_POLICY_FILES="../examples/2-bpf/vpol-bpf-privilege-restrict.yaml"
+ENHANCED_POLICY_FILES="../examples/1-apparmor/vpol-apparmor-enhance-hostip.yaml"
 
 # 工作负载文件
-WORKLOAD_FILES="../examples/2-bpf/deploy-privilege-test.yaml"
+WORKLOAD_FILES="../examples/1-apparmor/deploy.yaml"
 
 # Pod选择器
-POD_SELECTOR="app=demo-privilege"
+POD_SELECTOR="app=demo-1"
 
 # 容器名称
 CONTAINER_NAME="c1"
 
-# 初始命令 - 在AlwaysAllow模式下应该可以执行特权操作
-INITIAL_COMMAND="capsh --print"
+# 初始命令 - 在AlwaysAllow模式下应该可以获取 host ip
+INITIAL_COMMAND="cat /proc/net/arp"
 
 # 初始命令预期状态码 (0表示成功)
 INITIAL_EXPECTED_STATUS=0
 
-# 验证命令 - 在EnhanceProtect模式下尝试执行需要特权的操作
-VERIFY_COMMAND="ip link set lo down"
+# 验证命令 - 在EnhanceProtect模式下应该无法读取被限制的敏感文件
+VERIFY_COMMAND="cat /proc/net/arp"
 
 # 验证命令预期状态码 (非0表示失败，预期被策略阻止)
 VERIFY_EXPECTED_STATUS=1

@@ -2,7 +2,7 @@
 
 /* Hero Section */
 .heroBanner {
-  background-color: #607D8B;
+  background: linear-gradient(135deg, #0050C1, #0066FF);
   color: white;
   padding: 4rem 0;
   position: relative;
@@ -16,21 +16,66 @@
   width: 100%;
   height: 100%;
   z-index: 0;
-  /* background-image: url('/img/background.jpeg'); */
+  background-image: url('/img/background.jpeg');
   background-size: cover;
   background-position: center;
-  opacity: 0.3; 
+  opacity: 0.2; 
+  mix-blend-mode: soft-light;
+  pointer-events: none;
 }
 
 .heroContent {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 2rem;
+  padding: 0 2rem;
 }
 
 .heroText {
   flex: 1;
+  max-width: 800px;
+  text-align: left;
+}
+
+.heroLogo {
+  margin-bottom: 1.5rem;
+  max-width: 400px;
+  margin: 0 0 1.5rem 0;
+}
+
+.heroLogo img {
+  width: 100%;
+  height: auto;
+}
+
+.heroTitle {
+  font-size: 5.5rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+  line-height: 1.1;
+}
+
+.heroTagline {
+  font-size: 1.8rem;
+  margin-bottom: 2rem;
+  opacity: 0.9;
+  line-height: 1.3;
+}
+
+.primaryButton {
+  background-color: #ffffff;
+  color: #0066FF;
+  border: none;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  font-size: 1.2rem;
+  padding: 0.8rem 1.5rem;
+}
+
+.primaryButton:hover {
+  background-color: #f0f0f0;
+  color: #0050C1;
 }
 
 .heroImage {
@@ -49,8 +94,9 @@
 
 .buttons {
   display: flex;
-  gap: 1rem;
-  margin-top: 2rem;
+  gap: 1.5rem;
+  margin-top: 3rem;
+  justify-content: flex-start;
 }
 
 /* Features Section */

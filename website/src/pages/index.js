@@ -12,36 +12,32 @@ import CodeBlock from '@theme/CodeBlock';
 function HomepageHeader() {
   return (
     <header className={clsx('hero', styles.heroBanner)}>
-      {/* <div className={styles.heroBgImage}></div> */}
+      <div className={styles.heroBgImage}></div>
       <div className="container">
         <div className={styles.heroContent}>
           <div className={styles.heroText}>
-            <h1 className="hero__title">vArmor</h1>
-            <p className="hero__subtitle">
-              Cloud-native container sandbox system for Kubernetes security
-            </p>
-            <p className={styles.heroDescription}>
-              Strengthen container isolation, reduce kernel attack surface, and increase the difficulty of container escape attacks
+            <div className={styles.heroLogo}>
+              <ThemeImage 
+                lightSrc="/img/logo-white.svg" 
+                darkSrc="/img/logo-white.svg" 
+                alt="vArmor Logo" 
+              />
+            </div>
+            <p className={styles.heroTagline}>
+              Cloud-native container sandbox for Kubernetes
             </p>
             <div className={styles.buttons}>
               <Link
-                className="button button--primary button--lg"
-                to="/docs/introduction">
+                className={clsx("button button--lg", styles.primaryButton)}
+                to="/docs/main/introduction">
                 Get Started
               </Link>
               <Link
-                className="button button--secondary button--lg"
+                className={clsx("button button--lg", styles.primaryButton, "button--black")}
                 to="https://github.com/bytedance/vArmor">
                 GitHub
               </Link>
             </div>
-          </div>
-          <div className={styles.heroImage}>
-            <ThemeImage 
-              lightSrc="/img/logo-dark.svg" 
-              darkSrc="/img/logo-dark.svg" 
-              alt="vArmor Logo" 
-            />
           </div>
         </div>
       </div>

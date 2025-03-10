@@ -108,7 +108,16 @@ jobs:
       
       - name: Install vArmor
         run: |
-          helm install varmor ./varmor-*.tgz --namespace varmor --create-namespace
+          helm install varmor varmor-*.tgz \
+              --namespace varmor --create-namespace \
+              --set image.registry="elkeid-ap-southeast-1.cr.volces.com" \
+              --set bpfLsmEnforcer.enabled=true \
+              --set "agent.bpfRelated.volumes[0].hostPath.type=Directory,agent.bpfRelated.volumes[0].hostPath.path=/sys/fs/bpf,agent.bpfRelated.volumes[0].name=bpffs" \
+              --set "agent.bpfRelated.volumes[1].hostPath.type=File,agent.bpfRelated.volumes[1].hostPath.path=/sys/kernel/btf/vmlinux,agent.bpfRelated.volumes[1].name=btf" \
+              --set image.namespace="varmor-test" \
+              --set manager.image.pullPolicy="Never" \
+              --set agent.image.pullPolicy="Never" \
+              --set classifier.image.pullPolicy="Never"
           sleep 60
           kubectl get pods -n varmor
       
