@@ -134,6 +134,12 @@ apply_policy() {
     
     if [[ "${policy_status}" != *"Protecting"* ]]; then
         log_error "VarmorPolicy status abnormal: ${policy_status}"
+        ${KUBECTL_CMD} get VarmorPolicy -n ${NAMESPACE} -o yaml
+        ${KUBECTL_CMD} get ArmorProfile -n ${NAMESPACE} -o yaml
+        for pod in $(kubectl -n varmor get pods -l app.kubernetes.io/component=varmor-agent -o name); do
+            echo "Logs for Pod: ${pod}"
+            kubectl -n varmor logs ${pod}
+        done
         return 1
     fi
     

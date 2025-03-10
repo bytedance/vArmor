@@ -35,7 +35,7 @@ WORKLOAD_FILES="../examples/5-seccomp/deploy-in-demo-ns.yaml"
 POD_SELECTOR="app=demo-5"
 
 # 容器名称
-CONTAINER_NAME="c1"
+CONTAINER_NAME="c0"
 
 # 初始命令 - 在AlwaysAllow模式下应该可以执行mount系统调用
 INITIAL_COMMAND="unshare -m echo 'Testing mount syscall'"
