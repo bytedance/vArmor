@@ -20,16 +20,16 @@
 TEST_NAME="network-access-control"
 
 # 测试描述
-TEST_DESCRIPTION="测试BPF策略对网络连接的限制"
+TEST_DESCRIPTION="测试对网络连接的限制"
 
 # 初始策略文件
-POLICY_FILES="../examples/2-bpf/vpol-bpf-alwaysallow.yaml"
+POLICY_FILES="../examples/1-apparmor/vpol-apparmor-alwaysallow.yaml"
 
 # 增强策略文件
-ENHANCED_POLICY_FILES="../examples/2-bpf/vpol-bpf-enhance-curl.yaml"
+ENHANCED_POLICY_FILES="../examples/1-apparmor/vpol-apparmor-enhance-curl.yaml"
 
 # 工作负载文件
-WORKLOAD_FILES="../examples/2-bpf/deploy.yaml"
+WORKLOAD_FILES="../examples/1-apparmor/deploy.yaml"
 
 # Pod选择器
 POD_SELECTOR="app=demo-network"

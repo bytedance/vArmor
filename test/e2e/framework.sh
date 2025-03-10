@@ -139,10 +139,10 @@ apply_policy() {
         for pod in $(kubectl -n varmor get pods -l app.kubernetes.io/component=varmor-agent -o name); do
             echo "Logs for Pod: ${pod}"
             kubectl -n varmor logs ${pod}
+            kubectl -n varmor get ${pod} -o yaml
         done
         return 1
     fi
-    
     if [[ "${profile_status_all_num}" != "${profile_status_cur_num}" ]]; then
         log_error "ArmorProfile status abnormal: ${profile_status}"
         return 1

@@ -130,7 +130,8 @@
 }
 
 .featureIcon {
-  font-size: 2.5rem;
+  font-size: 0rem;
+  
   margin-bottom: 1rem;
   color: var(--ifm-color-primary);
   text-align: center;

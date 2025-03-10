@@ -37,7 +37,7 @@ POD_SELECTOR="app=demo-1"
 # 容器名称
 CONTAINER_NAME="c1"
 
-# 初始命令 - 在AlwaysAllow模式下应该可以获取 host ip
+# 初始命令 - 在AlwaysAllow模式下应该可以 host ip
 INITIAL_COMMAND="cat /proc/net/arp"
 
 # 初始命令预期状态码 (0表示成功)

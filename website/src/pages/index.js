@@ -71,30 +71,35 @@ function HomepageFeatures() {
           <Feature
             title="Cloud-Native"
             description="Follows the Kubernetes Operator design pattern, allowing users to harden specific workloads by manipulating the CRD API."
-            //icon={<img src="xxx" alt="Cloud-Native Icon" className={styles.featureIcon}/>}
+            icon={<img src="/img/icon-cloud.svg" alt="Cloud-Native Icon" className={styles.featureIcon}/>}
           />
 
           <Feature
             title="Multiple Enforcers"
             description="Abstracts AppArmor, BPF, and Seccomp as enforcers, supporting their use individually or in combination."
+            icon={<img src="/img/icon-enforcer.svg" alt="Cloud-Native Icon" className={styles.featureIcon}/>}
           />
           <Feature
             title="Allow-by-Default"
             description="Only explicitly declared behaviors will be blocked, which effectively minimizes performance impact and enhances usability."
+            icon={<img src="/img/icon-allow.svg" alt="Cloud-Native Icon" className={styles.featureIcon}/>}
           />
         </div>
         <div className="row">
           <Feature
             title="Built-in Rules"
             description="Features a range of built-in rules ready to use out of the box, eliminating the need for expertise in security profile creation."
+            icon={<img src="/img/icon-rules.svg" alt="Cloud-Native Icon" className={styles.featureIcon}/>}
           />
           <Feature
             title="Behavior Modeling"
             description="Supports behavior modeling for workloads to develop allowlist profiles and guide configurations to adhere to least privilege."
+            icon={<img src="/img/icon-model.svg" alt="Cloud-Native Icon" className={styles.featureIcon}/>}
           />
           <Feature
             title="Deny-by-Default"
             description="Capable of creating an allowlist profile from behavior models and ensuring only explicitly declared behaviors are permitted."
+            icon={<img src="/img/icon-deny.svg" alt="Cloud-Native Icon" className={styles.featureIcon}/>}
           />
         </div>
       </div>
@@ -164,7 +169,7 @@ function QuickStart() {
             <p>Create a VarmorPolicy to protect your workloads</p>
             <Link
               className="button button--primary"
-              to="/docs/introduction#quick-start">
+              to="/docs/main/introduction#quick-start">
               View Full Guide
             </Link>
           </div>
