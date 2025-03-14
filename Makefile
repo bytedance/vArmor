@@ -41,6 +41,13 @@ else
 GOBIN=$(shell go env GOBIN)
 endif
 
+ifeq (,$(shell which goimports))
+$(shell go install golang.org/x/tools/cmd/goimports@latest)
+GO_IMPORTS=$(shell which goimports)
+else
+GO_IMPORTS=$(shell which goimports)
+endif
+
 # Setting SHELL to bash allows bash commands to be executed by recipes.
 # This is a requirement for 'setup-envtest.sh' in the test target.
 # Options are set to exit when a recipe line exits non-zero or a piped command fails.
@@ -126,17 +133,6 @@ copy-ebpf: ## Copy the ebpf code and lib.
 	cp vArmor-ebpf/pkg/processtracer/bpf_bpfel.o pkg/processtracer
 	cp vArmor-ebpf/pkg/bpfenforcer/bpf_bpfel.go pkg/lsm/bpfenforcer
 	cp vArmor-ebpf/pkg/bpfenforcer/bpf_bpfel.o pkg/lsm/bpfenforcer
-
-goimports:
-ifeq (, $(shell which goimports))
-	@{ \
-	echo "goimports not found!";\
-	echo "installing goimports...";\
-	go install golang.org/x/tools/cmd/goimports@latest
-	}
-else
-GO_IMPORTS=$(shell which goimports)
-endif
 
 .PHONY: fmt
 fmt: ## Run go fmt against code.
