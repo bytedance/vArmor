@@ -1,0 +1,14 @@
+Hello:
+  label: Hello
+  permalink: /hello
+  description: Hello World
+
+AIAgent:
+  label: AI Agent
+  permalink: /aiagent
+  description: Artificial Intelligence Agent
+
+LLM:
+  label: LLM
+  permalink: /llm
+  description: Large Language Models
