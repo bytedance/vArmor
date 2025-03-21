@@ -145,6 +145,7 @@ const config = {
             position: 'right',
             label: 'Documentation',
           },
+          {to: '/blog', label: 'Blog', position: 'right'},
           {
             type: 'docsVersionDropdown',
             position: 'right',
