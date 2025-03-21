@@ -1,19 +1,14 @@
-facebook:
-  label: Facebook
-  permalink: /facebook
-  description: Facebook tag description
-
-hello:
+Hello:
   label: Hello
   permalink: /hello
-  description: Hello tag description
+  description: Hello World
 
-docusaurus:
-  label: Docusaurus
-  permalink: /docusaurus
-  description: Docusaurus tag description
+AIAgent:
+  label: AI Agent
+  permalink: /aiagent
+  description: Artificial Intelligence Agent
 
-hola:
-  label: Hola
-  permalink: /hola
-  description: Hola tag description
+LLM:
+  label: LLM
+  permalink: /llm
+  description: Large Language Models
