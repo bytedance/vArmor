@@ -24,8 +24,6 @@ function PolicyGenerator() {
 
   // 生成的策略
   const [generatedPolicy, setGeneratedPolicy] = useState(null);
-  // 生成的YAML格式策略
-  const [generatedYaml, setGeneratedYaml] = useState('');
 
   // 可用的执行器选项
   const enforcerOptions = [
@@ -176,55 +174,11 @@ function PolicyGenerator() {
     });
   };
 
-  // 将JSON对象转换为YAML字符串
-  const jsonToYaml = (obj, indent = 0) => {
-    if (!obj) return '';
-    
-    let yaml = '';
-    const spaces = ' '.repeat(indent);
-    
-    if (Array.isArray(obj)) {
-      if (obj.length === 0) return spaces + '[]';
-      
-      for (const item of obj) {
-        if (typeof item === 'object' && item !== null) {
-          yaml += spaces + '- ' + jsonToYaml(item, indent + 2).trimStart() + '\n';
-        } else {
-          yaml += spaces + '- ' + item + '\n';
-        }
-      }
-      return yaml;
-    } else if (typeof obj === 'object' && obj !== null) {
-      for (const key in obj) {
-        const value = obj[key];
-        
-        if (value === undefined || value === null) continue;
-        
-        if (Array.isArray(value)) {
-          if (value.length === 0) {
-            yaml += spaces + key + ': []\n';
-          } else {
-            yaml += spaces + key + ':\n';
-            yaml += jsonToYaml(value, indent + 2);
-          }
-        } else if (typeof value === 'object') {
-          yaml += spaces + key + ':\n';
-          yaml += jsonToYaml(value, indent + 2);
-        } else {
-          yaml += spaces + key + ': ' + value + '\n';
-        }
-      }
-      return yaml;
-    } else {
-      return obj.toString();
-    }
-  };
-
   // 生成策略
   const generatePolicy = () => {
     // 构建策略对象
     const policy = {
-      apiVersion: "crd.varmor.org/v1beta1",
+      apiVersion: "varmor.org/v1beta1",
       kind: "VarmorPolicy",
       metadata: {
         name: "generated-policy",
@@ -232,7 +186,6 @@ function PolicyGenerator() {
       },
       spec: {
         target: {
-          kind: "Deployment",
           selector: {
             matchLabels: {
               app: "your-app"
@@ -248,24 +201,24 @@ function PolicyGenerator() {
 
     // 如果是增强保护模式，添加规则
     if (formData.policyMode === 'EnhanceProtect') {
-      policy.spec.policy.enhanceProtect = {};
-      
+      policy.spec.policy.enhanceProtect = {
+        hardeningRules: [],
+        attackProtectionRules: [],
+        vulnerabilityRules: []
+      };
+
       // 根据选择的规则分类添加
-      const hardeningRules = [];
-      const attackProtectionRules = [];
-      const vulMitigationRules = [];
-      
       formData.rules.forEach(ruleId => {
         // 查找规则所属分类
         for (const category of ruleCategories) {
           const rule = category.rules.find(r => r.id === ruleId);
           if (rule) {
             if (category.name.includes('加固')) {
-              hardeningRules.push(ruleId);
+              policy.spec.policy.enhanceProtect.hardeningRules.push(ruleId);
             } else if (category.name.includes('攻击防护')) {
-              attackProtectionRules.push(ruleId);
+              policy.spec.policy.enhanceProtect.attackProtectionRules.push(ruleId);
             } else if (category.name.includes('漏洞缓解')) {
-              vulMitigationRules.push(ruleId);
+              policy.spec.policy.enhanceProtect.vulnerabilityRules.push(ruleId);
             }
             break;
           }
@@ -276,315 +229,283 @@ function PolicyGenerator() {
       if (formData.features.includes('privileged-container')) {
         policy.spec.policy.enhanceProtect.privileged = true;
       }
-
-      // 添加规则到策略中
-      if (hardeningRules.length > 0) {
-        policy.spec.policy.enhanceProtect.hardeningRules = hardeningRules;
-      }
-      
-      if (attackProtectionRules.length > 0) {
-        policy.spec.policy.enhanceProtect.attackProtectionRules = [{
-          rules: attackProtectionRules
-        }];
-      }
-      
-      if (vulMitigationRules.length > 0) {
-        policy.spec.policy.enhanceProtect.vulMitigationRules = vulMitigationRules;
-      }
-
-      // 如果是Seccomp执行器，添加syscallRawRules
-      if (formData.enforcer === 'Seccomp') {
-        policy.spec.policy.enhanceProtect.syscallRawRules = [
-          {
-            names: ['ptrace', 'mknod', 'mount', 'sysctl'],
-            action: 'SCMP_ACT_ERRNO'
-          }
-        ];
-      }
     }
 
     // 设置生成的策略
     setGeneratedPolicy(policy);
-    
-    // 将策略转换为YAML格式
-    const yamlContent = jsonToYaml(policy);
-    setGeneratedYaml(yamlContent);
-    
     // 移动到最后一步
     setCurrentStep(4);
   };
 
-};
-
-// 渲染步骤导航
-const renderStepNav = () => {
-  return (
-    <div className={styles.stepNav}>
-      <div className={clsx(styles.stepItem, currentStep >= 1 && styles.activeStep)} onClick={() => setCurrentStep(1)}>
-        <div className={styles.stepNumber}>1</div>
-        <div className={styles.stepLabel}>选择执行器</div>
-      </div>
-      <div className={clsx(styles.stepItem, currentStep >= 2 && styles.activeStep)} onClick={() => formData.enforcer && setCurrentStep(2)}>
-        <div className={styles.stepNumber}>2</div>
-        <div className={styles.stepLabel}>应用特性</div>
-      </div>
-      <div className={clsx(styles.stepItem, currentStep >= 3 && styles.activeStep)} onClick={() => formData.enforcer && setCurrentStep(3)}>
-        <div className={styles.stepNumber}>3</div>
-        <div className={styles.stepLabel}>选择规则</div>
-      </div>
-      <div className={clsx(styles.stepItem, currentStep >= 4 && styles.activeStep)} onClick={() => generatedPolicy && setCurrentStep(4)}>
-        <div className={styles.stepNumber}>4</div>
-        <div className={styles.stepLabel}>生成策略</div>
-      </div>
-    </div>
-  );
-};
-
-// 渲染步骤1：选择执行器
-const renderStep1 = () => {
-  return (
-    <div className={styles.stepContent}>
-      <h2>第一步：选择执行器和策略模式</h2>
-      <p>请选择您的环境支持的执行器类型和策略模式。</p>
-      
-      <div className={styles.formGroup}>
-        <h3>执行器</h3>
-        <div className={styles.optionGroup}>
-          {enforcerOptions.map((option) => (
-            <div key={option.value} className={styles.optionItem}>
-              <input
-                type="radio"
-                id={`enforcer-${option.value}`}
-                name="enforcer"
-                checked={formData.enforcer === option.value}
-                onChange={() => handleEnforcerChange(option.value)}
-              />
-              <label htmlFor={`enforcer-${option.value}`}>{option.label}</label>
-            </div>
-          ))}
+  // 渲染步骤导航
+  const renderStepNav = () => {
+    return (
+      <div className={styles.stepNav}>
+        <div className={clsx(styles.stepItem, currentStep >= 1 && styles.activeStep)} onClick={() => setCurrentStep(1)}>
+          <div className={styles.stepNumber}>1</div>
+          <div className={styles.stepLabel}>选择执行器</div>
+        </div>
+        <div className={clsx(styles.stepItem, currentStep >= 2 && styles.activeStep)} onClick={() => formData.enforcer && setCurrentStep(2)}>
+          <div className={styles.stepNumber}>2</div>
+          <div className={styles.stepLabel}>应用特性</div>
+        </div>
+        <div className={clsx(styles.stepItem, currentStep >= 3 && styles.activeStep)} onClick={() => formData.enforcer && setCurrentStep(3)}>
+          <div className={styles.stepNumber}>3</div>
+          <div className={styles.stepLabel}>选择规则</div>
+        </div>
+        <div className={clsx(styles.stepItem, currentStep >= 4 && styles.activeStep)} onClick={() => generatedPolicy && setCurrentStep(4)}>
+          <div className={styles.stepNumber}>4</div>
+          <div className={styles.stepLabel}>生成策略</div>
         </div>
       </div>
+    );
+  };
 
-      <div className={styles.formGroup}>
-        <h3>策略模式</h3>
-        <div className={styles.optionGroup}>
-          {policyModeOptions.map((option) => (
-            <div key={option.value} className={styles.optionItem}>
-              <input
-                type="radio"
-                id={`mode-${option.value}`}
-                name="policyMode"
-                checked={formData.policyMode === option.value}
-                onChange={() => handlePolicyModeChange(option.value)}
-              />
-              <label htmlFor={`mode-${option.value}`}>{option.label}</label>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className={styles.stepActions}>
-        <button 
-          className={clsx("button button--primary", styles.nextButton)} 
-          onClick={() => setCurrentStep(2)} 
-          disabled={!formData.enforcer}
-        >
-          下一步
-        </button>
-      </div>
-    </div>
-  );
-};
-
-// 渲染步骤2：应用特性和能力
-const renderStep2 = () => {
-  return (
-    <div className={styles.stepContent}>
-      <h2>第二步：应用特性和能力</h2>
-      <p>请选择您的应用具有的特性和需要的能力。</p>
-      
-      <div className={styles.formGroup}>
-        <h3>应用特性</h3>
-        <div className={styles.checkboxGroup}>
-          {featureOptions.map((option) => (
-            <div key={option.value} className={styles.checkboxItem}>
-              <input
-                type="checkbox"
-                id={`feature-${option.value}`}
-                checked={formData.features.includes(option.value)}
-                onChange={(e) => handleFeatureChange(option.value, e.target.checked)}
-              />
-              <label htmlFor={`feature-${option.value}`}>{option.label}</label>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className={styles.formGroup}>
-        <h3>应用需要的能力</h3>
-        <div className={styles.checkboxGroup}>
-          {capabilityOptions.map((option) => (
-            <div key={option.value} className={styles.checkboxItem}>
-              <input
-                type="checkbox"
-                id={`capability-${option.value}`}
-                checked={formData.capabilities.includes(option.value)}
-                onChange={(e) => handleCapabilityChange(option.value, e.target.checked)}
-              />
-              <label htmlFor={`capability-${option.value}`}>{option.label}</label>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className={styles.stepActions}>
-        <button 
-          className={clsx("button button--secondary", styles.backButton)} 
-          onClick={() => setCurrentStep(1)}
-        >
-          上一步
-        </button>
-        <button 
-          className={clsx("button button--primary", styles.nextButton)} 
-          onClick={() => setCurrentStep(3)}
-        >
-          下一步
-        </button>
-      </div>
-    </div>
-  );
-};
-
-// 渲染步骤3：选择规则
-const renderStep3 = () => {
-  // 根据选择的执行器过滤规则
-  const filteredRuleCategories = ruleCategories.map(category => {
-    return {
-      ...category,
-      rules: category.rules.filter(rule => rule.enforcer.includes(formData.enforcer))
-    };
-  }).filter(category => category.rules.length > 0);
-
-  return (
-    <div className={styles.stepContent}>
-      <h2>第三步：选择规则</h2>
-      <p>请选择您需要应用的内置规则。</p>
-      
-      {filteredRuleCategories.map((category, index) => (
-        <div key={index} className={styles.formGroup}>
-          <h3>{category.name}</h3>
-          <div className={styles.checkboxGroup}>
-            {category.rules.map((rule) => (
-              <div key={rule.id} className={styles.checkboxItem}>
+  // 渲染步骤1：选择执行器
+  const renderStep1 = () => {
+    return (
+      <div className={styles.stepContent}>
+        <h2>第一步：选择执行器和策略模式</h2>
+        <p>请选择您的环境支持的执行器类型和策略模式。</p>
+        
+        <div className={styles.formGroup}>
+          <h3>执行器</h3>
+          <div className={styles.optionGroup}>
+            {enforcerOptions.map((option) => (
+              <div key={option.value} className={styles.optionItem}>
                 <input
-                  type="checkbox"
-                  id={`rule-${rule.id}`}
-                  checked={formData.rules.includes(rule.id)}
-                  onChange={(e) => handleRuleChange(rule.id, e.target.checked)}
+                  type="radio"
+                  id={`enforcer-${option.value}`}
+                  name="enforcer"
+                  checked={formData.enforcer === option.value}
+                  onChange={() => handleEnforcerChange(option.value)}
                 />
-                <label htmlFor={`rule-${rule.id}`}>{rule.label}</label>
+                <label htmlFor={`enforcer-${option.value}`}>{option.label}</label>
               </div>
             ))}
           </div>
         </div>
-      ))}
 
-      <div className={styles.stepActions}>
-        <button 
-          className={clsx("button button--secondary", styles.backButton)} 
-          onClick={() => setCurrentStep(2)}
-        >
-          上一步
-        </button>
-        <button 
-          className={clsx("button button--primary", styles.nextButton)} 
-          onClick={generatePolicy}
-        >
-          生成策略
-        </button>
+        <div className={styles.formGroup}>
+          <h3>策略模式</h3>
+          <div className={styles.optionGroup}>
+            {policyModeOptions.map((option) => (
+              <div key={option.value} className={styles.optionItem}>
+                <input
+                  type="radio"
+                  id={`mode-${option.value}`}
+                  name="policyMode"
+                  checked={formData.policyMode === option.value}
+                  onChange={() => handlePolicyModeChange(option.value)}
+                />
+                <label htmlFor={`mode-${option.value}`}>{option.label}</label>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className={styles.stepActions}>
+          <button 
+            className={clsx("button button--primary", styles.nextButton)} 
+            onClick={() => setCurrentStep(2)} 
+            disabled={!formData.enforcer}
+          >
+            下一步
+          </button>
+        </div>
       </div>
-    </div>
-  );
-};
+    );
+  };
 
-// 渲染步骤4：生成策略
-const renderStep4 = () => {
+  // 渲染步骤2：应用特性和能力
+  const renderStep2 = () => {
+    return (
+      <div className={styles.stepContent}>
+        <h2>第二步：应用特性和能力</h2>
+        <p>请选择您的应用具有的特性和需要的能力。</p>
+        
+        <div className={styles.formGroup}>
+          <h3>应用特性</h3>
+          <div className={styles.checkboxGroup}>
+            {featureOptions.map((option) => (
+              <div key={option.value} className={styles.checkboxItem}>
+                <input
+                  type="checkbox"
+                  id={`feature-${option.value}`}
+                  checked={formData.features.includes(option.value)}
+                  onChange={(e) => handleFeatureChange(option.value, e.target.checked)}
+                />
+                <label htmlFor={`feature-${option.value}`}>{option.label}</label>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className={styles.formGroup}>
+          <h3>应用需要的能力</h3>
+          <div className={styles.checkboxGroup}>
+            {capabilityOptions.map((option) => (
+              <div key={option.value} className={styles.checkboxItem}>
+                <input
+                  type="checkbox"
+                  id={`capability-${option.value}`}
+                  checked={formData.capabilities.includes(option.value)}
+                  onChange={(e) => handleCapabilityChange(option.value, e.target.checked)}
+                />
+                <label htmlFor={`capability-${option.value}`}>{option.label}</label>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className={styles.stepActions}>
+          <button 
+            className={clsx("button button--secondary", styles.backButton)} 
+            onClick={() => setCurrentStep(1)}
+          >
+            上一步
+          </button>
+          <button 
+            className={clsx("button button--primary", styles.nextButton)} 
+            onClick={() => setCurrentStep(3)}
+          >
+            下一步
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  // 渲染步骤3：选择规则
+  const renderStep3 = () => {
+    // 根据选择的执行器过滤规则
+    const filteredRuleCategories = ruleCategories.map(category => {
+      return {
+        ...category,
+        rules: category.rules.filter(rule => rule.enforcer.includes(formData.enforcer))
+      };
+    }).filter(category => category.rules.length > 0);
+
+    return (
+      <div className={styles.stepContent}>
+        <h2>第三步：选择规则</h2>
+        <p>请选择您需要应用的内置规则。</p>
+        
+        {filteredRuleCategories.map((category, index) => (
+          <div key={index} className={styles.formGroup}>
+            <h3>{category.name}</h3>
+            <div className={styles.checkboxGroup}>
+              {category.rules.map((rule) => (
+                <div key={rule.id} className={styles.checkboxItem}>
+                  <input
+                    type="checkbox"
+                    id={`rule-${rule.id}`}
+                    checked={formData.rules.includes(rule.id)}
+                    onChange={(e) => handleRuleChange(rule.id, e.target.checked)}
+                  />
+                  <label htmlFor={`rule-${rule.id}`}>{rule.label}</label>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+
+        <div className={styles.stepActions}>
+          <button 
+            className={clsx("button button--secondary", styles.backButton)} 
+            onClick={() => setCurrentStep(2)}
+          >
+            上一步
+          </button>
+          <button 
+            className={clsx("button button--primary", styles.nextButton)} 
+            onClick={generatePolicy}
+          >
+            生成策略
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  // 渲染步骤4：生成策略
+  const renderStep4 = () => {
+    return (
+      <div className={styles.stepContent}>
+        <h2>第四步：生成策略</h2>
+        <p>您的vArmor策略已生成，可以复制并应用到您的Kubernetes集群。</p>
+        
+        <div className={styles.policyPreview}>
+          <CodeBlock language="yaml">
+            {JSON.stringify(generatedPolicy, null, 2)}
+          </CodeBlock>
+        </div>
+
+        <div className={styles.stepActions}>
+          <button 
+            className={clsx("button button--secondary", styles.backButton)} 
+            onClick={() => setCurrentStep(3)}
+          >
+            上一步
+          </button>
+          <button 
+            className={clsx("button button--primary", styles.nextButton)} 
+            onClick={() => {
+              // 复制到剪贴板
+              navigator.clipboard.writeText(JSON.stringify(generatedPolicy, null, 2));
+              alert('策略已复制到剪贴板');
+            }}
+          >
+            复制策略
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  // 渲染当前步骤内容
+  const renderCurrentStep = () => {
+    switch (currentStep) {
+      case 1:
+        return renderStep1();
+      case 2:
+        return renderStep2();
+      case 3:
+        return renderStep3();
+      case 4:
+        return renderStep4();
+      default:
+        return renderStep1();
+    }
+  };
+
   return (
-    <div className={styles.stepContent}>
-      <h2>第四步：生成策略</h2>
-      <p>您的vArmor策略已生成，可以复制并应用到您的Kubernetes集群。</p>
-      
-      <div className={styles.policyPreview}>
-        <CodeBlock language="yaml">
-          {generatedYaml}
-        </CodeBlock>
-      </div>
-
-      <div className={styles.stepActions}>
-        <button 
-          className={clsx("button button--secondary", styles.backButton)} 
-          onClick={() => setCurrentStep(3)}
-        >
-          上一步
-        </button>
-        <button 
-          className={clsx("button button--primary", styles.nextButton)} 
-          onClick={() => {
-            // 复制到剪贴板
-            navigator.clipboard.writeText(generatedYaml);
-            alert('策略已复制到剪贴板');
-          }}
-        >
-          复制策略
-        </button>
-      </div>
-    </div>
+    <Layout
+      title="vArmor 策略生成器"
+      description="通过简单的步骤生成vArmor策略，保护您的Kubernetes工作负载">
+      <header className={clsx('hero', styles.heroBanner)}>
+        <div className={styles.heroBgImage}></div>
+        <div className="container">
+          <div className={styles.heroContent}>
+            <div className={styles.heroText}>
+              <h1 className={styles.heroTitle}>vArmor 策略生成器</h1>
+              <p className={styles.heroTagline}>
+                通过简单的步骤生成vArmor策略，保护您的Kubernetes工作负载
+              </p>
+            </div>
+          </div>
+        </div>
+      </header>
+      <main className={styles.policyGeneratorContainer}>
+        <div className="container">
+          {renderStepNav()}
+          {renderCurrentStep()}
+        </div>
+      </main>
+    </Layout>
   );
-};
-
-// 渲染当前步骤内容
-const renderCurrentStep = () => {
-  switch (currentStep) {
-    case 1:
-      return renderStep1();
-    case 2:
-      return renderStep2();
-    case 3:
-      return renderStep3();
-    case 4:
-      return renderStep4();
-    default:
-      return renderStep1();
-  }
-};
-
-
+}
 
 export default function PolicyGeneratorPage() {
-	return (
-		<Layout
-			title="vArmor 策略生成器"
-			description="通过简单的步骤生成vArmor策略，保护您的Kubernetes工作负载">
-			<header className={clsx('hero', styles.heroBanner)}>
-				<div className={styles.heroBgImage}></div>
-				<div className="container">
-					<div className={styles.heroContent}>
-						<div className={styles.heroText}>
-							<h1 className={stgiyles.heroTitle}>vArmor 策略生成器</h1>
-							<p className={styles.heroTagline}>
-								通过简单的步骤生成vArmor策略，保护您的Kubernetes工作负载
-							</p>
-						</div>
-					</div>
-				</div>
-			</header>
-			<main className={styles.policyGeneratorContainer}>
-				<div className="container">
-					{renderStepNav()}
-					{renderCurrentStep()}
-				</div>
-			</main>
-		</Layout>
-	);
-	
+  return <PolicyGenerator />;
 }
