@@ -70,17 +70,17 @@ type AaLogRecord struct {
 }
 
 const (
-	regexProc      = "\\/proc\\/[0-9]+"
-	regexProcTask  = "\\/proc\\/[0-9]+\\/task\\/[0-9]+"
-	regexSnapshots = "\\/snapshots\\/\\d+\\/fs\\/" // \/snapshots\/\d+\/fs\/
-	regexOverlay   = "\\b\\d+\\b"                  //  \b\d+\b   \\/\\d+\\/
+	regexProcNumber = "\\/[0-9]+"
+	regexMapFile    = "\\/map_files\\/.*"
+	regexSnapshots  = "\\/snapshots\\/\\d+\\/fs\\/" // \/snapshots\/\d+\/fs\/
+	regexOverlay    = "\\b\\d+\\b"                  //  \b\d+\b   \\/\\d+\\/
 )
 
 var (
-	procRegex      = regexp.MustCompile(regexProc)
-	procTaskRegex  = regexp.MustCompile(regexProcTask)
-	snapshotsRegex = regexp.MustCompile(regexSnapshots)
-	overlayRegex   = regexp.MustCompile(regexOverlay)
+	procNumberRegex = regexp.MustCompile(regexProcNumber)
+	mapFilesRegex   = regexp.MustCompile(regexMapFile)
+	snapshotsRegex  = regexp.MustCompile(regexSnapshots)
+	overlayRegex    = regexp.MustCompile(regexOverlay)
 
 	modeConvertor = map[uint32]string{
 		0: "INVALID",
@@ -279,10 +279,10 @@ func (p *DataPreprocessor) trimPath(path, dmask string) string {
 	// Reduce the number of rules for /proc/[PID]/task/[PID]/*, /proc/[PID]/*, /xxxx/proc/[PID]/*, ...
 	// TODO: * ? ** ?
 	if strings.HasPrefix(path, "/proc") {
-		if strings.Contains(path, "/task") {
-			path = procTaskRegex.ReplaceAllString(path, "/proc/*/task/*")
+		path = procNumberRegex.ReplaceAllString(path, "/*")
+		if strings.Contains(path, "/map_files/") {
+			path = mapFilesRegex.ReplaceAllString(path, "/map_files/*")
 		}
-		path = procRegex.ReplaceAllString(path, "/proc/*")
 		return path
 	}
 
@@ -388,7 +388,7 @@ func (p *DataPreprocessor) parseAppArmorEventForTree(event *AaLogRecord) error {
 							p.behaviorData.DynamicResult.AppArmor.Files[i].Permissions = append(p.behaviorData.DynamicResult.AppArmor.Files[i].Permissions, string(perm))
 						}
 					} else {
-						return fmt.Errorf(fmt.Sprintf("log event contains unknown denied_mask %s", dmask))
+						return fmt.Errorf("log event contains unknown denied_mask %s", dmask)
 					}
 				}
 
@@ -418,7 +418,7 @@ func (p *DataPreprocessor) parseAppArmorEventForTree(event *AaLogRecord) error {
 					file.Permissions = append(file.Permissions, string(perm))
 				}
 			} else {
-				return fmt.Errorf(fmt.Sprintf("log event contains unknown denied_mask %s", dmask))
+				return fmt.Errorf("log event contains unknown denied_mask %s", dmask)
 			}
 		}
 
