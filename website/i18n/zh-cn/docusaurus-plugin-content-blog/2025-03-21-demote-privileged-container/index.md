@@ -3,10 +3,11 @@ slug: demote-privileged-container
 title: 利用 vArmor 对特权容器降权
 authors: [DannyWei]
 tags: [PrivilegedContainer, BehaviorModeling, ObservationMode]
-date: 2025-03-21T00:30
+date: 2025-04-07T00:00
 ---
 
-我们在[应用实践](https://www.varmor.org/zh-cn/docs/main/practices/)中简要介绍了 vArmor 的应用场景。在“特权容器加固”方面，面对“企业难以遵循最小权限原则将特权容器降权”的难题，我们提到可以使用 vArmor 的实验功能——行为建模模式来辅助降权。
+我们在[应用实践](https://www.varmor.org/zh-cn/docs/main/practices/)一文中简要介绍了 vArmor 的应用场景。在“特权容器加固”方面，面对“企业难以遵循最小权限原则将特权容器降权”的难题，我们提到可以使用 vArmor 的实验功能——行为建模模式来辅助降权。
+
 本文将向您详细介绍移除特权容器的必要性、面临的挑战和方法。并结合实际案例向您演示如何借助 vArmor 的行为建模和观察模式特性来辅助特权容器降权，从而帮助企业提升云原生环境的安全水位。
 
 <!-- truncate -->
@@ -22,7 +23,7 @@ date: 2025-03-21T00:30
 许多研究报告和案例都阐明过使用“特权容器”的危害<sup><a href="#ref1">[1]</a></sup><sup><a href="#ref2">[2]</a></sup>。攻击者可以以它为跳板，使用多种手法进行攻击，最终将恶意代码或恶意软件传播到受感染的主机和网络。因此，企业应当尽可能地收敛特权容器的使用范围，基于最小权限原则授予容器所需的权限。
 
 :::tip[说明]
-减少系统组件中的特权容器也有积极意义。在一些场景中，攻击者会借助系统组件的 RCE 漏洞 & 特权容器进行渗透入侵。而移除其特权容器可以增加攻击者的难度与成本，并且有助于及时发现和响应攻击者的入侵行为。
+减少系统组件中的特权容器也有积极意义。在一些场景中，攻击者会借助系统组件的 RCE 漏洞进行渗透入侵。而移除其特权容器可以增加攻击者的难度与成本，并且有助于及时发现和响应攻击者的入侵行为。
 :::
 
 ## 面临的挑战
@@ -47,7 +48,7 @@ date: 2025-03-21T00:30
 
 [BehaviorModeling 模式](https://www.varmor.org/zh-cn/docs/main/guides/policies_and_rules/policy_modes/behavior_modeling)是 vArmor 的一个实验功能。用户可以通过创建 BehaviorModeling 模式的 VarmorPolicy 或 VarmorClusterPolicy 策略对象，在指定时间范围对目标应用的容器进行行为建模。建模完成后，vArmor 将在一个 ArmorProfileModel 对象中保存目标应用的行为数据，以及基于行为数据生成的 AppArmor 或 Seccomp 安全策略。
 
-行为建模的结果可以帮助安全和研发人员分析目标应用在运行过程中需要哪些特权能力（例如 net_admin capability）、读写了哪些系统文件（例如 /proc/sys/kernel/printk_ratelimit）等。并结合特权与非特权容器的差异，以最小权限原则为容器配置所需权限，从而实现降权。
+行为建模的结果可以帮助安全和研发人员分析目标应用在运行过程中需要哪些能力（例如 net_admin capability）、读写了哪些系统文件（例如 /proc/sys/kernel/printk_ratelimit）等。并结合特权与非特权容器的差异，以最小权限原则为容器配置所需权限，从而实现降权。
 
 #### 2. 借助观察模式辅助降权
 
@@ -62,7 +63,7 @@ date: 2025-03-21T00:30
 
 * **默认的 capabilities**
 
-  为了提高兼容性，容器运行时组件会默认授予非特权容器以下非特权能力<sup><a href="#ref4">[4]</a></sup>，除此以外的特权能力需要通过 `securityContext.capabilities.add` 来添加。
+  为了提高兼容性，容器运行时组件会默认授予非特权容器一些能力<sup><a href="#ref4">[4]</a></sup>。例如，containerd 会默认授予非特权容器以下 capabilities，除此以外的能力需要通过 `securityContext.capabilities.add` 来添加
 
   ```
   AUDIT_WRITE
@@ -158,7 +159,7 @@ date: 2025-03-21T00:30
 
 #### 尽可能收集数据
 
-无论是使用行为建模模式收集目标应用的行为数据，还是通过观察模式收集目标应用的违规行为，其完备性都取决于分析过程中目标应用是否触发了所有需要特权的程序功能。因此，当您对结果没有信心时，我们建议您通过运行尽可能多的测试用例、拉长分析时长等方式来收集更多数据，从而确保识别出了所需的特权能力和系统文件读写行为。
+无论是使用行为建模模式收集目标应用的行为数据，还是通过观察模式收集目标应用的违规行为，其完备性都取决于分析过程中目标应用是否触发了所有需要特权的程序功能。因此，当您对结果没有信心时，我们建议您通过运行尽可能多的测试用例、拉长分析时长等方式来收集更多数据，从而确保识别出了所需的能力和系统文件读写行为。
 
 #### 结合多种方法
 
@@ -210,7 +211,7 @@ kubectl get pods -A -o json | jq -r '
 
 ![image](node-local-dns.png)
 
-node-local-dns 组件拥有一个名为 node-local-dns 的 DaemonSet，它包含一个名为 node-cache 的特权容器。我们将分别通过 vArmor 的行为建模和观察模式特性来辅助降权。
+[node-local-dns 组件](https://www.volcengine.com/docs/6460/1158255)拥有一个名为 node-local-dns 的 DaemonSet，它包含一个名为 node-cache 的特权容器。我们将分别通过 vArmor 的行为建模和观察模式特性来辅助降权。
 
 #### 借助行为建模功能辅助降权
 
@@ -283,14 +284,14 @@ node-local-dns 组件拥有一个名为 node-local-dns 的 DaemonSet，它包含
     $ kubectl get ArmorProfileModel -n kube-system $name -o jsonpath='{.data.profile.content}' | base64 -d > apparmor_profile.txt
     ```
 
-    注意：当 STORAGE-TYPE 为 LocalDisk 时，请参考此方法导出数据。
+    注意：当 STORAGE-TYPE 为 LocalDisk 时，请参考[此方法](https://varmor.org/zh-cn/docs/main/guides/policies_and_rules/policy_modes/behavior_modeling/#%E6%95%B0%E6%8D%AE%E5%AF%BC%E5%87%BA)导出数据。
 
-6. 基于上述导出数据分析 node-cache 容器所需的特权能力和系统文件访问行为
+6. 基于上述导出数据分析 node-cache 容器所需的能力和系统文件访问行为
 
     方便起见，我们以 vArmor 为容器生成的 AppArmor Profile 为例进行分析。通过分析 apparmor_profile.txt 文件的内容，得到如下结论：
     - 其行为没有违反容器运行时组件的默认 AppArmor Profile<sup><a href="#ref5">[5]</a></sup><sup><a href="#ref6">[6]</a></sup>
     - 其行为不与非特权容器的 maskedPaths、readonlyPaths 设置冲突
-    - 需要 net_admin, net_bind_service 两个能力，其中 net_bind_service 为容器运行时默认授予的 capability，net_admin 为特权能力。
+    - 需要 net_admin, net_bind_service 两个能力，其中 net_bind_service 为容器运行时默认授予的 capability，net_admin 为能力。
 
     ```
     ## == Managed by vArmor == ##
@@ -397,7 +398,7 @@ node-local-dns 组件拥有一个名为 node-local-dns 的 DaemonSet，它包含
 
 2. 在 VKE 集群中配置日志采集规则，从宿主机或 varmor-agent Pod 的 agent 容器中采集审计日志（日志路径为 /var/log/varmor/violations.log）
 
-    ![image](violation-log-settings.png)
+    ![image](violation-log-collecion-configuration.png)
 
 3. 创建策略对象
 
@@ -433,7 +434,7 @@ node-local-dns 组件拥有一个名为 node-local-dns 的 DaemonSet，它包含
           - disable-cap-privileged
     ```
 
-    此策略使用 AppArmor enforcer 对 node-local-dns DaemonSet 中的 node-cache 容器进行“访问控制”。策略配置了 [disable-cap-privileged](https://www.varmor.org/zh-cn/docs/main/guides/policies_and_rules/built_in_rules/hardening/#disable-cap-privileged) 内置规则（您也可以配置为 [disable-cap-all](https://www.varmor.org/zh-cn/docs/main/guides/policies_and_rules/built_in_rules/hardening/#disable-cap-all) 内置规则），并通过 `auditViolations: true` 和 `allowViolations: true` 选项开启了观察模式。因此，当容器内应用程序使用 defaultUnixCaps<sup><a href="#ref9">[9]</a></sup> 以外的特权能力时，其违规行为将被记录到审计日志中。
+    此策略使用 AppArmor enforcer 对 node-local-dns DaemonSet 中的 node-cache 容器进行“访问控制”。策略配置了 [disable-cap-privileged](https://www.varmor.org/zh-cn/docs/main/guides/policies_and_rules/built_in_rules/hardening/#disable-cap-privileged) 内置规则（您也可以配置为 [disable-cap-all](https://www.varmor.org/zh-cn/docs/main/guides/policies_and_rules/built_in_rules/hardening/#disable-cap-all) 内置规则），并通过 `auditViolations: true` 和 `allowViolations: true` 选项开启了观察模式。因此，当容器内应用程序使用 defaultUnixCaps<sup><a href="#ref9">[9]</a></sup> 以外的能力时，其违规行为将被记录到审计日志中。
 
     策略对象创建后将自动对 node-local-dns DaemonSet 进行滚动更新，从而启动监控。
 
@@ -478,11 +479,11 @@ node-local-dns 组件拥有一个名为 node-local-dns 的 DaemonSet，它包含
 
 ![image](vpc-cni.png)
 
-vpc-cni 组件拥有一个名为 cello 的 DaemonSet，它包含两个特权容器 —— cello 和 cilium，后者用于实现 NetworkPolicy 相关功能。我们参考示例一的步骤，使用行为建模功能对两个容器进行降权。
+[vpc-cni 组件](https://www.volcengine.com/docs/6460/908337)拥有一个名为 cello 的 DaemonSet，它包含两个特权容器 —— cello 和 cilium，后者用于实现 NetworkPolicy 相关功能。我们参考示例一的步骤，使用行为建模功能对两个容器进行降权。
 
 #### cello 容器
 
-1. 导出行为模型数据，分析 cello 容器所需的特权能力和系统文件访问行为。发现其行为没有违反容器运行时组件的默认 AppArmor Profile<sup><a href="#ref5">[5]</a></sup><sup><a href="#ref6">[6]</a></sup>，并且仅需要 net_admin, sys_admin 两个特权能力。
+1. 导出行为模型数据，分析 cello 容器所需的能力和系统文件访问行为。发现其行为没有违反容器运行时组件的默认 AppArmor Profile<sup><a href="#ref5">[5]</a></sup><sup><a href="#ref6">[6]</a></sup>，并且仅需要 net_admin, sys_admin 两个能力。
 
     ```
     ## == Managed by vArmor == ##
@@ -558,7 +559,7 @@ vpc-cni 组件拥有一个名为 cello 的 DaemonSet，它包含两个特权容�
 
 #### cilium 容器
 
-1. 导出行为模型数据，分析 cilium 容器所需的特权能力和系统文件访问行为，得到如下结论：
+1. 导出行为模型数据，分析 cilium 容器所需的能力和系统文件访问行为，得到如下结论：
 
     - 其需要 bpf, chown, fsetid, net_admin, net_raw, perfmon, sys_admin, sys_module, sys_nice, sys_resource, syslog 能力
     - 其行为违反容器运行时组件默认 AppArmor Profile<sup><a href="#ref5">[5]</a></sup><sup><a href="#ref6">[6]</a></sup> 中的以下规则
@@ -1082,7 +1083,7 @@ vpc-cni 组件拥有一个名为 cello 的 DaemonSet，它包含两个特权容�
 
 #### 结论
 
-我们成功利用 vArmor 对 vpc-cni 组件中的 cello 容器和 cilium 容器进行了降权。vpc-cni 使用了 bpf 等技术来实现 CNI 功能，虽然它需要较多特权能力才能实现功能，但将特权容器从组件中移除仍然具有积极意义。
+我们成功利用 vArmor 对 vpc-cni 组件中的 cello 容器和 cilium 容器进行了降权。vpc-cni 使用了 bpf 等技术来实现 CNI 功能，虽然它需要较多能力才能实现功能，但将特权容器从组件中移除仍然具有积极意义。
 
 ## 总结
 
