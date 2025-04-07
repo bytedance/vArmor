@@ -43,7 +43,7 @@ For example, users can configure policy objects according to their needs to achi
 
 Most modern SaaS applications adopt a multi-tenant mode. Severe vulnerabilities and the corresponding exploitation chains are highly likely to enable malicious users to access the data of other tenants. With the advent of the era of large language models, the usage volume of cloud services will further increase. Therefore, those who build such services need to pay more attention to the risks of multi-tenant isolation and take preventive measures to reduce the risk of cross-tenant attacks.  
 
-The following is a typical vulnerability-enabled cross-tenant attack sequence depicted by Wiz in the PEACH framework<sup><a href="#ref1">1</a></sup>.
+The following is a typical vulnerability-enabled cross-tenant attack sequence depicted by Wiz in the PEACH framework<sup><a href="#ref1">[1]</a></sup>.
 
 ![image](../img/attack-sequence.png)
 
@@ -62,7 +62,7 @@ To address these issues, the following mitigation measures can be taken:
 
 Wiz pointed out in the PEACH framework that for multi-tenant applications, the tenant isolation technology solution should be selected based on the results of security modeling, taking into account factors such as compliance, data sensitivity, and cost. Enterprises should convert uncontrollable risks into controllable costs by choosing different types of security boundaries and defense technologies.
 
-Tenant isolation is used to compensate for the multi-tenant isolation security risks brought about by the complexity of the interface. The complexity of the interface is positively correlated with the probability of vulnerabilities. The following table describes a simple method for evaluating interface complexity<sup><a href="#ref1">1</a></sup>.
+Tenant isolation is used to compensate for the multi-tenant isolation security risks brought about by the complexity of the interface. The complexity of the interface is positively correlated with the probability of vulnerabilities. The following table describes a simple method for evaluating interface complexity<sup><a href="#ref1">[1]</a></sup>.
 
 | **Interface type** | **Typical input (example)** | **Typical process** | **Complexity level** 
 |--|--|--|--|
@@ -85,9 +85,9 @@ Since the isolation level of runc + vArmor is lower than that of hardware-virtua
 
 We recommend that you cooperate with the following security practices to increase the difficulty and cost of further attacks after an attacker escapes, and detect attack behaviors in a timely manner.
 
-* Tenant workloads should meet the Baseline or Restricted standards of the Pod Security Standard<sup><a href="#ref1">2</a></sup> and implement network micro-segmentation using technologies such as NetworkPolicy.
+* Tenant workloads should meet the Baseline or Restricted standards of the Pod Security Standard<sup><a href="#ref2">[2]</a></sup> and implement network micro-segmentation using technologies such as NetworkPolicy.
 * Develop reasonable scheduling strategies to avoid scheduling different tenant workloads to the same node.
-* Different tenants should use exclusive namespaces. Tenant workloads should be granted limited Kubernetes RBAC and IAM permissions based on the principle of least privilege, avoiding the grant of sensitive permissions. The list of sensitive Kubernetes RBAC permissions can refer to the whitepaper<sup><a href="#ref1">3</a></sup> published by Palo Alto Networks.
+* Different tenants should use exclusive namespaces. Tenant workloads should be granted limited Kubernetes RBAC and IAM permissions based on the principle of least privilege, avoiding the grant of sensitive permissions. The list of sensitive Kubernetes RBAC permissions can refer to the whitepaper<sup><a href="#ref3">[3]</a></sup> published by Palo Alto Networks.
 * Develop reasonable scheduling strategies to schedule system component workloads with sensitive Kubernetes RBAC and IAM permissions to a dedicated node pool, ensuring that there are no service accounts and user accounts that can be abused on the nodes where tenant workloads are located.
 * Identity authentication and authorization should be enabled for the sensitive interfaces of system components to avoid unauthorized vulnerabilities.
 * Introduce an intrusion detection system to conduct intrusion detection and defense at the host and Kubernetes contexts to detect and respond to intrusion behaviors in a timely manner.
@@ -98,7 +98,7 @@ We recommend that you cooperate with the following security practices to increas
 
 Some strong isolation solutions based on hardware virtualization technology and user-space kernels (such as Kata, gVisor, etc.) have been introduced in the industry for years. However, their technical thresholds and costs are relatively high, making runc containers still the mainstream in most business scenarios and thus widely used. While people are enjoying the performance and convenience brought by runc containers, security problems such as weak container isolation also arise. In recent years, vulnerabilities in the Linux kernel, runc, and container runtime components have occurred frequently. New vulnerabilities can be used for container escape and other attacks at regular intervals. Many enterprises are also prone to introducing escape risks due to incorrect design and configuration during the design, development, and deployment of containerized applications.
 
-The research report<sup><a href="#ref1">4</a></sup> released by Verizon shows that on average, enterprises need 55 days to fix 50% of critical vulnerabilities after patches are available. And the vulnerability repair time for infrastructure may be even longer. After a high-risk vulnerability is fully repaired, new vulnerabilities may emerge and wait to be fixed. During the vulnerability repair period, enterprises may lack defensive measures other than intrusion detection.
+The research report<sup><a href="#ref4">[4]</a></sup> released by Verizon shows that on average, enterprises need 55 days to fix 50% of critical vulnerabilities after patches are available. And the vulnerability repair time for infrastructure may be even longer. After a high-risk vulnerability is fully repaired, new vulnerabilities may emerge and wait to be fixed. During the vulnerability repair period, enterprises may lack defensive measures other than intrusion detection.
 
 #### Reasons for Using vArmor
 
@@ -215,7 +215,7 @@ spec:
 
 Privileged containers usually refer to containers with the setting of `.securityContext.privileged=true`. Such containers are granted all capabilities and can access all devices and kernel interfaces of the host. **In this article, all containers with configurations that break isolation are referred to as "privileged containers"**, including but not limited to privileged containers, sensitive capabilities, sensitive mounts, shared namespaces, and sensitive RBAC permissions.
 
-Many enterprises, due to historical issues, system design requirements, and insufficient security awareness, introduce "privileged containers" in their business workloads and system components of the production environment. However, the risky configurations of these containers can be easily exploited by attackers, leading to attacks such as container escape and lateral movement. For example, in the BrokenSesame<sup><a href="#ref1">5</a></sup> vulnerability exploitation chain disclosed by Wiz, the risk designs and misconfigurations such as sharing PID ns between containers and the management container having privileges can be exploited by attackers for lateral movement and privilege escalation attacks.
+Many enterprises, due to historical issues, system design requirements, and insufficient security awareness, introduce "privileged containers" in their business workloads and system components of the production environment. However, the risky configurations of these containers can be easily exploited by attackers, leading to attacks such as container escape and lateral movement. For example, in the BrokenSesame<sup><a href="#ref5">[5]</a></sup> vulnerability exploitation chain disclosed by Wiz, the risk designs and misconfigurations such as sharing PID ns between containers and the management container having privileges can be exploited by attackers for lateral movement and privilege escalation attacks.
 
 #### Reducing Risks of Privileged Containers
 

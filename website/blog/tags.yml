@@ -12,3 +12,18 @@ LLM:
   label: LLM
   permalink: /llm
   description: Large Language Models
+
+PrivilegedContainer:
+  label: Privileged Container
+  permalink: /privilegedcontainer
+  description: Privileged Container
+
+BehaviorModeling:
+  label: Behavior Modeling
+  permalink: /behaviormodeling
+  description: Behavior Modeling
+
+ObservationMode:
+  label: Observation Mode
+  permalink: /observationmode
+  description: Observation Mode
