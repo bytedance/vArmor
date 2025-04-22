@@ -139,6 +139,15 @@
   border: 1px solid var(--ifm-color-emphasis-300);
   border-radius: 4px;
   margin-bottom: 10px;
+
+  /* 高度控制 */
+  min-height: 52px;
+  padding: 0 12px;
+}
+
+.capabilityHeader p {
+  margin: 0;
+  line-height: 1.2;
 }
 
 .capabilityHeader:hover {
@@ -209,7 +218,6 @@
   font-size: 1rem;
   border: 1px solid var(--ifm-color-emphasis-300);
   border-radius: 4px;
-  margin-top: 0.5rem;
 }
 
 /* 文件输入 */

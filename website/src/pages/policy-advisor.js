@@ -119,7 +119,7 @@ const setEnforcer = (policy, enforcers) => {
     
   if (!policy.enforcer.includes("BPF") && enforcers.includes("bpf")){
     policy.enforcer += "BPF";
-    policy.enhanceProtect.BpfRawRules=null
+    policy.enhanceProtect.BpfRawRules={}
   }
     
   if (!policy.enforcer.includes("Seccomp") && enforcers.includes("seccomp")){
@@ -141,14 +141,16 @@ const generatePolicy = (
     apiVersion: "crd.varmor.org/v1beta1",
     kind: "VarmorPolicy",
     metadata: {
-      name: "VARMOR_POLICY_TEMPLATE",
-      namespace: "",
+      name: "POLICY_NAME",
+      namespace: "POLICY_NAMESPACE",
       labels: {},
       annotations: {}
     },
     spec: {
+      updateExistingWorkloads: true,
       target: {
         kind: "",
+        selector: {},
         name: "",
         containers: [],
       },
@@ -159,6 +161,8 @@ const generatePolicy = (
 		enforcer: "",
 		mode: "EnhanceProtect",
 		enhanceProtect: {
+      auditViolations: true,
+      allowViolations: false,
 			privileged: false,
 			hardeningRules: [],
 			attackProtectionRules: [
@@ -168,7 +172,6 @@ const generatePolicy = (
 				},
 			],
 			vulMitigationRules: [],
-
 		},
 	};
 
@@ -305,24 +308,24 @@ export default function PolicyAdvisor() {
     setTooltipVisible(false);
   };
 
-  // 可用的执行器选项
+  // 可用的强制访问控制器选项
   const enforcerOptions = [
-    { value: 'apparmor', label: 'AppArmor (应用程序隔离机制)' },
-    { value: 'bpf', label: 'BPF (扩展的Berkeley包过滤器)' },
-    { value: 'seccomp', label: 'Seccomp (安全计算模式)' }
+    { value: 'apparmor', label: 'AppArmor' },
+    { value: 'bpf', label: 'BPF' },
+    { value: 'seccomp', label: 'Seccomp' }
   ];
 
   // 应用特性选项
   const featureOptions = [
-    { value: 'privileged-container', label: '特权容器：目标应用在特权容器中运行' },
-    { value: 'mount-sth', label: '挂载操作：目标应用需要在容器中执行挂载操作' },
-    { value: 'umount-sth', label: '卸载操作：目标应用需要在容器中执行卸载操作' },
-    { value: 'share-containers-pid-ns', label: '共享sidecar容器PID命名空间：目标容器与边车容器共享PID命名空间' },
-    { value: 'share-host-pid-ns', label: '共享主机PID命名空间：目标容器与主机共享PID命名空间' },
-    { value: 'dind', label: 'Docker\nin\nDocker：目标应用将创建Docker in Docker容器' },
-    { value: 'require-sa', label: 'API服务器交互：目标应用需要与API服务器交互' },
-    { value: 'bind-privileged-socket-port', label: '监听特权端口：目标应用需要监听小于1024的端口' },
-    { value: 'load-bpf', label: '加载eBPF程序：目标应用需要在容器中加载eBPF程序' }
+    { value: 'privileged-container', label: '特权容器:目标应用在特权容器中运行' },
+    { value: 'mount-sth', label: '挂载文件:目标应用需要在容器中执行文件挂载操作' },
+    { value: 'umount-sth', label: '卸载文件:目标应用需要在容器中执行文件卸载操作' },
+    { value: 'share-containers-pid-ns', label: '共享容器 PID 命名空间:Pod 使用了 shareProcessNamespace:true 来共享容器的 PID 命名空间' },
+    { value: 'share-host-pid-ns', label: '共享宿主机 PID 命名空间:Pod 使用了 hostPID:true 来共享宿主机的 PID 命名空间' },
+    { value: 'dind', label: 'Docker in Docker:目标应用将在容器内创建 Docker in Docker 容器' },
+    { value: 'require-sa', label: 'API Server 交互:目标应用明确需要与 API Server 交互' },
+    { value: 'bind-privileged-socket-port', label: '监听特权端口:目标应用需要监听小于 1024 的网络端口' },
+    { value: 'load-bpf', label: '加载 eBPF 程序:目标应用需要在容器中加载 eBPF 程序' }
   ];
 
   // 常用能力选项
@@ -368,7 +371,7 @@ export default function PolicyAdvisor() {
     reader.readAsText(file);
   };
 
-  // 处理执行器选择变更
+  // 处理强制访问控制器选择变更
   const handleEnforcerChange = (enforcer, checked) => {
     let updatedEnforcers = [...formData.enforcers];
     
@@ -422,7 +425,7 @@ export default function PolicyAdvisor() {
       return;
     }
     if (formData.enforcers.length === 0) {
-      alert("请至少选择一个执行器");
+      alert("请至少选择一个强制访问控制器");
       return;
     }
 
@@ -443,30 +446,29 @@ export default function PolicyAdvisor() {
       <div className={styles.stepNav}>
         <div className={clsx(styles.stepItem, currentStep >= 1 && styles.activeStep)} onClick={() => setCurrentStep(1)}>
           <div className={styles.stepNumber}>1</div>
-          <div className={styles.stepLabel}>执行器与应用特性</div>
+          <div className={styles.stepLabel}>选择强制访问控制器</div>
         </div>
         <div className={clsx(styles.stepItem, currentStep >= 2 && styles.activeStep)} onClick={() => formData.enforcers.length > 0 && setCurrentStep(2)}>
           <div className={styles.stepNumber}>2</div>
-          <div className={styles.stepLabel}>所需能力</div>
+          <div className={styles.stepLabel}>提供上下文信息</div>
         </div>
         <div className={clsx(styles.stepItem, currentStep >= 3 && styles.activeStep)} onClick={() => outputYAML && setCurrentStep(3)}>
           <div className={styles.stepNumber}>3</div>
-          <div className={styles.stepLabel}>生成策略</div>
+          <div className={styles.stepLabel}>生成策略模板</div>
         </div>
       </div>
     );
   };
 
-  // 渲染步骤1：选择执行器和应用特性
+  // 渲染步骤1：选择强制访问控制器
   const renderStep1 = () => {
     return (
       <div className={styles.stepContent}>
-        <h2>第一步：选择执行器和应用特性</h2>
-        <p>请选择您环境支持的执行器和应用特性。提供尽可能全面的信息有助于生成更精确的策略模板。</p>
+        <h2>第一步：选择强制访问控制器</h2>
+        <p>请选择目标环境支持的强制访问控制器。</p>
+        <p>vArmor 将 AppArmor LSM、BPF LSM、Seccomp 抽象为了强制访问控制器（即 Enforcer），安全策略可以单独或组合使用它们来加固工作负载。</p>
         
         <div className={styles.formGroup}>
-          <h3>执行器</h3>
-          <p>执行器是实际实施安全策略的组件。</p>
           <div className={styles.checkboxGroup}>
             {enforcerOptions.map(option => {
               const description = option.label.split(' ')[1]?.replace(/[()]/g, '');
@@ -480,37 +482,6 @@ export default function PolicyAdvisor() {
                   />
                   <label htmlFor={`enforcer-${option.value}`}>
                     {option.label.split(' ')[0]}
-                    
-                  </label>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-        
-        <div className={styles.formGroup}>
-          <h3>应用特性</h3>
-          <p>请选择目标应用程序和容器的特性。</p>
-          <div className={styles.checkboxGroup}>
-            {featureOptions.map(option => {
-              const description = option.label.split('：')[1];
-              return (
-                <div key={option.value} className={styles.checkboxItem}>
-                  <input
-                    type="checkbox"
-                    id={`feature-${option.value}`}
-                    checked={formData.features.includes(option.value)}
-                    onChange={(e) => handleFeatureChange(option.value, e.target.checked)}
-                  />
-                  <label htmlFor={`feature-${option.value}`}>
-                    {option.label.split('：')[0].split(' ')[0]}
-                    <img 
-                      src="img/icon-info.svg" 
-                      alt="info icon"
-                      onMouseEnter={(e) => showTooltip(description, e)}
-                      onMouseLeave={hideTooltip}
-                      className={styles.infoIcon}
-                    />
                   </label>
                 </div>
               );
@@ -554,7 +525,7 @@ export default function PolicyAdvisor() {
     return (
       <div className={styles.formGroup}>
         <div className={styles.capabilityHeader} onClick={() => setExpanded(!isExpanded)}>
-          <h3>{title}</h3>
+          <p>{title}</p>
           <div className={styles.capabilityStatus}>
             <label>
               <input
@@ -606,32 +577,67 @@ export default function PolicyAdvisor() {
   // 渲染步骤2
   const renderStep2 = () => (
     <div className={styles.stepContent}>
-      <h2>第二步：所需能力</h2>
-      <p>请选择目标应用程序和容器所需的Linux能力。明确提供应用程序所需的能力有助于生成更精确的策略模板。</p>
-  
-      {renderCapabilities(privilegedCapabilities, '特权 Capabilities', formData.capabilities, handleCapabilityChange, 'privileged')}
-  
-      {renderCapabilities(defaultContainerdCapabilities, '运行时默认 capabilities', formData.capabilities, handleCapabilityChange, 'containerd')}
+      <h2>第二步：提供上下文信息</h2>
+      <p>提供有关目标应用和容器的上下文信息，以便生成更加精确的策略模板。</p>
   
       <div className={styles.formGroup}>
-        <h3>其他 Capabilities（手动输入）</h3>
-        <input
-          type="text"
-          placeholder="手动输入额外的 capability，以英文逗号分隔"
-          className={styles.textInput}
-          onBlur={(e) => {
-            const extraCaps = e.target.value.split(',').map(c => c.trim()).filter(Boolean);
-            setFormData(prev => ({
-              ...prev,
-              capabilities: Array.from(new Set([...prev.capabilities, ...extraCaps]))
-            }));
-          }}
-        />
+        <h3>特性（可选）</h3>
+        <p>基于您对目标应用及其容器配置的了解，提供相关信息。</p>
+        <div className={styles.checkboxGroup}>
+          {featureOptions.map(option => {
+            const description = option.label.split(':')[1];
+            return (
+              <div key={option.value} className={styles.checkboxItem}>
+                <input
+                  type="checkbox"
+                  id={`feature-${option.value}`}
+                  checked={formData.features.includes(option.value)}
+                  onChange={(e) => handleFeatureChange(option.value, e.target.checked)}
+                />
+                <label htmlFor={`feature-${option.value}`}>
+                  {option.label.split(':')[0]}
+                  <img 
+                    src="img/icon-info.svg" 
+                    alt="info icon"
+                    onMouseEnter={(e) => showTooltip(description, e)}
+                    onMouseLeave={hideTooltip}
+                    className={styles.infoIcon}
+                  />
+                </label>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      
+      <div className={styles.formGroup}>
+        <h3>能力（可选）</h3>
+        <p>基于您对目标应用及其容器配置的了解，提供所需的能力。详见：<a href="https://man7.org/linux/man-pages/man7/capabilities.7.html" target="_blank">Linux Capability</a></p>
+
+        {renderCapabilities(privilegedCapabilities, '请选择需要使用的敏感能力', formData.capabilities, handleCapabilityChange, 'privileged')}
+
+        {renderCapabilities(defaultContainerdCapabilities, '请选择需要使用的运行时组件默认能力', formData.capabilities, handleCapabilityChange, 'containerd')}
+  
+        <div className={styles.formGroup}>
+          <input
+            type="text"
+            placeholder="请填写需要使用的其它能力（用英文逗号分隔）"
+            className={styles.textInput}
+            onBlur={(e) => {
+              const extraCaps = e.target.value.split(',').map(c => c.trim()).filter(Boolean);
+              setFormData(prev => ({
+                ...prev,
+                capabilities: Array.from(new Set([...prev.capabilities, ...extraCaps]))
+              }));
+            }}
+          />
+        </div>        
       </div>
   
       <div className={styles.formGroup}>
-        <h3>行为模型（可选）</h3>
-        <p>您可以上传一个ArmorProfileModel JSON文件，以便根据应用程序的实际行为生成更精确的策略。</p>
+        <h3>行为数据（可选）</h3>
+        <p>建议您使用 vArmor 的行为建模功能来收集目标应用的行为数据。然后将行为数据以 JSON 格式导出并上传，以便根据策略顾问基于应用的实际行为生成更精确的策略。详见：<a href="../docs/main/guides/policies_and_rules/policy_modes/behavior_modeling" target="_blank">BehaviorModeling 模式</a></p>
         <input
           type="file"
           accept="application/json"
@@ -650,40 +656,33 @@ export default function PolicyAdvisor() {
   );
   
 
-  // 渲染步骤3：生成策略
+  // 渲染步骤3：生成策略模板
   const renderStep3 = () => {
     return (
       <div className={styles.stepContent}>
-        <h2>第三步：生成的策略</h2>
-        <p>请注意以下关于模板的提示：</p>
-
-<ul>
-  <li>该模板未使用 AppArmor 执行器提供的 <code>Restrict Specific Executable</code> 功能。</li>
-  <li>若未提供 <code>ArmorProfileModel</code>，模板会避免应用任何 <code>Disable Sensitive Operations</code> 规则，以确保兼容性。</li>
-  <li>模板默认省略部分 <code>Vulnerability Mitigation</code> 规则。</li>
-</ul>
-
-<p>
-  更多内置规则信息请参阅文档：<br />
-  <a href="https://www.varmor.org/docs/v0.7/guides/policies_and_rules/built_in_rules" target="_blank">
-  https://www.varmor.org/docs/v0.7/guides/policies_and_rules/built_in_rules
-  </a>
-</p>
-
-<p>
-  您可以根据实际场景和环境需求自行调整此模板。
-</p>
+        <h2>第三步：生成策略模板</h2>
+        <p>
+          策略顾问使用 vArmor 的<a href="../docs/v0.7/guides/policies_and_rules/built_in_rules" target="_blank">内置规则</a>生成了策略模板，您可以基于此模板构建最终的加固策略。
+          
+          请注意以下提示信息：
+          <ul>
+            <li>策略模板默认开启违规审计功能 (auditViolations:true)。</li>
+            <li>策略模板默认开启更新存量工作负载功能 (updateExistingWorkloads:true)，策略创建、删除时会对符合条件的工作负载进行滚动更新。</li>
+            <li>策略模板未使用 AppArmor 强制访问控制器的 <a href="../docs/main/guides/policies_and_rules/built_in_rules/attack_protection#restricting-specific-executable" target="_blank">限制特定可执行文件</a> 特性。</li>
+            <li>若您未提供行为数据，生成器会避免使用任何 <a href="../docs/main/guides/policies_and_rules/built_in_rules/attack_protection#disabling-sensitive-operations" target="_blank">禁止敏感操作</a> 的内置规则。</li>
+            <li>生成器禁用了部分 <a href="../docs/main/guides/policies_and_rules/built_in_rules/vulnerability_mitigation" target="_blank">漏洞缓解</a> 类内置规则。</li>
+          </ul>
+        </p>
 
         <div className={styles.resultContainer}>
           <div className={styles.resultHeader}>
-            <h3>YAML 格式</h3>
-            
+            <h3>策略模板</h3>
           </div>
           <pre className={styles.codeBlock}>
             {outputYAML}
           </pre>
         </div>
-        
+      
         <div className={styles.stepActions}>
           <button
             className={clsx("button button--secondary", styles.backButton)}
@@ -691,7 +690,7 @@ export default function PolicyAdvisor() {
           >
             上一步
           </button>
-					<button 
+          <button 
               className={clsx("button button--primary", styles.copyButton)}
               onClick={() => {
                 navigator.clipboard.writeText(outputYAML);
@@ -702,8 +701,9 @@ export default function PolicyAdvisor() {
             >
               复制内容
             </button>
-            
+              
         </div>
+
 				{tooltipVisible && (
               <div 
                 className={styles.copyTooltip}
@@ -711,7 +711,8 @@ export default function PolicyAdvisor() {
               >
                 {tooltipContent}
               </div>
-            )}
+        )}
+
       </div>
     );
   };
@@ -735,14 +736,14 @@ export default function PolicyAdvisor() {
   return (
     <Layout
       title="vArmor 策略顾问"
-      description="生成vArmor策略模板"
+      description="生成 vArmor 策略模板"
     >
       <div className="container margin-vert--lg">
         <div className="row">
           <div className="col col--8 col--offset-2">
             <h1>vArmor 策略顾问</h1>
             <p className="hero__subtitle">
-              通过简单的步骤生成vArmor策略模板，帮助您保护容器安全
+              通过简单步骤快速生成 EnhanceProtect 模式的策略模板，助力零基础构建加固策略。
             </p>
             
             <div className={styles.policyGeneratorContainer}>
