@@ -2,6 +2,8 @@
 
 [English](policy_advisor.md) | 简体中文
 
+*欢迎体验在线版[策略顾问](https://www.varmor.org/zh-cn/policy-advisor)。*
+
 此功能可协助您使用内置策略生成以一个策略模版，您可以基于此模版来构造最终的策略。建议您尽可能多地提供目标工作负载的上下文信息、行为模型数据，从而使生成的模版更加精准。
 
 请使用 `-f FEATURES` 和 `-c CAPABILITIES` 参数来指定上下文信息。其中，`-f FEATURES` 参数用于显式地描述应用的特性，`-c CAPABILITIES` 参数用于显式地描述应用所需的能力。行为模型数据则通过 `-m BEHAVIOR_MODEL` 参数传递，您可以使用 **[BehaviorModeling 模式](policies_and_rules/policy_modes/behavior_modeling.zh_CN.md)** 为目标应用生成 ArmorProfileModel 然后将其导出。
