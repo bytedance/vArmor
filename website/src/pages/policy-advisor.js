@@ -317,31 +317,31 @@ export default function PolicyAdvisor() {
 
   // 应用特性选项
   const featureOptions = [
-    { value: 'privileged-container', label: '特权容器:目标应用在特权容器中运行' },
-    { value: 'mount-sth', label: '挂载文件:目标应用需要在容器中执行文件挂载操作' },
-    { value: 'umount-sth', label: '卸载文件:目标应用需要在容器中执行文件卸载操作' },
-    { value: 'share-containers-pid-ns', label: '共享容器 PID 命名空间:Pod 使用了 shareProcessNamespace:true 来共享容器的 PID 命名空间' },
-    { value: 'share-host-pid-ns', label: '共享宿主机 PID 命名空间:Pod 使用了 hostPID:true 来共享宿主机的 PID 命名空间' },
-    { value: 'dind', label: 'Docker in Docker:目标应用将在容器内创建 Docker in Docker 容器' },
-    { value: 'require-sa', label: 'API Server 交互:目标应用明确需要与 API Server 交互' },
-    { value: 'bind-privileged-socket-port', label: '监听特权端口:目标应用需要监听小于 1024 的网络端口' },
-    { value: 'load-bpf', label: '加载 eBPF 程序:目标应用需要在容器中加载 eBPF 程序' }
+    { value: 'privileged-container', label: '特权容器 - 目标应用在特权容器中运行' },
+    { value: 'mount-sth', label: '挂载文件 - 目标应用需要在容器中执行文件挂载操作' },
+    { value: 'umount-sth', label: '卸载文件 - 目标应用需要在容器中执行文件卸载操作' },
+    { value: 'share-containers-pid-ns', label: '共享容器 PID 命名空间 - Pod 使用了 shareProcessNamespace:true 来共享容器的 PID 命名空间' },
+    { value: 'share-host-pid-ns', label: '共享宿主机 PID 命名空间 - Pod 使用了 hostPID:true 来共享宿主机的 PID 命名空间' },
+    { value: 'dind', label: 'Docker in Docker - 目标应用将在容器内创建 Docker in Docker 容器' },
+    { value: 'require-sa', label: 'API Server 交互 - 目标应用明确需要与 API Server 交互' },
+    { value: 'bind-privileged-socket-port', label: '监听特权端口 - 目标应用需要监听小于 1024 的网络端口' },
+    { value: 'load-bpf', label: '加载 eBPF 程序 - 目标应用需要在容器中加载 eBPF 程序' }
   ];
 
   // 常用能力选项
   const capabilityOptions = [
-    { value: 'sys_admin', label: 'SYS_ADMIN：系统管理员权限' },
-    { value: 'net_admin', label: 'NET_ADMIN：网络管理员权限' },
-    { value: 'sys_ptrace', label: 'SYS_PTRACE：允许进程跟踪' },
-    { value: 'sys_module', label: 'SYS_MODULE：允许加载内核模块' },
-    { value: 'dac_override', label: 'DAC_OVERRIDE：覆盖文件访问限制' },
-    { value: 'dac_read_search', label: 'DAC_READ_SEARCH：绕过文件读取权限检查' },
-    { value: 'kill', label: 'KILL：允许发送信号给任何进程' },
-    { value: 'bpf', label: 'BPF：允许使用BPF系统调用' },
-    { value: 'syslog', label: 'SYSLOG：允许使用syslog系统调用' },
-    { value: 'net_bind_service', label: 'NET_BIND_SERVICE：允许绑定特权端口' },
-    { value: 'net_raw', label: 'NET_RAW：允许使用原始套接字' },
-    { value: 'chown', label: 'CHOWN：允许修改文件所有者' }
+    { value: 'sys_admin', label: 'SYS_ADMIN - 系统管理员权限' },
+    { value: 'net_admin', label: 'NET_ADMIN - 网络管理员权限' },
+    { value: 'sys_ptrace', label: 'SYS_PTRACE - 允许进程跟踪' },
+    { value: 'sys_module', label: 'SYS_MODULE - 允许加载内核模块' },
+    { value: 'dac_override', label: 'DAC_OVERRIDE - 覆盖文件访问限制' },
+    { value: 'dac_read_search', label: 'DAC_READ_SEARCH - 绕过文件读取权限检查' },
+    { value: 'kill', label: 'KILL - 允许发送信号给任何进程' },
+    { value: 'bpf', label: 'BPF - 允许使用BPF系统调用' },
+    { value: 'syslog', label: 'SYSLOG - 允许使用syslog系统调用' },
+    { value: 'net_bind_service', label: 'NET_BIND_SERVICE - 允许绑定特权端口' },
+    { value: 'net_raw', label: 'NET_RAW - 允许使用原始套接字' },
+    { value: 'chown', label: 'CHOWN - 允许修改文件所有者' }
   ];
 
   useEffect(() => {
@@ -510,9 +510,9 @@ export default function PolicyAdvisor() {
     'perfmon', 'bpf', 'checkpoint_restore'
   ];
   
-  const defaultContainerdCapabilities = [
-    'audit_write', 'chown', 'dac_override', 'fowner', 'fsetid', 'kill',
-    'mknod', 'net_bind_service', 'setfcap', 'setgid', 'setpcap', 'setuid', 'sys_chroot'
+  const runtimeDefaultCapabilities = [
+    'audit_write', 'chown', 'dac_override', 'fowner', 'fsetid', 'kill', 'mknod', 
+    'net_bind_service', 'setfcap', 'setgid', 'setpcap', 'setuid', 'sys_chroot', 'net_raw'
   ];
   
   // UI渲染函数
@@ -567,7 +567,7 @@ export default function PolicyAdvisor() {
   };
   
   const handleDeselectAll = (groupKey) => {
-    let groupCaps = groupKey === 'privileged' ? privilegedCapabilities : defaultContainerdCapabilities;
+    let groupCaps = groupKey === 'privileged' ? privilegedCapabilities : runtimeDefaultCapabilities;
     setFormData(prev => ({
       ...prev,
       capabilities: prev.capabilities.filter(cap => !groupCaps.includes(cap))
@@ -585,7 +585,7 @@ export default function PolicyAdvisor() {
         <p>基于您对目标应用及其容器配置的了解，提供相关信息。</p>
         <div className={styles.checkboxGroup}>
           {featureOptions.map(option => {
-            const description = option.label.split(':')[1];
+            const description = option.label.split('-')[1].trim();
             return (
               <div key={option.value} className={styles.checkboxItem}>
                 <input
@@ -595,7 +595,7 @@ export default function PolicyAdvisor() {
                   onChange={(e) => handleFeatureChange(option.value, e.target.checked)}
                 />
                 <label htmlFor={`feature-${option.value}`}>
-                  {option.label.split(':')[0]}
+                  {option.label.split('-')[0].trim()}
                   <img 
                     src="img/icon-info.svg" 
                     alt="info icon"
@@ -617,12 +617,12 @@ export default function PolicyAdvisor() {
 
         {renderCapabilities(privilegedCapabilities, '请选择需要使用的敏感能力', formData.capabilities, handleCapabilityChange, 'privileged')}
 
-        {renderCapabilities(defaultContainerdCapabilities, '请选择需要使用的运行时组件默认能力', formData.capabilities, handleCapabilityChange, 'containerd')}
+        {renderCapabilities(runtimeDefaultCapabilities, '请选择需要使用的运行时默认能力', formData.capabilities, handleCapabilityChange, 'containerd')}
   
         <div className={styles.formGroup}>
           <input
             type="text"
-            placeholder="请填写需要使用的其它能力（用英文逗号分隔）"
+            placeholder="请填写需要使用的能力（用英文逗号分隔）"
             className={styles.textInput}
             onBlur={(e) => {
               const extraCaps = e.target.value.split(',').map(c => c.trim()).filter(Boolean);
@@ -637,7 +637,7 @@ export default function PolicyAdvisor() {
   
       <div className={styles.formGroup}>
         <h3>行为数据（可选）</h3>
-        <p>建议您使用 vArmor 的行为建模功能来收集目标应用的行为数据。然后将行为数据以 JSON 格式导出并上传，以便根据策略顾问基于应用的实际行为生成更精确的策略。详见：<a href="../docs/main/guides/policies_and_rules/policy_modes/behavior_modeling" target="_blank">BehaviorModeling 模式</a></p>
+        <p>建议您使用 vArmor 的行为建模功能来收集目标应用的行为数据。然后将行为数据以 JSON 格式导出并上传，以便策略顾问根据应用的实际行为生成更精确的策略。详见：<a href="../docs/main/guides/policies_and_rules/policy_modes/behavior_modeling" target="_blank">BehaviorModeling 模式</a></p>
         <input
           type="file"
           accept="application/json"
@@ -661,16 +661,13 @@ export default function PolicyAdvisor() {
     return (
       <div className={styles.stepContent}>
         <h2>第三步：生成策略模板</h2>
-        <p>
-          策略顾问使用 vArmor 的<a href="../docs/v0.7/guides/policies_and_rules/built_in_rules" target="_blank">内置规则</a>生成了策略模板，您可以基于此模板构建最终的加固策略。
-          
-          请注意以下提示信息：
+        <p>策略顾问使用 vArmor 的<a href="../docs/main/guides/policies_and_rules/built_in_rules" target="_blank">内置规则</a>生成了策略模板，您可以基于此模板构建最终的加固策略。</p>
+        <p>注意事项：
           <ul>
-            <li>策略模板默认开启违规审计功能 (auditViolations:true)。</li>
-            <li>策略模板默认开启更新存量工作负载功能 (updateExistingWorkloads:true)，策略创建、删除时会对符合条件的工作负载进行滚动更新。</li>
-            <li>策略模板未使用 AppArmor 强制访问控制器的 <a href="../docs/main/guides/policies_and_rules/built_in_rules/attack_protection#restricting-specific-executable" target="_blank">限制特定可执行文件</a> 特性。</li>
-            <li>若您未提供行为数据，生成器会避免使用任何 <a href="../docs/main/guides/policies_and_rules/built_in_rules/attack_protection#disabling-sensitive-operations" target="_blank">禁止敏感操作</a> 的内置规则。</li>
-            <li>生成器禁用了部分 <a href="../docs/main/guides/policies_and_rules/built_in_rules/vulnerability_mitigation" target="_blank">漏洞缓解</a> 类内置规则。</li>
+            <li>策略模板默认开启违规审计特性 (auditViolations:true)。</li>
+            <li>策略模板默认开启更新存量工作负载的特性 (updateExistingWorkloads:true)，策略创建、删除时会对符合条件的工作负载进行滚动更新。</li>
+            <li>策略模板默认不使用 <a href="../docs/main/guides/policies_and_rules/built_in_rules/attack_protection#restricting-specific-executable" target="_blank">限制特定可执行文件</a> 的特性。</li>
+            <li>除非提供行为数据，否则策略模板不使用任何 <a href="../docs/main/guides/policies_and_rules/built_in_rules/attack_protection#disabling-sensitive-operations" target="_blank">禁止敏感操作</a> 的内置规则。</li>
           </ul>
         </p>
 
@@ -769,4 +766,3 @@ export default function PolicyAdvisor() {
     </Layout>
   );
 }
-
