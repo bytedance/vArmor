@@ -346,7 +346,7 @@ export default function PolicyAdvisor() {
 
   useEffect(() => {
     // Load built-in rules once component mounts
-    fetch("./built-in-rules.json")
+    fetch("/built-in-rules.json")
       .then((res) => res.json())
       .then(setBuiltInRules)
       .catch((err) => console.error("Failed to load built-in rules", err));
@@ -597,7 +597,7 @@ export default function PolicyAdvisor() {
                 <label htmlFor={`feature-${option.value}`}>
                   {option.label.split('-')[0].trim()}
                   <img 
-                    src="img/icon-info.svg" 
+                    src="/img/icon-info.svg" 
                     alt="info icon"
                     onMouseEnter={(e) => showTooltip(description, e)}
                     onMouseLeave={hideTooltip}
