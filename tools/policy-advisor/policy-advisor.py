@@ -196,7 +196,7 @@ Please take note of the following tips about the template:
   * It excludes some `Vulnerability Mitigation` rules by default.
 
 For additional information on built-in rules, please refer to the documentation: 
-https://www.varmor.org/docs/v0.7/guides/policies_and_rules/built_in_rules
+https://www.varmor.org/docs/main/guides/policies_and_rules/built_in_rules
 
 You may modify the template accordingly based on the specific requirements of your scenario and environment.''')
 
