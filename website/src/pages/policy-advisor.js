@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import YAML from "js-yaml";
 import Layout from '@theme/Layout';
 import clsx from 'clsx';
-import styles from './advisor.module.css';
+import styles from './policy-advisor.module.css';
 
 // ---------------- Utility helpers ----------------
 const hasCommonItem = (arr1 = [], arr2 = []) => {
