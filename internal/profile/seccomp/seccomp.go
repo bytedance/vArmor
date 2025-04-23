@@ -121,26 +121,40 @@ func generateHardeningRules(rule string, syscalls map[string]specs.LinuxSyscall)
 			}
 		}
 	case "disallow-load-bpf-via-setsockopt":
-		// Note: We should append the arguments after initializing the LinuxSyscall
-		// object when we want to add new built-in rules for setsockopt().
-		if _, ok := syscalls["setsockopt"]; !ok {
-			syscalls["setsockopt"] = specs.LinuxSyscall{
-				Names:  []string{"setsockopt"},
-				Action: specs.ActErrno,
-				Args: []specs.LinuxSeccompArg{
-					{
-						Index: 2,
-						Value: unix.SO_ATTACH_FILTER,
-						Op:    specs.OpEqualTo,
-					},
-					{
-						Index: 2,
-						Value: unix.SO_ATTACH_REUSEPORT_CBPF,
-						Op:    specs.OpEqualTo,
-					},
+		syscalls["setsockopt_so_attach_filter"] = specs.LinuxSyscall{
+			Names:  []string{"setsockopt"},
+			Action: specs.ActErrno,
+			Args: []specs.LinuxSeccompArg{
+				{
+					Index: 1,
+					Value: unix.SOL_SOCKET,
+					Op:    specs.OpEqualTo,
 				},
-			}
+				{
+					Index: 2,
+					Value: unix.SO_ATTACH_FILTER,
+					Op:    specs.OpEqualTo,
+				},
+			},
 		}
+
+		syscalls["setsockopt_so_attach_reuseport_cbpf"] = specs.LinuxSyscall{
+			Names:  []string{"setsockopt"},
+			Action: specs.ActErrno,
+			Args: []specs.LinuxSeccompArg{
+				{
+					Index: 1,
+					Value: unix.SOL_SOCKET,
+					Op:    specs.OpEqualTo,
+				},
+				{
+					Index: 2,
+					Value: unix.SO_ATTACH_REUSEPORT_CBPF,
+					Op:    specs.OpEqualTo,
+				},
+			},
+		}
+
 	case "disallow-userfaultfd-creation":
 		if _, ok := syscalls["userfaultfd"]; !ok {
 			syscalls["userfaultfd"] = specs.LinuxSyscall{
