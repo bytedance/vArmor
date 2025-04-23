@@ -665,9 +665,9 @@ export default function PolicyAdvisor() {
         <p>注意事项：
           <ul>
             <li>策略模板默认开启违规审计特性 (auditViolations:true)。</li>
-            <li>策略模板默认开启更新存量工作负载的特性 (updateExistingWorkloads:true)，策略创建、删除时会对符合条件的工作负载进行滚动更新。</li>
-            <li>策略模板默认不使用 <a href="../docs/main/guides/policies_and_rules/built_in_rules/attack_protection#restricting-specific-executable" target="_blank">限制特定可执行文件</a> 的特性。</li>
-            <li>除非提供行为数据，否则策略模板不使用任何 <a href="../docs/main/guides/policies_and_rules/built_in_rules/attack_protection#disabling-sensitive-operations" target="_blank">禁止敏感操作</a> 的内置规则。</li>
+            <li>策略模板默认开启更新存量工作负载的特性 (updateExistingWorkloads:true)，在创建、删除策略时 vArmor 会对符合条件的工作负载进行滚动更新。</li>
+            <li>策略模板默认不使用<a href="../docs/main/guides/policies_and_rules/built_in_rules/attack_protection#restricting-specific-executable" target="_blank">限制特定可执行文件</a>的特性。</li>
+            <li>除非提供行为数据，否则策略模板不使用任何<a href="../docs/main/guides/policies_and_rules/built_in_rules/attack_protection#disabling-sensitive-operations" target="_blank">禁止敏感操作</a>的内置规则。</li>
           </ul>
         </p>
 
