@@ -1,11 +1,8 @@
-/* 策略生成器样式 */
 
-/* 容器样式 */
 .policyGeneratorContainer {
   padding: 2rem 0 4rem;
 }
 
-/* 步骤导航 */
 .stepNav {
   display: flex;
   justify-content: space-between;
@@ -82,6 +79,12 @@
   color: var(--ifm-color-primary);
 }
 
+.stepContent h3 {
+  margin-top: 1.5rem;
+  margin-bottom: 0.5rem;
+  color: var(--ifm-color-emphasis-900);
+}
+
 .stepContent p {
   margin-bottom: 2rem;
   color: var(--ifm-color-emphasis-700);
@@ -92,40 +95,74 @@
   margin-bottom: 2rem;
 }
 
+/* Tooltip样式 */
+.tooltip {
+  position: fixed;
+  background-color: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  max-width: 300px;
+  z-index: 1000;
+  pointer-events: none;
+}
+
+.infoIcon {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 5px;
+  cursor: help;
+  font-size: 1.2rem;
+  width: 16px;
+  height: 16px;
+}
+
 .formGroup h3 {
   margin-bottom: 1rem;
   font-size: 1.2rem;
   color: var(--ifm-color-emphasis-900);
 }
 
-.optionGroup {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1rem;
-}
-
-.optionItem {
-  display: flex;
-  align-items: center;
-  margin-bottom: 0.5rem;
-  padding: 0.5rem 1rem;
-  background-color: var(--ifm-color-emphasis-100);
-  border-radius: 4px;
-  transition: all 0.3s ease;
-}
-
-.optionItem:hover {
-  background-color: var(--ifm-color-emphasis-200);
-}
-
-.optionItem input {
-  margin-right: 0.5rem;
-}
-
 .checkboxGroup {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 0.5rem;
+}
+
+.capabilityHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  padding: 10px;
+  border: 1px solid var(--ifm-color-emphasis-300);
+  border-radius: 4px;
+  margin-bottom: 10px;
+
+  /* 高度控制 */
+  min-height: 52px;
+  padding: 0 12px;
+}
+
+.capabilityHeader p {
+  margin: 0;
+  line-height: 1.2;
+}
+
+.capabilityHeader:hover {
+  background-color: var(--ifm-color-emphasis-100);
+}
+
+.capabilityStatus {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.expandIcon {
+  font-size: 12px;
+  color: var(--ifm-color-emphasis-600);
 }
 
 .checkboxItem {
@@ -162,14 +199,51 @@
   color: white;
 }
 
-/* 策略预览 */
-.policyPreview {
+/* 全选按钮组样式 */
+.buttonGroup {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.buttonGroup button {
+  padding: 0.5rem 1rem;
+  font-size: 0.9rem;
+}
+
+/* 手动输入框样式 */
+.textInput {
+  width: 100%;
+  padding: 0.8rem;
+  font-size: 1rem;
+  border: 1px solid var(--ifm-color-emphasis-300);
+  border-radius: 4px;
+}
+
+/* 文件输入 */
+.fileInput {
+  display: block;
+  width: 100%;
+  padding: 0.5rem;
+  margin-top: 0.5rem;
+  border: 1px dashed var(--ifm-color-emphasis-300);
+  border-radius: 4px;
+}
+
+/* 结果容器 */
+.resultContainer {
   margin-top: 1rem;
-  margin-bottom: 2rem;
-  border-radius: 8px;
-  overflow: hidden;
-  max-height: 500px;
+}
+
+.codeBlock {
+  background-color: var(--ifm-color-emphasis-100);
+  padding: 1rem;
+  border-radius: 4px;
+  overflow-x: auto;
   overflow-y: auto;
+  max-height: 400px;
+  font-size: 0.9rem;
+  margin-bottom: 1.5rem;
 }
 
 /* 响应式样式 */
@@ -194,9 +268,7 @@
     margin-bottom: 0;
   }
   
-  .optionGroup,
   .checkboxGroup {
-    flex-direction: column;
     grid-template-columns: 1fr;
   }
   
