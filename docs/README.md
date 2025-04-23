@@ -81,14 +81,14 @@ The prerequisites required by different enforcers are as shown in the following 
 ### Step 1. Fetch chart
 
 ```bash
-helm pull oci://elkeid-ap-southeast-1.cr.volces.com/varmor/varmor --version 0.7.0
+helm pull oci://elkeid-ap-southeast-1.cr.volces.com/varmor/varmor --version 0.7.1
 ```
 
 ### Step 2. Install
 The default configuration enables the AppArmor and Seccomp enforcers. Please refer to the documentation for more [configuration options](getting_started/installation.md#configuration).
 
 ```bash
-helm install varmor varmor-0.7.0.tgz \
+helm install varmor varmor-0.7.1.tgz \
     --namespace varmor --create-namespace \
     --set image.registry="elkeid-ap-southeast-1.cr.volces.com"
 ```
