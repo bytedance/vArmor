@@ -339,8 +339,10 @@ spec:
                   type: object
                 type: array
               currentNumberLoaded:
+                format: int32
                 type: integer
               desiredNumberLoaded:
+                format: int32
                 type: integer
             required:
             - currentNumberLoaded

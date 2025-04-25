@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"sync/atomic"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -288,7 +289,7 @@ func (c *PolicyController) handleAddVarmorPolicy(vp *varmor.VarmorPolicy) error 
 		}
 	}
 
-	c.statusManager.UpdateDesiredNumber = true
+	atomic.StoreInt32(&c.statusManager.UpdateDesiredNumber, 1)
 
 	logger.Info("create ArmorProfile")
 	ap, err = c.varmorInterface.ArmorProfiles(vp.Namespace).Create(context.Background(), ap, metav1.CreateOptions{})
@@ -459,7 +460,7 @@ func (c *PolicyController) handleUpdateVarmorPolicy(newVp *varmor.VarmorPolicy, 
 
 	// Last, do update
 	statusKey := newVp.Namespace + "/" + newVp.Name
-	c.statusManager.UpdateDesiredNumber = true
+	atomic.StoreInt32(&c.statusManager.UpdateDesiredNumber, 1)
 	if !reflect.DeepEqual(oldAp.Spec, *newApSpec) {
 		// Update object
 		logger.Info("2. update the object and its status")

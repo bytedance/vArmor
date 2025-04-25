@@ -20,6 +20,7 @@ import (
 	"os"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -48,8 +49,8 @@ type StatusManager struct {
 	coreInterface       corev1.CoreV1Interface
 	appsInterface       appsv1.AppsV1Interface
 	varmorInterface     varmorinterface.CrdV1beta1Interface
-	UpdateDesiredNumber bool
-	desiredNumber       int
+	UpdateDesiredNumber int32
+	desiredNumber       int32
 	// Use "namespace/VarmorPolicyName" or "VarmorClusterPolicyName" as key.
 	// One VarmorPolicy/ClusterPolicyName object corresponds to one PolicyStatus
 	policyStatuses     map[string]varmortypes.PolicyStatus
@@ -89,7 +90,6 @@ func NewStatusManager(coreInterface corev1.CoreV1Interface,
 		coreInterface:     coreInterface,
 		appsInterface:     appsInterface,
 		varmorInterface:   varmorInterface,
-		desiredNumber:     0,
 		policyStatuses:    make(map[string]varmortypes.PolicyStatus),
 		modelingStatuses:  make(map[string]varmortypes.ModelingStatus),
 		ResetCh:           make(chan string, 50),
@@ -126,7 +126,8 @@ func (m *StatusManager) retrieveDesiredNumber() error {
 		if err != nil {
 			return err
 		}
-		m.desiredNumber = len(nodes.Items)
+		atomic.StoreInt32(&m.UpdateDesiredNumber, 0)
+		atomic.StoreInt32(&m.desiredNumber, int32(len(nodes.Items)))
 		return nil
 	}
 
@@ -135,8 +136,8 @@ func (m *StatusManager) retrieveDesiredNumber() error {
 		if err != nil {
 			return err
 		}
-		m.UpdateDesiredNumber = false
-		m.desiredNumber = int(ds.Status.DesiredNumberScheduled)
+		atomic.StoreInt32(&m.UpdateDesiredNumber, 0)
+		atomic.StoreInt32(&m.desiredNumber, ds.Status.DesiredNumberScheduled)
 		return nil
 	}
 	retriable := func(err error) bool {
@@ -459,7 +460,7 @@ func (m *StatusManager) reconcileStatus(stopCh <-chan struct{}) {
 			// The DesiredNumber used for determining the status of the policy,
 			// and the status of VarmorPolicy will be set to READY when the
 			// number of loaded profiles is equal with the number of agents.
-			if m.UpdateDesiredNumber {
+			if atomic.LoadInt32(&m.UpdateDesiredNumber) == 1 {
 				err = m.retrieveDesiredNumber()
 				if err != nil {
 					logger.Error(err, "m.retrieveDesiredNumber() failed")

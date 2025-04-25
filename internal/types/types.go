@@ -88,8 +88,8 @@ type ProfileStatus struct {
 
 // PolicyStatus used to cache the status of ArmorProfile and VarmorProfile objects.
 type PolicyStatus struct {
-	SuccessedNumber int
-	FailedNumber    int
+	SuccessedNumber int32
+	FailedNumber    int32
 	NodeMessages    map[string]string // Use NodeName as its key
 }
 
@@ -105,8 +105,8 @@ type BehaviorData struct {
 
 // ModelingStatus used to cache the status of ArmorProfileModel objects.
 type ModelingStatus struct {
-	CompletedNumber int
-	FailedNumber    int
+	CompletedNumber int32
+	FailedNumber    int32
 	NodeMessages    map[string]string // Use NodeName as its key
 }
 
