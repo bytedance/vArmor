@@ -55,24 +55,27 @@ func (m *StatusManager) Data(c *gin.Context) {
 	m.dataQueue.Add(string(reqBody))
 }
 
-// updateModelingStatus update StatusManager.ModelingStatuses[statusKey] with behaviorData which comes from agent.
+// updateModelingStatus update StatusManager.modelingStatuses[statusKey] with behaviorData which comes from agent.
+// Unlike updatePolicyStatus(), behavioral modeling is an asynchronous operation
+// so that state transitions do not need to be considered.
 func (m *StatusManager) updateModelingStatus(statusKey string, behaviorData *varmortypes.BehaviorData) error {
-	// Unlike updatePolicyStatus(), behavioral modeling is an asynchronous operation
-	// so that state transitions do not need to be considered.
+	m.modelingStatusesLock.Lock()
+	defer m.modelingStatusesLock.Unlock()
+
 	if behaviorData.Status != varmortypes.Failed && behaviorData.Status != varmortypes.Succeeded {
 		return fmt.Errorf("behaviorData.Status is illegal")
 	}
 
 	var modelingStatus varmortypes.ModelingStatus
 
-	if _, ok := m.ModelingStatuses[statusKey]; !ok {
+	if _, ok := m.modelingStatuses[statusKey]; !ok {
 		modelingStatus.CompletedNumber = 0
 		modelingStatus.FailedNumber = 0
 		modelingStatus.NodeMessages = make(map[string]string, m.desiredNumber)
-		m.ModelingStatuses[statusKey] = modelingStatus
+		m.modelingStatuses[statusKey] = modelingStatus
 	}
 
-	modelingStatus = m.ModelingStatuses[statusKey]
+	modelingStatus = m.modelingStatuses[statusKey]
 	switch behaviorData.Status {
 	case varmortypes.Failed:
 		modelingStatus.FailedNumber += 1
@@ -82,7 +85,7 @@ func (m *StatusManager) updateModelingStatus(statusKey string, behaviorData *var
 		modelingStatus.NodeMessages[behaviorData.NodeName] = string(varmortypes.ArmorProfileModelReady)
 	}
 
-	m.ModelingStatuses[statusKey] = modelingStatus
+	m.modelingStatuses[statusKey] = modelingStatus
 
 	return nil
 }
@@ -141,9 +144,9 @@ func (m *StatusManager) syncData(data string) error {
 		logger.Error(err, "updateModelingStatus()")
 		return nil
 	}
-	logger.Info("3. modeling status cache updated", "key", statusKey, "value", m.ModelingStatuses[statusKey], "desired number", m.desiredNumber)
+	modelingStatus := m.modelingStatuses[statusKey]
+	logger.Info("3. modeling status cache updated", "key", statusKey, "value", modelingStatus, "desired number", m.desiredNumber)
 
-	modelingStatus := m.ModelingStatuses[statusKey]
 	complete := false
 
 	// Build profiles and update ArmorProfile for the BehaviorModeling mode.

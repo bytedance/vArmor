@@ -97,7 +97,7 @@ func (m *StatusManager) handleProfileStatusUpdate(status varmortypes.ProfileStat
 //		logger := m.log.WithName("syncStatusMetricsLoop()")
 //		logger.Info("start syncing status metrics")
 //		m.profileStatusPerNode = m.metricsModule.RegisterFloat64Gauge("varmor_profile_status_per_node", "Profile status per node (1=success, 0=failure)")
-//		for key, status := range m.PolicyStatuses {
+//		for key, status := range m.policyStatuses {
 //			namespace, name, err := policyStatusKeyGetInfo(key)
 //			if err != nil {
 //				logger.Error(err, "policyStatusKeyGetInfo()")
@@ -121,8 +121,10 @@ func (m *StatusManager) handleProfileStatusUpdate(status varmortypes.ProfileStat
 //	}
 //}
 
-// updatePolicyStatus update StatusManager.PolicyStatuses[statusKey] with profileStatus which comes from agent.
+// updatePolicyStatus update StatusManager.policyStatuses[statusKey] with profileStatus which comes from agent.
 func (m *StatusManager) updatePolicyStatus(statusKey string, profileStatus *varmortypes.ProfileStatus) error {
+	m.policyStatusesLock.Lock()
+	defer m.policyStatusesLock.Unlock()
 
 	if profileStatus.Status != varmortypes.Failed && profileStatus.Status != varmortypes.Succeeded {
 		return fmt.Errorf("profileStatus.Status is illegal")
@@ -130,12 +132,12 @@ func (m *StatusManager) updatePolicyStatus(statusKey string, profileStatus *varm
 
 	var policyStatus varmortypes.PolicyStatus
 
-	if _, ok := m.PolicyStatuses[statusKey]; !ok {
+	if _, ok := m.policyStatuses[statusKey]; !ok {
 		policyStatus.NodeMessages = make(map[string]string, m.desiredNumber)
-		m.PolicyStatuses[statusKey] = policyStatus
+		m.policyStatuses[statusKey] = policyStatus
 	}
 
-	policyStatus = m.PolicyStatuses[statusKey]
+	policyStatus = m.policyStatuses[statusKey]
 	switch profileStatus.Status {
 	case varmortypes.Failed:
 		if nodeMessage, ok := policyStatus.NodeMessages[profileStatus.NodeName]; ok {
@@ -173,7 +175,7 @@ func (m *StatusManager) updatePolicyStatus(statusKey string, profileStatus *varm
 		}
 	}
 
-	m.PolicyStatuses[statusKey] = policyStatus
+	m.policyStatuses[statusKey] = policyStatus
 
 	return nil
 }
@@ -188,7 +190,8 @@ func (m *StatusManager) syncStatus(profileStatus varmortypes.ProfileStatus) erro
 		logger.V(2).Info("finished syncing status", "processingTime", time.Since(startTime).String())
 	}()
 
-	logger.Info("1. receive profile status from agent", "profile", profileStatus.ProfileName, "node", profileStatus.NodeName, "status", profileStatus.Status)
+	logger.Info("1. receive profile status from agent", "profile", profileStatus.ProfileName,
+		"node", profileStatus.NodeName, "status", profileStatus.Status, "message", profileStatus.Message)
 
 	// Update the policy status cache.
 	statusKey, err := generatePolicyStatusKey(&profileStatus)
@@ -202,7 +205,7 @@ func (m *StatusManager) syncStatus(profileStatus varmortypes.ProfileStatus) erro
 		return nil
 	}
 
-	status := fmt.Sprintf("successed/failed/desired (%d/%d/%d)", m.PolicyStatuses[statusKey].SuccessedNumber, m.PolicyStatuses[statusKey].FailedNumber, m.desiredNumber)
+	status := fmt.Sprintf("successed/failed/desired (%d/%d/%d)", m.policyStatuses[statusKey].SuccessedNumber, m.policyStatuses[statusKey].FailedNumber, m.desiredNumber)
 	logger.Info("2. policy status cache updated", "key", statusKey, "status", status)
 
 	logger.Info("3. send signal to UpdateStatusCh", "status key", statusKey)

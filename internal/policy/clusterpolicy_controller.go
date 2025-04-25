@@ -475,10 +475,7 @@ func (c *ClusterPolicyController) handleUpdateVarmorClusterPolicy(newVp *varmor.
 			}
 		}
 
-		logger.Info("2.2. reset the status cache", "status key", statusKey)
-		c.statusManager.ResetCh <- statusKey
-
-		logger.Info("2.3. update ArmorProfile")
+		logger.Info("2.2. update ArmorProfile")
 		oldAp.Spec = *newApSpec
 		forceSetOwnerReference(oldAp, newVp, true)
 		_, err = c.varmorInterface.ArmorProfiles(varmorconfig.Namespace).Update(context.Background(), oldAp, metav1.UpdateOptions{})
