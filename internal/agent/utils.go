@@ -87,7 +87,7 @@ func versionGreaterThanOrEqual(current, minimum string) (bool, error) {
 	if currentVersion.GreaterThanOrEqual(minVersion) {
 		return true, nil
 	}
-	return false, fmt.Errorf(fmt.Sprintf("the current version (%s) < the minimum version (%s)", current, minimum))
+	return false, fmt.Errorf("the current version (%s) < the minimum version (%s)", current, minimum)
 }
 
 func isLSMSupported(lsm string) (bool, error) {

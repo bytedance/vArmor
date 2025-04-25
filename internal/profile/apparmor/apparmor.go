@@ -15,7 +15,6 @@
 package apparmor
 
 import (
-	"encoding/base64"
 	"fmt"
 	"reflect"
 	"strings"
@@ -35,13 +34,11 @@ type appArmorRules struct {
 }
 
 func GenerateAlwaysAllowProfile(profileName string) string {
-	c := []byte(fmt.Sprintf(alwaysAllowTemplate, profileName, ""))
-	return base64.StdEncoding.EncodeToString(c)
+	return fmt.Sprintf(alwaysAllowTemplate, profileName, "")
 }
 
 func GenerateRuntimeDefaultProfile(profileName string) string {
-	c := []byte(fmt.Sprintf(runtimeDefaultTemplate, profileName, profileName, profileName, ""))
-	return base64.StdEncoding.EncodeToString(c)
+	return fmt.Sprintf(runtimeDefaultTemplate, profileName, profileName, profileName, "")
 }
 
 func generateHardeningRules(rule, qualifier string) (rules string) {
@@ -587,7 +584,7 @@ func GenerateEnhanceProtectProfile(enhanceProtect *varmor.EnhanceProtect, profil
 		// Create profile for privileged container based on the AlwaysAllow template
 		p := fmt.Sprintf(alwaysAllowTemplate, profileName, baseRules)
 		p = strings.ReplaceAll(p, "  QUALIFIER ", qualifier)
-		return base64.StdEncoding.EncodeToString([]byte(p))
+		return p
 	} else {
 		// Create profile for unprivileged container based on the RuntimeDefault template
 		templ := runtimeDefaultTemplateForEnhanceProtectMode
@@ -599,11 +596,10 @@ func GenerateEnhanceProtectProfile(enhanceProtect *varmor.EnhanceProtect, profil
 
 		p := fmt.Sprintf(templ, profileName, profileName, profileName, baseRules)
 		p = strings.ReplaceAll(p, "  QUALIFIER ", qualifier)
-		return base64.StdEncoding.EncodeToString([]byte(p))
+		return p
 	}
 }
 
 func GenerateBehaviorModelingProfile(profileName string) string {
-	c := []byte(fmt.Sprintf(behaviorModelingTemplate, profileName))
-	return base64.StdEncoding.EncodeToString(c)
+	return fmt.Sprintf(behaviorModelingTemplate, profileName)
 }

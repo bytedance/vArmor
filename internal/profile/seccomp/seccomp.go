@@ -15,7 +15,6 @@
 package seccomp
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"reflect"
 	"strings"
@@ -46,7 +45,7 @@ func GenerateAlwaysAllowProfile() string {
 	}
 
 	p, _ := json.Marshal(profile)
-	return base64.StdEncoding.EncodeToString(p)
+	return string(p)
 }
 
 func GenerateBehaviorModelingProfile() string {
@@ -56,7 +55,7 @@ func GenerateBehaviorModelingProfile() string {
 	}
 
 	p, _ := json.Marshal(profile)
-	return base64.StdEncoding.EncodeToString(p)
+	return string(p)
 }
 
 func GenerateProfileWithBehaviorModel(seccomp *varmor.Seccomp) (string, error) {
@@ -78,7 +77,7 @@ func GenerateProfileWithBehaviorModel(seccomp *varmor.Seccomp) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return base64.StdEncoding.EncodeToString(p), nil
+	return string(p), nil
 }
 
 func generateHardeningRules(rule string, syscalls map[string]specs.LinuxSyscall, action specs.LinuxSeccompAction) {
@@ -516,5 +515,5 @@ func GenerateEnhanceProtectProfile(enhanceProtect *varmor.EnhanceProtect, profil
 	if err != nil {
 		return "", err
 	}
-	return base64.StdEncoding.EncodeToString(p), nil
+	return string(p), nil
 }

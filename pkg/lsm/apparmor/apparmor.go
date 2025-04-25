@@ -16,7 +16,6 @@ package apparmor
 
 import (
 	"bufio"
-	"encoding/base64"
 	"fmt"
 	"html/template"
 	"io"
@@ -54,9 +53,8 @@ func retrieveTemplateData() (*templateData, error) {
 }
 
 func SaveAppArmorProfile(fileName string, content string) error {
-	templateContent, err := base64.StdEncoding.DecodeString(content)
-	if err != nil {
-		return err
+	if !strings.Contains(content, "profile") {
+		return fmt.Errorf("the apparmor profile is invalid")
 	}
 
 	f, err := os.Create(fileName)
@@ -70,7 +68,7 @@ func SaveAppArmorProfile(fileName string, content string) error {
 		return err
 	}
 
-	return generateAppArmorProfile(string(templateContent), templateData, f)
+	return generateAppArmorProfile(content, templateData, f)
 }
 
 func aaParser(args ...string) (string, error) {
