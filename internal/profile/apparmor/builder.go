@@ -15,7 +15,6 @@
 package apparmor
 
 import (
-	"encoding/base64"
 	"fmt"
 	"sort"
 	"strings"
@@ -191,7 +190,7 @@ func GenerateProfileWithBehaviorModel(appArmor *varmor.AppArmor, debug bool) (st
 		ruleSet += buildDefaultAllowRules()
 
 		profile := fmt.Sprintf(defenseInDepthTemplate, profileName, ruleSet)
-		return base64.StdEncoding.EncodeToString([]byte(profile)), nil
+		return profile, nil
 	} else {
 		return "", fmt.Errorf("fatal error: more than one profile exists or profile name is unexpected")
 	}

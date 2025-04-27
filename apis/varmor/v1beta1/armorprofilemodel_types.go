@@ -107,8 +107,8 @@ type ArmorProfileModelStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	DesiredNumber   int `json:"desiredNumber,omitempty"`
-	CompletedNumber int `json:"completedNumber,omitempty"`
+	DesiredNumber   int32 `json:"desiredNumber,omitempty"`
+	CompletedNumber int32 `json:"completedNumber,omitempty"`
 	// It indicate whether the AppArmor Profile for target is built successfully
 	Ready      bool                         `json:"ready"`
 	Conditions []ArmorProfileModelCondition `json:"conditions,omitempty"`

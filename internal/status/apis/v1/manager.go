@@ -19,6 +19,8 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -47,28 +49,30 @@ type StatusManager struct {
 	coreInterface       corev1.CoreV1Interface
 	appsInterface       appsv1.AppsV1Interface
 	varmorInterface     varmorinterface.CrdV1beta1Interface
-	UpdateDesiredNumber bool
-	desiredNumber       int
+	UpdateDesiredNumber int32
+	desiredNumber       int32
 	// Use "namespace/VarmorPolicyName" or "VarmorClusterPolicyName" as key.
 	// One VarmorPolicy/ClusterPolicyName object corresponds to one PolicyStatus
-	PolicyStatuses map[string]varmortypes.PolicyStatus
+	policyStatuses     map[string]varmortypes.PolicyStatus
+	policyStatusesLock sync.RWMutex
 	// Use "namespace/VarmorPolicyName" as key. One VarmorPolicy object corresponds to one ModelingStatus
-	// TODO: Rebuild ModelingStatuses from ArmorProfile object when leader change occurs.
-	ModelingStatuses   map[string]varmortypes.ModelingStatus
-	ResetCh            chan string
-	DeleteCh           chan string
-	UpdateStatusCh     chan string
-	UpdateModeCh       chan string
-	statusQueue        workqueue.RateLimitingInterface
-	dataQueue          workqueue.RateLimitingInterface
-	statusUpdateCycle  time.Duration
-	debug              bool
-	inContainer        bool
-	log                logr.Logger
-	metricsModule      *varmormetrics.MetricsModule
-	profileSuccess     metric.Float64Counter
-	profileFailure     metric.Float64Counter
-	profileChangeCount metric.Float64Counter
+	// TODO: Rebuild modelingStatuses from ArmorProfile object when leader change occurs.
+	modelingStatuses     map[string]varmortypes.ModelingStatus
+	modelingStatusesLock sync.RWMutex
+	ResetCh              chan string
+	DeleteCh             chan string
+	UpdateStatusCh       chan string
+	UpdateModeCh         chan string
+	statusQueue          workqueue.RateLimitingInterface
+	dataQueue            workqueue.RateLimitingInterface
+	statusUpdateCycle    time.Duration
+	debug                bool
+	inContainer          bool
+	log                  logr.Logger
+	metricsModule        *varmormetrics.MetricsModule
+	profileSuccess       metric.Float64Counter
+	profileFailure       metric.Float64Counter
+	profileChangeCount   metric.Float64Counter
 	//profileStatusPerNode metric.Float64Gauge
 }
 
@@ -86,9 +90,8 @@ func NewStatusManager(coreInterface corev1.CoreV1Interface,
 		coreInterface:     coreInterface,
 		appsInterface:     appsInterface,
 		varmorInterface:   varmorInterface,
-		desiredNumber:     0,
-		PolicyStatuses:    make(map[string]varmortypes.PolicyStatus),
-		ModelingStatuses:  make(map[string]varmortypes.ModelingStatus),
+		policyStatuses:    make(map[string]varmortypes.PolicyStatus),
+		modelingStatuses:  make(map[string]varmortypes.ModelingStatus),
 		ResetCh:           make(chan string, 50),
 		DeleteCh:          make(chan string, 50),
 		UpdateStatusCh:    make(chan string, 100),
@@ -123,7 +126,8 @@ func (m *StatusManager) retrieveDesiredNumber() error {
 		if err != nil {
 			return err
 		}
-		m.desiredNumber = len(nodes.Items)
+		atomic.StoreInt32(&m.UpdateDesiredNumber, 0)
+		atomic.StoreInt32(&m.desiredNumber, int32(len(nodes.Items)))
 		return nil
 	}
 
@@ -132,8 +136,8 @@ func (m *StatusManager) retrieveDesiredNumber() error {
 		if err != nil {
 			return err
 		}
-		m.UpdateDesiredNumber = false
-		m.desiredNumber = int(ds.Status.DesiredNumberScheduled)
+		atomic.StoreInt32(&m.UpdateDesiredNumber, 0)
+		atomic.StoreInt32(&m.desiredNumber, ds.Status.DesiredNumberScheduled)
 		return nil
 	}
 	retriable := func(err error) bool {
@@ -174,8 +178,11 @@ func (m *StatusManager) retrieveNodeNameList() ([]string, error) {
 	return nodes, nil
 }
 
-// rebuildPolicyStatuses rebuild the PolicyStatuses cache from the existing ArmorProfile objects.
+// rebuildPolicyStatuses rebuild the policyStatuses cache from the existing ArmorProfile objects.
 func (m *StatusManager) rebuildPolicyStatuses() error {
+	m.policyStatusesLock.Lock()
+	defer m.policyStatusesLock.Unlock()
+
 	nsList, err := m.coreInterface.Namespaces().List(context.Background(), metav1.ListOptions{})
 	if err != nil {
 		return err
@@ -225,7 +232,7 @@ func (m *StatusManager) rebuildPolicyStatuses() error {
 			}
 
 			// Cache policy status
-			m.PolicyStatuses[statusKey] = policyStatus
+			m.policyStatuses[statusKey] = policyStatus
 		}
 	}
 	return nil
@@ -292,10 +299,6 @@ func (m *StatusManager) updateVarmorClusterPolicyStatus(
 // updateAllCRStatus periodically reconcile all of the objects' statuses to avoid the interference from offline nodes
 // and to force agents to update profile that do not meet the expectations.
 func (m *StatusManager) updateAllCRStatus(logger logr.Logger) {
-	if len(m.PolicyStatuses) == 0 {
-		return
-	}
-
 	// Update DesiredNumber
 	err := m.retrieveDesiredNumber()
 	if err != nil {
@@ -310,8 +313,17 @@ func (m *StatusManager) updateAllCRStatus(logger logr.Logger) {
 		return
 	}
 
-	for statusKey, policyStatus := range m.PolicyStatuses {
-		// Remove the status cache of offline nodes from PolicyStatus.NodeMessages
+	var statusKeys []string
+	var profiles []struct {
+		namespace string
+		apName    string
+	}
+
+	m.policyStatusesLock.Lock()
+	for statusKey, policyStatus := range m.policyStatuses {
+		statusKeys = append(statusKeys, statusKey)
+
+		// Remove the offline nodes from PolicyStatus.NodeMessages
 		policyStatus.FailedNumber = 0
 		policyStatus.SuccessedNumber = 0
 		for nodeName, message := range policyStatus.NodeMessages {
@@ -325,9 +337,9 @@ func (m *StatusManager) updateAllCRStatus(logger logr.Logger) {
 				delete(policyStatus.NodeMessages, nodeName)
 			}
 		}
-		m.PolicyStatuses[statusKey] = policyStatus
+		m.policyStatuses[statusKey] = policyStatus
 
-		// Force agents to update profile that do not meet the expectations.
+		// Collect ArmorProfile objects that do not meet the expectations.
 		if policyStatus.FailedNumber == 0 && policyStatus.SuccessedNumber != m.desiredNumber {
 			namespace, vpName, err := cache.SplitMetaNamespaceKey(statusKey)
 			if err != nil {
@@ -340,31 +352,41 @@ func (m *StatusManager) updateAllCRStatus(logger logr.Logger) {
 					namespace = varmorconfig.Namespace
 				}
 				apName := varmorprofile.GenerateArmorProfileName(namespace, vpName, clusterScope)
-
-				logger.Info("force agents to update the ArmorProfile object", "namespace", namespace, "name", apName)
-				err = retry.RetryOnConflict(retry.DefaultRetry,
-					func() error {
-						ap, err := m.varmorInterface.ArmorProfiles(namespace).Get(context.Background(), apName, metav1.GetOptions{})
-						if err != nil {
-							return err
-						}
-						if ap.Annotations == nil {
-							ap.Annotations = make(map[string]string)
-						}
-						value := ap.Annotations[varmortypes.ReconcileAnnotation]
-						counter, _ := strconv.Atoi(value)
-						ap.Annotations[varmortypes.ReconcileAnnotation] = fmt.Sprintf("%d", counter+1)
-						_, err = m.varmorInterface.ArmorProfiles(namespace).Update(context.Background(), ap, metav1.UpdateOptions{})
-						return err
-					})
-				if err != nil {
-					logger.Error(err, "failed to update the reconcile annotation of the ArmorProfile object")
-				}
+				profiles = append(profiles, struct {
+					namespace string
+					apName    string
+				}{namespace, apName})
 			}
 		}
+	}
+	m.policyStatusesLock.Unlock()
 
-		// Update the objects' status.
-		m.UpdateStatusCh <- statusKey
+	// Update the objects' status.
+	for _, key := range statusKeys {
+		m.UpdateStatusCh <- key
+	}
+
+	// Force agents to update profile that do not meet the expectations.
+	for _, p := range profiles {
+		logger.Info("force agents to update the ArmorProfile object", "namespace", p.namespace, "name", p.apName)
+		err := retry.RetryOnConflict(retry.DefaultRetry,
+			func() error {
+				ap, err := m.varmorInterface.ArmorProfiles(p.namespace).Get(context.Background(), p.apName, metav1.GetOptions{})
+				if err != nil {
+					return err
+				}
+				if ap.Annotations == nil {
+					ap.Annotations = make(map[string]string)
+				}
+				value := ap.Annotations[varmortypes.ReconcileAnnotation]
+				counter, _ := strconv.Atoi(value)
+				ap.Annotations[varmortypes.ReconcileAnnotation] = fmt.Sprintf("%d", counter+1)
+				_, err = m.varmorInterface.ArmorProfiles(p.namespace).Update(context.Background(), ap, metav1.UpdateOptions{})
+				return err
+			})
+		if err != nil {
+			logger.Error(err, "failed to update the reconcile annotation of the ArmorProfile object")
+		}
 	}
 }
 
@@ -380,34 +402,47 @@ func (m *StatusManager) reconcileStatus(stopCh <-chan struct{}) {
 		select {
 		// Reset the specified status cache.
 		case statusKey := <-m.ResetCh:
-			if policyStatus, ok := m.PolicyStatuses[statusKey]; ok {
+			logger.V(2).Info("Reset the specified status cache", "key", statusKey)
+
+			m.policyStatusesLock.Lock()
+			if policyStatus, ok := m.policyStatuses[statusKey]; ok {
 				policyStatus.SuccessedNumber = 0
 				policyStatus.FailedNumber = 0
 				policyStatus.NodeMessages = make(map[string]string, m.desiredNumber)
-				m.PolicyStatuses[statusKey] = policyStatus
+				m.policyStatuses[statusKey] = policyStatus
 			}
+			m.policyStatusesLock.Unlock()
 
-			if modelingStatus, ok := m.ModelingStatuses[statusKey]; ok {
+			m.modelingStatusesLock.Lock()
+			if modelingStatus, ok := m.modelingStatuses[statusKey]; ok {
 				modelingStatus.CompletedNumber = 0
-				m.ModelingStatuses[statusKey] = modelingStatus
+				m.modelingStatuses[statusKey] = modelingStatus
 			}
+			m.modelingStatusesLock.Unlock()
 
 		// Delete the specified status cache.
 		case statusKey := <-m.DeleteCh:
-			delete(m.PolicyStatuses, statusKey)
-			delete(m.ModelingStatuses, statusKey)
+			logger.V(2).Info("Delete the specified status cache", "key", statusKey)
+
+			m.policyStatusesLock.Lock()
+			delete(m.policyStatuses, statusKey)
+			m.policyStatusesLock.Unlock()
+
+			m.modelingStatusesLock.Lock()
+			delete(m.modelingStatuses, statusKey)
+			m.modelingStatusesLock.Unlock()
 
 		// Update the specified object status.
 		case statusKey := <-m.UpdateStatusCh:
-			var policyStatus varmortypes.PolicyStatus
-			var ok bool
+			logger.V(2).Info("Update the specified object status", "key", statusKey)
 
-			if policyStatus, ok = m.PolicyStatuses[statusKey]; !ok {
-				logger.Error(fmt.Errorf("m.PolicyStatuses[%s] doesn't exist", statusKey), "fatal error")
+			m.policyStatusesLock.RLock()
+			policyStatus, ok := m.policyStatuses[statusKey]
+			m.policyStatusesLock.RUnlock()
+			if !ok {
+				logger.Error(fmt.Errorf("m.policyStatuses[%s] doesn't exist", statusKey), "fatal error")
 				break
 			}
-
-			logger.V(2).Info("PolicyStatus cache", "key", statusKey, "value", policyStatus)
 
 			namespace, vpName, err := cache.SplitMetaNamespaceKey(statusKey)
 			if err != nil {
@@ -425,7 +460,7 @@ func (m *StatusManager) reconcileStatus(stopCh <-chan struct{}) {
 			// The DesiredNumber used for determining the status of the policy,
 			// and the status of VarmorPolicy will be set to READY when the
 			// number of loaded profiles is equal with the number of agents.
-			if m.UpdateDesiredNumber {
+			if atomic.LoadInt32(&m.UpdateDesiredNumber) == 1 {
 				err = m.retrieveDesiredNumber()
 				if err != nil {
 					logger.Error(err, "m.retrieveDesiredNumber() failed")
@@ -478,7 +513,8 @@ func (m *StatusManager) reconcileStatus(stopCh <-chan struct{}) {
 			if vSpec.Policy.Mode == varmortypes.BehaviorModelingMode && vSpec.Policy.ModelingOptions != nil {
 				phase = varmortypes.VarmorPolicyModeling
 
-				if modelingStatus, ok := m.ModelingStatuses[statusKey]; ok {
+				m.modelingStatusesLock.RLock()
+				if modelingStatus, ok := m.modelingStatuses[statusKey]; ok {
 					if modelingStatus.CompletedNumber >= m.desiredNumber {
 						complete = true
 					}
@@ -490,6 +526,8 @@ func (m *StatusManager) reconcileStatus(stopCh <-chan struct{}) {
 						}
 					}
 				}
+				m.modelingStatusesLock.RUnlock()
+
 				if complete {
 					phase = varmortypes.VarmorPolicyCompleted
 				}
@@ -542,12 +580,14 @@ func (m *StatusManager) reconcileStatus(stopCh <-chan struct{}) {
 			}
 
 			// Reset policyStatus
-			if policyStatus, ok := m.PolicyStatuses[statusKey]; ok {
+			m.policyStatusesLock.Lock()
+			if policyStatus, ok := m.policyStatuses[statusKey]; ok {
 				policyStatus.FailedNumber = 0
 				policyStatus.SuccessedNumber = 0
 				policyStatus.NodeMessages = make(map[string]string, m.desiredNumber)
-				m.PolicyStatuses[statusKey] = policyStatus
+				m.policyStatuses[statusKey] = policyStatus
 			}
+			m.policyStatusesLock.Unlock()
 
 			var v interface{}
 			var vPolicy varmor.Policy
@@ -616,7 +656,7 @@ func (m *StatusManager) Run(stopCh <-chan struct{}) {
 	if err != nil {
 		m.log.Error(err, "m.rebuildPolicyStatuses() failed")
 	}
-	m.log.V(2).Info("PolicyStatuses cache rebuilt", "length", len(m.PolicyStatuses), "content", m.PolicyStatuses)
+	m.log.V(2).Info("policyStatuses cache rebuilt", "length", len(m.policyStatuses), "content", m.policyStatuses)
 
 	go m.reconcileStatus(stopCh)
 	go wait.Until(m.statusWorker, time.Second, stopCh)

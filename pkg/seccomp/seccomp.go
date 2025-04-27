@@ -1,16 +1,21 @@
 package seccomp
 
 import (
-	"encoding/base64"
+	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 )
 
+func isJSON(s string) bool {
+	var js interface{}
+	return json.Unmarshal([]byte(s), &js) == nil
+}
+
 func SaveSeccompProfile(fileName string, content string) error {
-	c, err := base64.StdEncoding.DecodeString(content)
-	if err != nil {
-		return err
+	if !isJSON(content) {
+		return fmt.Errorf("the seccomp profile is invalid in JSON format")
 	}
 
 	f, err := os.Create(fileName)
@@ -19,7 +24,7 @@ func SaveSeccompProfile(fileName string, content string) error {
 	}
 	defer f.Close()
 
-	_, err = f.Write(c)
+	_, err = f.Write([]byte(content))
 	return err
 }
 

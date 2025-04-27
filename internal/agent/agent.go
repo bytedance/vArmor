@@ -464,8 +464,8 @@ func (agent *Agent) handleCreateOrUpdateArmorProfile(ap *varmor.ArmorProfile, ke
 			profilePath := filepath.Join(agent.appArmorProfileDir, ap.Spec.Profile.Name)
 			err := varmorapparmor.SaveAppArmorProfile(profilePath, ap.Spec.Profile.Content)
 			if err != nil {
-				logger.Error(err, "saveAppArmorProfile()")
-				return agent.sendStatus(ap, varmortypes.Failed, "saveAppArmorProfile(): "+err.Error())
+				logger.Error(err, "SaveAppArmorProfile()")
+				return agent.sendStatus(ap, varmortypes.Failed, "SaveAppArmorProfile(): "+err.Error())
 			}
 
 			if yes, _ := varmorapparmor.IsAppArmorProfileLoaded(ap.Spec.Profile.Name); !yes {
@@ -473,16 +473,16 @@ func (agent *Agent) handleCreateOrUpdateArmorProfile(ap *varmor.ArmorProfile, ke
 				logger.Info(fmt.Sprintf("loading '%s (%s)' to Node/%s's kernel", ap.Spec.Profile.Name, ap.Spec.Profile.Mode, agent.nodeName))
 				output, err := varmorapparmor.LoadAppArmorProfile(profilePath, ap.Spec.Profile.Mode)
 				if err != nil {
-					logger.Error(err, "loadAppArmorProfile()", "output", output)
-					return agent.sendStatus(ap, varmortypes.Failed, "loadAppArmorProfile(): "+err.Error()+" "+output)
+					logger.Error(err, "LoadAppArmorProfile()", "output", output)
+					return agent.sendStatus(ap, varmortypes.Failed, "LoadAppArmorProfile(): "+err.Error()+" "+output)
 				}
 			} else {
 				// Update a existing AppArmor profile for ArmorProfile update event.
 				logger.Info(fmt.Sprintf("reloading '%s (%s)' to Node/%s's kernel", ap.Spec.Profile.Name, ap.Spec.Profile.Mode, agent.nodeName))
 				output, err := varmorapparmor.UpdateAppArmorProfile(profilePath, ap.Spec.Profile.Mode)
 				if err != nil {
-					logger.Error(err, "updateAppArmorProfile()", "output", output)
-					return agent.sendStatus(ap, varmortypes.Failed, "updateAppArmorProfile(): "+err.Error()+" "+output)
+					logger.Error(err, "UpdateAppArmorProfile()", "output", output)
+					return agent.sendStatus(ap, varmortypes.Failed, "UpdateAppArmorProfile(): "+err.Error()+" "+output)
 				}
 			}
 		}
@@ -495,7 +495,7 @@ func (agent *Agent) handleCreateOrUpdateArmorProfile(ap *varmor.ArmorProfile, ke
 		err := agent.bpfEnforcer.SaveAndApplyBpfProfile(ap.Spec.Profile.Name, *ap.Spec.Profile.BpfContent)
 		if err != nil {
 			logger.Error(err, "SaveAndApplyBpfProfile()")
-			return agent.sendStatus(ap, varmortypes.Failed, "SaveBpfProfile(): "+err.Error())
+			return agent.sendStatus(ap, varmortypes.Failed, "SaveAndApplyBpfProfile(): "+err.Error())
 		}
 	}
 
@@ -552,7 +552,7 @@ func (agent *Agent) handleDeleteArmorProfile(namespace, name, key string) error 
 			logger.Info(fmt.Sprintf("removing the AppArmor profile ('%s') from Node/%s", name, agent.nodeName))
 			err = varmorapparmor.RemoveAppArmorProfile(profilePath)
 			if err != nil {
-				logger.Error(err, "removeAppArmorProfile()")
+				logger.Error(err, "RemoveAppArmorProfile()")
 				return err
 			}
 		}

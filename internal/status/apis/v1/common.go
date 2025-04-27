@@ -488,7 +488,7 @@ func UpdateArmorProfileStatus(
 	i varmorinterface.CrdV1beta1Interface,
 	ap *varmor.ArmorProfile,
 	policyStatus *varmortypes.PolicyStatus,
-	desiredNumber int) error {
+	desiredNumber int32) error {
 
 	var conditions []varmor.ArmorProfileCondition
 	for nodeName, message := range policyStatus.NodeMessages {
@@ -551,7 +551,7 @@ func UpdateArmorProfileModelStatus(
 	i varmorinterface.CrdV1beta1Interface,
 	apm *varmor.ArmorProfileModel,
 	modelingStatus *varmortypes.ModelingStatus,
-	desiredNumber int,
+	desiredNumber int32,
 	complete bool) error {
 
 	var conditions []varmor.ArmorProfileModelCondition

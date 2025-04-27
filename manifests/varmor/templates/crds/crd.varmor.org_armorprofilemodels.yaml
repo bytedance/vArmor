@@ -324,6 +324,7 @@ spec:
             description: ArmorProfileModelStatus defines the observed state of ArmorProfileModel
             properties:
               completedNumber:
+                format: int32
                 type: integer
               conditions:
                 items:
@@ -355,6 +356,7 @@ spec:
                   type: object
                 type: array
               desiredNumber:
+                format: int32
                 type: integer
               ready:
                 description: It indicate whether the AppArmor Profile for target is
