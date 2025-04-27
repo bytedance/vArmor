@@ -281,7 +281,7 @@ kubectl get pods -A -o json | jq -r '
     ```bash
     $ kubectl get ArmorProfileModel -n kube-system $name -o jsonpath='{.data.dynamicResult.apparmor}' | jq > behavior_data.json
 
-    $ kubectl get ArmorProfileModel -n kube-system $name -o jsonpath='{.data.profile.content}' | base64 -d > apparmor_profile.txt
+    $ kubectl get ArmorProfileModel -n kube-system $name -o jsonpath='{.data.profile.content}' > apparmor_profile.txt
     ```
 
     注意：当 STORAGE-TYPE 为 LocalDisk 时，请参考[此方法](https://varmor.org/zh-cn/docs/main/guides/policies_and_rules/policy_modes/behavior_modeling/#%E6%95%B0%E6%8D%AE%E5%AF%BC%E5%87%BA)导出数据。

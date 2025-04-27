@@ -161,7 +161,7 @@ demo-4   AppArmorSeccomp   BehaviorModeling   Deployment                  {"matc
 
 After the modeling is complete, the agent preprocesses the behavioral data collected in the node (only for the target workload) and sends it to the manager. The manager will analyze the data collected by all nodes and save it in the `.data.dynamicResult` field of the [ArmorProfileModel](https://github.com/bytedance/vArmor/blob/main/apis/varmor/v1beta1/armorprofilemodel_types.go) object in the corresponding namespace.
 
-After the manager has processed the behavioral data for all nodes, it generates an AppArmor or Seccomp Profile for the target workload in an allowlist fashion (Deny-by-Default) and saves it in the `.data.profile.content` and `.data.profile.seccompContent` fields of the ArmorProfileModel object (encoded in base64).
+After the manager has processed the behavioral data for all nodes, it generates an AppArmor or Seccomp Profile for the target workload in an allowlist fashion (Deny-by-Default) and saves it in the `.data.profile.content` and `.data.profile.seccompContent` fields of the ArmorProfileModel object.
 
 When the amount of data is too large to be saved in the CRD object, the manager saves it locally. You can determine how the behavioral data and profiles are stored by using the `.storageType` field of the ArmorProfileModel object.
 
@@ -401,7 +401,7 @@ vArmor can also generate an AppArmor profile and a Seccomp profile in a "Deny by
 Use the following commands to print the AppArmor profile.
 
 ```bash
-$ kubectl get ArmorProfileModel -n varmor varmor-cluster-varmor-demo-4 -o jsonpath='{.data.profile.content}' | base64 -d
+$ kubectl get ArmorProfileModel -n varmor varmor-cluster-varmor-demo-4 -o jsonpath='{.data.profile.content}'
 
 ## == Managed by vArmor == ##
 
@@ -458,7 +458,7 @@ profile varmor-cluster-varmor-demo-4 flags=(attach_disconnected,mediate_deleted)
 Use the following commands to print the Seccomp profile.
 
 ```bash
-$ kubectl get ArmorProfileModel -n varmor varmor-cluster-varmor-demo-4 -o jsonpath='{.data.profile.seccompContent}' | base64 -d | jq
+$ kubectl get ArmorProfileModel -n varmor varmor-cluster-varmor-demo-4 -o jsonpath='{.data.profile.seccompContent}' | jq
 {
   "defaultAction": "SCMP_ACT_ERRNO",
   "syscalls": [

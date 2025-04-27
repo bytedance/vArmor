@@ -235,7 +235,7 @@ vArmor 还会基于行为数据生成默认拦截的 AppArmor 和 Seccomp profil
 您可以使用下面的命令输出 AppArmor profile。
 
 ```bash
-$ kubectl get ArmorProfileModel -n varmor varmor-cluster-varmor-demo-4 -o jsonpath='{.data.profile.content}' | base64 -d
+$ kubectl get ArmorProfileModel -n varmor varmor-cluster-varmor-demo-4 -o jsonpath='{.data.profile.content}'
 
 ## == Managed by vArmor == ##
 
@@ -292,7 +292,7 @@ profile varmor-cluster-varmor-demo-4 flags=(attach_disconnected,mediate_deleted)
 您可以使用下面的命令输出 Seccomp profile。
 
 ```bash
-$ kubectl get ArmorProfileModel -n varmor varmor-cluster-varmor-demo-4 -o jsonpath='{.data.profile.seccompContent}' | base64 -d | jq
+$ kubectl get ArmorProfileModel -n varmor varmor-cluster-varmor-demo-4 -o jsonpath='{.data.profile.seccompContent}' | jq
 {
   "defaultAction": "SCMP_ACT_ERRNO",
   "syscalls": [

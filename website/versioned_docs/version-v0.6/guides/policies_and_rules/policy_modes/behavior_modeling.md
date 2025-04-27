@@ -229,7 +229,7 @@ vArmor can also generate an AppArmor profile and a Seccomp profile in a "Deny by
 Use the following commands to print the AppArmor profile.
 
 ```bash
-$ kubectl get ArmorProfileModel -n varmor varmor-cluster-varmor-demo-4 -o jsonpath='{.data.profile.content}' | base64 -d
+$ kubectl get ArmorProfileModel -n varmor varmor-cluster-varmor-demo-4 -o jsonpath='{.data.profile.content}'
 
 ## == Managed by vArmor == ##
 
@@ -286,7 +286,7 @@ profile varmor-cluster-varmor-demo-4 flags=(attach_disconnected,mediate_deleted)
 Use the following commands to print the Seccomp profile.
 
 ```bash
-$ kubectl get ArmorProfileModel -n varmor varmor-cluster-varmor-demo-4 -o jsonpath='{.data.profile.seccompContent}' | base64 -d | jq
+$ kubectl get ArmorProfileModel -n varmor varmor-cluster-varmor-demo-4 -o jsonpath='{.data.profile.seccompContent}' | jq
 {
   "defaultAction": "SCMP_ACT_ERRNO",
   "syscalls": [

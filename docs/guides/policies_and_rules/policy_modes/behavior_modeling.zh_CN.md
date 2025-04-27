@@ -150,7 +150,7 @@ demo-4   AppArmorSeccomp   BehaviorModeling   Deployment                  {"matc
 
 建模完成后，agent 会对在节点上采集到的（目标工作负载的）行为数据进行预处理，然后将其发送到 manager。而 manager 将对所有节点采集的数据进行分析，并将其保存在对应命名空间的 [ArmorProfileModel](https://github.com/bytedance/vArmor/blob/main/apis/varmor/v1beta1/armorprofilemodel_types.go) 对象的 `.data.dynamicResult` 字段中。
   
-manager 处理完所有节点的行为数据后，它会以白名单方式（Deny-by-Default）为目标工作负载生成 AppArmor 或 Seccomp Profile，并保存在 ArmorProfileModel 对象的 `.data.profile.content` 和 `.data.profile.seccompContent` 字段中（以 base64 编码）。
+manager 处理完所有节点的行为数据后，它会以白名单方式（Deny-by-Default）为目标工作负载生成 AppArmor 或 Seccomp Profile，并保存在 ArmorProfileModel 对象的 `.data.profile.content` 和 `.data.profile.seccompContent` 字段中。
   
 当数据量过大导致无法保存在 CRD 对象中时，manager 会将其保存在本地。您可以通过 ArmorProfileModel 对象的 `.storageType` 字段判断行为数据和 Profile 的存储形式。
 
@@ -382,7 +382,7 @@ vArmor 还会基于行为数据生成默认拦截的 AppArmor 和 Seccomp profil
 您可以使用下面的命令输出 AppArmor profile。
 
 ```bash
-$ kubectl get ArmorProfileModel -n varmor varmor-cluster-varmor-demo-4 -o jsonpath='{.data.profile.content}' | base64 -d
+$ kubectl get ArmorProfileModel -n varmor varmor-cluster-varmor-demo-4 -o jsonpath='{.data.profile.content}'
 
 ## == Managed by vArmor == ##
 
@@ -439,7 +439,7 @@ profile varmor-cluster-varmor-demo-4 flags=(attach_disconnected,mediate_deleted)
 您可以使用下面的命令输出 Seccomp profile。
 
 ```bash
-$ kubectl get ArmorProfileModel -n varmor varmor-cluster-varmor-demo-4 -o jsonpath='{.data.profile.seccompContent}' | base64 -d | jq
+$ kubectl get ArmorProfileModel -n varmor varmor-cluster-varmor-demo-4 -o jsonpath='{.data.profile.seccompContent}' | jq
 {
   "defaultAction": "SCMP_ACT_ERRNO",
   "syscalls": [
