@@ -183,6 +183,13 @@ func (enforcer *BpfEnforcer) applyNetworkRules(nsID uint32, networks []varmor.Ne
 			if network.Address != nil {
 				// Socket Connect
 				rule.Port = network.Address.Port
+				rule.EndPort = network.Address.EndPort
+				if len(network.Address.Ports) > 16 {
+					return fmt.Errorf("too many ports in a single network rule, max is 16")
+				} else {
+					copy(rule.Ports[:], network.Address.Ports)
+				}
+
 				ip := net.ParseIP(network.Address.IP)
 				if ip.To4() != nil {
 					copy(rule.Address[:], ip.To4())

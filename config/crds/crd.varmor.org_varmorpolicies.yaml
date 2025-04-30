@@ -82,9 +82,8 @@ spec:
                       allowViolations:
                         description: "AllowViolations determines whether to allow
                           the actions that are against the mandatory access control
-                          rules. Currently, this feature supports AppArmor and BPF
-                          enforcers. Any detected violation will be allowed instead
-                          of being blocked. \n Default is false."
+                          rules. Any detected violation will be allowed instead of
+                          being blocked. \n Default is false."
                         type: boolean
                       appArmorRawRules:
                         description: AppArmorRawRules is used to set custom AppArmor
@@ -133,9 +132,10 @@ spec:
                       auditViolations:
                         description: "AuditViolations determines whether to audit
                           the actions that violate the mandatory access control rules.
-                          Currently, this feature supports AppArmor and BPF enforcers.
                           Any detected violation will be logged to `/var/log/varmor/violations.log`
-                          file in the host. \n Default is false."
+                          file in the host. Please note that the Seccomp enforcer
+                          does not support auditing violations when the allowViolations
+                          field is set to `false`. \n Default is false."
                         type: boolean
                       bpfRawRules:
                         description: BpfRawRules is used to set custom BPF rules.
@@ -197,32 +197,62 @@ spec:
                               type: object
                             type: array
                           network:
+                            description: NetworkRule describes a network rule to match
+                              traffic
                             properties:
                               egresses:
-                                description: Egresses are the list of egress rules
-                                  to be applied to restrict particular IPs and ports.
+                                description: Egresses are the list of network egress
+                                  rules to match traffic for connect(2) operations.
                                 items:
+                                  description: NetworkEgressRule describes a network
+                                    egress rule to match traffic for connect(2) operations.
                                   properties:
                                     ip:
-                                      description: IP defines policy on a particular
+                                      description: IP defines this rule on a particular
                                         IP. Note that the ip field and ipBlock field
                                         are mutually exclusive.
                                       type: string
                                     ipBlock:
-                                      description: IPBlock defines policy on a particular
-                                        IPBlock with CIDR.
+                                      description: IPBlock defines this rule on a
+                                        particular IPBlock with CIDR. Note that the
+                                        ip field and ipBlock field are mutually exclusive.
                                       type: string
-                                    port:
-                                      description: Port defines policy on a particular
-                                        port. If this field is zero or missing, this
-                                        rule matches all ports.
-                                      type: integer
+                                    ports:
+                                      description: Ports define this rule on particular
+                                        ports. Each item in this list is combined
+                                        using a logical OR. If this field is empty
+                                        or missing, this rule matches all ports. If
+                                        this field is present and contains at least
+                                        one item, then this rule matches all ports
+                                        in the list.
+                                      items:
+                                        description: Port describes a port or port
+                                          range to match traffic
+                                        properties:
+                                          endPort:
+                                            description: If set, indicates that the
+                                              range of ports from port to endPort.
+                                              The endPort must be equal or greater
+                                              than port and must be in the range [1,
+                                              65535].
+                                            type: integer
+                                          port:
+                                            description: Port is the port number to
+                                              match traffic. The port number must
+                                              be in the range [1, 65535].
+                                            type: integer
+                                        required:
+                                        - port
+                                        type: object
+                                      type: array
                                   type: object
                                 type: array
                               sockets:
-                                description: Sockets are the list of socket rules
-                                  to restrict all socket(2) operations.
+                                description: Sockets are the list of network socket
+                                  rules to match traffic for socket(2) operations.
                                 items:
+                                  description: NetworkSocketRule describes a network
+                                    socket rule to match traffic for socket(2) operations.
                                   properties:
                                     domains:
                                       description: "Domains specifies the communication

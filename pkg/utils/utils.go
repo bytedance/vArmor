@@ -30,13 +30,13 @@ func ReadMntNsID(pid uint32) (uint32, error) {
 
 	index := strings.Index(realPath, "[")
 	if index == -1 {
-		return 0, fmt.Errorf(fmt.Sprintf("fatel error: can not parser mnt ns id from: %s", realPath))
+		return 0, fmt.Errorf("fatel error: can not parser mnt ns id from: %s", realPath)
 	}
 
 	id := realPath[index+1 : len(realPath)-1]
 	u64, err := strconv.ParseUint(id, 10, 32)
 	if err != nil {
-		return 0, fmt.Errorf(fmt.Sprintf("fatel error: can not transform mnt ns id (%s) to uint64 type", realPath))
+		return 0, fmt.Errorf("fatel error: can not transform mnt ns id (%s) to uint64 type", realPath)
 	}
 
 	return uint32(u64), nil

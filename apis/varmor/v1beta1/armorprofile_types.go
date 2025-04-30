@@ -42,9 +42,11 @@ type FileContent struct {
 }
 
 type NetworkAddress struct {
-	IP   string `json:"ip,omitempty"`
-	CIDR string `json:"cidr,omitempty"`
-	Port uint32 `json:"port,omitempty"`
+	IP      string   `json:"ip,omitempty"`
+	CIDR    string   `json:"cidr,omitempty"`
+	Port    uint16   `json:"port,omitempty"`
+	EndPort uint16   `json:"endPort,omitempty"`
+	Ports   []uint16 `json:"ports,omitempty"`
 }
 
 type NetworkSocket struct {

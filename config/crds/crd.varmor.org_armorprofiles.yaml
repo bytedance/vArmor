@@ -147,11 +147,16 @@ spec:
                               properties:
                                 cidr:
                                   type: string
+                                endPort:
+                                  type: integer
                                 ip:
                                   type: string
                                 port:
-                                  format: int32
                                   type: integer
+                                ports:
+                                  items:
+                                    type: integer
+                                  type: array
                               type: object
                             flags:
                               format: int32
