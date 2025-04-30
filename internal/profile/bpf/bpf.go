@@ -444,14 +444,14 @@ func generateAttackProtectionRules(content *varmor.BpfContent, mode uint32, rule
 		content.Files = append(content.Files, *fileContent)
 	case "disallow-metadata-service":
 		// For Aliyun, Volc Engine, etc.
-		networkContent, err = newBpfNetworkConnectRule(mode, "", "100.96.0.96", 0)
+		networkContent, err = newBpfNetworkConnectRule(mode, "", "100.96.0.96", 0, 0, nil)
 		if err != nil {
 			return err
 		}
 		content.Networks = append(content.Networks, *networkContent)
 
 		// For AWS, GCP, Azure, etc.
-		networkContent, err = newBpfNetworkConnectRule(mode, "", "169.254.169.254", 0)
+		networkContent, err = newBpfNetworkConnectRule(mode, "", "169.254.169.254", 0, 0, nil)
 		if err != nil {
 			return err
 		}
@@ -799,11 +799,70 @@ func generateRawNetworkSocketRule(bpfContent *varmor.BpfContent, mode uint32, ru
 }
 
 func generateRawNetworkEgressRule(bpfContent *varmor.BpfContent, mode uint32, rule varmor.NetworkEgressRule) error {
-	networkContent, err := newBpfNetworkConnectRule(mode, rule.IPBlock, rule.IP, uint32(rule.Port))
-	if err != nil {
-		return err
+	var ports []uint16
+	var portRanges []struct {
+		Port    uint16
+		EndPort uint16
 	}
-	bpfContent.Networks = append(bpfContent.Networks, *networkContent)
+
+	// Regroup the port and port range
+	for _, port := range rule.Ports {
+		if port.Port != 0 && (port.EndPort == 0 || port.Port == port.EndPort) {
+			ports = append(ports, port.Port)
+		} else if port.Port != 0 && port.EndPort != 0 && port.EndPort > port.Port {
+			portRanges = append(portRanges, struct {
+				Port    uint16
+				EndPort uint16
+			}{
+				Port:    port.Port,
+				EndPort: port.EndPort,
+			})
+		} else {
+			return fmt.Errorf("policy contains an illegal NetworkEgressRule rule, found invalid port(%d) or endPort(%d)", port.Port, port.EndPort)
+		}
+	}
+
+	if len(ports) == 0 && len(portRanges) == 0 {
+		// If no ports or port ranges are specified, this rule matches all ports
+		networkContent, err := newBpfNetworkConnectRule(mode, rule.IPBlock, rule.IP, 0, 0, nil)
+		if err != nil {
+			return err
+		}
+		bpfContent.Networks = append(bpfContent.Networks, *networkContent)
+		return nil
+	} else {
+		// For port ranges, we need to create a separate rule for each range
+		for _, portRange := range portRanges {
+			networkContent, err := newBpfNetworkConnectRule(mode, rule.IPBlock, rule.IP, portRange.Port, portRange.EndPort, nil)
+			if err != nil {
+				return err
+			}
+			bpfContent.Networks = append(bpfContent.Networks, *networkContent)
+		}
+
+		// If multiple ports are specified, we need to group them into chunks of 16
+		for i := 0; i < len(ports); i += 16 {
+			end := i + 16
+			if end > len(ports) {
+				end = len(ports)
+			}
+			group := ports[i:end]
+			if len(group) == 1 {
+				// If only one port is specified, we can use it directly
+				networkContent, err := newBpfNetworkConnectRule(mode, rule.IPBlock, rule.IP, group[0], 0, nil)
+				if err != nil {
+					return err
+				}
+				bpfContent.Networks = append(bpfContent.Networks, *networkContent)
+			} else {
+				networkContent, err := newBpfNetworkConnectRule(mode, rule.IPBlock, rule.IP, 0, 0, &group)
+				if err != nil {
+					return err
+				}
+				bpfContent.Networks = append(bpfContent.Networks, *networkContent)
+			}
+		}
+	}
 
 	return nil
 }
@@ -1061,19 +1120,19 @@ func GenerateEnhanceProtectProfile(enhanceProtect *varmor.EnhanceProtect, bpfCon
 	}
 
 	if len(bpfContent.Files) > bpfenforcer.MaxBpfFileRuleCount {
-		return fmt.Errorf("the maximum number of BPF file rules exceeded(Max Count: %d)", bpfenforcer.MaxBpfFileRuleCount)
+		return fmt.Errorf("the maximum number of BPF file rules exceeded (max: %d)", bpfenforcer.MaxBpfFileRuleCount)
 	}
 
 	if len(bpfContent.Processes) > bpfenforcer.MaxBpfBprmRuleCount {
-		return fmt.Errorf("the maximum number of BPF bprm rules exceeded(Max Count: %d)", bpfenforcer.MaxBpfBprmRuleCount)
+		return fmt.Errorf("the maximum number of BPF bprm rules exceeded (max: %d)", bpfenforcer.MaxBpfBprmRuleCount)
 	}
 
 	if len(bpfContent.Networks) > bpfenforcer.MaxBpfNetworkRuleCount {
-		return fmt.Errorf("the maximum number of BPF network rules exceeded(Max Count: %d)", bpfenforcer.MaxBpfNetworkRuleCount)
+		return fmt.Errorf("the maximum number of BPF network rules exceeded (max: %d)", bpfenforcer.MaxBpfNetworkRuleCount)
 	}
 
 	if len(bpfContent.Mounts) > bpfenforcer.MaxBpfMountRuleCount {
-		return fmt.Errorf("the maximum number of BPF mount rules exceeded(Max Count: %d)", bpfenforcer.MaxBpfMountRuleCount)
+		return fmt.Errorf("the maximum number of BPF mount rules exceeded (max: %d)", bpfenforcer.MaxBpfMountRuleCount)
 	}
 
 	return nil

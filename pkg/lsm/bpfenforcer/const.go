@@ -35,27 +35,31 @@ const (
 	// it's equal to FILE_PATH_PATTERN_SIZE_MAX in BPF code
 	MaxFilePathPatternLength = 64
 
-	// PathPatternSize is the size of `struct path_pattern` in BPF code
+	// PathPatternSize is the size of pathPattern in bpfPathRule structure
 	PathPatternSize = 4 + MaxFilePathPatternLength*2
 
-	// PathRuleSize is the size of `struct path_rule` in BPF code, it's
-	// also the value size of the inner map for file and execution access control.
+	// PathRuleSize is the size of bpfPathRule structure, which must match
+	// the size of `struct path_rule` in BPF code for consistent map entry size.
 	PathRuleSize = 4*2 + PathPatternSize
-
-	// IpAddressSize is the size of IP address and mask.
-	IpAddressSize = 16
-
-	// NetRuleSize is the size of `struct net_rule` in BPF code, it's
-	// also the value size of the inner map for network access control.
-	NetRuleSize = 4*3 + 8*3 + IpAddressSize*2
 
 	// MaxFileSystemTypeLength is the max length of fstype pattern,
 	// it's equal to FILE_SYSTEM_TYPE_MAX in BPF code
 	MaxFileSystemTypeLength = 16
 
-	// MountRuleSize is the size of `struct mount_rule` in BPF code, it's
-	// also the value size of the inner map for mount access control.
+	// MountRuleSize is the size of bpfMountRule structure, which must match
+	// the size of `struct mount_rule` in BPF code for consistent map entry size.
 	MountRuleSize = 4*3 + MaxFileSystemTypeLength + PathPatternSize
+
+	// IpAddressSize is the size of IP address and mask.
+	IpAddressSize = 16
+
+	// MaxPortsCount is the max count of ports in network rule,
+	// it's equal to PORTS_COUNT_MAX in BPF code
+	MaxPortsCount = 16
+
+	// NetRuleSize is the size of bpfNetworkRule structure, which must match
+	// the size of `struct net_rule` in BPF code for consistent map entry size.
+	NetRuleSize = 4*2 + 8*3 + 2*(2+MaxPortsCount) + IpAddressSize*2
 
 	// PinPath is the path we want to pin the maps
 	PinPath = "/sys/fs/bpf/varmor"
@@ -75,11 +79,13 @@ const (
 	SuffixMatch  = 0x00000008
 
 	// Matching Flag for Network Rule
-	CidrMatch   = 0x00000020
-	Ipv4Match   = 0x00000040
-	Ipv6Match   = 0x00000080
-	PortMatch   = 0x00000100
-	SocketMatch = 0x00000200
+	CidrMatch      = 0x00000020
+	Ipv4Match      = 0x00000040
+	Ipv6Match      = 0x00000080
+	PortMatch      = 0x00000100
+	SocketMatch    = 0x00000200
+	PortRangeMatch = 0x00000400
+	PortsMatch     = 0x00000800
 
 	// Matching Permissions
 	AaMayExec     = 0x00000001

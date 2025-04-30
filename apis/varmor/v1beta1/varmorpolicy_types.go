@@ -63,18 +63,32 @@ type FileRule struct {
 	Permissions []string `json:"permissions"`
 }
 
-type NetworkEgressRule struct {
-	// IPBlock defines policy on a particular IPBlock with CIDR.
-	// +optional
-	IPBlock string `json:"ipBlock,omitempty"`
-	// IP defines policy on a particular IP. Note that the ip field and ipBlock field are mutually exclusive.
-	// +optional
-	IP string `json:"ip,omitempty"`
-	// Port defines policy on a particular port. If this field is zero or missing, this rule matches all ports.
-	// +optional
-	Port int `json:"port,omitempty"`
+// Port describes a port or port range to match traffic
+type Port struct {
+	// Port is the port number to match traffic. The port number must be in the range [1, 65535].
+	Port uint16 `json:"port"`
+	// If set, indicates that the range of ports from port to endPort. The endPort must be equal or greater
+	// than port and must be in the range [1, 65535].
+	EndPort uint16 `json:"endPort,omitempty"`
 }
 
+// NetworkEgressRule describes a network egress rule to match traffic for connect(2) operations.
+type NetworkEgressRule struct {
+	// IPBlock defines this rule on a particular IPBlock with CIDR. Note that the ip field and ipBlock field
+	// are mutually exclusive.
+	// +optional
+	IPBlock string `json:"ipBlock,omitempty"`
+	// IP defines this rule on a particular IP. Note that the ip field and ipBlock field are mutually exclusive.
+	// +optional
+	IP string `json:"ip,omitempty"`
+	// Ports define this rule on particular ports. Each item in this list is combined using a logical OR.
+	// If this field is empty or missing, this rule matches all ports. If this field is present and contains
+	// at least one item, then this rule matches all ports in the list.
+	// +optional
+	Ports []Port `json:"ports,omitempty"`
+}
+
+// NetworkSocketRule describes a network socket rule to match traffic for socket(2) operations.
 type NetworkSocketRule struct {
 	// Domains specifies the communication domains of socket.
 	//
@@ -99,10 +113,11 @@ type NetworkSocketRule struct {
 	Protocols []string `json:"protocols,omitempty"`
 }
 
+// NetworkRule describes a network rule to match traffic
 type NetworkRule struct {
-	// Sockets are the list of socket rules to restrict all socket(2) operations.
+	// Sockets are the list of network socket rules to match traffic for socket(2) operations.
 	Sockets []NetworkSocketRule `json:"sockets,omitempty"`
-	// Egresses are the list of egress rules to be applied to restrict particular IPs and ports.
+	// Egresses are the list of network egress rules to match traffic for connect(2) operations.
 	Egresses []NetworkEgressRule `json:"egresses,omitempty"`
 }
 
@@ -200,15 +215,15 @@ type EnhanceProtect struct {
 	// +optional
 	Privileged bool `json:"privileged,omitempty"`
 	// AuditViolations determines whether to audit the actions that violate the mandatory access
-	// control rules. Currently, this feature supports AppArmor and BPF enforcers. Any detected
-	// violation will be logged to `/var/log/varmor/violations.log` file in the host.
+	// control rules. Any detected violation will be logged to `/var/log/varmor/violations.log`
+	// file in the host. Please note that the Seccomp enforcer does not support auditing violations
+	// when the allowViolations field is set to `false`.
 	//
 	// Default is false.
 	// +optional
 	AuditViolations bool `json:"auditViolations,omitempty"`
 	// AllowViolations determines whether to allow the actions that are against the mandatory
-	// access control rules. Currently, this feature supports AppArmor and BPF enforcers.
-	// Any detected violation will be allowed instead of being blocked.
+	// access control rules. Any detected violation will be allowed instead of being blocked.
 	//
 	// Default is false.
 	// +optional

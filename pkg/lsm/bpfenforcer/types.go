@@ -36,7 +36,9 @@ type bpfNetworkRule struct {
 	Protocols uint64
 	Address   [IpAddressSize]byte
 	Mask      [IpAddressSize]byte
-	Port      uint32
+	Port      uint16
+	EndPort   uint16
+	Ports     [MaxPortsCount]uint16
 }
 
 // bpfMountRule is the rule definition of mount policy primitive
@@ -84,7 +86,7 @@ type BpfNetworkSockAddr struct {
 	SaFamily uint32
 	SinAddr  uint32
 	Sin6Addr [16]byte
-	Port     uint32
+	Port     uint16
 }
 
 type BpfNetworkEvent struct {

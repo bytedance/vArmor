@@ -155,18 +155,38 @@ func newBpfNetworkCreateRule(mode uint32, domains uint64, types uint64, protocol
 		}}, nil
 }
 
-func newBpfNetworkConnectRule(mode uint32, cidr string, ip string, port uint32) (*varmor.NetworkContent, error) {
+func newBpfNetworkConnectRule(mode uint32, cidr string, ip string, port uint16, endPort uint16, ports *[]uint16) (*varmor.NetworkContent, error) {
 	// Pre-check
-	if cidr == "" && ip == "" && port == 0 {
-		return nil, fmt.Errorf("policy contains an illegal NetworkEgressRule rule; the cidr, ip and port fields cannot be empty at the same time")
+	if cidr == "" && ip == "" && port == 0 && endPort == 0 && ports == nil {
+		return nil, fmt.Errorf("cidr, ipAddress, port, endPort and ports cannot be empty at the same time")
 	}
 
 	if cidr != "" && ip != "" {
-		return nil, fmt.Errorf("policy contains an illegal NetworkEgressRule rule; the cidr and ip fields cannot be set at the same time")
+		return nil, fmt.Errorf("cannot set CIRD and IP address at the same time")
 	}
 
-	if port > 65535 {
-		return nil, fmt.Errorf("policy contains an illegal NetworkEgressRule rule; the network port '%d' is invalid", port)
+	if (port != 0 || endPort != 0) && ports != nil {
+		return nil, fmt.Errorf("cannot set port/endPort and ports at the same time")
+	}
+
+	if port == 0 && endPort != 0 {
+		return nil, fmt.Errorf("port cannot be 0 when endPort is set")
+	}
+
+	if endPort != 0 && endPort < port {
+		return nil, fmt.Errorf("endPort cannot be less than port")
+	}
+
+	if ports != nil && len(*ports) > 16 {
+		return nil, fmt.Errorf("the number of ports cannot be greater than 16")
+	}
+
+	if ports != nil {
+		for _, p := range *ports {
+			if p == 0 {
+				return nil, fmt.Errorf("invalid network port in ports")
+			}
+		}
 	}
 
 	networkRule := varmor.NetworkContent{
@@ -207,7 +227,15 @@ func newBpfNetworkConnectRule(mode uint32, cidr string, ip string, port uint32) 
 		}
 	}
 
-	if port != 0 {
+	if ports != nil {
+		networkRule.Flags |= bpfenforcer.PortsMatch
+		networkRule.Address.Ports = make([]uint16, len(*ports))
+		copy(networkRule.Address.Ports, *ports)
+	} else if port != 0 && endPort != 0 {
+		networkRule.Flags |= bpfenforcer.PortRangeMatch
+		networkRule.Address.Port = port
+		networkRule.Address.EndPort = endPort
+	} else if port != 0 {
 		networkRule.Flags |= bpfenforcer.PortMatch
 		networkRule.Address.Port = port
 	}

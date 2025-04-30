@@ -141,9 +141,7 @@ func (enforcer *BpfEnforcer) initBPF() error {
 	if err != nil {
 		return err
 	}
-	collectionSpec.RewriteConstants(map[string]interface{}{
-		"init_mnt_ns": initMntNsId,
-	})
+	collectionSpec.Variables["init_mnt_ns"].Set(initMntNsId)
 
 	// Load pre-compiled programs and maps into the kernel.
 	if err := os.MkdirAll(PinPath, os.ModePerm); err != nil {
