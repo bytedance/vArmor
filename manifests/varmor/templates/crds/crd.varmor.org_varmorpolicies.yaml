@@ -67,36 +67,36 @@ spec:
               or VarmorClusterPolicy
             properties:
               policy:
-                description: Policy specifies which enforcer, mode and rules you want
+                description: policy specifies which enforcer, mode and rules you want
                   to use to apply to the target.
                 properties:
                   enforcer:
-                    description: 'Enforcer is used to specify which LSM to use for
+                    description: 'enforcer is used to specify which LSM to use for
                       mandatory access control. Available values: AppArmor, BPF, Seccomp,
                       AppArmorBPF, AppArmorSeccomp, BPFSeccomp, AppArmorBPFSeccomp'
                     type: string
                   enhanceProtect:
-                    description: EnhanceProtect is used to specify which built-in
+                    description: enhanceProtect is used to specify which built-in
                       or custom rules are employed to protect the target workloads.
                     properties:
                       allowViolations:
-                        description: "AllowViolations determines whether to allow
+                        description: "allowViolations determines whether to allow
                           the actions that are against the mandatory access control
                           rules. Any detected violation will be allowed instead of
                           being blocked. \n Default is false."
                         type: boolean
                       appArmorRawRules:
-                        description: AppArmorRawRules is used to set custom AppArmor
+                        description: appArmorRawRules is used to set custom AppArmor
                           rules.
                         items:
                           properties:
                             rules:
-                              description: Rules define the custom AppArmor rules.
+                              description: rules define the custom AppArmor rules.
                                 You should make sure that they satisfy the AppArmor
                                 syntax on your own.
                               type: string
                             targets:
-                              description: Targets specify the executable files for
+                              description: targets specify the executable files for
                                 which the rules apply. They must be specified as full
                                 paths to the executable files.
                               items:
@@ -107,18 +107,18 @@ spec:
                           type: object
                         type: array
                       attackProtectionRules:
-                        description: AttackProtectionRules are used to specify the
+                        description: attackProtectionRules are used to specify the
                           built-in attack protection rules.
                         items:
                           properties:
                             rules:
-                              description: Rules is the list of built-in attack protection
+                              description: rules is the list of built-in attack protection
                                 rules to be used.
                               items:
                                 type: string
                               type: array
                             targets:
-                              description: Targets specify the executable files for
+                              description: targets specify the executable files for
                                 which the rules and rawRules apply. They must be specified
                                 as full paths to the executable files. This feature
                                 is only effective when using AppArmor as the enforcer.
@@ -130,7 +130,7 @@ spec:
                           type: object
                         type: array
                       auditViolations:
-                        description: "AuditViolations determines whether to audit
+                        description: "auditViolations determines whether to audit
                           the actions that violate the mandatory access control rules.
                           Any detected violation will be logged to `/var/log/varmor/violations.log`
                           file in the host. Please note that the Seccomp enforcer
@@ -138,18 +138,18 @@ spec:
                           field is set to `false`. \n Default is false."
                         type: boolean
                       bpfRawRules:
-                        description: BpfRawRules is used to set custom BPF rules.
+                        description: bpfRawRules is used to set custom BPF rules.
                         properties:
                           files:
                             items:
                               properties:
                                 pattern:
-                                  description: Pattern can be any string (maximum
+                                  description: pattern can be any string (maximum
                                     length 128 bytes) that conforms to the policy
                                     syntax, used for matching file paths and filenames
                                   type: string
                                 permissions:
-                                  description: "Permissions are used to specify the
+                                  description: "permissions are used to specify the
                                     file permissions to be disabled. \n Available
                                     values: all(*), read(r), write(w), exec(x), append(a)"
                                   items:
@@ -164,7 +164,7 @@ spec:
                             items:
                               properties:
                                 flags:
-                                  description: "Flags are used to specify the mount
+                                  description: "flags are used to specify the mount
                                     flags to enforce. They are almost the same as
                                     the 'MOUNT FLAGS LIST' of AppArmor. \n Available
                                     values: All Flags: all(*) Command Flags: ro(r,
@@ -181,12 +181,12 @@ spec:
                                     type: string
                                   type: array
                                 fstype:
-                                  description: Fstype is used to specify the type
+                                  description: fstype is used to specify the type
                                     of filesystem to enforce. It can be '*' to match
                                     any type.
                                   type: string
                                 sourcePattern:
-                                  description: SourcePattern can be any string (maximum
+                                  description: sourcePattern can be any string (maximum
                                     length 128 bytes) that conforms to the policy
                                     syntax, used for matching file paths and filenames
                                   type: string
@@ -200,62 +200,321 @@ spec:
                             description: NetworkRule describes a network rule to match
                               traffic
                             properties:
-                              egresses:
-                                description: Egresses are the list of network egress
-                                  rules to match traffic for connect(2) operations.
-                                items:
-                                  description: NetworkEgressRule describes a network
-                                    egress rule to match traffic for connect(2) operations.
-                                  properties:
-                                    ip:
-                                      description: IP defines this rule on a particular
-                                        IP. Note that the ip field and ipBlock field
-                                        are mutually exclusive.
-                                      type: string
-                                    ipBlock:
-                                      description: IPBlock defines this rule on a
-                                        particular IPBlock with CIDR. Note that the
-                                        ip field and ipBlock field are mutually exclusive.
-                                      type: string
-                                    ports:
-                                      description: Ports define this rule on particular
-                                        ports. Each item in this list is combined
-                                        using a logical OR. If this field is empty
-                                        or missing, this rule matches all ports. If
-                                        this field is present and contains at least
-                                        one item, then this rule matches all ports
-                                        in the list.
-                                      items:
-                                        description: Port describes a port or port
-                                          range to match traffic
-                                        properties:
-                                          endPort:
-                                            description: If set, indicates that the
-                                              range of ports from port to endPort.
-                                              The endPort must be equal or greater
-                                              than port and must be in the range [1,
-                                              65535].
-                                            type: integer
-                                          port:
-                                            description: Port is the port number to
-                                              match traffic. The port number must
-                                              be in the range [1, 65535].
-                                            type: integer
-                                        required:
-                                        - port
-                                        type: object
-                                      type: array
-                                  type: object
-                                type: array
+                              egress:
+                                description: 'egress defines network egress rules
+                                  to match traffic for connect(2) operations. Notes:
+                                  - The ToDestinations, ToServices, and ToPods fields
+                                  are in a logical OR relationship. - Within the same
+                                  field, multiple rules are also in a logical OR relationship.
+                                  - Overlapping rules targeting the same Pod/Service/IP
+                                  may cause unintended port combinations or conflicts.
+                                  - The system does not guarantee deduplication or
+                                  conflict resolution for overlapping targets. Users
+                                  must ensure that rules within these fields do not
+                                  repeatedly define the same Pod/Service/IP to avoid
+                                  unpredictable traffic control behavior.'
+                                properties:
+                                  toDestinations:
+                                    description: toDestinations describes specific
+                                      IPs or IP blocks with ports to match traffic.
+                                      Please ensure each IP/CIDR target is unique
+                                      to avoid configuration ambiguity.
+                                    items:
+                                      properties:
+                                        cidr:
+                                          description: cidr defines this rule on a
+                                            particular CIDR. Note that the ip field
+                                            and cidr field are mutually exclusive.
+                                          type: string
+                                        ip:
+                                          description: ip defines this rule on a particular
+                                            IP. Note that the ip field and ipBlock
+                                            field are mutually exclusive.
+                                          type: string
+                                        ports:
+                                          description: ports define this rule on particular
+                                            ports. Each item in this list is combined
+                                            using a logical OR. If this field is empty
+                                            or not present, this rule matches all
+                                            ports. If this field is present and contains
+                                            at least one item, then this rule matches
+                                            all ports in the list.
+                                          items:
+                                            description: Port describes a port or
+                                              port range to match traffic.
+                                            properties:
+                                              endPort:
+                                                description: If endPort is set, it
+                                                  indicates that the range of ports
+                                                  from port to endPort. The endPort
+                                                  must be equal or greater than port
+                                                  and must be in the range [1, 65535].
+                                                type: integer
+                                              port:
+                                                description: port is the port number
+                                                  to match traffic. The port number
+                                                  must be in the range [1, 65535].
+                                                type: integer
+                                            required:
+                                            - port
+                                            type: object
+                                          type: array
+                                      type: object
+                                    type: array
+                                  toPods:
+                                    description: toPods describes pods with ports
+                                      to match traffic. Please ensure selectors across
+                                      pod rules do NOT overlap. Overlapping rules
+                                      may cause undefined behavior.
+                                    items:
+                                      properties:
+                                        namespaceSelector:
+                                          description: namespaceSelector selects namespaces
+                                            using cluster-scoped labels. This field
+                                            follows standard label selector semantics;
+                                            if not present, it selects all namespaces.
+                                          properties:
+                                            matchExpressions:
+                                              description: matchExpressions is a list
+                                                of label selector requirements. The
+                                                requirements are ANDed.
+                                              items:
+                                                description: A label selector requirement
+                                                  is a selector that contains values,
+                                                  a key, and an operator that relates
+                                                  the key and values.
+                                                properties:
+                                                  key:
+                                                    description: key is the label
+                                                      key that the selector applies
+                                                      to.
+                                                    type: string
+                                                  operator:
+                                                    description: operator represents
+                                                      a key's relationship to a set
+                                                      of values. Valid operators are
+                                                      In, NotIn, Exists and DoesNotExist.
+                                                    type: string
+                                                  values:
+                                                    description: values is an array
+                                                      of string values. If the operator
+                                                      is In or NotIn, the values array
+                                                      must be non-empty. If the operator
+                                                      is Exists or DoesNotExist, the
+                                                      values array must be empty.
+                                                      This array is replaced during
+                                                      a strategic merge patch.
+                                                    items:
+                                                      type: string
+                                                    type: array
+                                                    x-kubernetes-list-type: atomic
+                                                required:
+                                                - key
+                                                - operator
+                                                type: object
+                                              type: array
+                                              x-kubernetes-list-type: atomic
+                                            matchLabels:
+                                              additionalProperties:
+                                                type: string
+                                              description: matchLabels is a map of
+                                                {key,value} pairs. A single {key,value}
+                                                in the matchLabels map is equivalent
+                                                to an element of matchExpressions,
+                                                whose key field is "key", the operator
+                                                is "In", and the values array contains
+                                                only "value". The requirements are
+                                                ANDed.
+                                              type: object
+                                          type: object
+                                          x-kubernetes-map-type: atomic
+                                        podSelector:
+                                          description: "podSelector is a label selector
+                                            which selects pods. This field follows
+                                            standard label selector semantics. \n
+                                            If namespaceSelector is also set, then
+                                            this rule selects the pods matching podSelector
+                                            in the namespaces selected by NamespaceSelector.
+                                            Otherwise it selects the pods matching
+                                            podSelector in all namespaces."
+                                          properties:
+                                            matchExpressions:
+                                              description: matchExpressions is a list
+                                                of label selector requirements. The
+                                                requirements are ANDed.
+                                              items:
+                                                description: A label selector requirement
+                                                  is a selector that contains values,
+                                                  a key, and an operator that relates
+                                                  the key and values.
+                                                properties:
+                                                  key:
+                                                    description: key is the label
+                                                      key that the selector applies
+                                                      to.
+                                                    type: string
+                                                  operator:
+                                                    description: operator represents
+                                                      a key's relationship to a set
+                                                      of values. Valid operators are
+                                                      In, NotIn, Exists and DoesNotExist.
+                                                    type: string
+                                                  values:
+                                                    description: values is an array
+                                                      of string values. If the operator
+                                                      is In or NotIn, the values array
+                                                      must be non-empty. If the operator
+                                                      is Exists or DoesNotExist, the
+                                                      values array must be empty.
+                                                      This array is replaced during
+                                                      a strategic merge patch.
+                                                    items:
+                                                      type: string
+                                                    type: array
+                                                    x-kubernetes-list-type: atomic
+                                                required:
+                                                - key
+                                                - operator
+                                                type: object
+                                              type: array
+                                              x-kubernetes-list-type: atomic
+                                            matchLabels:
+                                              additionalProperties:
+                                                type: string
+                                              description: matchLabels is a map of
+                                                {key,value} pairs. A single {key,value}
+                                                in the matchLabels map is equivalent
+                                                to an element of matchExpressions,
+                                                whose key field is "key", the operator
+                                                is "In", and the values array contains
+                                                only "value". The requirements are
+                                                ANDed.
+                                              type: object
+                                          type: object
+                                          x-kubernetes-map-type: atomic
+                                        ports:
+                                          description: ports define this rule on particular
+                                            ports. Each item in this list is combined
+                                            using a logical OR. If this field is empty
+                                            or not present, this rule matches all
+                                            ports. If this field is present and contains
+                                            at least one item, then this rule matches
+                                            all ports in the list.
+                                          items:
+                                            description: Port describes a port or
+                                              port range to match traffic.
+                                            properties:
+                                              endPort:
+                                                description: If endPort is set, it
+                                                  indicates that the range of ports
+                                                  from port to endPort. The endPort
+                                                  must be equal or greater than port
+                                                  and must be in the range [1, 65535].
+                                                type: integer
+                                              port:
+                                                description: port is the port number
+                                                  to match traffic. The port number
+                                                  must be in the range [1, 65535].
+                                                type: integer
+                                            required:
+                                            - port
+                                            type: object
+                                          type: array
+                                      required:
+                                      - podSelector
+                                      type: object
+                                    type: array
+                                  toServices:
+                                    description: toServices describes k8s services
+                                      and their endpoints to match traffic. Please
+                                      ensure selectors across service rules do NOT
+                                      overlap. Overlapping rules may cause undefined
+                                      behavior.
+                                    items:
+                                      properties:
+                                        name:
+                                          description: name selects a service by the
+                                            name and namespace pair.
+                                          type: string
+                                        namespace:
+                                          description: namespace selects a service
+                                            by the name and namespace pair.
+                                          type: string
+                                        serviceSelector:
+                                          description: serviceSelector is a label
+                                            selector which selects services. This
+                                            field follows standard label selector
+                                            semantics. It selects the services matching
+                                            serviceSelector in all namespaces. Note
+                                            that the serviceSelector field and other
+                                            fields are mutually exclusive.
+                                          properties:
+                                            matchExpressions:
+                                              description: matchExpressions is a list
+                                                of label selector requirements. The
+                                                requirements are ANDed.
+                                              items:
+                                                description: A label selector requirement
+                                                  is a selector that contains values,
+                                                  a key, and an operator that relates
+                                                  the key and values.
+                                                properties:
+                                                  key:
+                                                    description: key is the label
+                                                      key that the selector applies
+                                                      to.
+                                                    type: string
+                                                  operator:
+                                                    description: operator represents
+                                                      a key's relationship to a set
+                                                      of values. Valid operators are
+                                                      In, NotIn, Exists and DoesNotExist.
+                                                    type: string
+                                                  values:
+                                                    description: values is an array
+                                                      of string values. If the operator
+                                                      is In or NotIn, the values array
+                                                      must be non-empty. If the operator
+                                                      is Exists or DoesNotExist, the
+                                                      values array must be empty.
+                                                      This array is replaced during
+                                                      a strategic merge patch.
+                                                    items:
+                                                      type: string
+                                                    type: array
+                                                    x-kubernetes-list-type: atomic
+                                                required:
+                                                - key
+                                                - operator
+                                                type: object
+                                              type: array
+                                              x-kubernetes-list-type: atomic
+                                            matchLabels:
+                                              additionalProperties:
+                                                type: string
+                                              description: matchLabels is a map of
+                                                {key,value} pairs. A single {key,value}
+                                                in the matchLabels map is equivalent
+                                                to an element of matchExpressions,
+                                                whose key field is "key", the operator
+                                                is "In", and the values array contains
+                                                only "value". The requirements are
+                                                ANDed.
+                                              type: object
+                                          type: object
+                                          x-kubernetes-map-type: atomic
+                                      type: object
+                                    type: array
+                                type: object
                               sockets:
-                                description: Sockets are the list of network socket
+                                description: sockets are the list of network socket
                                   rules to match traffic for socket(2) operations.
                                 items:
                                   description: NetworkSocketRule describes a network
                                     socket rule to match traffic for socket(2) operations.
                                   properties:
                                     domains:
-                                      description: "Domains specifies the communication
+                                      description: "domains specifies the communication
                                         domains of socket. \n Available values: all(*),
                                         unix, inet, ax25, ipx, appletalk, netrom,
                                         bridge, atmpvc, x25, inet6, rose, netbeui,
@@ -268,7 +527,7 @@ spec:
                                         type: string
                                       type: array
                                     protocols:
-                                      description: "Protocols specifies the particular
+                                      description: "protocols specifies the particular
                                         protocols to be used with the socket. Note
                                         that the protocols field and types field are
                                         mutually exclusive. \n Available values: all(*),
@@ -277,7 +536,7 @@ spec:
                                         type: string
                                       type: array
                                     types:
-                                      description: "Types specifies the communication
+                                      description: "types specifies the communication
                                         semantics of socket. \n Available values:
                                         all(*), stream, dgram, raw, rdm, seqpacket,
                                         dccp, packet"
@@ -291,12 +550,12 @@ spec:
                             items:
                               properties:
                                 pattern:
-                                  description: Pattern can be any string (maximum
+                                  description: pattern can be any string (maximum
                                     length 128 bytes) that conforms to the policy
                                     syntax, used for matching file paths and filenames
                                   type: string
                                 permissions:
-                                  description: "Permissions are used to specify the
+                                  description: "permissions are used to specify the
                                     file permissions to be disabled. \n Available
                                     values: all(*), read(r), write(w), exec(x), append(a)"
                                   items:
@@ -310,7 +569,7 @@ spec:
                           ptrace:
                             properties:
                               permissions:
-                                description: "Permissions are used to indicate which
+                                description: "permissions are used to indicate which
                                   ptrace-related permissions of the target container
                                   should be restricted. \n Available values: all(*),
                                   trace, traceby, read, readby. - trace: prohibiting
@@ -332,7 +591,7 @@ spec:
                                   type: string
                                 type: array
                               strictMode:
-                                description: StrictMode is used to indicate whether
+                                description: strictMode is used to indicate whether
                                   to restrict ptrace operations for all source and
                                   destination processes. Default is false. If set
                                   to false, it allows a process to perform trace and
@@ -348,13 +607,13 @@ spec:
                             type: object
                         type: object
                       hardeningRules:
-                        description: HardeningRules are used to specify the built-in
+                        description: hardeningRules are used to specify the built-in
                           hardening rules.
                         items:
                           type: string
                         type: array
                       privileged:
-                        description: "Privileged is used to identify whether the policy
+                        description: "privileged is used to identify whether the policy
                           is for the privileged container. If set to `nil` or `false`,
                           the EnhanceProtect mode will build AppArmor or BPF profile
                           on top of the RuntimeDefault mode. Otherwise, it will build
@@ -363,7 +622,7 @@ spec:
                           not build Seccomp profile for the target workloads."
                         type: boolean
                       syscallRawRules:
-                        description: SyscallRawRules is used to set the syscalls blocklist
+                        description: syscallRawRules is used to set the syscalls blocklist
                           rules with Seccomp enforcer.
                         items:
                           description: LinuxSyscall is used to match a syscall in
@@ -408,23 +667,24 @@ spec:
                           type: object
                         type: array
                       vulMitigationRules:
-                        description: VulMitigationRules are used to specify the built-in
+                        description: vulMitigationRules are used to specify the built-in
                           vulnerability mitigation rules.
                         items:
                           type: string
                         type: array
                     type: object
                   mode:
-                    description: "Available values: AlwaysAllow, RuntimeDefault, EnhanceProtect,
-                      BehaviorModeling, DefenseInDepth \n Note: BehaviorModeling and
-                      DefenseInDepth modes are experimental features and currently
-                      only work with AppArmor/Seccomp/AppArmorSeccomp enforcers."
+                    description: "mode used to specify the protection mode. Available
+                      values: AlwaysAllow, RuntimeDefault, EnhanceProtect, BehaviorModeling,
+                      DefenseInDepth \n Note: BehaviorModeling and DefenseInDepth
+                      modes are experimental features and currently only work with
+                      AppArmor/Seccomp/AppArmorSeccomp enforcers."
                     type: string
                   modelingOptions:
-                    description: ModelingOptions is used for the modeling settings.
+                    description: modelingOptions is used for the modeling settings.
                     properties:
                       duration:
-                        description: Duration is the duration in minutes to modeling
+                        description: duration is the duration in minutes to modeling
                         type: integer
                     required:
                     - duration
@@ -434,29 +694,31 @@ spec:
                 - mode
                 type: object
               target:
-                description: Target specifies the workloads and their containers you
+                description: target specifies the workloads and their containers you
                   want to harden.
                 properties:
                   containers:
-                    description: Containers are used to specify the names of the protected
-                      containers. If it is empty, sandbox protection will be enabled
-                      for all containers within the workload (excluding initContainers
-                      and ephemeralContainers).
+                    description: containers are used to specify the names of the containers.
+                      If it is empty, sandbox protection will be enabled for all containers
+                      within the workload (excluding initContainers and ephemeralContainers).
                     items:
                       type: string
                     type: array
                   kind:
-                    description: 'Kind is used to specify the type of workloads for
+                    description: 'kind is used to specify the type of workloads for
                       the protection targets. Available values: Deployment, StatefulSet,
                       DaemonSet, Pod.'
                     type: string
                   name:
-                    description: Name is used to specify a specific workload name.
+                    description: name is used to specify a specific workload in the
+                      policy's namespace or all namespace. Note that the name field
+                      and selector field are mutually exclusive.
                     type: string
                   selector:
-                    description: LabelSelector is used to match workloads that meet
-                      the specified conditions. Note that the selector field and name
-                      field are mutually exclusive.
+                    description: selector is a label selector which selects workloads
+                      in the policy's namespace or all namespace. This field follows
+                      standard label selector semantics. Note that the selector field
+                      and name field are mutually exclusive.
                     properties:
                       matchExpressions:
                         description: matchExpressions is a list of label selector
@@ -506,7 +768,7 @@ spec:
                 - kind
                 type: object
               updateExistingWorkloads:
-                description: "UpdateExistingWorkloads is used to indicate whether
+                description: "updateExistingWorkloads is used to indicate whether
                   to perform a rolling update on target existing workloads, thus enabling
                   or disabling the protection of the target workloads when policies
                   are created or deleted. Default is false. \n Note: vArmor only performs

@@ -25,11 +25,15 @@ import (
 
 func TestGenerateRawNetworkEgressRule_1(t *testing.T) {
 	rule := varmor.NetworkEgressRule{
-		IP: "fdbd:dc01:ff:307:9329:268d:3a27:2ca7",
+		ToDestinations: []varmor.Destination{
+			{
+				IP: "fdbd:dc01:ff:307:9329:268d:3a27:2ca7",
+			},
+		},
 	}
 
 	bpfContent := &varmor.BpfContent{}
-	err := generateRawNetworkEgressRule(bpfContent, 0, rule)
+	_, err := generateRawNetworkEgressRule(nil, bpfContent, 0, &rule)
 	assert.NilError(t, err)
 	assert.Equal(t, len(bpfContent.Networks), 1)
 	assert.Equal(t, uint32(bpfenforcer.Ipv6Match|bpfenforcer.PreciseMatch), bpfContent.Networks[0].Flags)
@@ -38,16 +42,20 @@ func TestGenerateRawNetworkEgressRule_1(t *testing.T) {
 
 func TestGenerateRawNetworkEgressRule_2(t *testing.T) {
 	rule := varmor.NetworkEgressRule{
-		IP: "192.168.1.1",
-		Ports: []varmor.Port{
+		ToDestinations: []varmor.Destination{
 			{
-				Port: 80,
+				IP: "192.168.1.1",
+				Ports: []varmor.Port{
+					{
+						Port: 80,
+					},
+				},
 			},
 		},
 	}
 
 	bpfContent := &varmor.BpfContent{}
-	err := generateRawNetworkEgressRule(bpfContent, 0, rule)
+	_, err := generateRawNetworkEgressRule(nil, bpfContent, 0, &rule)
 	assert.NilError(t, err)
 	assert.Equal(t, len(bpfContent.Networks), 1)
 	assert.Equal(t, bpfContent.Networks[0].Flags, uint32(bpfenforcer.Ipv4Match|bpfenforcer.PreciseMatch|bpfenforcer.PortMatch))
@@ -57,15 +65,19 @@ func TestGenerateRawNetworkEgressRule_2(t *testing.T) {
 
 func TestGenerateRawNetworkEgressRule_3(t *testing.T) {
 	rule := varmor.NetworkEgressRule{
-		Ports: []varmor.Port{
+		ToDestinations: []varmor.Destination{
 			{
-				Port: 80,
+				Ports: []varmor.Port{
+					{
+						Port: 80,
+					},
+				},
 			},
 		},
 	}
 
 	bpfContent := &varmor.BpfContent{}
-	err := generateRawNetworkEgressRule(bpfContent, 0, rule)
+	_, err := generateRawNetworkEgressRule(nil, bpfContent, 0, &rule)
 	assert.NilError(t, err)
 	assert.Equal(t, len(bpfContent.Networks), 1)
 	assert.Equal(t, bpfContent.Networks[0].Flags, uint32(bpfenforcer.PortMatch))
@@ -74,16 +86,20 @@ func TestGenerateRawNetworkEgressRule_3(t *testing.T) {
 
 func TestGenerateRawNetworkEgressRule_4(t *testing.T) {
 	rule := varmor.NetworkEgressRule{
-		Ports: []varmor.Port{
+		ToDestinations: []varmor.Destination{
 			{
-				Port:    80,
-				EndPort: 8080,
+				Ports: []varmor.Port{
+					{
+						Port:    80,
+						EndPort: 8080,
+					},
+				},
 			},
 		},
 	}
 
 	bpfContent := &varmor.BpfContent{}
-	err := generateRawNetworkEgressRule(bpfContent, 0, rule)
+	_, err := generateRawNetworkEgressRule(nil, bpfContent, 0, &rule)
 	assert.NilError(t, err)
 	assert.Equal(t, len(bpfContent.Networks), 1)
 	assert.Equal(t, bpfContent.Networks[0].Flags, uint32(bpfenforcer.PortRangeMatch))
@@ -93,21 +109,25 @@ func TestGenerateRawNetworkEgressRule_4(t *testing.T) {
 
 func TestGenerateRawNetworkEgressRule_5(t *testing.T) {
 	rule := varmor.NetworkEgressRule{
-		Ports: []varmor.Port{
+		ToDestinations: []varmor.Destination{
 			{
-				Port: 80,
-			},
-			{
-				Port: 81,
-			},
-			{
-				Port: 82,
+				Ports: []varmor.Port{
+					{
+						Port: 80,
+					},
+					{
+						Port: 81,
+					},
+					{
+						Port: 82,
+					},
+				},
 			},
 		},
 	}
 
 	bpfContent := &varmor.BpfContent{}
-	err := generateRawNetworkEgressRule(bpfContent, 0, rule)
+	_, err := generateRawNetworkEgressRule(nil, bpfContent, 0, &rule)
 	assert.NilError(t, err)
 	assert.Equal(t, len(bpfContent.Networks), 1)
 	assert.Equal(t, bpfContent.Networks[0].Flags, uint32(bpfenforcer.PortsMatch))
@@ -116,17 +136,21 @@ func TestGenerateRawNetworkEgressRule_5(t *testing.T) {
 
 func TestGenerateRawNetworkEgressRule_6(t *testing.T) {
 	rule := varmor.NetworkEgressRule{
-		IP: "192.168.1.1",
-		Ports: []varmor.Port{
+		ToDestinations: []varmor.Destination{
 			{
-				Port:    80,
-				EndPort: 8080,
+				IP: "192.168.1.1",
+				Ports: []varmor.Port{
+					{
+						Port:    80,
+						EndPort: 8080,
+					},
+				},
 			},
 		},
 	}
 
 	bpfContent := &varmor.BpfContent{}
-	err := generateRawNetworkEgressRule(bpfContent, 0, rule)
+	_, err := generateRawNetworkEgressRule(nil, bpfContent, 0, &rule)
 	assert.NilError(t, err)
 	assert.Equal(t, len(bpfContent.Networks), 1)
 	assert.Equal(t, bpfContent.Networks[0].Flags, uint32(bpfenforcer.Ipv4Match|bpfenforcer.PreciseMatch|bpfenforcer.PortRangeMatch))
@@ -137,22 +161,26 @@ func TestGenerateRawNetworkEgressRule_6(t *testing.T) {
 
 func TestGenerateRawNetworkEgressRule_7(t *testing.T) {
 	rule := varmor.NetworkEgressRule{
-		IP: "192.168.1.1",
-		Ports: []varmor.Port{
+		ToDestinations: []varmor.Destination{
 			{
-				Port: 80,
-			},
-			{
-				Port: 90,
-			},
-			{
-				Port: 100,
+				IP: "192.168.1.1",
+				Ports: []varmor.Port{
+					{
+						Port: 80,
+					},
+					{
+						Port: 90,
+					},
+					{
+						Port: 100,
+					},
+				},
 			},
 		},
 	}
 
 	bpfContent := &varmor.BpfContent{}
-	err := generateRawNetworkEgressRule(bpfContent, 0, rule)
+	_, err := generateRawNetworkEgressRule(nil, bpfContent, 0, &rule)
 	assert.NilError(t, err)
 	assert.Equal(t, len(bpfContent.Networks), 1)
 	assert.Equal(t, bpfContent.Networks[0].Flags, uint32(bpfenforcer.Ipv4Match|bpfenforcer.PreciseMatch|bpfenforcer.PortsMatch))
@@ -162,12 +190,16 @@ func TestGenerateRawNetworkEgressRule_7(t *testing.T) {
 
 func TestGenerateRawNetworkEgressRule_8(t *testing.T) {
 	rule := varmor.NetworkEgressRule{
-		IP:    "192.168.1.1",
-		Ports: []varmor.Port{{Port: 1}, {Port: 2}, {Port: 3}, {Port: 4}, {Port: 5}, {Port: 6}, {Port: 7}, {Port: 8}, {Port: 9}, {Port: 10}, {Port: 11}, {Port: 12}, {Port: 13}, {Port: 14}, {Port: 15}, {Port: 16}, {Port: 17}, {Port: 18}},
+		ToDestinations: []varmor.Destination{
+			{
+				IP:    "192.168.1.1",
+				Ports: []varmor.Port{{Port: 1}, {Port: 2}, {Port: 3}, {Port: 4}, {Port: 5}, {Port: 6}, {Port: 7}, {Port: 8}, {Port: 9}, {Port: 10}, {Port: 11}, {Port: 12}, {Port: 13}, {Port: 14}, {Port: 15}, {Port: 16}, {Port: 17}, {Port: 18}},
+			},
+		},
 	}
 
 	bpfContent := &varmor.BpfContent{}
-	err := generateRawNetworkEgressRule(bpfContent, 0, rule)
+	_, err := generateRawNetworkEgressRule(nil, bpfContent, 0, &rule)
 	assert.NilError(t, err)
 	assert.Equal(t, len(bpfContent.Networks), 2)
 	assert.Equal(t, bpfContent.Networks[0].Flags, uint32(bpfenforcer.Ipv4Match|bpfenforcer.PreciseMatch|bpfenforcer.PortsMatch))
@@ -180,26 +212,30 @@ func TestGenerateRawNetworkEgressRule_8(t *testing.T) {
 
 func TestGenerateRawNetworkEgressRule_9(t *testing.T) {
 	rule := varmor.NetworkEgressRule{
-		IPBlock: "192.168.1.1/24",
-		Ports: []varmor.Port{
+		ToDestinations: []varmor.Destination{
 			{
-				Port: 1,
-			},
-			{
-				Port: 2,
-			},
-			{
-				Port:    100,
-				EndPort: 110,
-			},
-			{
-				Port: 3,
+				CIDR: "192.168.1.1/24",
+				Ports: []varmor.Port{
+					{
+						Port: 1,
+					},
+					{
+						Port: 2,
+					},
+					{
+						Port:    100,
+						EndPort: 110,
+					},
+					{
+						Port: 3,
+					},
+				},
 			},
 		},
 	}
 
 	bpfContent := &varmor.BpfContent{}
-	err := generateRawNetworkEgressRule(bpfContent, 0, rule)
+	_, err := generateRawNetworkEgressRule(nil, bpfContent, 0, &rule)
 	assert.NilError(t, err)
 	assert.Equal(t, len(bpfContent.Networks), 2)
 	assert.Equal(t, bpfContent.Networks[0].Flags, uint32(bpfenforcer.Ipv4Match|bpfenforcer.CidrMatch|bpfenforcer.PortRangeMatch))
@@ -215,30 +251,34 @@ func TestGenerateRawNetworkEgressRule_9(t *testing.T) {
 
 func TestGenerateRawNetworkEgressRule_10(t *testing.T) {
 	rule := varmor.NetworkEgressRule{
-		IP: "10.37.31.68",
-		Ports: []varmor.Port{
+		ToDestinations: []varmor.Destination{
 			{
-				Port: 1,
-			},
-			{
-				Port:    100,
-				EndPort: 110,
-			},
-			{
-				Port: 2,
-			},
-			{
-				Port:    1000,
-				EndPort: 1100,
-			},
-			{
-				Port: 3,
+				IP: "10.37.31.68",
+				Ports: []varmor.Port{
+					{
+						Port: 1,
+					},
+					{
+						Port:    100,
+						EndPort: 110,
+					},
+					{
+						Port: 2,
+					},
+					{
+						Port:    1000,
+						EndPort: 1100,
+					},
+					{
+						Port: 3,
+					},
+				},
 			},
 		},
 	}
 
 	bpfContent := &varmor.BpfContent{}
-	err := generateRawNetworkEgressRule(bpfContent, 0, rule)
+	_, err := generateRawNetworkEgressRule(nil, bpfContent, 0, &rule)
 	assert.NilError(t, err)
 	assert.Equal(t, len(bpfContent.Networks), 3)
 	assert.Equal(t, bpfContent.Networks[0].Flags, uint32(bpfenforcer.Ipv4Match|bpfenforcer.PreciseMatch|bpfenforcer.PortRangeMatch))

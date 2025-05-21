@@ -19,8 +19,10 @@ import (
 	"strings"
 
 	"golang.org/x/sys/unix"
+	"k8s.io/client-go/kubernetes"
 
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
+	varmortypes "github.com/bytedance/vArmor/internal/types"
 	bpfenforcer "github.com/bytedance/vArmor/pkg/lsm/bpfenforcer"
 )
 
@@ -585,486 +587,11 @@ func generateAttackProtectionRules(content *varmor.BpfContent, mode uint32, rule
 	return nil
 }
 
-func generateRawFileRule(bpfContent *varmor.BpfContent, mode uint32, rule varmor.FileRule) error {
-	var permissions uint32
+func GenerateEnhanceProtectProfile(
+	kubeClient *kubernetes.Clientset,
+	enhanceProtect *varmor.EnhanceProtect,
+	bpfContent *varmor.BpfContent) (egressInfo *varmortypes.EgressInfo, err error) {
 
-	for _, permission := range rule.Permissions {
-		switch strings.ToLower(permission) {
-		case "all", "*":
-			permissions |= bpfenforcer.AaMayRead | bpfenforcer.AaMayWrite | bpfenforcer.AaMayAppend
-		case "read", "r":
-			permissions |= bpfenforcer.AaMayRead
-		case "write", "w":
-			permissions |= bpfenforcer.AaMayWrite
-			permissions |= bpfenforcer.AaMayAppend
-		case "append", "a":
-			permissions |= bpfenforcer.AaMayAppend
-		}
-	}
-
-	if permissions == 0 {
-		return nil
-	}
-
-	fileContent, err := newBpfPathRule(mode, rule.Pattern, permissions)
-	if err != nil {
-		return err
-	}
-	bpfContent.Files = append(bpfContent.Files, *fileContent)
-
-	return nil
-}
-
-func generateRawProcessRule(bpfContent *varmor.BpfContent, mode uint32, rule varmor.FileRule) error {
-	var permissions uint32
-
-	for _, permission := range rule.Permissions {
-		switch strings.ToLower(permission) {
-		case "all", "*":
-			permissions |= bpfenforcer.AaMayExec
-		case "exec", "x":
-			permissions |= bpfenforcer.AaMayExec
-		}
-	}
-
-	if permissions == 0 {
-		return nil
-	}
-
-	fileContent, err := newBpfPathRule(mode, rule.Pattern, permissions)
-	if err != nil {
-		return err
-	}
-	bpfContent.Processes = append(bpfContent.Processes, *fileContent)
-
-	return nil
-}
-
-func generateRawNetworkSocketRule(bpfContent *varmor.BpfContent, mode uint32, rule varmor.NetworkSocketRule) error {
-	var domains, types, protocols uint64
-
-	for _, domain := range rule.Domains {
-		switch strings.ToLower(domain) {
-		case "all", "*":
-			domains = 1<<unix.AF_UNIX | 1<<unix.AF_INET | 1<<unix.AF_AX25 | 1<<unix.AF_IPX |
-				1<<unix.AF_APPLETALK | 1<<unix.AF_NETROM | 1<<unix.AF_BRIDGE | 1<<unix.AF_ATMPVC |
-				1<<unix.AF_X25 | 1<<unix.AF_INET6 | 1<<unix.AF_ROSE | 1<<unix.AF_NETBEUI |
-				1<<unix.AF_SECURITY | 1<<unix.AF_KEY | 1<<unix.AF_NETLINK | 1<<unix.AF_PACKET |
-				1<<unix.AF_ASH | 1<<unix.AF_ECONET | 1<<unix.AF_ATMSVC | 1<<unix.AF_RDS |
-				1<<unix.AF_SNA | 1<<unix.AF_IRDA | 1<<unix.AF_PPPOX | 1<<unix.AF_WANPIPE |
-				1<<unix.AF_LLC | 1<<unix.AF_IB | 1<<unix.AF_MPLS | 1<<unix.AF_CAN |
-				1<<unix.AF_TIPC | 1<<unix.AF_BLUETOOTH | 1<<unix.AF_IUCV | 1<<unix.AF_RXRPC |
-				1<<unix.AF_ISDN | 1<<unix.AF_PHONET | 1<<unix.AF_IEEE802154 | 1<<unix.AF_CAIF |
-				1<<unix.AF_ALG | 1<<unix.AF_NFC | 1<<unix.AF_VSOCK | 1<<unix.AF_KCM |
-				1<<unix.AF_QIPCRTR | 1<<unix.AF_SMC | 1<<unix.AF_XDP | 1<<unix.AF_MCTP
-		case "unix":
-			domains |= 1 << unix.AF_UNIX
-		case "inet":
-			domains |= 1 << unix.AF_INET
-		case "ax25":
-			domains |= 1 << unix.AF_AX25
-		case "ipx":
-			domains |= 1 << unix.AF_IPX
-		case "appletalk":
-			domains |= 1 << unix.AF_APPLETALK
-		case "netrom":
-			domains |= 1 << unix.AF_NETROM
-		case "bridge":
-			domains |= 1 << unix.AF_BRIDGE
-		case "atmpvc":
-			domains |= 1 << unix.AF_ATMPVC
-		case "x25":
-			domains |= 1 << unix.AF_X25
-		case "inet6":
-			domains |= 1 << unix.AF_INET6
-		case "rose":
-			domains |= 1 << unix.AF_ROSE
-		case "netbeui":
-			domains |= 1 << unix.AF_NETBEUI
-		case "security":
-			domains |= 1 << unix.AF_SECURITY
-		case "key":
-			domains |= 1 << unix.AF_KEY
-		case "netlink":
-			domains |= 1 << unix.AF_NETLINK
-		case "packet":
-			domains |= 1 << unix.AF_PACKET
-		case "ash":
-			domains |= 1 << unix.AF_ASH
-		case "econet":
-			domains |= 1 << unix.AF_ECONET
-		case "atmsvc":
-			domains |= 1 << unix.AF_ATMSVC
-		case "rds":
-			domains |= 1 << unix.AF_RDS
-		case "sna":
-			domains |= 1 << unix.AF_SNA
-		case "irda":
-			domains |= 1 << unix.AF_IRDA
-		case "pppox":
-			domains |= 1 << unix.AF_PPPOX
-		case "wanpipe":
-			domains |= 1 << unix.AF_WANPIPE
-		case "llc":
-			domains |= 1 << unix.AF_LLC
-		case "ib":
-			domains |= 1 << unix.AF_IB
-		case "mpls":
-			domains |= 1 << unix.AF_MPLS
-		case "can":
-			domains |= 1 << unix.AF_CAN
-		case "tipc":
-			domains |= 1 << unix.AF_TIPC
-		case "bluetooth":
-			domains |= 1 << unix.AF_BLUETOOTH
-		case "iucv":
-			domains |= 1 << unix.AF_IUCV
-		case "rxrpc":
-			domains |= 1 << unix.AF_RXRPC
-		case "isdn":
-			domains |= 1 << unix.AF_ISDN
-		case "phonet":
-			domains |= 1 << unix.AF_PHONET
-		case "ieee802154":
-			domains |= 1 << unix.AF_IEEE802154
-		case "caif":
-			domains |= 1 << unix.AF_CAIF
-		case "alg":
-			domains |= 1 << unix.AF_ALG
-		case "nfc":
-			domains |= 1 << unix.AF_NFC
-		case "vsock":
-			domains |= 1 << unix.AF_VSOCK
-		case "kcm":
-			domains |= 1 << unix.AF_KCM
-		case "qipcrtr":
-			domains |= 1 << unix.AF_QIPCRTR
-		case "smc":
-			domains |= 1 << unix.AF_SMC
-		case "xdp":
-			domains |= 1 << unix.AF_XDP
-		case "mctp":
-			domains |= 1 << unix.AF_MCTP
-		default:
-			return fmt.Errorf("policy contains an illegal NetworkSocketRule rule, found unknown or unsupported socket domain (%s)", domain)
-		}
-	}
-
-	for _, t := range rule.Types {
-		switch strings.ToLower(t) {
-		case "all", "*":
-			types = 1<<unix.SOCK_STREAM | 1<<unix.SOCK_DGRAM | 1<<unix.SOCK_RAW |
-				1<<unix.SOCK_RDM | 1<<unix.SOCK_SEQPACKET | 1<<unix.SOCK_DCCP | 1<<unix.SOCK_PACKET
-		case "stream":
-			types |= 1 << unix.SOCK_STREAM
-		case "dgram":
-			types |= 1 << unix.SOCK_DGRAM
-		case "raw":
-			types |= 1 << unix.SOCK_RAW
-		case "rdm":
-			types |= 1 << unix.SOCK_RDM
-		case "seqpacket":
-			types |= 1 << unix.SOCK_SEQPACKET
-		case "dccp":
-			types |= 1 << unix.SOCK_DCCP
-		case "packet":
-			types |= 1 << unix.SOCK_PACKET
-		default:
-			return fmt.Errorf("policy contains an illegal NetworkSocketRule rule, found unknown or unsupported socket type (%s)", t)
-		}
-	}
-
-	for _, protocol := range rule.Protocols {
-		switch strings.ToLower(protocol) {
-		case "all", "*":
-			protocols = 1<<unix.IPPROTO_ICMP | 1<<unix.IPPROTO_ICMPV6 | 1<<unix.IPPROTO_TCP | 1<<unix.IPPROTO_UDP
-		case "icmp":
-			protocols |= 1<<unix.IPPROTO_ICMP | 1<<unix.IPPROTO_ICMPV6
-		case "tcp":
-			protocols |= 1 << unix.IPPROTO_TCP
-		case "udp":
-			protocols |= 1 << unix.IPPROTO_UDP
-		default:
-			return fmt.Errorf("policy contains an illegal NetworkSocketRule rule, found unknown or unsupported socket protocol (%s)", protocol)
-		}
-	}
-
-	networkContent, err := newBpfNetworkCreateRule(mode, domains, types, protocols)
-	if err != nil {
-		return err
-	}
-	bpfContent.Networks = append(bpfContent.Networks, *networkContent)
-
-	return nil
-}
-
-func generateRawNetworkEgressRule(bpfContent *varmor.BpfContent, mode uint32, rule varmor.NetworkEgressRule) error {
-	var ports []uint16
-	var portRanges []struct {
-		Port    uint16
-		EndPort uint16
-	}
-
-	// Regroup the port and port range
-	for _, port := range rule.Ports {
-		if port.Port != 0 && (port.EndPort == 0 || port.Port == port.EndPort) {
-			ports = append(ports, port.Port)
-		} else if port.Port != 0 && port.EndPort != 0 && port.EndPort > port.Port {
-			portRanges = append(portRanges, struct {
-				Port    uint16
-				EndPort uint16
-			}{
-				Port:    port.Port,
-				EndPort: port.EndPort,
-			})
-		} else {
-			return fmt.Errorf("policy contains an illegal NetworkEgressRule rule, found invalid port(%d) or endPort(%d)", port.Port, port.EndPort)
-		}
-	}
-
-	if len(ports) == 0 && len(portRanges) == 0 {
-		// If no ports or port ranges are specified, this rule matches all ports
-		networkContent, err := newBpfNetworkConnectRule(mode, rule.IPBlock, rule.IP, 0, 0, nil)
-		if err != nil {
-			return err
-		}
-		bpfContent.Networks = append(bpfContent.Networks, *networkContent)
-		return nil
-	} else {
-		// For port ranges, we need to create a separate rule for each range
-		for _, portRange := range portRanges {
-			networkContent, err := newBpfNetworkConnectRule(mode, rule.IPBlock, rule.IP, portRange.Port, portRange.EndPort, nil)
-			if err != nil {
-				return err
-			}
-			bpfContent.Networks = append(bpfContent.Networks, *networkContent)
-		}
-
-		// If multiple ports are specified, we need to group them into chunks of 16
-		for i := 0; i < len(ports); i += 16 {
-			end := i + 16
-			if end > len(ports) {
-				end = len(ports)
-			}
-			group := ports[i:end]
-			if len(group) == 1 {
-				// If only one port is specified, we can use it directly
-				networkContent, err := newBpfNetworkConnectRule(mode, rule.IPBlock, rule.IP, group[0], 0, nil)
-				if err != nil {
-					return err
-				}
-				bpfContent.Networks = append(bpfContent.Networks, *networkContent)
-			} else {
-				networkContent, err := newBpfNetworkConnectRule(mode, rule.IPBlock, rule.IP, 0, 0, &group)
-				if err != nil {
-					return err
-				}
-				bpfContent.Networks = append(bpfContent.Networks, *networkContent)
-			}
-		}
-	}
-
-	return nil
-}
-
-func generateRawPtraceRule(bpfContent *varmor.BpfContent, mode uint32, rule *varmor.PtraceRule) error {
-	var permissions uint32
-
-	for _, permission := range rule.Permissions {
-		switch strings.ToLower(permission) {
-		case "all", "*":
-			permissions |= bpfenforcer.AaPtraceTrace | bpfenforcer.AaPtraceRead | bpfenforcer.AaMayBeTraced | bpfenforcer.AaMayBeRead
-		case "trace":
-			permissions |= bpfenforcer.AaPtraceTrace
-		case "read":
-			permissions |= bpfenforcer.AaPtraceRead
-		case "traceby":
-			permissions |= bpfenforcer.AaMayBeTraced
-		case "readby":
-			permissions |= bpfenforcer.AaMayBeRead
-		}
-	}
-
-	if permissions != 0 {
-		if rule.StrictMode {
-			setBpfPtraceRule(bpfContent, mode, permissions, bpfenforcer.GreedyMatch)
-		} else {
-			setBpfPtraceRule(bpfContent, mode, permissions, bpfenforcer.PreciseMatch)
-		}
-	}
-
-	return nil
-}
-
-func generateRawMountRule(bpfContent *varmor.BpfContent, mode uint32, rule varmor.MountRule) error {
-	var mountFlags, reverseMountFlags uint32
-
-	for _, flag := range rule.Flags {
-		switch strings.ToLower(flag) {
-		// All Flags:
-		case "all", "*":
-			mountFlags = 0xFFFFFFFF
-			reverseMountFlags = 0xFFFFFFFF
-		// Command Flags
-		case "remount":
-			mountFlags |= unix.MS_REMOUNT
-		case "bind", "B":
-			mountFlags |= unix.MS_BIND
-		case "move", "M":
-			mountFlags |= unix.MS_MOVE
-		case "rbind", "R":
-			mountFlags |= unix.MS_BIND
-			mountFlags |= unix.MS_REC
-		case "make-unbindable":
-			mountFlags |= unix.MS_UNBINDABLE
-		case "make-private":
-			mountFlags |= unix.MS_PRIVATE
-		case "make-slave":
-			mountFlags |= unix.MS_SLAVE
-		case "make-shared":
-			mountFlags |= unix.MS_SHARED
-		case "make-runbindable":
-			mountFlags |= unix.MS_BIND
-			mountFlags |= unix.MS_REC
-			mountFlags |= unix.MS_UNBINDABLE
-		case "make-rprivate":
-			mountFlags |= unix.MS_BIND
-			mountFlags |= unix.MS_REC
-			mountFlags |= unix.MS_PRIVATE
-		case "make-rslave":
-			mountFlags |= unix.MS_BIND
-			mountFlags |= unix.MS_REC
-			mountFlags |= unix.MS_SLAVE
-		case "make-rshared":
-			mountFlags |= unix.MS_BIND
-			mountFlags |= unix.MS_REC
-			mountFlags |= unix.MS_SHARED
-		// Generic Flags
-		case "ro", "r", "read-only":
-			mountFlags |= unix.MS_RDONLY
-		case "nosuid":
-			mountFlags |= unix.MS_NOSUID
-		case "nodev":
-			mountFlags |= unix.MS_NODEV
-		case "noexec":
-			mountFlags |= unix.MS_NOEXEC
-		case "sync":
-			mountFlags |= unix.MS_SYNCHRONOUS
-		case "mand":
-			mountFlags |= unix.MS_MANDLOCK
-		case "dirsync":
-			mountFlags |= unix.MS_DIRSYNC
-		case "noatime":
-			mountFlags |= unix.MS_NOATIME
-		case "nodiratime":
-			mountFlags |= unix.MS_NODIRATIME
-		case "silent":
-			mountFlags |= unix.MS_SILENT
-		case "relatime":
-			mountFlags |= unix.MS_RELATIME
-		case "iversion":
-			mountFlags |= unix.MS_I_VERSION
-		case "strictatime":
-			mountFlags |= unix.MS_STRICTATIME
-		case "rw", "w":
-			reverseMountFlags |= unix.MS_RDONLY
-		case "suid":
-			reverseMountFlags |= unix.MS_NOSUID
-		case "dev":
-			reverseMountFlags |= unix.MS_NODEV
-		case "exec":
-			reverseMountFlags |= unix.MS_NOEXEC
-		case "async":
-			reverseMountFlags |= unix.MS_SYNCHRONOUS
-		case "nomand":
-			reverseMountFlags |= unix.MS_MANDLOCK
-		case "atime":
-			reverseMountFlags |= unix.MS_NOATIME
-		case "diratime":
-			reverseMountFlags |= unix.MS_NODIRATIME
-		case "loud":
-			reverseMountFlags |= unix.MS_SILENT
-		case "norelatime":
-			reverseMountFlags |= unix.MS_RELATIME
-		case "noiversion":
-			reverseMountFlags |= unix.MS_I_VERSION
-		case "nostrictatime":
-			reverseMountFlags |= unix.MS_STRICTATIME
-		// Custom Flags
-		case "umount":
-			mountFlags |= bpfenforcer.AaMayUmount
-		}
-	}
-
-	mountContent, err := newBpfMountRule(mode, rule.SourcePattern, rule.Fstype, mountFlags, reverseMountFlags)
-	if err != nil {
-		return err
-	}
-	bpfContent.Mounts = append(bpfContent.Mounts, *mountContent)
-
-	return nil
-}
-
-func generateCustomRules(enhanceProtect *varmor.EnhanceProtect, bpfContent *varmor.BpfContent, mode uint32) error {
-	for _, rule := range enhanceProtect.BpfRawRules.Files {
-		err := generateRawFileRule(bpfContent, mode, rule)
-		if err != nil {
-			return err
-		}
-
-		err = generateRawProcessRule(bpfContent, mode, rule)
-		if err != nil {
-			return err
-		}
-	}
-
-	for _, rule := range enhanceProtect.BpfRawRules.Processes {
-		err := generateRawFileRule(bpfContent, mode, rule)
-		if err != nil {
-			return err
-		}
-
-		err = generateRawProcessRule(bpfContent, mode, rule)
-		if err != nil {
-			return err
-		}
-	}
-
-	if enhanceProtect.BpfRawRules.Network != nil {
-		for _, socketRule := range enhanceProtect.BpfRawRules.Network.Sockets {
-			err := generateRawNetworkSocketRule(bpfContent, mode, socketRule)
-			if err != nil {
-				return err
-			}
-		}
-		for _, egressRule := range enhanceProtect.BpfRawRules.Network.Egresses {
-			err := generateRawNetworkEgressRule(bpfContent, mode, egressRule)
-			if err != nil {
-				return err
-			}
-		}
-	}
-
-	if enhanceProtect.BpfRawRules.Ptrace != nil {
-		err := generateRawPtraceRule(bpfContent, mode, enhanceProtect.BpfRawRules.Ptrace)
-		if err != nil {
-			return err
-		}
-	}
-
-	if enhanceProtect.Privileged {
-		for _, rule := range enhanceProtect.BpfRawRules.Mounts {
-			err := generateRawMountRule(bpfContent, mode, rule)
-			if err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
-func GenerateEnhanceProtectProfile(enhanceProtect *varmor.EnhanceProtect, bpfContent *varmor.BpfContent) error {
-	var err error
 	var mode uint32
 
 	if enhanceProtect.AuditViolations {
@@ -1079,7 +606,7 @@ func GenerateEnhanceProtectProfile(enhanceProtect *varmor.EnhanceProtect, bpfCon
 	if !enhanceProtect.Privileged {
 		err = GenerateRuntimeDefaultProfile(bpfContent, mode)
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
 
@@ -1087,7 +614,7 @@ func GenerateEnhanceProtectProfile(enhanceProtect *varmor.EnhanceProtect, bpfCon
 	for _, rule := range enhanceProtect.HardeningRules {
 		err = generateHardeningRules(bpfContent, mode, enhanceProtect.Privileged, rule)
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
 
@@ -1095,7 +622,7 @@ func GenerateEnhanceProtectProfile(enhanceProtect *varmor.EnhanceProtect, bpfCon
 	for _, rule := range enhanceProtect.VulMitigationRules {
 		err = generateVulMitigationRules(bpfContent, mode, rule)
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
 
@@ -1105,7 +632,7 @@ func GenerateEnhanceProtectProfile(enhanceProtect *varmor.EnhanceProtect, bpfCon
 			for _, rule := range attackProtectionRule.Rules {
 				err = generateAttackProtectionRules(bpfContent, mode, rule)
 				if err != nil {
-					return err
+					return nil, err
 				}
 			}
 		}
@@ -1113,27 +640,31 @@ func GenerateEnhanceProtectProfile(enhanceProtect *varmor.EnhanceProtect, bpfCon
 
 	// Custom
 	if enhanceProtect.BpfRawRules != nil {
-		err := generateCustomRules(enhanceProtect, bpfContent, mode)
+		egressInfo, err = generateCustomRules(kubeClient, enhanceProtect, bpfContent, mode)
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
 
 	if len(bpfContent.Files) > bpfenforcer.MaxBpfFileRuleCount {
-		return fmt.Errorf("the maximum number of BPF file rules exceeded (max: %d)", bpfenforcer.MaxBpfFileRuleCount)
+		return nil, fmt.Errorf("the maximum number of BPF file rules exceeded (max: %d, expected: %d)",
+			bpfenforcer.MaxBpfFileRuleCount, len(bpfContent.Files))
 	}
 
 	if len(bpfContent.Processes) > bpfenforcer.MaxBpfBprmRuleCount {
-		return fmt.Errorf("the maximum number of BPF bprm rules exceeded (max: %d)", bpfenforcer.MaxBpfBprmRuleCount)
+		return nil, fmt.Errorf("the maximum number of BPF bprm rules exceeded (max: %d, expected: %d)",
+			bpfenforcer.MaxBpfBprmRuleCount, len(bpfContent.Processes))
 	}
 
 	if len(bpfContent.Networks) > bpfenforcer.MaxBpfNetworkRuleCount {
-		return fmt.Errorf("the maximum number of BPF network rules exceeded (max: %d)", bpfenforcer.MaxBpfNetworkRuleCount)
+		return nil, fmt.Errorf("the maximum number of BPF network rules exceeded (max: %d, expected: %d)",
+			bpfenforcer.MaxBpfNetworkRuleCount, len(bpfContent.Networks))
 	}
 
 	if len(bpfContent.Mounts) > bpfenforcer.MaxBpfMountRuleCount {
-		return fmt.Errorf("the maximum number of BPF mount rules exceeded (max: %d)", bpfenforcer.MaxBpfMountRuleCount)
+		return nil, fmt.Errorf("the maximum number of BPF mount rules exceeded (max: %d, expected: %d)",
+			bpfenforcer.MaxBpfMountRuleCount, len(bpfContent.Mounts))
 	}
 
-	return nil
+	return egressInfo, nil
 }

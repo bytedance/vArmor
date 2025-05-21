@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -29,6 +30,7 @@ import (
 	"github.com/rs/zerolog"
 	"go.uber.org/automaxprocs/maxprocs"
 	"golang.org/x/sys/unix"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kubeinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/util/retry"
@@ -38,10 +40,12 @@ import (
 
 	varmoragent "github.com/bytedance/vArmor/internal/agent"
 	"github.com/bytedance/vArmor/internal/config"
+	"github.com/bytedance/vArmor/internal/ipwatcher"
 	"github.com/bytedance/vArmor/internal/policy"
 	"github.com/bytedance/vArmor/internal/policycacher"
 	"github.com/bytedance/vArmor/internal/status"
 	varmortls "github.com/bytedance/vArmor/internal/tls"
+	varmortypes "github.com/bytedance/vArmor/internal/types"
 	varmorutils "github.com/bytedance/vArmor/internal/utils"
 	"github.com/bytedance/vArmor/internal/webhookconfig"
 	"github.com/bytedance/vArmor/internal/webhooks"
@@ -52,8 +56,9 @@ import (
 )
 
 const (
-	resyncPeriod       = time.Minute * 15
+	secretResyncPeriod = time.Minute * 15
 	varmorResyncPeriod = time.Hour * 1
+	ipResyncPeriod     = time.Minute * 2
 )
 
 var (
@@ -171,7 +176,7 @@ func main() {
 	}
 
 	// vArmor CRD INFORMER, used to watch CRD resources: ArmorProfile & VarmorPolicy
-	varmorInformer := varmorinformer.NewSharedInformerFactoryWithOptions(varmorClient, varmorResyncPeriod)
+	varmorFactory := varmorinformer.NewSharedInformerFactoryWithOptions(varmorClient, varmorResyncPeriod)
 
 	// Gather APIServer version
 	config.ServerVersion, err = kubeClient.ServerVersion()
@@ -209,7 +214,7 @@ func main() {
 
 		agentCtrl, err := varmoragent.NewAgent(
 			varmorClient.CrdV1beta1(),
-			varmorInformer.Crd().V1beta1().ArmorProfiles(),
+			varmorFactory.Crd().V1beta1().ArmorProfiles(),
 			enableBehaviorModeling,
 			enableBpfEnforcer,
 			unloadAllAaProfiles,
@@ -228,16 +233,16 @@ func main() {
 			setupLog.Error(err, "agent.NewAgent()")
 			os.Exit(1)
 		}
-
+		varmorFactory.Start(stopCh)
 		go agentCtrl.Run(1, stopCh)
 
 		// Wait for the manager to be ready.
 		setupLog.Info("Waiting for the manager to be ready")
 		varmorutils.WaitForManagerReady(inContainer, managerIP, config.StatusServicePort)
 
-		// Starting up agent.
-		varmorInformer.Start(stopCh)
+		// Set the agent to ready.
 		varmorutils.SetAgentReady()
+
 		setupLog.Info("vArmor agent is online")
 
 		<-stopCh
@@ -256,9 +261,10 @@ func main() {
 			cancel()
 		}()
 
+		// Create a policy cacher for the webhook server
 		cacher, _ := policycacher.NewPolicyCacher(
-			varmorInformer.Crd().V1beta1().VarmorClusterPolicies(),
-			varmorInformer.Crd().V1beta1().VarmorPolicies(),
+			varmorFactory.Crd().V1beta1().VarmorClusterPolicies(),
+			varmorFactory.Crd().V1beta1().VarmorPolicies(),
 			log.Log.WithName("POLICY-CACHER"))
 		go cacher.Run(stopCh)
 
@@ -272,17 +278,19 @@ func main() {
 			inContainer,
 			log.Log.WithName("CERT-RENEWER"),
 		)
-		secretInformer := kubeinformers.NewSharedInformerFactoryWithOptions(kubeClient, resyncPeriod, kubeinformers.WithNamespace(config.Namespace))
+
+		secretFactory := kubeinformers.NewSharedInformerFactoryWithOptions(kubeClient, secretResyncPeriod, kubeinformers.WithNamespace(config.Namespace))
 		certManager := webhookconfig.NewCertManager(
 			clientConfig,
 			certRenewer,
 			kubeClient.CoreV1().Secrets(config.Namespace),
-			secretInformer.Core().V1().Secrets(),
+			secretFactory.Core().V1().Secrets(),
 			stopCh,
 			log.Log.WithName("CERT-MANAGER"),
 		)
+		secretFactory.Start(stopCh)
 
-		kubeInformer := kubeinformers.NewSharedInformerFactoryWithOptions(kubeClient, resyncPeriod)
+		mwcFactory := kubeinformers.NewSharedInformerFactoryWithOptions(kubeClient, secretResyncPeriod)
 		webhookRegister := webhookconfig.NewRegister(
 			clientConfig,
 			kubeClient.AdmissionregistrationV1().MutatingWebhookConfigurations(),
@@ -290,39 +298,48 @@ func main() {
 			kubeClient.AppsV1().Deployments(config.Namespace),
 			kubeClient.CoordinationV1().Leases(config.Namespace),
 			varmorClient.CrdV1beta1(),
-			varmorInformer.Crd().V1beta1().VarmorPolicies(),
-			kubeInformer.Admissionregistration().V1().MutatingWebhookConfigurations(),
+			mwcFactory.Admissionregistration().V1().MutatingWebhookConfigurations(),
 			managerIP,
 			int32(webhookTimeout),
 			inContainer,
 			stopCh,
 			log.Log.WithName("WEBHOOK-CONFIG"),
 		)
+		mwcFactory.Start(stopCh)
 
 		// Elect a leader to register the admission webhook configurations.
 		registerWebhookConfigurations := func() {
-			// Only leader init the secrets of CA cert and TLS pair.
+			// Only leader initializes the secrets of CA cert and TLS pair.
 			certManager.InitTLSPemPair()
-			// Only leader register MutatingWebhookConfiguration.
+			// Only leader registers the MutatingWebhookConfiguration object.
 			err = webhookRegister.Register()
 			if err != nil {
 				setupLog.Error(err, "webhookRegister.Register()")
 				os.Exit(1)
 			}
 		}
-		webhookRegisterLeader, err := leaderelection.New("webhook-register", config.Namespace, kubeClient, registerWebhookConfigurations, nil, log.Log.WithName("webhook-register/LeaderElection"))
+		webhookRegisterLeader, err := leaderelection.New(
+			"webhook-register",
+			config.Namespace,
+			kubeClient,
+			registerWebhookConfigurations,
+			nil,
+			log.Log.WithName("webhook-register/LeaderElection"))
 		if err != nil {
 			setupLog.Error(err, "failed to elect a leader")
 			os.Exit(1)
 		}
 		go webhookRegisterLeader.Run(leaderCtx)
 
-		// The webhook server runs across all instances.
+		// Create a TLS key/certificate pair for the webhook server and status server
 		tlsPair, err := certManager.GetTLSPemPair()
 		if err != nil {
 			setupLog.Error(err, "Failed to get TLS key/certificate pair")
 			os.Exit(1)
 		}
+
+		// Create the webhook server.
+		// It runs across all instances.
 		webhookServer, err := webhooks.NewWebhookServer(
 			webhookRegister,
 			cacher,
@@ -338,7 +355,8 @@ func main() {
 		}
 		go webhookServer.Run()
 
-		// The service is used for state synchronization. It only works with leader.
+		// Create a service for state synchronization.
+		// It's only run by the leader.
 		statusSvc, err := status.NewStatusService(
 			managerIP,
 			config.StatusServicePort,
@@ -359,12 +377,41 @@ func main() {
 			os.Exit(1)
 		}
 
-		clusterPolicyCtrl, err := policy.NewClusterPolicyController(
-			kubeClient.CoreV1().Pods(config.Namespace),
-			kubeClient.AppsV1(),
+		// Create an IPWatcher to watch the Pod and Service IP changes.
+		// It uses the IP that matches the egress rules of policies to update the armorprofile.
+		// It's only run by the leader.
+		factory := kubeinformers.NewSharedInformerFactoryWithOptions(kubeClient, ipResyncPeriod, kubeinformers.WithTransform(ipwatcher.Transform))
+		egressCache := make(map[string]varmortypes.EgressInfo)
+		egressCacheMutex := &sync.RWMutex{}
+
+		ipWatcher, err := ipwatcher.NewIPWatcher(
 			varmorClient.CrdV1beta1(),
-			varmorInformer.Crd().V1beta1().VarmorClusterPolicies(),
+			kubeClient.CoreV1().Pods(metav1.NamespaceAll),
+			kubeClient.CoreV1().Services(metav1.NamespaceAll),
+			factory.Core().V1().Pods(),
+			factory.Core().V1().Services(),
+			factory.Core().V1().Namespaces(),
+			factory.Discovery().V1().EndpointSlices(),
 			statusSvc.StatusManager,
+			egressCache,
+			egressCacheMutex,
+			log.Log.WithName("IP-WATCHER"))
+		if err != nil {
+			setupLog.Error(err, "ipwatcher.NewIPWatcher()")
+			os.Exit(1)
+		}
+
+		factory.Start(stopCh)
+
+		// Create the VarmorClusterPolicy controller.
+		// It's only run by the leader.
+		clusterPolicyCtrl, err := policy.NewClusterPolicyController(
+			kubeClient,
+			varmorClient.CrdV1beta1(),
+			varmorFactory.Crd().V1beta1().VarmorClusterPolicies(),
+			statusSvc.StatusManager,
+			egressCache,
+			egressCacheMutex,
 			restartExistWorkloads,
 			enableBehaviorModeling,
 			bpfExclusiveMode,
@@ -375,12 +422,15 @@ func main() {
 			os.Exit(1)
 		}
 
+		// Create the VarmorPolicy controller.
+		// It's only run by the leader.
 		policyCtrl, err := policy.NewPolicyController(
-			kubeClient.CoreV1().Pods(config.Namespace),
-			kubeClient.AppsV1(),
+			kubeClient,
 			varmorClient.CrdV1beta1(),
-			varmorInformer.Crd().V1beta1().VarmorPolicies(),
+			varmorFactory.Crd().V1beta1().VarmorPolicies(),
 			statusSvc.StatusManager,
+			egressCache,
+			egressCacheMutex,
 			restartExistWorkloads,
 			enableBehaviorModeling,
 			bpfExclusiveMode,
@@ -391,12 +441,13 @@ func main() {
 			os.Exit(1)
 		}
 
-		retriable := func(err error) bool {
-			return err != nil
-		}
+		// Start all varmor CRD informers
+		varmorFactory.Start(stopCh)
 
 		// Wrap all controllers that need leaderelection, start them once by the leader.
 		leaderRun := func() {
+			// Only the leader watches the Pod and Service IP changes.
+			go ipWatcher.Run(1, stopCh)
 			// Only the leader manage the status service.
 			go statusSvc.Run(stopCh)
 			// Only the leader validates the CA Cert periodically and rolling update manager when secrets changed or rootCA expired.
@@ -404,8 +455,12 @@ func main() {
 			// Only the leader run as the VarmorClusterPolicy & VarmorPolicy controller.
 			go clusterPolicyCtrl.Run(1, stopCh)
 			go policyCtrl.Run(1, stopCh)
+
 			// Tag the leader Pod with "identity: leader" label so that agents can use varmor-status-svc for state synchronization.
 			if inContainer {
+				retriable := func(err error) bool {
+					return err != nil
+				}
 				tag := func() error {
 					err := varmorutils.UnTagLeaderPod(kubeClient.CoreV1().Pods(config.Namespace))
 					if err != nil {
@@ -427,6 +482,7 @@ func main() {
 			policyCtrl.CleanUp()
 			signal.RequestShutdown()
 		}
+
 		leader, err := leaderelection.New("varmor-manager", config.Namespace, kubeClient, leaderRun, leaderStop, log.Log.WithName("varmor-manager/LeaderElection"))
 		if err != nil {
 			setupLog.Error(err, "failed to elect a leader")
@@ -434,14 +490,11 @@ func main() {
 		}
 		go leader.Run(leaderCtx)
 
-		varmorInformer.Start(stopCh)
-		kubeInformer.Start(stopCh)
-		secretInformer.Start(stopCh)
-
 		setupLog.Info("vArmor manager is online")
 
 		<-stopCh
 
+		// Cleanup the webhook resource when the manager exits.
 		if webhookRegister.ShouldRemoveVarmorResources() {
 			webhookRegister.Remove()
 		}

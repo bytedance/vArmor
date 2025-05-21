@@ -26,26 +26,28 @@ import (
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
 type Target struct {
-	// Kind is used to specify the type of workloads for the protection targets.
+	// kind is used to specify the type of workloads for the protection targets.
 	// Available values: Deployment, StatefulSet, DaemonSet, Pod.
 	Kind string `json:"kind"`
-	// Name is used to specify a specific workload name.
+	// name is used to specify a specific workload in the policy's namespace or all namespace.
+	// Note that the name field and selector field are mutually exclusive.
 	// +optional
 	Name string `json:"name,omitempty"`
-	// Containers are used to specify the names of the protected containers. If it is empty, sandbox protection
+	// containers are used to specify the names of the containers. If it is empty, sandbox protection
 	// will be enabled for all containers within the workload (excluding initContainers and ephemeralContainers).
 	// +optional
 	Containers []string `json:"containers,omitempty"`
-	// LabelSelector is used to match workloads that meet the specified conditions.
+	// selector is a label selector which selects workloads in the policy's namespace or all namespace.
+	// This field follows standard label selector semantics.
 	// Note that the selector field and name field are mutually exclusive.
 	// +optional
 	Selector *metav1.LabelSelector `json:"selector,omitempty"`
 }
 
 type AttackProtectionRules struct {
-	// Rules is the list of built-in attack protection rules to be used.
+	// rules is the list of built-in attack protection rules to be used.
 	Rules []string `json:"rules"`
-	// Targets specify the executable files for which the rules and rawRules apply.
+	// targets specify the executable files for which the rules and rawRules apply.
 	// They must be specified as full paths to the executable files.
 	// This feature is only effective when using AppArmor as the enforcer.
 	// +optional
@@ -53,44 +55,98 @@ type AttackProtectionRules struct {
 }
 
 type FileRule struct {
-	// Pattern can be any string (maximum length 128 bytes) that conforms to the policy syntax,
+	// pattern can be any string (maximum length 128 bytes) that conforms to the policy syntax,
 	// used for matching file paths and filenames
 	Pattern string `json:"pattern"`
-	// Permissions are used to specify the file permissions to be disabled.
+	// permissions are used to specify the file permissions to be disabled.
 	//
 	// Available values: all(*), read(r), write(w), exec(x), append(a)
 	//
 	Permissions []string `json:"permissions"`
 }
 
-// Port describes a port or port range to match traffic
+type Service struct {
+	// namespace selects a service by the name and namespace pair.
+	// +optional
+	Namespace string `json:"namespace,omitempty"`
+	// name selects a service by the name and namespace pair.
+	// +optional
+	Name string `json:"name,omitempty"`
+	// serviceSelector is a label selector which selects services. This field follows standard label
+	// selector semantics. It selects the services matching serviceSelector in all namespaces.
+	// Note that the serviceSelector field and other fields are mutually exclusive.
+	// +optional
+	ServiceSelector *metav1.LabelSelector `json:"serviceSelector,omitempty"`
+}
+
+// Port describes a port or port range to match traffic.
 type Port struct {
-	// Port is the port number to match traffic. The port number must be in the range [1, 65535].
+	// port is the port number to match traffic. The port number must be in the range [1, 65535].
 	Port uint16 `json:"port"`
-	// If set, indicates that the range of ports from port to endPort. The endPort must be equal or greater
+	// If endPort is set, it indicates that the range of ports from port to endPort. The endPort must be equal or greater
 	// than port and must be in the range [1, 65535].
+	// +optional
 	EndPort uint16 `json:"endPort,omitempty"`
 }
 
-// NetworkEgressRule describes a network egress rule to match traffic for connect(2) operations.
-type NetworkEgressRule struct {
-	// IPBlock defines this rule on a particular IPBlock with CIDR. Note that the ip field and ipBlock field
-	// are mutually exclusive.
+type Pod struct {
+	// namespaceSelector selects namespaces using cluster-scoped labels. This field follows
+	// standard label selector semantics; if not present, it selects all namespaces.
 	// +optional
-	IPBlock string `json:"ipBlock,omitempty"`
-	// IP defines this rule on a particular IP. Note that the ip field and ipBlock field are mutually exclusive.
-	// +optional
-	IP string `json:"ip,omitempty"`
-	// Ports define this rule on particular ports. Each item in this list is combined using a logical OR.
-	// If this field is empty or missing, this rule matches all ports. If this field is present and contains
+	NamespaceSelector *metav1.LabelSelector `json:"namespaceSelector,omitempty"`
+	// podSelector is a label selector which selects pods. This field follows standard label
+	// selector semantics.
+	//
+	// If namespaceSelector is also set, then this rule selects the pods matching podSelector in
+	// the namespaces selected by NamespaceSelector. Otherwise it selects the pods matching podSelector
+	// in all namespaces.
+	PodSelector *metav1.LabelSelector `json:"podSelector"`
+	// ports define this rule on particular ports. Each item in this list is combined using a logical OR.
+	// If this field is empty or not present, this rule matches all ports. If this field is present and contains
 	// at least one item, then this rule matches all ports in the list.
 	// +optional
 	Ports []Port `json:"ports,omitempty"`
 }
 
+type Destination struct {
+	// ip defines this rule on a particular IP. Note that the ip field and ipBlock field are mutually exclusive.
+	// +optional
+	IP string `json:"ip,omitempty"`
+	// cidr defines this rule on a particular CIDR. Note that the ip field and cidr field are mutually exclusive.
+	// +optional
+	CIDR string `json:"cidr,omitempty"`
+	// ports define this rule on particular ports. Each item in this list is combined using a logical OR.
+	// If this field is empty or not present, this rule matches all ports. If this field is present and contains
+	// at least one item, then this rule matches all ports in the list.
+	// +optional
+	Ports []Port `json:"ports,omitempty"`
+}
+
+// Egress describes the network egress rules to match traffic for connect(2) operations.
+// Notes:
+// - The ToDestinations, ToServices, and ToPods fields are in a logical OR relationship.
+// - Within the same field, multiple rules are also in a logical OR relationship.
+// - Overlapping rules targeting the same Pod/Service/IP may cause unintended port combinations or conflicts.
+// - The system does NOT guarantee deduplication or conflict resolution for overlapping targets. Users must ensure that
+// rules within these fields do NOT repeatedly define the same Pod/Service/IP to avoid unpredictable traffic control behavior.
+type NetworkEgressRule struct {
+	// toDestinations describes specific IPs or IP blocks with ports to match traffic.
+	// Please ensure each IP/CIDR target is unique to avoid configuration ambiguity.
+	// +optional
+	ToDestinations []Destination `json:"toDestinations,omitempty"`
+	// toServices describes k8s services and their endpoints to match traffic.
+	// Please ensure selectors across service rules do NOT overlap. Overlapping rules may cause undefined behavior.
+	// +optional
+	ToServices []Service `json:"toServices,omitempty"`
+	// toPods describes pods with ports to match traffic.
+	// Please ensure selectors across pod rules do NOT overlap. Overlapping rules may cause undefined behavior.
+	// +optional
+	ToPods []Pod `json:"toPods,omitempty"`
+}
+
 // NetworkSocketRule describes a network socket rule to match traffic for socket(2) operations.
 type NetworkSocketRule struct {
-	// Domains specifies the communication domains of socket.
+	// domains specifies the communication domains of socket.
 	//
 	// Available values:
 	//       all(*), unix, inet, ax25, ipx, appletalk, netrom, bridge, atmpvc, x25,
@@ -98,38 +154,46 @@ type NetworkSocketRule struct {
 	//       rds, sna, irda, pppox, wanpipe, llc, ib, mpls, can, tipc, bluetooth, iucv,
 	//       rxrpc, isdn, phonet, ieee802154, caif, alg, nfc, vsock, kcm, qipcrtr, smc,
 	//       xdp, mctp
-	//
+	// +optional
 	Domains []string `json:"domains,omitempty"`
-	// Types specifies the communication semantics of socket.
+	// types specifies the communication semantics of socket.
 	//
 	// Available values: all(*), stream, dgram, raw, rdm, seqpacket, dccp, packet
-	//
+	// +optional
 	Types []string `json:"types,omitempty"`
-	// Protocols specifies the particular protocols to be used with the socket.
+	// protocols specifies the particular protocols to be used with the socket.
 	// Note that the protocols field and types field are mutually exclusive.
 	//
 	// Available values: all(*), icmp, tcp, udp
-	//
+	// +optional
 	Protocols []string `json:"protocols,omitempty"`
 }
 
 // NetworkRule describes a network rule to match traffic
 type NetworkRule struct {
-	// Sockets are the list of network socket rules to match traffic for socket(2) operations.
+	// sockets are the list of network socket rules to match traffic for socket(2) operations.
+	// +optional
 	Sockets []NetworkSocketRule `json:"sockets,omitempty"`
-	// Egresses are the list of network egress rules to match traffic for connect(2) operations.
-	Egresses []NetworkEgressRule `json:"egresses,omitempty"`
+	// egress defines network egress rules to match traffic for connect(2) operations.
+	// Notes:
+	// - The ToDestinations, ToServices, and ToPods fields are in a logical OR relationship.
+	// - Within the same field, multiple rules are also in a logical OR relationship.
+	// - Overlapping rules targeting the same Pod/Service/IP may cause unintended port combinations or conflicts.
+	// - The system does not guarantee deduplication or conflict resolution for overlapping targets. Users must ensure that
+	// rules within these fields do not repeatedly define the same Pod/Service/IP to avoid unpredictable traffic control behavior.
+	// +optional
+	Egress *NetworkEgressRule `json:"egress,omitempty"`
 }
 
 type PtraceRule struct {
-	// StrictMode is used to indicate whether to restrict ptrace operations for all source and destination processes.
+	// strictMode is used to indicate whether to restrict ptrace operations for all source and destination processes.
 	// Default is false.
 	// If set to false, it allows a process to perform trace and read operations on other processes within the same container,
 	// and also allows a process to be subjected to traceby and readby operations by other processes within the same container.
 	// If set to true, it prohibits all trace, read, traceby, and readby operations within the container.
 	// +optional
 	StrictMode bool `json:"strictMode,omitempty"`
-	// Permissions are used to indicate which ptrace-related permissions of the target container should be restricted.
+	// permissions are used to indicate which ptrace-related permissions of the target container should be restricted.
 	//
 	// Available values: all(*), trace, traceby, read, readby.
 	//    - trace: prohibiting tracing of other processes.
@@ -147,12 +211,12 @@ type PtraceRule struct {
 }
 
 type MountRule struct {
-	// SourcePattern can be any string (maximum length 128 bytes) that conforms to the policy syntax,
+	// sourcePattern can be any string (maximum length 128 bytes) that conforms to the policy syntax,
 	// used for matching file paths and filenames
 	SourcePattern string `json:"sourcePattern"`
-	// Fstype is used to specify the type of filesystem to enforce. It can be '*' to match any type.
+	// fstype is used to specify the type of filesystem to enforce. It can be '*' to match any type.
 	Fstype string `json:"fstype"`
-	// Flags are used to specify the mount flags to enforce. They are almost the same as the 'MOUNT FLAGS LIST' of AppArmor.
+	// flags are used to specify the mount flags to enforce. They are almost the same as the 'MOUNT FLAGS LIST' of AppArmor.
 	//
 	// Available values:
 	//       All Flags: all(*)
@@ -177,35 +241,35 @@ type BpfRawRules struct {
 }
 
 type AppArmorRawRules struct {
-	// Rules define the custom AppArmor rules. You should make sure that they satisfy
+	// rules define the custom AppArmor rules. You should make sure that they satisfy
 	// the AppArmor syntax on your own.
 	Rules string `json:"rules"`
-	// Targets specify the executable files for which the rules apply.
+	// targets specify the executable files for which the rules apply.
 	// They must be specified as full paths to the executable files.
 	// +optional
 	Targets []string `json:"targets,omitempty"`
 }
 
 type EnhanceProtect struct {
-	// HardeningRules are used to specify the built-in hardening rules.
+	// hardeningRules are used to specify the built-in hardening rules.
 	// +optional
 	HardeningRules []string `json:"hardeningRules,omitempty"`
-	// AttackProtectionRules are used to specify the built-in attack protection rules.
+	// attackProtectionRules are used to specify the built-in attack protection rules.
 	// +optional
 	AttackProtectionRules []AttackProtectionRules `json:"attackProtectionRules,omitempty"`
-	// VulMitigationRules are used to specify the built-in vulnerability mitigation rules.
+	// vulMitigationRules are used to specify the built-in vulnerability mitigation rules.
 	// +optional
 	VulMitigationRules []string `json:"vulMitigationRules,omitempty"`
-	// AppArmorRawRules is used to set custom AppArmor rules.
+	// appArmorRawRules is used to set custom AppArmor rules.
 	// +optional
 	AppArmorRawRules []AppArmorRawRules `json:"appArmorRawRules,omitempty"`
-	// BpfRawRules is used to set custom BPF rules.
+	// bpfRawRules is used to set custom BPF rules.
 	// +optional
 	BpfRawRules *BpfRawRules `json:"bpfRawRules,omitempty"`
-	// SyscallRawRules is used to set the syscalls blocklist rules with Seccomp enforcer.
+	// syscallRawRules is used to set the syscalls blocklist rules with Seccomp enforcer.
 	// +optional
 	SyscallRawRules []specs.LinuxSyscall `json:"syscallRawRules,omitempty"`
-	// Privileged is used to identify whether the policy is for the privileged container.
+	// privileged is used to identify whether the policy is for the privileged container.
 	// If set to `nil` or `false`, the EnhanceProtect mode will build AppArmor or BPF profile on
 	// top of the RuntimeDefault mode. Otherwise, it will build AppArmor or BPF profile on top of the AlwaysAllow mode.
 	// Default is false.
@@ -214,7 +278,7 @@ type EnhanceProtect struct {
 	// If set to `true`, vArmor will not build Seccomp profile for the target workloads.
 	// +optional
 	Privileged bool `json:"privileged,omitempty"`
-	// AuditViolations determines whether to audit the actions that violate the mandatory access
+	// auditViolations determines whether to audit the actions that violate the mandatory access
 	// control rules. Any detected violation will be logged to `/var/log/varmor/violations.log`
 	// file in the host. Please note that the Seccomp enforcer does not support auditing violations
 	// when the allowViolations field is set to `false`.
@@ -222,7 +286,7 @@ type EnhanceProtect struct {
 	// Default is false.
 	// +optional
 	AuditViolations bool `json:"auditViolations,omitempty"`
-	// AllowViolations determines whether to allow the actions that are against the mandatory
+	// allowViolations determines whether to allow the actions that are against the mandatory
 	// access control rules. Any detected violation will be allowed instead of being blocked.
 	//
 	// Default is false.
@@ -231,26 +295,27 @@ type EnhanceProtect struct {
 }
 
 type ModelingOptions struct {
-	// Duration is the duration in minutes to modeling
+	// duration is the duration in minutes to modeling
 	Duration int `json:"duration"`
 }
 
 type VarmorPolicyMode string
 
 type Policy struct {
-	// Enforcer is used to specify which LSM to use for mandatory access control.
+	// enforcer is used to specify which LSM to use for mandatory access control.
 	// Available values: AppArmor, BPF, Seccomp, AppArmorBPF, AppArmorSeccomp, BPFSeccomp, AppArmorBPFSeccomp
 	Enforcer string `json:"enforcer"`
+	// mode used to specify the protection mode.
 	// Available values: AlwaysAllow, RuntimeDefault, EnhanceProtect, BehaviorModeling, DefenseInDepth
 	//
 	// Note:
 	// BehaviorModeling and DefenseInDepth modes are experimental features and currently only work
 	// with AppArmor/Seccomp/AppArmorSeccomp enforcers.
 	Mode VarmorPolicyMode `json:"mode"`
-	// EnhanceProtect is used to specify which built-in or custom rules are employed to protect the target workloads.
+	// enhanceProtect is used to specify which built-in or custom rules are employed to protect the target workloads.
 	// +optional
 	EnhanceProtect *EnhanceProtect `json:"enhanceProtect,omitempty"`
-	// ModelingOptions is used for the modeling settings.
+	// modelingOptions is used for the modeling settings.
 	// +optional
 	ModelingOptions *ModelingOptions `json:"modelingOptions,omitempty"`
 }
@@ -260,11 +325,11 @@ type VarmorPolicySpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	// Target specifies the workloads and their containers you want to harden.
+	// target specifies the workloads and their containers you want to harden.
 	Target Target `json:"target"`
-	// Policy specifies which enforcer, mode and rules you want to use to apply to the target.
+	// policy specifies which enforcer, mode and rules you want to use to apply to the target.
 	Policy Policy `json:"policy"`
-	// UpdateExistingWorkloads is used to indicate whether to perform a rolling update on target existing workloads,
+	// updateExistingWorkloads is used to indicate whether to perform a rolling update on target existing workloads,
 	// thus enabling or disabling the protection of the target workloads when policies are created or deleted.
 	// Default is false.
 	//
@@ -303,6 +368,7 @@ type VarmorPolicyStatus struct {
 
 	ProfileName string `json:"profileName"`
 	// Conditions
+	// +optional
 	Conditions []VarmorPolicyCondition `json:"conditions,omitempty"`
 	// Ready is used to indicate whether the profile of policy is loaded.
 	Ready bool `json:"ready"`
@@ -312,6 +378,7 @@ type VarmorPolicyStatus struct {
 	// Note:
 	// You can find out which varmor-agent has an error by reading the
 	// ArmorProfile/status corresponding to the current VarmorPolicy
+	// +optional
 	Phase VarmorPolicyPhase `json:"phase,omitempty"`
 }
 

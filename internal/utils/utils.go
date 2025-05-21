@@ -23,6 +23,7 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
+	"reflect"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -37,6 +38,7 @@ import (
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/util/retry"
 
+	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
 	varmorconfig "github.com/bytedance/vArmor/internal/config"
 	varmorinterface "github.com/bytedance/vArmor/pkg/client/clientset/versioned/typed/varmor/v1beta1"
 )
@@ -197,6 +199,33 @@ func InStringArray(c string, array []string) bool {
 func InUint32Array(i uint32, array []uint32) bool {
 	for _, v := range array {
 		if v == i {
+			return true
+		}
+	}
+	return false
+}
+
+func InUint16Array(i uint16, array []uint16) bool {
+	for _, v := range array {
+		if v == i {
+			return true
+		}
+	}
+	return false
+}
+
+func InPortRangeArray(i varmor.Port, array []varmor.Port) bool {
+	for _, v := range array {
+		if v.Port == i.Port && v.EndPort == i.EndPort {
+			return true
+		}
+	}
+	return false
+}
+
+func InNetworksArray(i varmor.NetworkContent, array []varmor.NetworkContent) bool {
+	for _, v := range array {
+		if reflect.DeepEqual(v, i) {
 			return true
 		}
 	}

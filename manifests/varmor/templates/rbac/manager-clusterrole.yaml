@@ -27,9 +27,13 @@ rules:
   - update
 - apiGroups:
   - ""
+  - "discovery.k8s.io"
   resources:
   - namespaces
   - nodes
+  - pods
+  - services
+  - endpointslices
   verbs:
   - get
   - list

@@ -37,7 +37,6 @@ import (
 	"github.com/bytedance/vArmor/internal/config"
 	varmortls "github.com/bytedance/vArmor/internal/tls"
 	varmorinterface "github.com/bytedance/vArmor/pkg/client/clientset/versioned/typed/varmor/v1beta1"
-	varmorinformer "github.com/bytedance/vArmor/pkg/client/informers/externalversions/varmor/v1beta1"
 )
 
 // Register manages webhook registration.
@@ -65,7 +64,6 @@ func NewRegister(
 	deploymentInterface appsv1.DeploymentInterface,
 	leaseInterface coordinationv1.LeaseInterface,
 	varmorInterface varmorinterface.CrdV1beta1Interface,
-	vpInformer varmorinformer.VarmorPolicyInformer,
 	mwcInformer adminformers.MutatingWebhookConfigurationInformer,
 	managerIP string,
 	webhookTimeout int32,
