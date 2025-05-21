@@ -506,7 +506,7 @@ func generateRawNetworkEgressRuleForServices(
 		}
 
 		// Retrieve the endpointslices of the services
-		epsList, err := kubeClient.DiscoveryV1beta1().EndpointSlices(metav1.NamespaceAll).List(context.TODO(), metav1.ListOptions{
+		epsList, err := kubeClient.DiscoveryV1().EndpointSlices(metav1.NamespaceAll).List(context.TODO(), metav1.ListOptions{
 			LabelSelector:   serviceSelector.String(),
 			ResourceVersion: "0",
 		})
@@ -532,7 +532,7 @@ func generateRawNetworkEgressRuleForServices(
 		}
 
 		// Retrieve the endpointslice of the service
-		epsList, err := kubeClient.DiscoveryV1beta1().EndpointSlices(toService.Namespace).List(context.TODO(), metav1.ListOptions{
+		epsList, err := kubeClient.DiscoveryV1().EndpointSlices(toService.Namespace).List(context.TODO(), metav1.ListOptions{
 			LabelSelector: fmt.Sprintf("kubernetes.io/service-name=%s", toService.Name),
 		})
 		if err != nil {
@@ -569,7 +569,7 @@ func generateRawNetworkEgressRule(
 		return nil, fmt.Errorf("failed to generate network egress rule for bolocking access destinations. error: %w", err)
 	}
 
-	if enablePodServiceEgressControl {
+	if !enablePodServiceEgressControl {
 		return nil, nil
 	}
 
