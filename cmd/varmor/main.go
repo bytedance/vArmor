@@ -62,32 +62,32 @@ const (
 )
 
 var (
-	versionFlag              bool
-	debugFlag                bool
-	gitVersion               string
-	gitCommit                string
-	buildDate                string
-	goVersion                string
-	kubeconfig               string
-	agent                    bool
-	enableBpfEnforcer        bool
-	unloadAllAaProfiles      bool
-	removeAllSeccompProfiles bool
-	enableBehaviorModeling   bool
-	restartExistWorkloads    bool
-	clientRateLimitQPS       float64
-	clientRateLimitBurst     int
-	managerIP                string
-	webhookTimeout           int
-	webhookMatchLabel        string
-	bpfExclusiveMode         bool
-	statusUpdateCycle        time.Duration
-	auditLogPaths            string
-	enableMetrics            bool
-	logFormat                string
-	verbosity                int
-	//syncMetricsSecond        int
-	setupLog = log.Log.WithName("SETUP")
+	agent                         bool
+	enableMetrics                 bool
+	enableBpfEnforcer             bool
+	enableBehaviorModeling        bool
+	enablePodServiceEgressControl bool
+	unloadAllAaProfiles           bool
+	removeAllSeccompProfiles      bool
+	bpfExclusiveMode              bool
+	restartExistWorkloads         bool
+	clientRateLimitQPS            float64
+	clientRateLimitBurst          int
+	webhookTimeout                int
+	webhookMatchLabel             string
+	statusUpdateCycle             time.Duration
+	auditLogPaths                 string
+	logFormat                     string
+	verbosity                     int
+	managerIP                     string
+	kubeconfig                    string
+	versionFlag                   bool
+	debugFlag                     bool
+	gitVersion                    string
+	gitCommit                     string
+	buildDate                     string
+	goVersion                     string
+	setupLog                      = log.Log.WithName("SETUP")
 )
 
 func setLogger() {
@@ -111,28 +111,28 @@ func setLogger() {
 }
 
 func main() {
-	flag.BoolVar(&versionFlag, "version", false, "Print the version information.")
-	flag.BoolVar(&debugFlag, "debug", false, "Enable debug mode.")
-	flag.StringVar(&kubeconfig, "kubeconfig", "", "Path to a kubeconfig. Only required if out-of-cluster.")
-	flag.BoolVar(&agent, "agent", false, "Set this flag to run vArmor agent. Run vArmor manager default if true.")
+	flag.BoolVar(&agent, "agent", false, "Set this flag to run vArmor agent.")
+	flag.BoolVar(&enableMetrics, "enableMetrics", false, "Set this flag to enable metrics.")
 	flag.BoolVar(&enableBpfEnforcer, "enableBpfEnforcer", false, "Set this flag to enable BPF enforcer.")
+	flag.BoolVar(&enableBehaviorModeling, "enableBehaviorModeling", false, "Set this flag to enable BehaviorModeling feature (Note: this is an experimental feature, please do not enable it in production environment).")
+	flag.BoolVar(&enablePodServiceEgressControl, "enablePodServiceEgressControl", false, "Set this flag to enable the egress control feature for Pod and Service access")
 	flag.BoolVar(&unloadAllAaProfiles, "unloadAllAaProfiles", false, "Unload all AppArmor profiles when the agent exits.")
 	flag.BoolVar(&removeAllSeccompProfiles, "removeAllSeccompProfiles", false, "Remove all Seccomp profiles when the agent exits.")
-	flag.BoolVar(&enableBehaviorModeling, "enableBehaviorModeling", false, "Set this flag to enable BehaviorModeling feature (Note: this is an experimental feature, please do not enable it in production environment).")
+	flag.BoolVar(&bpfExclusiveMode, "bpfExclusiveMode", false, "Set this flag to enable exclusive mode for the BPF enforcer. It will disable the AppArmor confinement when using the BPF enforcer.")
 	flag.BoolVar(&restartExistWorkloads, "restartExistWorkloads", false, "Set this flag to allow users control whether or not to restart existing workloads with the .spec.updateExistingWorkloads feild.")
 	flag.Float64Var(&clientRateLimitQPS, "clientRateLimitQPS", 0, "Configure the maximum QPS to the master from vArmor. Uses the client default if zero.")
 	flag.IntVar(&clientRateLimitBurst, "clientRateLimitBurst", 0, "Configure the maximum burst for throttle. Uses the client default if zero.")
-	flag.StringVar(&managerIP, "managerIP", "0.0.0.0", "Configure the IP address of manager.")
 	flag.IntVar(&webhookTimeout, "webhookTimeout", int(config.WebhookTimeout), "Timeout for webhook configurations.")
 	flag.StringVar(&webhookMatchLabel, "webhookMatchLabel", "sandbox.varmor.org/enable=true", "Configure the matchLabel of webhook configuration, the valid format is key=value or nil")
-	flag.BoolVar(&bpfExclusiveMode, "bpfExclusiveMode", false, "Set this flag to enable exclusive mode for the BPF enforcer. It will disable the AppArmor confinement when using the BPF enforcer.")
 	flag.DurationVar(&statusUpdateCycle, "statusUpdateCycle", time.Hour*2, "Configure the status update cycle for VarmorPolicy and ArmorProfile")
 	flag.StringVar(&auditLogPaths, "auditLogPaths", "/var/log/audit/audit.log|/var/log/kern.log", "Configure the file search list to select the audit log file and read the AppArmor and Seccomp audit events. Please use a vertical bar to separate the file paths, the first valid file will be used to track the audit events.")
-	flag.BoolVar(&enableMetrics, "enableMetrics", false, "Set this flag to enable metrics.")
 	flag.StringVar(&logFormat, "logFormat", "text", "Log format (text or json). Default is text.")
 	flag.IntVar(&verbosity, "v", 0, "Log verbosity level (higher value means more verbose).")
 	flag.IntVar(&verbosity, "verbosity", 0, "Log verbosity level (higher value means more verbose).")
-	//flag.IntVar(&syncMetricsSecond, "syncMetricsSecond", 10, "Configure the profile metric update seconds")
+	flag.StringVar(&managerIP, "managerIP", "0.0.0.0", "Configure the IP address of manager.")
+	flag.StringVar(&kubeconfig, "kubeconfig", "", "Path to a kubeconfig. Only required if out-of-cluster.")
+	flag.BoolVar(&versionFlag, "version", false, "Print the version information.")
+	flag.BoolVar(&debugFlag, "debug", false, "Enable debug mode.")
 	flag.Parse()
 
 	if versionFlag {
@@ -377,31 +377,33 @@ func main() {
 			os.Exit(1)
 		}
 
-		// Create an IPWatcher to watch the Pod and Service IP changes.
-		// It uses the IP that matches the egress rules of policies to update the armorprofile.
-		// It's only run by the leader.
-		factory := kubeinformers.NewSharedInformerFactoryWithOptions(kubeClient, ipResyncPeriod, kubeinformers.WithTransform(ipwatcher.Transform))
 		egressCache := make(map[string]varmortypes.EgressInfo)
 		egressCacheMutex := &sync.RWMutex{}
+		var ipWatcher *ipwatcher.IPWatcher
 
-		ipWatcher, err := ipwatcher.NewIPWatcher(
-			varmorClient.CrdV1beta1(),
-			kubeClient.CoreV1().Pods(metav1.NamespaceAll),
-			kubeClient.CoreV1().Services(metav1.NamespaceAll),
-			factory.Core().V1().Pods(),
-			factory.Core().V1().Services(),
-			factory.Core().V1().Namespaces(),
-			factory.Discovery().V1().EndpointSlices(),
-			statusSvc.StatusManager,
-			egressCache,
-			egressCacheMutex,
-			log.Log.WithName("IP-WATCHER"))
-		if err != nil {
-			setupLog.Error(err, "ipwatcher.NewIPWatcher()")
-			os.Exit(1)
+		if enablePodServiceEgressControl {
+			// Create an IPWatcher to watch the Pod and Service IP changes.
+			// It uses the IP that matches the egress rules of policies to update the armorprofile.
+			// It's only run by the leader.
+			factory := kubeinformers.NewSharedInformerFactoryWithOptions(kubeClient, ipResyncPeriod, kubeinformers.WithTransform(ipwatcher.Transform))
+			ipWatcher, err = ipwatcher.NewIPWatcher(
+				varmorClient.CrdV1beta1(),
+				kubeClient.CoreV1().Pods(metav1.NamespaceAll),
+				kubeClient.CoreV1().Services(metav1.NamespaceAll),
+				factory.Core().V1().Pods(),
+				factory.Core().V1().Services(),
+				factory.Core().V1().Namespaces(),
+				factory.Discovery().V1().EndpointSlices(),
+				statusSvc.StatusManager,
+				egressCache,
+				egressCacheMutex,
+				log.Log.WithName("IP-WATCHER"))
+			if err != nil {
+				setupLog.Error(err, "ipwatcher.NewIPWatcher()")
+				os.Exit(1)
+			}
+			factory.Start(stopCh)
 		}
-
-		factory.Start(stopCh)
 
 		// Create the VarmorClusterPolicy controller.
 		// It's only run by the leader.
@@ -446,8 +448,10 @@ func main() {
 
 		// Wrap all controllers that need leaderelection, start them once by the leader.
 		leaderRun := func() {
-			// Only the leader watches the Pod and Service IP changes.
-			go ipWatcher.Run(1, stopCh)
+			if enablePodServiceEgressControl {
+				// Only the leader watches the Pod and Service IP changes.
+				go ipWatcher.Run(1, stopCh)
+			}
 			// Only the leader manage the status service.
 			go statusSvc.Run(stopCh)
 			// Only the leader validates the CA Cert periodically and rolling update manager when secrets changed or rootCA expired.

@@ -27,17 +27,16 @@ rules:
   - update
 - apiGroups:
   - ""
-  - "discovery.k8s.io"
   resources:
   - namespaces
   - nodes
-  - pods
-  - services
-  - endpointslices
   verbs:
   - get
   - list
   - watch
+{{- if .Values.podServiceEgressControl.enabled }}
+  {{- toYaml .Values.manager.podServiceEgressControl.clusterrules | nindent 0  }}
+{{- end }}
 - apiGroups:
   - crd.varmor.org
   resources:
