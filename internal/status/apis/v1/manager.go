@@ -608,7 +608,7 @@ func (m *StatusManager) reconcileStatus(stopCh <-chan struct{}) {
 			}
 
 			apName := varmorprofile.GenerateArmorProfileName(namespace, vpName, clusterScope)
-			profile, _, err := varmorprofile.GenerateProfile(nil, m.varmorInterface, vPolicy, apName, namespace, true, logger)
+			profile, _, err := varmorprofile.GenerateProfile(nil, m.varmorInterface, vPolicy, apName, namespace, true, false, logger)
 			if err != nil {
 				logger.Error(err, "varmorprofile.GenerateProfile()")
 				break

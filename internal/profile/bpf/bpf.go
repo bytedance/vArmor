@@ -590,7 +590,8 @@ func generateAttackProtectionRules(content *varmor.BpfContent, mode uint32, rule
 func GenerateEnhanceProtectProfile(
 	kubeClient *kubernetes.Clientset,
 	enhanceProtect *varmor.EnhanceProtect,
-	bpfContent *varmor.BpfContent) (egressInfo *varmortypes.EgressInfo, err error) {
+	bpfContent *varmor.BpfContent,
+	enablePodServiceEgressControl bool) (egressInfo *varmortypes.EgressInfo, err error) {
 
 	var mode uint32
 
@@ -640,7 +641,7 @@ func GenerateEnhanceProtectProfile(
 
 	// Custom
 	if enhanceProtect.BpfRawRules != nil {
-		egressInfo, err = generateCustomRules(kubeClient, enhanceProtect, bpfContent, mode)
+		egressInfo, err = generateCustomRules(kubeClient, enhanceProtect, bpfContent, mode, enablePodServiceEgressControl)
 		if err != nil {
 			return nil, err
 		}

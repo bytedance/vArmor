@@ -34,7 +34,8 @@ func generateCustomRules(
 	kubeClient *kubernetes.Clientset,
 	enhanceProtect *varmor.EnhanceProtect,
 	bpfContent *varmor.BpfContent,
-	mode uint32) (egressInfo *varmortypes.EgressInfo, err error) {
+	mode uint32,
+	enablePodServiceEgressControl bool) (egressInfo *varmortypes.EgressInfo, err error) {
 	for _, rule := range enhanceProtect.BpfRawRules.Files {
 		err = generateRawFileRule(bpfContent, mode, rule)
 		if err != nil {
@@ -67,7 +68,7 @@ func generateCustomRules(
 			}
 		}
 		if enhanceProtect.BpfRawRules.Network.Egress != nil {
-			egressInfo, err = generateRawNetworkEgressRule(kubeClient, bpfContent, mode, enhanceProtect.BpfRawRules.Network.Egress)
+			egressInfo, err = generateRawNetworkEgressRule(kubeClient, bpfContent, mode, enhanceProtect.BpfRawRules.Network.Egress, enablePodServiceEgressControl)
 			if err != nil {
 				return nil, err
 			}
@@ -560,14 +561,19 @@ func generateRawNetworkEgressRule(
 	kubeClient *kubernetes.Clientset,
 	bpfContent *varmor.BpfContent,
 	mode uint32,
-	rule *varmor.NetworkEgressRule) (*varmortypes.EgressInfo, error) {
-
-	egressInfo := varmortypes.EgressInfo{}
+	rule *varmor.NetworkEgressRule,
+	enablePodServiceEgressControl bool) (*varmortypes.EgressInfo, error) {
 
 	err := generateRawNetworkEgressRuleForDestinations(bpfContent, mode, rule.ToDestinations)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate network egress rule for bolocking access destinations. error: %w", err)
 	}
+
+	if enablePodServiceEgressControl {
+		return nil, nil
+	}
+
+	egressInfo := varmortypes.EgressInfo{}
 
 	for _, toPod := range rule.ToPods {
 		pod, err := generateRawNetworkEgressRuleForPods(kubeClient, bpfContent, mode, toPod)

@@ -50,19 +50,20 @@ const (
 )
 
 type PolicyController struct {
-	kubeClient             *kubernetes.Clientset
-	varmorInterface        varmorinterface.CrdV1beta1Interface
-	vpInformer             varmorinformer.VarmorPolicyInformer
-	vpLister               varmorlister.VarmorPolicyLister
-	vpInformerSynced       cache.InformerSynced
-	queue                  workqueue.RateLimitingInterface
-	statusManager          *statusmanager.StatusManager
-	egressCache            map[string]varmortypes.EgressInfo
-	egressCacheMutex       *sync.RWMutex
-	restartExistWorkloads  bool
-	enableBehaviorModeling bool
-	bpfExclusiveMode       bool
-	log                    logr.Logger
+	kubeClient                    *kubernetes.Clientset
+	varmorInterface               varmorinterface.CrdV1beta1Interface
+	vpInformer                    varmorinformer.VarmorPolicyInformer
+	vpLister                      varmorlister.VarmorPolicyLister
+	vpInformerSynced              cache.InformerSynced
+	queue                         workqueue.RateLimitingInterface
+	statusManager                 *statusmanager.StatusManager
+	egressCache                   map[string]varmortypes.EgressInfo
+	egressCacheMutex              *sync.RWMutex
+	restartExistWorkloads         bool
+	enableBehaviorModeling        bool
+	enablePodServiceEgressControl bool
+	bpfExclusiveMode              bool
+	log                           logr.Logger
 }
 
 // NewPolicyController create a new PolicyController
@@ -75,23 +76,25 @@ func NewPolicyController(
 	egressCacheMutex *sync.RWMutex,
 	restartExistWorkloads bool,
 	enableBehaviorModeling bool,
+	enablePodServiceEgressControl bool,
 	bpfExclusiveMode bool,
 	log logr.Logger) (*PolicyController, error) {
 
 	c := PolicyController{
-		kubeClient:             kubeClient,
-		varmorInterface:        varmorInterface,
-		vpInformer:             vpInformer,
-		vpLister:               vpInformer.Lister(),
-		vpInformerSynced:       vpInformer.Informer().HasSynced,
-		queue:                  workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "policy"),
-		statusManager:          statusManager,
-		egressCache:            egressCache,
-		egressCacheMutex:       egressCacheMutex,
-		restartExistWorkloads:  restartExistWorkloads,
-		enableBehaviorModeling: enableBehaviorModeling,
-		bpfExclusiveMode:       bpfExclusiveMode,
-		log:                    log,
+		kubeClient:                    kubeClient,
+		varmorInterface:               varmorInterface,
+		vpInformer:                    vpInformer,
+		vpLister:                      vpInformer.Lister(),
+		vpInformerSynced:              vpInformer.Informer().HasSynced,
+		queue:                         workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "policy"),
+		statusManager:                 statusManager,
+		egressCache:                   egressCache,
+		egressCacheMutex:              egressCacheMutex,
+		restartExistWorkloads:         restartExistWorkloads,
+		enableBehaviorModeling:        enableBehaviorModeling,
+		enablePodServiceEgressControl: enablePodServiceEgressControl,
+		bpfExclusiveMode:              bpfExclusiveMode,
+		log:                           log,
 	}
 	return &c, nil
 }
@@ -270,7 +273,7 @@ func (c *PolicyController) handleAddVarmorPolicy(vp *varmor.VarmorPolicy) error 
 		return err
 	}
 
-	ap, egressInfo, err := varmorprofile.NewArmorProfile(c.kubeClient, c.varmorInterface, vp, false, logger)
+	ap, egressInfo, err := varmorprofile.NewArmorProfile(c.kubeClient, c.varmorInterface, vp, false, c.enablePodServiceEgressControl, logger)
 	if err != nil {
 		logger.Error(err, "NewArmorProfile()")
 		err = statusmanager.UpdateVarmorPolicyStatus(c.varmorInterface, vp, "", false, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyCreated, apicorev1.ConditionFalse,
@@ -457,7 +460,7 @@ func (c *PolicyController) handleUpdateVarmorPolicy(newVp *varmor.VarmorPolicy, 
 
 	// Second, build a new ArmorProfileSpec
 	newApSpec := oldAp.Spec.DeepCopy()
-	newProfile, egressInfo, err := varmorprofile.GenerateProfile(c.kubeClient, c.varmorInterface, newVp.Spec.Policy, oldAp.Name, oldAp.Namespace, false, logger)
+	newProfile, egressInfo, err := varmorprofile.GenerateProfile(c.kubeClient, c.varmorInterface, newVp.Spec.Policy, oldAp.Name, oldAp.Namespace, false, c.enablePodServiceEgressControl, logger)
 	if err != nil {
 		logger.Error(err, "GenerateProfile()")
 		err = statusmanager.UpdateVarmorPolicyStatus(c.varmorInterface, newVp, "", false, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionFalse,

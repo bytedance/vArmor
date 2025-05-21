@@ -416,6 +416,7 @@ func main() {
 			egressCacheMutex,
 			restartExistWorkloads,
 			enableBehaviorModeling,
+			enablePodServiceEgressControl,
 			bpfExclusiveMode,
 			log.Log.WithName("CLUSTER-POLICY"),
 		)
@@ -435,6 +436,7 @@ func main() {
 			egressCacheMutex,
 			restartExistWorkloads,
 			enableBehaviorModeling,
+			enablePodServiceEgressControl,
 			bpfExclusiveMode,
 			log.Log.WithName("POLICY"),
 		)
