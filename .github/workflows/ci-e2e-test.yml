@@ -71,8 +71,7 @@ jobs:
       fail-fast: false
       matrix:
         k8s_version: [ "1.26.15" ] # 可以根据需要添加更多版本
-        os: ["ubuntu-22.04" ]
-    runs-on:  ${{ matrix.os }}
+    runs-on:  self-hosted
     env:
       KUBE_VER: ${{ matrix.k8s_version }}
     steps:
@@ -137,3 +136,7 @@ jobs:
         with:
           name: e2e-test-results
           path: test-results/
+
+      - name: Cleanup
+        if: always()
+        run: ./.github/scripts/kill-and-clean-all.sh
