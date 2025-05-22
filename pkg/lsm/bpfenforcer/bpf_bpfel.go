@@ -29,6 +29,11 @@ type bpfCapabilityRule struct {
 	Caps    uint64
 }
 
+type bpfPodIp struct {
+	Ipv4 [16]uint8
+	Ipv6 [16]uint8
+}
+
 type bpfPtraceRule struct {
 	Mode        uint32
 	Permissions uint32
@@ -105,6 +110,7 @@ type bpfMapSpecs struct {
 	V_fileOuter  *ebpf.MapSpec `ebpf:"v_file_outer"`
 	V_mountOuter *ebpf.MapSpec `ebpf:"v_mount_outer"`
 	V_netOuter   *ebpf.MapSpec `ebpf:"v_net_outer"`
+	V_podIp      *ebpf.MapSpec `ebpf:"v_pod_ip"`
 	V_ptrace     *ebpf.MapSpec `ebpf:"v_ptrace"`
 }
 
@@ -144,6 +150,7 @@ type bpfMaps struct {
 	V_fileOuter  *ebpf.Map `ebpf:"v_file_outer"`
 	V_mountOuter *ebpf.Map `ebpf:"v_mount_outer"`
 	V_netOuter   *ebpf.Map `ebpf:"v_net_outer"`
+	V_podIp      *ebpf.Map `ebpf:"v_pod_ip"`
 	V_ptrace     *ebpf.Map `ebpf:"v_ptrace"`
 }
 
@@ -157,6 +164,7 @@ func (m *bpfMaps) Close() error {
 		m.V_fileOuter,
 		m.V_mountOuter,
 		m.V_netOuter,
+		m.V_podIp,
 		m.V_ptrace,
 	)
 }

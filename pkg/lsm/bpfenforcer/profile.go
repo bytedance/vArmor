@@ -26,7 +26,7 @@ import (
 )
 
 // newEnforceID retrieve the mnt ns id with PID from the procfs, then create an enforceID object with it
-func (enforcer *BpfEnforcer) newEnforceID(pid uint32) (enforceID, error) {
+func (enforcer *BpfEnforcer) newEnforceID(pid uint32, ips []string) (enforceID, error) {
 	mntNsID, err := varmorutils.ReadMntNsID(pid)
 	if err != nil {
 		return enforceID{}, err
@@ -35,6 +35,7 @@ func (enforcer *BpfEnforcer) newEnforceID(pid uint32) (enforceID, error) {
 	id := enforceID{
 		pid:     pid,
 		mntNsID: mntNsID,
+		ips:     ips,
 	}
 	return id, nil
 }
@@ -190,11 +191,13 @@ func (enforcer *BpfEnforcer) applyNetworkRules(nsID uint32, networks []varmor.Ne
 					copy(rule.Ports[:], network.Address.Ports)
 				}
 
-				ip := net.ParseIP(network.Address.IP)
-				if ip.To4() != nil {
-					copy(rule.Address[:], ip.To4())
-				} else {
-					copy(rule.Address[:], ip.To16())
+				if network.Address.IP != varmor.PodSelfIP {
+					ip := net.ParseIP(network.Address.IP)
+					if ip.To4() != nil {
+						copy(rule.Address[:], ip.To4())
+					} else {
+						copy(rule.Address[:], ip.To16())
+					}
 				}
 
 				if network.Address.CIDR != "" {

@@ -108,8 +108,16 @@ type Pod struct {
 	Ports []Port `json:"ports,omitempty"`
 }
 
+const (
+	// PodSelfIP is an entity that represents the Pod's own IP addresses.
+	// Please note that pods may be allocated at most 1 address for each of IPv4 and IPv6.
+	PodSelfIP string = "pod-self"
+)
+
 type Destination struct {
-	// ip defines this rule on a particular IP. Note that the ip field and ipBlock field are mutually exclusive.
+	// ip defines this rule on a particular IP. Please use a valid textual representation of an IP address or
+	// the `pod-self` entity to represent the Pod's own IP addresses. Note that the ip field and ipBlock
+	// field are mutually exclusive.
 	// +optional
 	IP string `json:"ip,omitempty"`
 	// cidr defines this rule on a particular CIDR. Note that the ip field and cidr field are mutually exclusive.
@@ -124,7 +132,7 @@ type Destination struct {
 
 // Egress describes the network egress rules to match traffic for connect(2) operations.
 // Notes:
-// - The ToDestinations, ToServices, and ToPods fields are in a logical OR relationship.
+// - The ToDestinations, ToEntities, ToServices, and ToPods fields are in a logical OR relationship.
 // - Within the same field, multiple rules are also in a logical OR relationship.
 // - Overlapping rules targeting the same Pod/Service/IP may cause unintended port combinations or conflicts.
 // - The system does NOT guarantee deduplication or conflict resolution for overlapping targets. Users must ensure that

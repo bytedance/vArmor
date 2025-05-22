@@ -158,10 +158,22 @@ func (monitor *RuntimeMonitor) retrievePodInfo(containerInfo *varmortypes.Contai
 		return err
 	}
 
-	containerInfo.PodName = response.Status.Metadata.Name
-	containerInfo.PodNamespace = response.Status.Metadata.Namespace
-	containerInfo.PodUID = response.Status.Metadata.Uid
-	containerInfo.PodAnnotations = response.Status.Annotations
+	if response.Status != nil {
+		containerInfo.PodAnnotations = response.Status.Annotations
+
+		if response.Status.Metadata != nil {
+			containerInfo.PodName = response.Status.Metadata.Name
+			containerInfo.PodNamespace = response.Status.Metadata.Namespace
+			containerInfo.PodUID = response.Status.Metadata.Uid
+		}
+
+		if response.Status.Network != nil {
+			containerInfo.PodIPs = append(containerInfo.PodIPs, response.Status.Network.Ip)
+			for _, ip := range response.Status.Network.AdditionalIps {
+				containerInfo.PodIPs = append(containerInfo.PodIPs, ip.Ip)
+			}
+		}
+	}
 
 	return nil
 }
