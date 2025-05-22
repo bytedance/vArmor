@@ -381,10 +381,14 @@ func main() {
 		egressCacheMutex := &sync.RWMutex{}
 		var ipWatcher *ipwatcher.IPWatcher
 
-		if enablePodServiceEgressControl {
+		if enablePodServiceEgressControl && enableBpfEnforcer {
 			// Create an IPWatcher to watch the Pod and Service IP changes.
 			// It uses the IP that matches the egress rules of policies to update the armorprofile.
 			// It's only run by the leader.
+			//
+			// Please note that only the BPF enforcer supports restricting container access to specific
+			// Pods and Services currently. After the AppArmor enforcer is adapted to AppArmor 4.0, it
+			// will also support this feature.
 			factory := kubeinformers.NewSharedInformerFactoryWithOptions(kubeClient, ipResyncPeriod, kubeinformers.WithTransform(ipwatcher.Transform))
 			ipWatcher, err = ipwatcher.NewIPWatcher(
 				varmorClient.CrdV1beta1(),
@@ -450,15 +454,15 @@ func main() {
 
 		// Wrap all controllers that need leaderelection, start them once by the leader.
 		leaderRun := func() {
-			if enablePodServiceEgressControl {
+			if enablePodServiceEgressControl && enableBpfEnforcer {
 				// Only the leader watches the Pod and Service IP changes.
 				go ipWatcher.Run(1, stopCh)
 			}
-			// Only the leader manage the status service.
+			// Only the leader manages the status service.
 			go statusSvc.Run(stopCh)
-			// Only the leader validates the CA Cert periodically and rolling update manager when secrets changed or rootCA expired.
+			// Only the leader validates the CA Cert periodically and updates manager when the rootCA is changed or expired.
 			go certManager.Run(stopCh)
-			// Only the leader run as the VarmorClusterPolicy & VarmorPolicy controller.
+			// Only the leader runs as the VarmorClusterPolicy & VarmorPolicy controller.
 			go clusterPolicyCtrl.Run(1, stopCh)
 			go policyCtrl.Run(1, stopCh)
 
