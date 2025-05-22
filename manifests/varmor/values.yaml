@@ -26,6 +26,12 @@ appArmorLsmEnforcer:
 bpfLsmEnforcer:
   enabled: false
 
+behaviorModeling:
+  enabled: false
+
+podServiceEgressControl:
+  enabled: false
+
 unloadAllAaProfiles:
   enabled: false
 
@@ -36,10 +42,6 @@ jsonLogFormat:
   enabled: false
   args:
   - --logFormat=json
-
-# [Experimental feature]
-behaviorModeling:
-  enabled: false
 
 image:
   registry: ""
@@ -98,6 +100,22 @@ manager:
     - emptyDir:
         sizeLimit: 500Mi
       name: data-volume
+
+  podServiceEgressControl:
+    args:
+    - --enablePodServiceEgressControl
+    clusterrules:
+    - apiGroups:
+      - ""
+      - "discovery.k8s.io"
+      resources:
+      - pods
+      - services
+      - endpointslices
+      verbs:
+      - get
+      - list
+      - watch
 
   restartExistWorkloads:
     args:

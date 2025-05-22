@@ -34,6 +34,9 @@ rules:
   - get
   - list
   - watch
+{{- if .Values.podServiceEgressControl.enabled }}
+  {{- toYaml .Values.manager.podServiceEgressControl.clusterrules | nindent 0  }}
+{{- end }}
 - apiGroups:
   - crd.varmor.org
   resources:

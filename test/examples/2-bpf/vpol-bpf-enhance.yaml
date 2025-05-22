@@ -43,20 +43,33 @@ spec:
           permissions:
           - exec
         network:
-          egresses:
-          - ip: fdbd:dc01:ff:307:9329:268d:3a27:2ca7
-          - ipBlock: 192.168.1.1/24 # 192.168.1.0 to 192.168.1.255
-            ports:
-            - port: 80
-              endPort: 8080
-          - ip: 10.12.34.56
-            ports:
-            - port: 8070
-            - port: 9980
-            - port: 10250
-              endPort: 10255
-            - port: 10400
-              endPort: 10405
           sockets:
           - protocols:
             - "udp"
+          egress:
+            toDestinations:
+            - ip: fdbd:dc01:ff:307:9329:268d:3a27:2ca7
+            - cidr: 192.168.1.1/24 # 192.168.1.0 to 192.168.1.255
+              ports:
+              - port: 80
+                endPort: 8080
+            - ip: 10.12.34.56
+              ports:
+              - port: 8070
+              - port: 9980
+              - port: 10250
+                endPort: 10255
+            toPods:
+            - podSelector:
+                matchLabels:
+                  app: demo-3
+            toServices:
+            - name: kubernetes
+              namespace: default
+            - name: ingress-nginx-controller-admission
+              namespace: ingress-nginx
+            - name: ingress-nginx-controller-admission
+              namespace: kube-system
+            - serviceSelector:
+                matchLabels:
+                  app: nginx

@@ -158,7 +158,7 @@ func (ws *WebhookServer) handlerFunc(handler func(request *admissionv1.Admission
 
 		admissionReview.Response = handler(request)
 		mutated := false
-		if admissionReview.Response.Patch != nil && len(admissionReview.Response.Patch) > 0 {
+		if len(admissionReview.Response.Patch) > 0 {
 			mutated = true
 			if ws.mutatedRequests != nil {
 				ws.mutatedRequests.Add(ctx, 1)

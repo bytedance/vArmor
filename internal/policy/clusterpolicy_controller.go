@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -27,8 +28,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
-	appsv1 "k8s.io/client-go/kubernetes/typed/apps/v1"
-	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 
@@ -46,45 +46,51 @@ import (
 )
 
 type ClusterPolicyController struct {
-	podInterface           corev1.PodInterface
-	appsInterface          appsv1.AppsV1Interface
-	varmorInterface        varmorinterface.CrdV1beta1Interface
-	vcpInformer            varmorinformer.VarmorClusterPolicyInformer
-	vcpLister              varmorlister.VarmorClusterPolicyLister
-	vcpInformerSynced      cache.InformerSynced
-	queue                  workqueue.RateLimitingInterface
-	statusManager          *statusmanager.StatusManager
-	restartExistWorkloads  bool
-	enableBehaviorModeling bool
-	bpfExclusiveMode       bool
-	log                    logr.Logger
+	kubeClient                    *kubernetes.Clientset
+	varmorInterface               varmorinterface.CrdV1beta1Interface
+	vcpInformer                   varmorinformer.VarmorClusterPolicyInformer
+	vcpLister                     varmorlister.VarmorClusterPolicyLister
+	vcpInformerSynced             cache.InformerSynced
+	queue                         workqueue.RateLimitingInterface
+	statusManager                 *statusmanager.StatusManager
+	egressCache                   map[string]varmortypes.EgressInfo
+	egressCacheMutex              *sync.RWMutex
+	restartExistWorkloads         bool
+	enableBehaviorModeling        bool
+	enablePodServiceEgressControl bool
+	bpfExclusiveMode              bool
+	log                           logr.Logger
 }
 
 // NewClusterPolicyController create a new ClusterPolicyController
 func NewClusterPolicyController(
-	podInterface corev1.PodInterface,
-	appsInterface appsv1.AppsV1Interface,
+	kubeClient *kubernetes.Clientset,
 	varmorInterface varmorinterface.CrdV1beta1Interface,
 	vcpInformer varmorinformer.VarmorClusterPolicyInformer,
 	statusManager *statusmanager.StatusManager,
+	egressCache map[string]varmortypes.EgressInfo,
+	egressCacheMutex *sync.RWMutex,
 	restartExistWorkloads bool,
 	enableBehaviorModeling bool,
+	enablePodServiceEgressControl bool,
 	bpfExclusiveMode bool,
 	log logr.Logger) (*ClusterPolicyController, error) {
 
 	c := ClusterPolicyController{
-		podInterface:           podInterface,
-		appsInterface:          appsInterface,
-		varmorInterface:        varmorInterface,
-		vcpInformer:            vcpInformer,
-		vcpLister:              vcpInformer.Lister(),
-		vcpInformerSynced:      vcpInformer.Informer().HasSynced,
-		queue:                  workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "clusterpolicy"),
-		statusManager:          statusManager,
-		restartExistWorkloads:  restartExistWorkloads,
-		enableBehaviorModeling: enableBehaviorModeling,
-		bpfExclusiveMode:       bpfExclusiveMode,
-		log:                    log,
+		kubeClient:                    kubeClient,
+		varmorInterface:               varmorInterface,
+		vcpInformer:                   vcpInformer,
+		vcpLister:                     vcpInformer.Lister(),
+		vcpInformerSynced:             vcpInformer.Informer().HasSynced,
+		queue:                         workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "clusterpolicy"),
+		statusManager:                 statusManager,
+		egressCache:                   egressCache,
+		egressCacheMutex:              egressCacheMutex,
+		restartExistWorkloads:         restartExistWorkloads,
+		enableBehaviorModeling:        enableBehaviorModeling,
+		enablePodServiceEgressControl: enablePodServiceEgressControl,
+		bpfExclusiveMode:              bpfExclusiveMode,
+		log:                           log,
 	}
 
 	return &c, nil
@@ -152,7 +158,7 @@ func (c *ClusterPolicyController) handleDeleteVarmorClusterPolicy(name string) e
 			// This will trigger the rolling upgrade of the target workloads
 			logger.Info("delete annotations of target workloads to trigger a rolling upgrade asynchronously")
 			go updateWorkloadAnnotationsAndEnv(
-				c.appsInterface,
+				c.kubeClient.AppsV1(),
 				metav1.NamespaceAll,
 				ap.Spec.Profile.Enforcer,
 				"",
@@ -165,6 +171,12 @@ func (c *ClusterPolicyController) handleDeleteVarmorClusterPolicy(name string) e
 		if err != nil {
 			logger.Error(err, "failed to remove the ArmorProfile's finalizers")
 		}
+
+		// Cleanup the policy from the egress information cache
+		policyKey := name
+		c.egressCacheMutex.Lock()
+		delete(c.egressCache, policyKey)
+		c.egressCacheMutex.Unlock()
 	}
 
 	// Cleanup the PolicyStatus and ModelingStatus of status manager for the deleted VarmorClusterPolicy/ArmorProfile object
@@ -257,7 +269,7 @@ func (c *ClusterPolicyController) handleAddVarmorClusterPolicy(vcp *varmor.Varmo
 		return err
 	}
 
-	ap, err := varmorprofile.NewArmorProfile(vcp, c.varmorInterface, true, logger)
+	ap, egressInfo, err := varmorprofile.NewArmorProfile(c.kubeClient, c.varmorInterface, vcp, true, c.enablePodServiceEgressControl, logger)
 	if err != nil {
 		logger.Error(err, "NewArmorProfile()")
 		err = statusmanager.UpdateVarmorClusterPolicyStatus(c.varmorInterface, vcp, "", false, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyCreated, apicorev1.ConditionFalse,
@@ -299,11 +311,20 @@ func (c *ClusterPolicyController) handleAddVarmorClusterPolicy(vcp *varmor.Varmo
 		return err
 	}
 
+	// Cache the egress information for the policy which has network egress rules with toPods and toService fields
+	if egressInfo != nil {
+		policyKey := vcp.Name
+		c.egressCacheMutex.Lock()
+		c.egressCache[policyKey] = *egressInfo
+		c.egressCacheMutex.Unlock()
+		logger.Info("egress cache added", "policy key", policyKey, "egress info", egressInfo)
+	}
+
 	if c.restartExistWorkloads && vcp.Spec.UpdateExistingWorkloads {
 		// This will trigger the rolling upgrade of the target workloads
 		logger.Info("add annotations to target workloads to trigger a rolling upgrade asynchronously")
 		go updateWorkloadAnnotationsAndEnv(
-			c.appsInterface,
+			c.kubeClient.AppsV1(),
 			metav1.NamespaceAll,
 			vcp.Spec.Policy.Enforcer,
 			vcp.Spec.Policy.Mode,
@@ -316,95 +337,95 @@ func (c *ClusterPolicyController) handleAddVarmorClusterPolicy(vcp *varmor.Varmo
 	return nil
 }
 
-func (c *ClusterPolicyController) ignoreUpdate(newVp *varmor.VarmorClusterPolicy, oldAp *varmor.ArmorProfile, logger logr.Logger) (bool, error) {
+func (c *ClusterPolicyController) ignoreUpdate(newVcp *varmor.VarmorClusterPolicy, oldAp *varmor.ArmorProfile, logger logr.Logger) (bool, error) {
 	// Disallow modifying the target of VarmorClusterPolicy.
-	if !reflect.DeepEqual(newVp.Spec.Target, oldAp.Spec.Target) {
+	if !reflect.DeepEqual(newVcp.Spec.Target, oldAp.Spec.Target) {
 		err := fmt.Errorf("disallow modifying spec.target")
 		logger.Error(err, "update VarmorClusterPolicy/status with forbidden info")
-		err = statusmanager.UpdateVarmorClusterPolicyStatus(c.varmorInterface, newVp, "", false, varmortypes.VarmorPolicyUnchanged, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionFalse,
+		err = statusmanager.UpdateVarmorClusterPolicyStatus(c.varmorInterface, newVcp, "", false, varmortypes.VarmorPolicyUnchanged, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionFalse,
 			"Forbidden",
 			"Modifying the target of VarmorClusterPolicy is not allowed. You need to recreate the VarmorClusterPolicy object.")
 		return true, err
 	}
 
 	// Disallow switching mode from others to BehaviorModeling.
-	if newVp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode &&
+	if newVcp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode &&
 		oldAp.Spec.BehaviorModeling.Duration == 0 {
 		err := fmt.Errorf("disallow switching spec.policy.mode from others to BehaviorModeling")
 		logger.Error(err, "update VarmorClusterPolicy/status with forbidden info")
-		err = statusmanager.UpdateVarmorClusterPolicyStatus(c.varmorInterface, newVp, "", false, varmortypes.VarmorPolicyUnchanged, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionFalse,
+		err = statusmanager.UpdateVarmorClusterPolicyStatus(c.varmorInterface, newVcp, "", false, varmortypes.VarmorPolicyUnchanged, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionFalse,
 			"Forbidden",
 			"Switching the mode from others to BehaviorModeling is not allowed. You need to recreate the VarmorClusterPolicy object.")
 		return true, err
 	}
 
 	// Disallow switching mode from BehaviorModeling to others.
-	if newVp.Spec.Policy.Mode != varmortypes.BehaviorModelingMode &&
+	if newVcp.Spec.Policy.Mode != varmortypes.BehaviorModelingMode &&
 		oldAp.Spec.BehaviorModeling.Duration != 0 {
 		err := fmt.Errorf("disallow switching spec.policy.mode from BehaviorModeling to others")
 		logger.Error(err, "update VarmorClusterPolicy/status with forbidden info")
-		err = statusmanager.UpdateVarmorClusterPolicyStatus(c.varmorInterface, newVp, "", false, varmortypes.VarmorPolicyUnchanged, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionFalse,
+		err = statusmanager.UpdateVarmorClusterPolicyStatus(c.varmorInterface, newVcp, "", false, varmortypes.VarmorPolicyUnchanged, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionFalse,
 			"Forbidden",
 			"Switching the mode from BehaviorModeling to others is not allowed. You need to recreate the VarmorClusterPolicy object.")
 		return true, err
 	}
 
 	// Disallow shutting down the enforcer that has been activated.
-	newEnforcers := varmortypes.GetEnforcerType(newVp.Spec.Policy.Enforcer)
+	newEnforcers := varmortypes.GetEnforcerType(newVcp.Spec.Policy.Enforcer)
 	oldEnforcers := varmortypes.GetEnforcerType(oldAp.Spec.Profile.Enforcer)
 	if newEnforcers&oldEnforcers != oldEnforcers {
 		err := fmt.Errorf("disallow shutting down the enforcer that has been activated")
 		logger.Error(err, "update VarmorClusterPolicy/status with forbidden info")
-		err = statusmanager.UpdateVarmorClusterPolicyStatus(c.varmorInterface, newVp, "", false, varmortypes.VarmorPolicyUnchanged, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionFalse,
+		err = statusmanager.UpdateVarmorClusterPolicyStatus(c.varmorInterface, newVcp, "", false, varmortypes.VarmorPolicyUnchanged, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionFalse,
 			"Forbidden",
 			"Modifying a policy to remove an already-set enforcer is not allowed. To remove enforcers, you must recreate the VarmorClusterPolicy object.")
 		return true, err
 	}
 
 	// Disallow switching the enforcer during modeling.
-	if newEnforcers != oldEnforcers && newVp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode {
+	if newEnforcers != oldEnforcers && newVcp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode {
 		err := fmt.Errorf("disallow switching the enforcer")
 		logger.Error(err, "update VarmorClusterPolicy/status with forbidden info")
-		err = statusmanager.UpdateVarmorClusterPolicyStatus(c.varmorInterface, newVp, "", false, varmortypes.VarmorPolicyUnchanged, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionFalse,
+		err = statusmanager.UpdateVarmorClusterPolicyStatus(c.varmorInterface, newVcp, "", false, varmortypes.VarmorPolicyUnchanged, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionFalse,
 			"Forbidden",
 			"Switching the enforcer during modeling is not allowed. You need to recreate the VarmorClusterPolicy object.")
 		return true, err
 	}
 
 	// Make sure the EnhanceProtect field has been set when running in the EnhanceProtect mode.
-	if newVp.Spec.Policy.Mode == varmortypes.EnhanceProtectMode &&
-		newVp.Spec.Policy.EnhanceProtect == nil {
+	if newVcp.Spec.Policy.Mode == varmortypes.EnhanceProtectMode &&
+		newVcp.Spec.Policy.EnhanceProtect == nil {
 		err := fmt.Errorf("the EnhanceProtect field is not set when running in the EnhanceProtect mode")
 		logger.Error(err, "update VarmorClusterPolicy/status with forbidden info")
-		err = statusmanager.UpdateVarmorClusterPolicyStatus(c.varmorInterface, newVp, "", false, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionFalse,
+		err = statusmanager.UpdateVarmorClusterPolicyStatus(c.varmorInterface, newVcp, "", false, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionFalse,
 			"Forbidden",
 			"The EnhanceProtect field should be set when running in the EnhanceProtect mode.")
 		return true, err
 	}
 
 	// Disallow modifying the VarmorClusterPolicy that runs in the BehaviorModeling mode and has already been completed.
-	if newVp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode &&
-		newVp.Status.Phase == varmortypes.VarmorPolicyCompleted {
-		if newVp.Spec.Policy.ModelingOptions == nil ||
-			newVp.Spec.Policy.ModelingOptions.Duration != oldAp.Spec.BehaviorModeling.Duration {
+	if newVcp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode &&
+		newVcp.Status.Phase == varmortypes.VarmorPolicyCompleted {
+		if newVcp.Spec.Policy.ModelingOptions == nil ||
+			newVcp.Spec.Policy.ModelingOptions.Duration != oldAp.Spec.BehaviorModeling.Duration {
 			err := fmt.Errorf("disallow modifying the VarmorClusterPolicy that runs in the BehaviorModeling mode and has already been completed")
 			logger.Error(err, "update VarmorClusterPolicy/status with forbidden info")
-			err = statusmanager.UpdateVarmorClusterPolicyStatus(c.varmorInterface, newVp, "", false, varmortypes.VarmorPolicyUnchanged, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionFalse,
+			err = statusmanager.UpdateVarmorClusterPolicyStatus(c.varmorInterface, newVcp, "", false, varmortypes.VarmorPolicyUnchanged, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionFalse,
 				"Forbidden",
 				"Modifying the VarmorClusterPolicy that runs in the BehaviorModeling mode and has already been completed is not allowed. You need to recreate the VarmorClusterPolicy object.")
 			return true, err
 		} else {
-			err := statusmanager.UpdateVarmorClusterPolicyStatus(c.varmorInterface, newVp, "", true, varmortypes.VarmorPolicyUnchanged, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionTrue, "", "")
+			err := statusmanager.UpdateVarmorClusterPolicyStatus(c.varmorInterface, newVcp, "", true, varmortypes.VarmorPolicyUnchanged, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionTrue, "", "")
 			return true, err
 		}
 	}
 
 	// Make sure the ModelingOptions field has been set.
-	if newVp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode &&
-		newVp.Spec.Policy.ModelingOptions == nil {
+	if newVcp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode &&
+		newVcp.Spec.Policy.ModelingOptions == nil {
 		err := fmt.Errorf("the ModelingOptions field is not set when running in the BehaviorModeling mode")
 		logger.Error(err, "update VarmorClusterPolicy/status with forbidden info")
-		err = statusmanager.UpdateVarmorClusterPolicyStatus(c.varmorInterface, newVp, "", false, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionFalse,
+		err = statusmanager.UpdateVarmorClusterPolicyStatus(c.varmorInterface, newVcp, "", false, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionFalse,
 			"Forbidden",
 			"The ModelingOptions field should be set when running in the BehaviorModeling mode.")
 		return true, err
@@ -413,12 +434,12 @@ func (c *ClusterPolicyController) ignoreUpdate(newVp *varmor.VarmorClusterPolicy
 	return false, nil
 }
 
-func (c *ClusterPolicyController) handleUpdateVarmorClusterPolicy(newVp *varmor.VarmorClusterPolicy, oldAp *varmor.ArmorProfile) error {
+func (c *ClusterPolicyController) handleUpdateVarmorClusterPolicy(newVcp *varmor.VarmorClusterPolicy, oldAp *varmor.ArmorProfile) error {
 	logger := c.log.WithName("handleUpdateVarmorClusterPolicy()")
 
-	logger.Info("VarmorClusterPolicy updated", "name", newVp.Name, "labels", newVp.Labels, "target", newVp.Spec.Target)
+	logger.Info("VarmorClusterPolicy updated", "name", newVcp.Name, "labels", newVcp.Labels, "target", newVcp.Spec.Target)
 
-	if ignore, err := c.ignoreUpdate(newVp, oldAp, logger); ignore {
+	if ignore, err := c.ignoreUpdate(newVcp, oldAp, logger); ignore {
 		if err != nil {
 			logger.Error(err, "ignoreUpdate()")
 		}
@@ -426,8 +447,8 @@ func (c *ClusterPolicyController) handleUpdateVarmorClusterPolicy(newVp *varmor.
 	}
 
 	// First, reset VarmorClusterPolicy/status
-	logger.Info("1. reset VarmorClusterPolicy/status (updated=true)", "name", newVp.Name)
-	err := statusmanager.UpdateVarmorClusterPolicyStatus(c.varmorInterface, newVp, "", false, varmortypes.VarmorPolicyPending, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionTrue, "", "")
+	logger.Info("1. reset VarmorClusterPolicy/status (updated=true)", "name", newVcp.Name)
+	err := statusmanager.UpdateVarmorClusterPolicyStatus(c.varmorInterface, newVcp, "", false, varmortypes.VarmorPolicyPending, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionTrue, "", "")
 	if err != nil {
 		logger.Error(err, "statusmanager.UpdateVarmorClusterPolicyStatus()")
 		return err
@@ -435,10 +456,10 @@ func (c *ClusterPolicyController) handleUpdateVarmorClusterPolicy(newVp *varmor.
 
 	// Second, build a new ArmorProfileSpec
 	newApSpec := oldAp.Spec.DeepCopy()
-	newProfile, err := varmorprofile.GenerateProfile(newVp.Spec.Policy, oldAp.Name, varmorconfig.Namespace, c.varmorInterface, false, logger)
+	newProfile, egressInfo, err := varmorprofile.GenerateProfile(c.kubeClient, c.varmorInterface, newVcp.Spec.Policy, oldAp.Name, varmorconfig.Namespace, false, c.enablePodServiceEgressControl, logger)
 	if err != nil {
 		logger.Error(err, "GenerateProfile()")
-		err = statusmanager.UpdateVarmorClusterPolicyStatus(c.varmorInterface, newVp, "", false, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionFalse,
+		err = statusmanager.UpdateVarmorClusterPolicyStatus(c.varmorInterface, newVcp, "", false, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionFalse,
 			"Error",
 			err.Error())
 		if err != nil {
@@ -448,13 +469,22 @@ func (c *ClusterPolicyController) handleUpdateVarmorClusterPolicy(newVp *varmor.
 		return nil
 	}
 	newApSpec.Profile = *newProfile
-	newApSpec.UpdateExistingWorkloads = newVp.Spec.UpdateExistingWorkloads
-	if newVp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode {
-		newApSpec.BehaviorModeling.Duration = newVp.Spec.Policy.ModelingOptions.Duration
+	newApSpec.UpdateExistingWorkloads = newVcp.Spec.UpdateExistingWorkloads
+	if newVcp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode {
+		newApSpec.BehaviorModeling.Duration = newVcp.Spec.Policy.ModelingOptions.Duration
+	}
+
+	// Cache the egress information for the policy which has network egress rules with toPods and toService fields
+	if egressInfo != nil {
+		policyKey := newVcp.Name
+		c.egressCacheMutex.Lock()
+		c.egressCache[policyKey] = *egressInfo
+		c.egressCacheMutex.Unlock()
+		logger.Info("egress cache updated", "policy key", policyKey, "egress info", egressInfo)
 	}
 
 	// Last, do update
-	statusKey := newVp.Name
+	statusKey := newVcp.Name
 	atomic.StoreInt32(&c.statusManager.UpdateDesiredNumber, 1)
 	if !reflect.DeepEqual(oldAp.Spec, *newApSpec) {
 		// Update object
@@ -469,7 +499,7 @@ func (c *ClusterPolicyController) handleUpdateVarmorClusterPolicy(newVp *varmor.
 			return err
 		}
 
-		if newVp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode {
+		if newVcp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode {
 			err = resetArmorProfileModelStatus(c.varmorInterface, varmorconfig.Namespace, oldAp.Name)
 			if err != nil {
 				logger.Error(err, "resetArmorProfileModelStatus()")
@@ -478,13 +508,13 @@ func (c *ClusterPolicyController) handleUpdateVarmorClusterPolicy(newVp *varmor.
 
 		logger.Info("2.2. update ArmorProfile")
 		oldAp.Spec = *newApSpec
-		forceSetOwnerReference(oldAp, newVp, true)
+		forceSetOwnerReference(oldAp, newVcp, true)
 		_, err = c.varmorInterface.ArmorProfiles(varmorconfig.Namespace).Update(context.Background(), oldAp, metav1.UpdateOptions{})
 		if err != nil {
 			logger.Error(err, "ArmorProfile().Update()")
 			if varmorutils.IsRequestSizeError(err) {
 				return statusmanager.UpdateVarmorClusterPolicyStatus(
-					c.varmorInterface, newVp, "", false, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionFalse,
+					c.varmorInterface, newVcp, "", false, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionFalse,
 					"Error",
 					"The profiles are too large to update the existing ArmorProfile object.")
 			}
@@ -492,13 +522,13 @@ func (c *ClusterPolicyController) handleUpdateVarmorClusterPolicy(newVp *varmor.
 		}
 	} else if len(oldAp.OwnerReferences) == 0 {
 		// Forward compatibility, add an ownerReference to the existing ArmorProfile object
-		forceSetOwnerReference(oldAp, newVp, true)
+		forceSetOwnerReference(oldAp, newVcp, true)
 		_, err = c.varmorInterface.ArmorProfiles(varmorconfig.Namespace).Update(context.Background(), oldAp, metav1.UpdateOptions{})
 		if err != nil {
 			logger.Error(err, "ArmorProfile().Update()")
 			if varmorutils.IsRequestSizeError(err) {
 				return statusmanager.UpdateVarmorClusterPolicyStatus(
-					c.varmorInterface, newVp, "", false, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionFalse,
+					c.varmorInterface, newVcp, "", false, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionFalse,
 					"Error",
 					"The profiles are too large to update the existing ArmorProfile object.")
 			}

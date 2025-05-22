@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -27,8 +28,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
-	appsv1 "k8s.io/client-go/kubernetes/typed/apps/v1"
-	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 
@@ -50,47 +50,52 @@ const (
 )
 
 type PolicyController struct {
-	podInterface           corev1.PodInterface
-	appsInterface          appsv1.AppsV1Interface
-	varmorInterface        varmorinterface.CrdV1beta1Interface
-	vpInformer             varmorinformer.VarmorPolicyInformer
-	vpLister               varmorlister.VarmorPolicyLister
-	vpInformerSynced       cache.InformerSynced
-	queue                  workqueue.RateLimitingInterface
-	statusManager          *statusmanager.StatusManager
-	restartExistWorkloads  bool
-	enableBehaviorModeling bool
-	bpfExclusiveMode       bool
-	log                    logr.Logger
+	kubeClient                    *kubernetes.Clientset
+	varmorInterface               varmorinterface.CrdV1beta1Interface
+	vpInformer                    varmorinformer.VarmorPolicyInformer
+	vpLister                      varmorlister.VarmorPolicyLister
+	vpInformerSynced              cache.InformerSynced
+	queue                         workqueue.RateLimitingInterface
+	statusManager                 *statusmanager.StatusManager
+	egressCache                   map[string]varmortypes.EgressInfo
+	egressCacheMutex              *sync.RWMutex
+	restartExistWorkloads         bool
+	enableBehaviorModeling        bool
+	enablePodServiceEgressControl bool
+	bpfExclusiveMode              bool
+	log                           logr.Logger
 }
 
 // NewPolicyController create a new PolicyController
 func NewPolicyController(
-	podInterface corev1.PodInterface,
-	appsInterface appsv1.AppsV1Interface,
+	kubeClient *kubernetes.Clientset,
 	varmorInterface varmorinterface.CrdV1beta1Interface,
 	vpInformer varmorinformer.VarmorPolicyInformer,
 	statusManager *statusmanager.StatusManager,
+	egressCache map[string]varmortypes.EgressInfo,
+	egressCacheMutex *sync.RWMutex,
 	restartExistWorkloads bool,
 	enableBehaviorModeling bool,
+	enablePodServiceEgressControl bool,
 	bpfExclusiveMode bool,
 	log logr.Logger) (*PolicyController, error) {
 
 	c := PolicyController{
-		podInterface:           podInterface,
-		appsInterface:          appsInterface,
-		varmorInterface:        varmorInterface,
-		vpInformer:             vpInformer,
-		vpLister:               vpInformer.Lister(),
-		vpInformerSynced:       vpInformer.Informer().HasSynced,
-		queue:                  workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "policy"),
-		statusManager:          statusManager,
-		restartExistWorkloads:  restartExistWorkloads,
-		enableBehaviorModeling: enableBehaviorModeling,
-		bpfExclusiveMode:       bpfExclusiveMode,
-		log:                    log,
+		kubeClient:                    kubeClient,
+		varmorInterface:               varmorInterface,
+		vpInformer:                    vpInformer,
+		vpLister:                      vpInformer.Lister(),
+		vpInformerSynced:              vpInformer.Informer().HasSynced,
+		queue:                         workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "policy"),
+		statusManager:                 statusManager,
+		egressCache:                   egressCache,
+		egressCacheMutex:              egressCacheMutex,
+		restartExistWorkloads:         restartExistWorkloads,
+		enableBehaviorModeling:        enableBehaviorModeling,
+		enablePodServiceEgressControl: enablePodServiceEgressControl,
+		bpfExclusiveMode:              bpfExclusiveMode,
+		log:                           log,
 	}
-
 	return &c, nil
 }
 
@@ -156,7 +161,7 @@ func (c *PolicyController) handleDeleteVarmorPolicy(namespace, name string) erro
 			// This will trigger the rolling upgrade of the target workload
 			logger.Info("delete annotations of target workloads to trigger a rolling upgrade asynchronously")
 			go updateWorkloadAnnotationsAndEnv(
-				c.appsInterface,
+				c.kubeClient.AppsV1(),
 				namespace,
 				ap.Spec.Profile.Enforcer,
 				"",
@@ -169,6 +174,12 @@ func (c *PolicyController) handleDeleteVarmorPolicy(namespace, name string) erro
 		if err != nil {
 			logger.Error(err, "failed to remove the ArmorProfile's finalizers")
 		}
+
+		// Cleanup the policy from the egress information cache
+		policyKey := namespace + "/" + name
+		c.egressCacheMutex.Lock()
+		delete(c.egressCache, policyKey)
+		c.egressCacheMutex.Unlock()
 	}
 
 	// Cleanup the PolicyStatus and ModelingStatus of status manager for the deleted VarmorPolicy/ArmorProfile object
@@ -262,7 +273,7 @@ func (c *PolicyController) handleAddVarmorPolicy(vp *varmor.VarmorPolicy) error 
 		return err
 	}
 
-	ap, err := varmorprofile.NewArmorProfile(vp, c.varmorInterface, false, logger)
+	ap, egressInfo, err := varmorprofile.NewArmorProfile(c.kubeClient, c.varmorInterface, vp, false, c.enablePodServiceEgressControl, logger)
 	if err != nil {
 		logger.Error(err, "NewArmorProfile()")
 		err = statusmanager.UpdateVarmorPolicyStatus(c.varmorInterface, vp, "", false, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyCreated, apicorev1.ConditionFalse,
@@ -304,11 +315,20 @@ func (c *PolicyController) handleAddVarmorPolicy(vp *varmor.VarmorPolicy) error 
 		return err
 	}
 
+	// Cache the egress information for the policy which has network egress rules with toPods and toService fields
+	if egressInfo != nil {
+		policyKey := vp.Namespace + "/" + vp.Name
+		c.egressCacheMutex.Lock()
+		c.egressCache[policyKey] = *egressInfo
+		c.egressCacheMutex.Unlock()
+		logger.Info("egress cache added", "policy key", policyKey, "egress info", egressInfo)
+	}
+
 	if c.restartExistWorkloads && vp.Spec.UpdateExistingWorkloads {
 		// This will trigger the rolling upgrade of the target workload.
 		logger.Info("add annotations to target workloads to trigger a rolling upgrade asynchronously")
 		go updateWorkloadAnnotationsAndEnv(
-			c.appsInterface,
+			c.kubeClient.AppsV1(),
 			vp.Namespace,
 			vp.Spec.Policy.Enforcer,
 			vp.Spec.Policy.Mode,
@@ -440,7 +460,7 @@ func (c *PolicyController) handleUpdateVarmorPolicy(newVp *varmor.VarmorPolicy, 
 
 	// Second, build a new ArmorProfileSpec
 	newApSpec := oldAp.Spec.DeepCopy()
-	newProfile, err := varmorprofile.GenerateProfile(newVp.Spec.Policy, oldAp.Name, oldAp.Namespace, c.varmorInterface, false, logger)
+	newProfile, egressInfo, err := varmorprofile.GenerateProfile(c.kubeClient, c.varmorInterface, newVp.Spec.Policy, oldAp.Name, oldAp.Namespace, false, c.enablePodServiceEgressControl, logger)
 	if err != nil {
 		logger.Error(err, "GenerateProfile()")
 		err = statusmanager.UpdateVarmorPolicyStatus(c.varmorInterface, newVp, "", false, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionFalse,
@@ -456,6 +476,15 @@ func (c *PolicyController) handleUpdateVarmorPolicy(newVp *varmor.VarmorPolicy, 
 	newApSpec.UpdateExistingWorkloads = newVp.Spec.UpdateExistingWorkloads
 	if newVp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode {
 		newApSpec.BehaviorModeling.Duration = newVp.Spec.Policy.ModelingOptions.Duration
+	}
+
+	// Cache the egress information for the policy which has network egress rules with toPods and toService fields
+	if egressInfo != nil {
+		policyKey := newVp.Namespace + "/" + newVp.Name
+		c.egressCacheMutex.Lock()
+		c.egressCache[policyKey] = *egressInfo
+		c.egressCacheMutex.Unlock()
+		logger.Info("egress cache updated", "policy key", policyKey, "egress info", egressInfo)
 	}
 
 	// Last, do update

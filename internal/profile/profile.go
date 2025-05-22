@@ -20,6 +20,7 @@ import (
 
 	"github.com/go-logr/logr"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
 
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
 	varmorapm "github.com/bytedance/vArmor/internal/apm"
@@ -54,12 +55,16 @@ func GenerateArmorProfileName(ns string, name string, clusterScope bool) string 
 }
 
 func GenerateProfile(
+	kubeClient *kubernetes.Clientset,
+	varmorInterface varmorinterface.CrdV1beta1Interface,
 	policy varmor.Policy,
 	name string, namespace string,
-	varmorInterface varmorinterface.CrdV1beta1Interface,
 	complete bool,
-	logger logr.Logger) (*varmor.Profile, error) {
+	enablePodServiceEgressControl bool,
+	logger logr.Logger) (*varmor.Profile, *varmortypes.EgressInfo, error) {
 	var err error
+
+	var egressInfo *varmortypes.EgressInfo
 
 	profile := varmor.Profile{
 		Name:     name,
@@ -72,7 +77,7 @@ func GenerateProfile(
 	switch policy.Mode {
 	case varmortypes.AlwaysAllowMode:
 		if e == varmortypes.Unknown {
-			return nil, fmt.Errorf("unknown enforcer")
+			return nil, nil, fmt.Errorf("unknown enforcer")
 		}
 		// AppArmor
 		if (e & varmortypes.AppArmor) != 0 {
@@ -90,7 +95,7 @@ func GenerateProfile(
 
 	case varmortypes.RuntimeDefaultMode:
 		if e == varmortypes.Unknown {
-			return nil, fmt.Errorf("unknown enforcer")
+			return nil, nil, fmt.Errorf("unknown enforcer")
 		}
 		// AppArmor
 		if (e & varmortypes.AppArmor) != 0 {
@@ -101,7 +106,7 @@ func GenerateProfile(
 			var bpfContent varmor.BpfContent
 			err = bpfprofile.GenerateRuntimeDefaultProfile(&bpfContent, bpfenforcer.EnforceMode)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			profile.BpfContent = &bpfContent
 		}
@@ -115,11 +120,11 @@ func GenerateProfile(
 
 	case varmortypes.EnhanceProtectMode:
 		if e == varmortypes.Unknown {
-			return nil, fmt.Errorf("unknown enforcer")
+			return nil, nil, fmt.Errorf("unknown enforcer")
 		}
 
 		if policy.EnhanceProtect == nil {
-			return nil, fmt.Errorf("the EnhanceProtect field is nil")
+			return nil, nil, fmt.Errorf("the EnhanceProtect field is nil")
 		}
 
 		// AppArmor
@@ -129,9 +134,9 @@ func GenerateProfile(
 		// BPF
 		if (e & varmortypes.BPF) != 0 {
 			var bpfContent varmor.BpfContent
-			err = bpfprofile.GenerateEnhanceProtectProfile(policy.EnhanceProtect, &bpfContent)
+			egressInfo, err = bpfprofile.GenerateEnhanceProtectProfile(kubeClient, policy.EnhanceProtect, &bpfContent, enablePodServiceEgressControl)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			profile.BpfContent = &bpfContent
 		}
@@ -139,17 +144,17 @@ func GenerateProfile(
 		if (e & varmortypes.Seccomp) != 0 {
 			profile.SeccompContent, err = seccompprofile.GenerateEnhanceProtectProfile(policy.EnhanceProtect, name)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 		}
 
 	case varmortypes.BehaviorModelingMode:
 		if e == varmortypes.Unknown {
-			return nil, fmt.Errorf("unknown enforcer")
+			return nil, nil, fmt.Errorf("unknown enforcer")
 		}
 		// BPF
 		if (e & varmortypes.BPF) != 0 {
-			return nil, fmt.Errorf("fatal error: not supported by the enforcer")
+			return nil, nil, fmt.Errorf("fatal error: not supported by the enforcer")
 		}
 		// AppArmor
 		if (e & varmortypes.AppArmor) != 0 {
@@ -169,11 +174,11 @@ func GenerateProfile(
 
 	case varmortypes.DefenseInDepthMode:
 		if e == varmortypes.Unknown {
-			return nil, fmt.Errorf("unknown enforcer")
+			return nil, nil, fmt.Errorf("unknown enforcer")
 		}
 		// BPF
 		if (e & varmortypes.BPF) != 0 {
-			return nil, fmt.Errorf("fatal error: not supported by the enforcer")
+			return nil, nil, fmt.Errorf("fatal error: not supported by the enforcer")
 		}
 		// AppArmor
 		if (e & varmortypes.AppArmor) != 0 {
@@ -181,7 +186,7 @@ func GenerateProfile(
 			if err == nil && apm.Data.Profile.Content != "" {
 				profile.Content = apm.Data.Profile.Content
 			} else {
-				return nil, fmt.Errorf("fatal error: no existing AppArmor model found")
+				return nil, nil, fmt.Errorf("fatal error: no existing AppArmor model found")
 			}
 		}
 		// Seccomp
@@ -190,24 +195,30 @@ func GenerateProfile(
 			if err == nil && apm.Data.Profile.SeccompContent != "" {
 				profile.SeccompContent = apm.Data.Profile.SeccompContent
 			} else {
-				return nil, fmt.Errorf("fatal error: no existing Seccomp model found")
+				return nil, nil, fmt.Errorf("fatal error: no existing Seccomp model found")
 			}
 		}
 
 	default:
-		return nil, fmt.Errorf("unknown mode")
+		return nil, nil, fmt.Errorf("unknown mode")
 	}
 
-	return &profile, nil
+	return &profile, egressInfo, nil
 }
 
 func NewArmorProfile(
-	obj interface{},
+	kubeClient *kubernetes.Clientset,
 	varmorInterface varmorinterface.CrdV1beta1Interface,
+	obj interface{},
 	clusterScope bool,
-	logger logr.Logger) (*varmor.ArmorProfile, error) {
+	enablePodServiceEgressControl bool,
+	logger logr.Logger) (*varmor.ArmorProfile, *varmortypes.EgressInfo, error) {
 
-	ap := varmor.ArmorProfile{}
+	var ap varmor.ArmorProfile
+	var profile *varmor.Profile
+	var egressInfo *varmortypes.EgressInfo
+	var err error
+
 	controller := true
 
 	if clusterScope {
@@ -227,9 +238,9 @@ func NewArmorProfile(
 		}
 		ap.Finalizers = []string{"varmor.org/ap-protection"}
 
-		profile, err := GenerateProfile(vcp.Spec.Policy, ap.Name, ap.Namespace, varmorInterface, false, logger)
+		profile, egressInfo, err = GenerateProfile(kubeClient, varmorInterface, vcp.Spec.Policy, ap.Name, ap.Namespace, false, enablePodServiceEgressControl, logger)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		ap.Spec.Profile = *profile
 		ap.Spec.Target = *vcp.Spec.Target.DeepCopy()
@@ -237,12 +248,11 @@ func NewArmorProfile(
 
 		if vcp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode {
 			if vcp.Spec.Policy.ModelingOptions.Duration == 0 {
-				return &ap, fmt.Errorf("invalid parameter: .Spec.Policy.ModelingOptions.Duration == 0")
+				return nil, nil, fmt.Errorf("invalid parameter: .Spec.Policy.ModelingOptions.Duration == 0")
 			}
 			ap.Spec.BehaviorModeling.Enable = true
 			ap.Spec.BehaviorModeling.Duration = vcp.Spec.Policy.ModelingOptions.Duration
 		}
-
 	} else {
 		vp := obj.(*varmor.VarmorPolicy)
 
@@ -260,9 +270,9 @@ func NewArmorProfile(
 		}
 		ap.Finalizers = []string{"varmor.org/ap-protection"}
 
-		profile, err := GenerateProfile(vp.Spec.Policy, ap.Name, ap.Namespace, varmorInterface, false, logger)
+		profile, egressInfo, err = GenerateProfile(kubeClient, varmorInterface, vp.Spec.Policy, ap.Name, ap.Namespace, false, enablePodServiceEgressControl, logger)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		ap.Spec.Profile = *profile
 		ap.Spec.Target = *vp.Spec.Target.DeepCopy()
@@ -270,12 +280,12 @@ func NewArmorProfile(
 
 		if vp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode {
 			if vp.Spec.Policy.ModelingOptions.Duration == 0 {
-				return &ap, fmt.Errorf("invalid parameter: .Spec.Policy.ModelingOptions.Duration == 0")
+				return nil, nil, fmt.Errorf("invalid parameter: .Spec.Policy.ModelingOptions.Duration == 0")
 			}
 			ap.Spec.BehaviorModeling.Enable = true
 			ap.Spec.BehaviorModeling.Duration = vp.Spec.Policy.ModelingOptions.Duration
 		}
 	}
 
-	return &ap, nil
+	return &ap, egressInfo, nil
 }

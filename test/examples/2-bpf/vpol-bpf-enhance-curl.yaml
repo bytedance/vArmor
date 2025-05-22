@@ -44,10 +44,11 @@ spec:
           permissions:
           - exec
         network:
-          egresses:
-          - ip: fdbd:dc01:ff:307:9329:268d:3a27:2ca7
-          - ipBlock: 192.168.1.1/24 # 192.168.1.0 to 192.168.1.255
-            port: 80
+          egress:
+            toDestinations:
+            - ip: fdbd:dc01:ff:307:9329:268d:3a27:2ca7
+            - ipBlock: 192.168.1.1/24 # 192.168.1.0 to 192.168.1.255
+              port: 80
           sockets:
           - protocols:
             - "udp"

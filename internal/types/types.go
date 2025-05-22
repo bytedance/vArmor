@@ -17,6 +17,8 @@ package types
 import (
 	"strings"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
 )
 
@@ -134,4 +136,26 @@ func GetEnforcerType(enforcer string) Enforcer {
 		return t
 	}
 	return Unknown
+}
+
+// Pod saves the rule for matching the traffic of pods
+type Pod struct {
+	Mode              uint32
+	NamespaceSelector *metav1.LabelSelector
+	PodSelector       *metav1.LabelSelector
+	Ports             []varmor.Port
+}
+
+// Service saves the rule for matching the traffic of services and endpointslices
+type Service struct {
+	Mode            uint32
+	Namespace       string
+	Name            string
+	ServiceSelector *metav1.LabelSelector
+}
+
+// EgressInfo caches the pod and service rules that a policy wants to match.
+type EgressInfo struct {
+	ToPods     []Pod
+	ToServices []Service
 }

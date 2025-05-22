@@ -237,25 +237,27 @@ spec:
               target:
                 properties:
                   containers:
-                    description: Containers are used to specify the names of the protected
-                      containers. If it is empty, sandbox protection will be enabled
-                      for all containers within the workload (excluding initContainers
-                      and ephemeralContainers).
+                    description: containers are used to specify the names of the containers.
+                      If it is empty, sandbox protection will be enabled for all containers
+                      within the workload (excluding initContainers and ephemeralContainers).
                     items:
                       type: string
                     type: array
                   kind:
-                    description: 'Kind is used to specify the type of workloads for
+                    description: 'kind is used to specify the type of workloads for
                       the protection targets. Available values: Deployment, StatefulSet,
                       DaemonSet, Pod.'
                     type: string
                   name:
-                    description: Name is used to specify a specific workload name.
+                    description: name is used to specify a specific workload in the
+                      policy's namespace or all namespace. Note that the name field
+                      and selector field are mutually exclusive.
                     type: string
                   selector:
-                    description: LabelSelector is used to match workloads that meet
-                      the specified conditions. Note that the selector field and name
-                      field are mutually exclusive.
+                    description: selector is a label selector which selects workloads
+                      in the policy's namespace or all namespace. This field follows
+                      standard label selector semantics. Note that the selector field
+                      and name field are mutually exclusive.
                     properties:
                       matchExpressions:
                         description: matchExpressions is a list of label selector
