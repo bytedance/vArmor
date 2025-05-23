@@ -59,6 +59,10 @@ spec:
               - port: 9980
               - port: 10250
                 endPort: 10255
+            - ip: pod-self
+              ports:
+              - port: 80
+                endPort: 8080
             toPods:
             - podSelector:
                 matchLabels:
