@@ -15,23 +15,23 @@
 package bpfenforcer
 
 const (
-	// MaxTargetContainerCountForBpfLsm is the max count of target containers for BPF LSM,
+	// MaxTargetContainerCountForBpfLsm is the maximum count of target containers for BPF LSM,
 	// it's equal to the OUTER_MAP_ENTRIES_MAX of BPF code
-	MaxTargetContainerCountForBpfLsm int = 100
+	MaxTargetContainerCountForBpfLsm int = 110
 
-	// MaxBpfFileRuleCount is the max rule count of file operation primitive.
+	// MaxBpfFileRuleCount is the maximum rule count of file operation primitive.
 	MaxBpfFileRuleCount = 50
 
-	// MaxBpfBprmRuleCount is the max rule count of execution file primitive.
+	// MaxBpfBprmRuleCount is the maximum rule count of execution file primitive.
 	MaxBpfBprmRuleCount = 50
 
-	// MaxBpfNetworkRuleCount is the max rule count of network access primitive.
+	// MaxBpfNetworkRuleCount is the maximum rule count of network access primitive.
 	MaxBpfNetworkRuleCount = 50
 
-	// MaxBpfMountRuleCount is the max rule count of mount operation primitive.
+	// MaxBpfMountRuleCount is the maximum rule count of mount operation primitive.
 	MaxBpfMountRuleCount = 50
 
-	// MaxFilePathPatternLength is the max length of path pattern,
+	// MaxFilePathPatternLength is the maximum length of path pattern,
 	// it's equal to FILE_PATH_PATTERN_SIZE_MAX in BPF code
 	MaxFilePathPatternLength = 64
 
@@ -42,7 +42,7 @@ const (
 	// the size of `struct path_rule` in BPF code for consistent map entry size.
 	PathRuleSize = 4*2 + PathPatternSize
 
-	// MaxFileSystemTypeLength is the max length of fstype pattern,
+	// MaxFileSystemTypeLength is the maximum length of fstype pattern,
 	// it's equal to FILE_SYSTEM_TYPE_MAX in BPF code
 	MaxFileSystemTypeLength = 16
 
@@ -53,7 +53,7 @@ const (
 	// IpAddressSize is the size of IP address and mask.
 	IpAddressSize = 16
 
-	// MaxPortsCount is the max count of ports in network rule,
+	// MaxPortsCount is the maximum count of ports in network rule,
 	// it's equal to PORTS_COUNT_MAX in BPF code
 	MaxPortsCount = 16
 
@@ -86,6 +86,7 @@ const (
 	SocketMatch    = 0x00000200
 	PortRangeMatch = 0x00000400
 	PortsMatch     = 0x00000800
+	PodSelfIpMatch = 0x00001000
 
 	// Matching Permissions
 	AaMayExec     = 0x00000001

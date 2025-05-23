@@ -16,6 +16,7 @@ package bpfenforcer
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"reflect"
 
@@ -33,6 +34,7 @@ import (
 type enforceID struct {
 	pid     uint32
 	mntNsID uint32
+	ips     []string
 }
 
 type bpfProfile struct {
@@ -287,7 +289,32 @@ func (enforcer *BpfEnforcer) Close() {
 	enforcer.objs.V_auditRb.Unpin()
 	os.RemoveAll(PinPath)
 	enforcer.objs.Close()
+}
 
+func (enforcer *BpfEnforcer) setPodIps(mntNsID uint32, addresses []string) error {
+	if len(addresses) > 2 {
+		return fmt.Errorf("pods may be allocated at most 1 value for each of IPv4 and IPv6")
+	}
+
+	var podIP bpfPodIp
+	for _, address := range addresses {
+		ip := net.ParseIP(address)
+		if ip == nil {
+			return fmt.Errorf("the address is not a valid textual representation of an IP address")
+		}
+		if ip.To4() != nil {
+			podIP.Flags |= Ipv4Match
+			copy(podIP.Ipv4[:], ip.To4())
+		} else {
+			podIP.Flags |= Ipv6Match
+			copy(podIP.Ipv6[:], ip.To16())
+		}
+	}
+	return enforcer.objs.V_podIp.Put(&mntNsID, podIP)
+}
+
+func (enforcer *BpfEnforcer) removePodIps(mntNsID uint32) error {
+	return enforcer.objs.V_podIp.Delete(&mntNsID)
 }
 
 func (enforcer *BpfEnforcer) eventHandler(stopCh <-chan struct{}) {
@@ -312,20 +339,30 @@ func (enforcer *BpfEnforcer) eventHandler(stopCh <-chan struct{}) {
 					"pod name", info.PodName,
 					"container name", info.ContainerName,
 					"container id", info.ContainerID,
-					"pid", info.PID, "mnt ns id", info.MntNsID)
+					"pid", info.PID, "mnt ns id", info.MntNsID, "ips", info.PodIPs)
 
 				// create an enforceID
-				enforceID, err := enforcer.newEnforceID(info.PID)
+				enforceID, err := enforcer.newEnforceID(info.PID, info.PodIPs)
 				if err != nil {
 					logger.Error(err, "newEnforceID() failed")
 					break
 				}
 
-				// nothing needs to change if the container has been protected
+				// nothing needs to change if the container has already been protected
 				if oldEnforceID, ok := enforcer.containerCache[info.ContainerID]; ok {
 					if reflect.DeepEqual(oldEnforceID, enforceID) {
 						break
 					}
+				}
+
+				// add the Pod IPs to the map for the target container
+				if len(enforceID.ips) > 0 {
+					err = enforcer.setPodIps(enforceID.mntNsID, enforceID.ips)
+					if err != nil {
+						logger.Error(err, "setPodIps() failed")
+					}
+				} else {
+					logger.Error(fmt.Errorf("unexpected behavior: unable to obtain the Pod IP of the container"), "setPodIps() failed")
 				}
 
 				// apply the BPF profile for the target container
@@ -348,6 +385,9 @@ func (enforcer *BpfEnforcer) eventHandler(stopCh <-chan struct{}) {
 					"container id", info.ContainerID,
 					"pid", info.PID)
 
+				// remove the Pod IPs from the map for the container
+				enforcer.removePodIps(enforceID.mntNsID)
+
 				// delete the BPF profile of the container
 				enforcer.deleteProfile(enforceID.mntNsID)
 
@@ -368,12 +408,15 @@ func (enforcer *BpfEnforcer) eventHandler(stopCh <-chan struct{}) {
 			// Handle those containers that exit while the monitor was offline
 			for profileName, profile := range enforcer.bpfProfileCache {
 				for containerID, enforceID := range profile.containerCache {
-					_, err := enforcer.newEnforceID(enforceID.pid)
+					_, err := enforcer.newEnforceID(enforceID.pid, []string{})
 					if err != nil {
 						// maybe the container had already exited
 						logger.Info("the target container exited while the monitor was offline",
 							"container id", containerID,
 							"pid", enforceID.pid)
+
+						// remove the Pod IPs from the map for the container
+						enforcer.removePodIps(enforceID.mntNsID)
 
 						// delete the BPF profile of the container
 						enforcer.deleteProfile(enforceID.mntNsID)
@@ -490,6 +533,9 @@ func (enforcer *BpfEnforcer) SaveAndApplyBpfProfile(profileName string, bpfConte
 func (enforcer *BpfEnforcer) DeleteBpfProfile(profileName string) error {
 	if profile, ok := enforcer.bpfProfileCache[profileName]; ok {
 		for containerID, enforceID := range profile.containerCache {
+			// remove the Pod IPs from the map for the container
+			enforcer.removePodIps(enforceID.mntNsID)
+
 			// unload the BPF profile from the kernel
 			enforcer.deleteProfile(enforceID.mntNsID)
 
