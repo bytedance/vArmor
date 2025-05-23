@@ -80,7 +80,7 @@ func TestGenerateRawNetworkEgressRule_3(t *testing.T) {
 	_, err := generateRawNetworkEgressRule(nil, bpfContent, 0, &rule, false)
 	assert.NilError(t, err)
 	assert.Equal(t, len(bpfContent.Networks), 1)
-	assert.Equal(t, bpfContent.Networks[0].Flags, uint32(bpfenforcer.PortMatch))
+	assert.Equal(t, bpfContent.Networks[0].Flags, uint32(bpfenforcer.PortMatch|bpfenforcer.Ipv4Match|bpfenforcer.Ipv6Match))
 	assert.Equal(t, bpfContent.Networks[0].Address.Port, uint16(80))
 }
 
@@ -102,7 +102,7 @@ func TestGenerateRawNetworkEgressRule_4(t *testing.T) {
 	_, err := generateRawNetworkEgressRule(nil, bpfContent, 0, &rule, false)
 	assert.NilError(t, err)
 	assert.Equal(t, len(bpfContent.Networks), 1)
-	assert.Equal(t, bpfContent.Networks[0].Flags, uint32(bpfenforcer.PortRangeMatch))
+	assert.Equal(t, bpfContent.Networks[0].Flags, uint32(bpfenforcer.PortRangeMatch|bpfenforcer.Ipv4Match|bpfenforcer.Ipv6Match))
 	assert.Equal(t, bpfContent.Networks[0].Address.Port, uint16(80))
 	assert.Equal(t, bpfContent.Networks[0].Address.EndPort, uint16(8080))
 }
@@ -130,7 +130,7 @@ func TestGenerateRawNetworkEgressRule_5(t *testing.T) {
 	_, err := generateRawNetworkEgressRule(nil, bpfContent, 0, &rule, false)
 	assert.NilError(t, err)
 	assert.Equal(t, len(bpfContent.Networks), 1)
-	assert.Equal(t, bpfContent.Networks[0].Flags, uint32(bpfenforcer.PortsMatch))
+	assert.Equal(t, bpfContent.Networks[0].Flags, uint32(bpfenforcer.PortsMatch|bpfenforcer.Ipv4Match|bpfenforcer.Ipv6Match))
 	assert.DeepEqual(t, bpfContent.Networks[0].Address.Ports, []uint16{80, 81, 82})
 }
 
@@ -292,4 +292,56 @@ func TestGenerateRawNetworkEgressRule_10(t *testing.T) {
 	assert.Equal(t, bpfContent.Networks[2].Flags, uint32(bpfenforcer.Ipv4Match|bpfenforcer.PreciseMatch|bpfenforcer.PortsMatch))
 	assert.Equal(t, bpfContent.Networks[2].Address.IP, "10.37.31.68")
 	assert.DeepEqual(t, bpfContent.Networks[2].Address.Ports, []uint16{1, 2, 3})
+}
+
+func TestGenerateRawNetworkEgressRule_11(t *testing.T) {
+	rule := varmor.NetworkEgressRule{
+		ToDestinations: []varmor.Destination{
+			{
+				IP: "unspecified",
+				Ports: []varmor.Port{
+					{
+						Port: 80,
+					},
+					{
+						Port: 90,
+					},
+					{
+						Port: 100,
+					},
+				},
+			},
+		},
+	}
+
+	bpfContent := &varmor.BpfContent{}
+	_, err := generateRawNetworkEgressRule(nil, bpfContent, 0, &rule, false)
+	assert.NilError(t, err)
+	assert.Equal(t, len(bpfContent.Networks), 1)
+	assert.Equal(t, bpfContent.Networks[0].Flags, uint32(bpfenforcer.PreciseMatch|bpfenforcer.Ipv4Match|bpfenforcer.Ipv6Match|bpfenforcer.PortsMatch))
+	assert.Equal(t, bpfContent.Networks[0].Address.IP, "unspecified")
+	assert.DeepEqual(t, bpfContent.Networks[0].Address.Ports, []uint16{80, 90, 100})
+}
+
+func TestGenerateRawNetworkEgressRule_12(t *testing.T) {
+	rule := varmor.NetworkEgressRule{
+		ToDestinations: []varmor.Destination{
+			{
+				IP: "pod-self",
+				Ports: []varmor.Port{
+					{
+						Port: 80,
+					},
+				},
+			},
+		},
+	}
+
+	bpfContent := &varmor.BpfContent{}
+	_, err := generateRawNetworkEgressRule(nil, bpfContent, 0, &rule, false)
+	assert.NilError(t, err)
+	assert.Equal(t, len(bpfContent.Networks), 1)
+	assert.Equal(t, bpfContent.Networks[0].Flags, uint32(bpfenforcer.PodSelfIpMatch|bpfenforcer.Ipv4Match|bpfenforcer.Ipv6Match|bpfenforcer.PortMatch))
+	assert.Equal(t, bpfContent.Networks[0].Address.IP, "pod-self")
+	assert.Equal(t, bpfContent.Networks[0].Address.Port, uint16(80))
 }
