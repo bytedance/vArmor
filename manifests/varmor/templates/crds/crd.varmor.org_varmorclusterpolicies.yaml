@@ -230,10 +230,9 @@ spec:
                                         ip:
                                           description: ip defines this rule on a particular
                                             IP. Please use a valid textual representation
-                                            of an IP address or the `pod-self` entity
-                                            to represent the Pod's own IP addresses.
-                                            Note that the ip field and ipBlock field
-                                            are mutually exclusive.
+                                            of an IP, or special entities like "pod-self"
+                                            or "unspecified". Note that the ip field
+                                            and cidr field are mutually exclusive.
                                           type: string
                                         ports:
                                           description: ports define this rule on particular

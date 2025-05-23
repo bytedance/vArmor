@@ -196,12 +196,10 @@ func newBpfNetworkConnectRule(mode uint32, cidr string, ip string, port uint16, 
 
 	if cidr != "" {
 		networkRule.Flags |= bpfenforcer.CidrMatch
-
 		_, ipNet, err := net.ParseCIDR(cidr)
 		if err != nil {
 			return nil, err
 		}
-
 		networkRule.Address.IP = ipNet.IP.String()
 		networkRule.Address.CIDR = ipNet.String()
 		if ipNet.IP.To4() != nil {
@@ -209,27 +207,28 @@ func newBpfNetworkConnectRule(mode uint32, cidr string, ip string, port uint16, 
 		} else {
 			networkRule.Flags |= bpfenforcer.Ipv6Match
 		}
-	}
-
-	switch ip {
-	case "":
-		break
-	case varmor.PodSelfIP:
-		networkRule.Flags |= bpfenforcer.PodSelfIpMatch | bpfenforcer.Ipv4Match | bpfenforcer.Ipv6Match
-		networkRule.Address.IP = varmor.PodSelfIP
-	default:
-		networkRule.Flags |= bpfenforcer.PreciseMatch
-
-		i := net.ParseIP(ip)
-		if i == nil {
-			return nil, fmt.Errorf("policy contains an illegal NetworkEgressRule rule; the ip '%s' is not a valid textual representation of an IP address", ip)
-		}
-
-		networkRule.Address.IP = i.String()
-		if i.To4() != nil {
-			networkRule.Flags |= bpfenforcer.Ipv4Match
-		} else {
-			networkRule.Flags |= bpfenforcer.Ipv6Match
+	} else {
+		switch ip {
+		case "":
+			networkRule.Flags |= bpfenforcer.Ipv4Match | bpfenforcer.Ipv6Match
+		case varmor.PodSelfIP:
+			networkRule.Flags |= bpfenforcer.PodSelfIpMatch | bpfenforcer.Ipv4Match | bpfenforcer.Ipv6Match
+			networkRule.Address.IP = varmor.PodSelfIP
+		case varmor.Unspecified:
+			networkRule.Flags |= bpfenforcer.PreciseMatch | bpfenforcer.Ipv4Match | bpfenforcer.Ipv6Match
+			networkRule.Address.IP = varmor.Unspecified
+		default:
+			networkRule.Flags |= bpfenforcer.PreciseMatch
+			i := net.ParseIP(ip)
+			if i == nil {
+				return nil, fmt.Errorf("policy contains an illegal NetworkEgressRule rule; the ip '%s' is not a valid textual representation of an IP address", ip)
+			}
+			networkRule.Address.IP = i.String()
+			if i.To4() != nil {
+				networkRule.Flags |= bpfenforcer.Ipv4Match
+			} else {
+				networkRule.Flags |= bpfenforcer.Ipv6Match
+			}
 		}
 	}
 
