@@ -303,8 +303,10 @@ func (enforcer *BpfEnforcer) setPodIps(mntNsID uint32, addresses []string) error
 			return fmt.Errorf("the address is not a valid textual representation of an IP address")
 		}
 		if ip.To4() != nil {
+			podIP.Flags |= Ipv4Match
 			copy(podIP.Ipv4[:], ip.To4())
 		} else {
+			podIP.Flags |= Ipv6Match
 			copy(podIP.Ipv6[:], ip.To16())
 		}
 	}

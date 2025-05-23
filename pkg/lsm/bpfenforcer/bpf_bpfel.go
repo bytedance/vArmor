@@ -30,8 +30,9 @@ type bpfCapabilityRule struct {
 }
 
 type bpfPodIp struct {
-	Ipv4 [16]uint8
-	Ipv6 [16]uint8
+	Flags uint32
+	Ipv4  [16]uint8
+	Ipv6  [16]uint8
 }
 
 type bpfPtraceRule struct {
