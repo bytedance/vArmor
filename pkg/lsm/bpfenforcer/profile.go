@@ -191,7 +191,10 @@ func (enforcer *BpfEnforcer) applyNetworkRules(nsID uint32, networks []varmor.Ne
 					copy(rule.Ports[:], network.Address.Ports)
 				}
 
-				if network.Address.IP != varmor.PodSelfIP {
+				switch network.Address.IP {
+				case "", varmor.PodSelfIP, varmor.Unspecified:
+					break
+				default:
 					ip := net.ParseIP(network.Address.IP)
 					if ip.To4() != nil {
 						copy(rule.Address[:], ip.To4())
