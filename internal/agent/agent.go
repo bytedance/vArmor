@@ -512,7 +512,7 @@ func (agent *Agent) handleCreateOrUpdateArmorProfile(ap *varmor.ArmorProfile, ke
 	}
 
 	logger.Info("send succeeded status to manager")
-	return agent.sendStatus(ap, varmortypes.Succeeded, string(varmortypes.ArmorProfileReady))
+	return agent.sendStatus(ap, varmortypes.Succeeded, string(varmor.ArmorProfileReady))
 }
 
 func (agent *Agent) handleDeleteArmorProfile(namespace, name, key string) error {

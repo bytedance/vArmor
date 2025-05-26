@@ -40,11 +40,14 @@ import (
 //+kubebuilder:printcolumn:name="AGE",type=date,JSONPath=`.metadata.creationTimestamp`
 
 // VarmorClusterPolicy is the Schema for the varmorclusterpolicies API
+// VarmorClusterPolicy is a cluster-level security policy for hardening the workloads across the entire cluster.
 type VarmorClusterPolicy struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   VarmorPolicySpec   `json:"spec"`
+	// Spec describes the desired policy to be used for hardening the target workloads.
+	Spec VarmorPolicySpec `json:"spec"`
+	// Status describes the observed status of the policy.
 	Status VarmorPolicyStatus `json:"status,omitempty"`
 }
 

@@ -22,45 +22,15 @@ import (
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
 )
 
+// Enforcer represents policy enforcement mechanisms.
 type Enforcer int
 
 const (
-	// VarmorPolicy Enforcer
+	// Enforcer types
 	AppArmor Enforcer = 0x00000001
 	BPF      Enforcer = 0x00000002
 	Seccomp  Enforcer = 0x00000004
 	Unknown  Enforcer = 0x00000008
-
-	// VarmorPolicy Mode
-	AlwaysAllowMode      varmor.VarmorPolicyMode = "AlwaysAllow"
-	RuntimeDefaultMode   varmor.VarmorPolicyMode = "RuntimeDefault"
-	EnhanceProtectMode   varmor.VarmorPolicyMode = "EnhanceProtect"
-	BehaviorModelingMode varmor.VarmorPolicyMode = "BehaviorModeling"
-	DefenseInDepthMode   varmor.VarmorPolicyMode = "DefenseInDepth"
-
-	// VarmorPolicy Phase
-	VarmorPolicyPending    varmor.VarmorPolicyPhase = "Pending"
-	VarmorPolicyModeling   varmor.VarmorPolicyPhase = "Modeling"
-	VarmorPolicyCompleted  varmor.VarmorPolicyPhase = "Completed"
-	VarmorPolicyProtecting varmor.VarmorPolicyPhase = "Protecting"
-	VarmorPolicyError      varmor.VarmorPolicyPhase = "Error"
-	VarmorPolicyFailed     varmor.VarmorPolicyPhase = "Failed"
-	VarmorPolicyUnknown    varmor.VarmorPolicyPhase = "Unknown"
-	VarmorPolicyUnchanged  varmor.VarmorPolicyPhase = "Unchanged"
-
-	// VarmorPolicy Condition Type
-	VarmorPolicyCreated varmor.VarmorPolicyConditionType = "Created"
-	VarmorPolicyUpdated varmor.VarmorPolicyConditionType = "Updated"
-	VarmorPolicyReady   varmor.VarmorPolicyConditionType = "Ready"
-
-	// ArmorProfile Condition Type
-	ArmorProfileReady      varmor.ArmorProfileConditionType      = "Ready"
-	ArmorProfileModelReady varmor.ArmorProfileModelConditionType = "Ready"
-
-	// ArmorProfileModelData Storage Type
-	StorageTypeCRDInternal varmor.StorageType = "CRDInternal"
-	StorageTypeLocalDisk   varmor.StorageType = "LocalDisk"
-	StorageTypePVPVC       varmor.StorageType = "PV/PVC"
 
 	// AppArmor Profile process Status
 	Succeeded Status = "succeeded"

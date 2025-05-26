@@ -227,7 +227,7 @@ func (m *StatusManager) rebuildPolicyStatuses() error {
 			for _, node := range nodes {
 				if _, ok := policyStatus.NodeMessages[node]; !ok {
 					policyStatus.SuccessedNumber += 1
-					policyStatus.NodeMessages[node] = string(varmortypes.ArmorProfileReady)
+					policyStatus.NodeMessages[node] = string(varmor.ArmorProfileReady)
 				}
 			}
 
@@ -257,14 +257,14 @@ func (m *StatusManager) updateVarmorPolicyStatus(
 	} else {
 		status = v1.ConditionFalse
 		reason = "Processing"
-		if phase == varmortypes.VarmorPolicyError {
+		if phase == varmor.VarmorPolicyError {
 			reason = "Error"
 			message = fmt.Sprintf("The agents failed processing the profile. Please refer to the status of ArmorProfile object (%s/%s) for more details.",
 				vp.Namespace, vp.Status.ProfileName)
 		}
 	}
 
-	return UpdateVarmorPolicyStatus(m.varmorInterface, vp, "", ready, phase, varmortypes.VarmorPolicyReady, status, reason, message)
+	return UpdateVarmorPolicyStatus(m.varmorInterface, vp, "", ready, phase, varmor.VarmorPolicyReady, status, reason, message)
 }
 
 func (m *StatusManager) updateVarmorClusterPolicyStatus(
@@ -286,14 +286,14 @@ func (m *StatusManager) updateVarmorClusterPolicyStatus(
 	} else {
 		status = v1.ConditionFalse
 		reason = "Processing"
-		if phase == varmortypes.VarmorPolicyError {
+		if phase == varmor.VarmorPolicyError {
 			reason = "Error"
 			message = fmt.Sprintf("The agents failed processing the profile. Please refer to the status of ArmorProfile object (%s/%s) for more details.",
 				varmorconfig.Namespace, vcp.Status.ProfileName)
 		}
 	}
 
-	return UpdateVarmorClusterPolicyStatus(m.varmorInterface, vcp, "", ready, phase, varmortypes.VarmorPolicyReady, status, reason, message)
+	return UpdateVarmorClusterPolicyStatus(m.varmorInterface, vcp, "", ready, phase, varmor.VarmorPolicyReady, status, reason, message)
 }
 
 // updateAllCRStatus periodically reconcile all of the objects' statuses to avoid the interference from offline nodes
@@ -328,7 +328,7 @@ func (m *StatusManager) updateAllCRStatus(logger logr.Logger) {
 		policyStatus.SuccessedNumber = 0
 		for nodeName, message := range policyStatus.NodeMessages {
 			if varmorutils.InStringArray(nodeName, nodes) {
-				if message == string(varmortypes.ArmorProfileReady) {
+				if message == string(varmor.ArmorProfileReady) {
 					policyStatus.SuccessedNumber += 1
 				} else {
 					policyStatus.FailedNumber += 1
@@ -508,10 +508,10 @@ func (m *StatusManager) reconcileStatus(stopCh <-chan struct{}) {
 				vSpec = v.(*varmor.VarmorPolicy).Spec
 				vStatus = v.(*varmor.VarmorPolicy).Status
 			}
-			phase := varmortypes.VarmorPolicyProtecting
+			phase := varmor.VarmorPolicyProtecting
 			complete := false
-			if vSpec.Policy.Mode == varmortypes.BehaviorModelingMode && vSpec.Policy.ModelingOptions != nil {
-				phase = varmortypes.VarmorPolicyModeling
+			if vSpec.Policy.Mode == varmor.BehaviorModelingMode && vSpec.Policy.ModelingOptions != nil {
+				phase = varmor.VarmorPolicyModeling
 
 				m.modelingStatusesLock.RLock()
 				if modelingStatus, ok := m.modelingStatuses[statusKey]; ok {
@@ -519,7 +519,7 @@ func (m *StatusManager) reconcileStatus(stopCh <-chan struct{}) {
 						complete = true
 					}
 				} else {
-					if vStatus.Phase == varmortypes.VarmorPolicyCompleted {
+					if vStatus.Phase == varmor.VarmorPolicyCompleted {
 						createTime := ap.CreationTimestamp.Time
 						if time.Now().After(createTime.Add(time.Duration(vSpec.Policy.ModelingOptions.Duration) * time.Minute)) {
 							complete = true
@@ -529,7 +529,7 @@ func (m *StatusManager) reconcileStatus(stopCh <-chan struct{}) {
 				m.modelingStatusesLock.RUnlock()
 
 				if complete {
-					phase = varmortypes.VarmorPolicyCompleted
+					phase = varmor.VarmorPolicyCompleted
 				}
 			}
 
@@ -538,7 +538,7 @@ func (m *StatusManager) reconcileStatus(stopCh <-chan struct{}) {
 				ready = true
 			}
 			if policyStatus.FailedNumber > 0 {
-				phase = varmortypes.VarmorPolicyError
+				phase = varmor.VarmorPolicyError
 				ready = false
 			}
 

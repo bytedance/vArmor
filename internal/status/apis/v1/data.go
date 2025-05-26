@@ -82,7 +82,7 @@ func (m *StatusManager) updateModelingStatus(statusKey string, behaviorData *var
 		modelingStatus.NodeMessages[behaviorData.NodeName] = behaviorData.Message
 	case varmortypes.Succeeded:
 		modelingStatus.CompletedNumber += 1
-		modelingStatus.NodeMessages[behaviorData.NodeName] = string(varmortypes.ArmorProfileModelReady)
+		modelingStatus.NodeMessages[behaviorData.NodeName] = string(varmor.ArmorProfileModelReady)
 	}
 
 	m.modelingStatuses[statusKey] = modelingStatus

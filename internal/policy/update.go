@@ -161,7 +161,7 @@ func modifyDeploymentAnnotationsAndEnv(enforcer string, mode varmor.VarmorPolicy
 			if deploy.Spec.Template.Spec.Containers[index].SecurityContext == nil {
 				deploy.Spec.Template.Spec.Containers[index].SecurityContext = &coreV1.SecurityContext{}
 			}
-			if mode == varmortypes.RuntimeDefaultMode {
+			if mode == varmor.RuntimeDefaultMode {
 				deploy.Spec.Template.Spec.Containers[index].SecurityContext.SeccompProfile = &coreV1.SeccompProfile{
 					Type: "RuntimeDefault",
 				}
@@ -298,7 +298,7 @@ func modifyStatefulSetAnnotationsAndEnv(enforcer string, mode varmor.VarmorPolic
 			if stateful.Spec.Template.Spec.Containers[index].SecurityContext == nil {
 				stateful.Spec.Template.Spec.Containers[index].SecurityContext = &coreV1.SecurityContext{}
 			}
-			if mode == varmortypes.RuntimeDefaultMode {
+			if mode == varmor.RuntimeDefaultMode {
 				stateful.Spec.Template.Spec.Containers[index].SecurityContext.SeccompProfile = &coreV1.SeccompProfile{
 					Type: "RuntimeDefault",
 				}
@@ -435,7 +435,7 @@ func modifyDaemonSetAnnotationsAndEnv(enforcer string, mode varmor.VarmorPolicyM
 			if daemon.Spec.Template.Spec.Containers[index].SecurityContext == nil {
 				daemon.Spec.Template.Spec.Containers[index].SecurityContext = &coreV1.SecurityContext{}
 			}
-			if mode == varmortypes.RuntimeDefaultMode {
+			if mode == varmor.RuntimeDefaultMode {
 				daemon.Spec.Template.Spec.Containers[index].SecurityContext.SeccompProfile = &coreV1.SeccompProfile{
 					Type: "RuntimeDefault",
 				}

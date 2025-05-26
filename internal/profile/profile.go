@@ -75,7 +75,7 @@ func GenerateProfile(
 	e := varmortypes.GetEnforcerType(policy.Enforcer)
 
 	switch policy.Mode {
-	case varmortypes.AlwaysAllowMode:
+	case varmor.AlwaysAllowMode:
 		if e == varmortypes.Unknown {
 			return nil, nil, fmt.Errorf("unknown enforcer")
 		}
@@ -93,7 +93,7 @@ func GenerateProfile(
 			profile.SeccompContent = seccompprofile.GenerateAlwaysAllowProfile()
 		}
 
-	case varmortypes.RuntimeDefaultMode:
+	case varmor.RuntimeDefaultMode:
 		if e == varmortypes.Unknown {
 			return nil, nil, fmt.Errorf("unknown enforcer")
 		}
@@ -118,7 +118,7 @@ func GenerateProfile(
 			profile.SeccompContent = seccompprofile.GenerateAlwaysAllowProfile()
 		}
 
-	case varmortypes.EnhanceProtectMode:
+	case varmor.EnhanceProtectMode:
 		if e == varmortypes.Unknown {
 			return nil, nil, fmt.Errorf("unknown enforcer")
 		}
@@ -148,7 +148,7 @@ func GenerateProfile(
 			}
 		}
 
-	case varmortypes.BehaviorModelingMode:
+	case varmor.BehaviorModelingMode:
 		if e == varmortypes.Unknown {
 			return nil, nil, fmt.Errorf("unknown enforcer")
 		}
@@ -172,7 +172,7 @@ func GenerateProfile(
 			profile.SeccompContent = seccompprofile.GenerateBehaviorModelingProfile()
 		}
 
-	case varmortypes.DefenseInDepthMode:
+	case varmor.DefenseInDepthMode:
 		if e == varmortypes.Unknown {
 			return nil, nil, fmt.Errorf("unknown enforcer")
 		}
@@ -246,7 +246,7 @@ func NewArmorProfile(
 		ap.Spec.Target = *vcp.Spec.Target.DeepCopy()
 		ap.Spec.UpdateExistingWorkloads = vcp.Spec.UpdateExistingWorkloads
 
-		if vcp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode {
+		if vcp.Spec.Policy.Mode == varmor.BehaviorModelingMode {
 			if vcp.Spec.Policy.ModelingOptions.Duration == 0 {
 				return nil, nil, fmt.Errorf("invalid parameter: .Spec.Policy.ModelingOptions.Duration == 0")
 			}
@@ -278,7 +278,7 @@ func NewArmorProfile(
 		ap.Spec.Target = *vp.Spec.Target.DeepCopy()
 		ap.Spec.UpdateExistingWorkloads = vp.Spec.UpdateExistingWorkloads
 
-		if vp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode {
+		if vp.Spec.Policy.Mode == varmor.BehaviorModelingMode {
 			if vp.Spec.Policy.ModelingOptions.Duration == 0 {
 				return nil, nil, fmt.Errorf("invalid parameter: .Spec.Policy.ModelingOptions.Duration == 0")
 			}

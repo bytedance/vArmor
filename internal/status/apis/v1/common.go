@@ -336,25 +336,25 @@ func UpdateVarmorPolicyStatus(
 		// Update condition
 		exist := false
 		switch condition.Type {
-		case varmortypes.VarmorPolicyCreated:
+		case varmor.VarmorPolicyCreated:
 			for i, c := range vp.Status.Conditions {
-				if c.Type == varmortypes.VarmorPolicyCreated {
+				if c.Type == varmor.VarmorPolicyCreated {
 					condition.DeepCopyInto(&vp.Status.Conditions[i])
 					exist = true
 					break
 				}
 			}
-		case varmortypes.VarmorPolicyUpdated:
+		case varmor.VarmorPolicyUpdated:
 			for i, c := range vp.Status.Conditions {
-				if c.Type == varmortypes.VarmorPolicyUpdated {
+				if c.Type == varmor.VarmorPolicyUpdated {
 					condition.DeepCopyInto(&vp.Status.Conditions[i])
 					exist = true
 					break
 				}
 			}
-		case varmortypes.VarmorPolicyReady:
+		case varmor.VarmorPolicyReady:
 			for i, c := range vp.Status.Conditions {
-				if c.Type == varmortypes.VarmorPolicyReady {
+				if c.Type == varmor.VarmorPolicyReady {
 					condition.DeepCopyInto(&vp.Status.Conditions[i])
 					exist = true
 					break
@@ -372,7 +372,7 @@ func UpdateVarmorPolicyStatus(
 
 		// Update status
 		vp.Status.Ready = ready
-		if phase != varmortypes.VarmorPolicyUnchanged {
+		if phase != varmor.VarmorPolicyUnchanged {
 			vp.Status.Phase = phase
 		}
 
@@ -419,25 +419,25 @@ func UpdateVarmorClusterPolicyStatus(
 		// Update condition
 		exist := false
 		switch condition.Type {
-		case varmortypes.VarmorPolicyCreated:
+		case varmor.VarmorPolicyCreated:
 			for i, c := range vcp.Status.Conditions {
-				if c.Type == varmortypes.VarmorPolicyCreated {
+				if c.Type == varmor.VarmorPolicyCreated {
 					condition.DeepCopyInto(&vcp.Status.Conditions[i])
 					exist = true
 					break
 				}
 			}
-		case varmortypes.VarmorPolicyUpdated:
+		case varmor.VarmorPolicyUpdated:
 			for i, c := range vcp.Status.Conditions {
-				if c.Type == varmortypes.VarmorPolicyUpdated {
+				if c.Type == varmor.VarmorPolicyUpdated {
 					condition.DeepCopyInto(&vcp.Status.Conditions[i])
 					exist = true
 					break
 				}
 			}
-		case varmortypes.VarmorPolicyReady:
+		case varmor.VarmorPolicyReady:
 			for i, c := range vcp.Status.Conditions {
-				if c.Type == varmortypes.VarmorPolicyReady {
+				if c.Type == varmor.VarmorPolicyReady {
 					condition.DeepCopyInto(&vcp.Status.Conditions[i])
 					exist = true
 					break
@@ -455,7 +455,7 @@ func UpdateVarmorClusterPolicyStatus(
 
 		// Update status
 		vcp.Status.Ready = ready
-		if phase != varmortypes.VarmorPolicyUnchanged {
+		if phase != varmor.VarmorPolicyUnchanged {
 			vcp.Status.Phase = phase
 		}
 
@@ -492,8 +492,8 @@ func UpdateArmorProfileStatus(
 
 	var conditions []varmor.ArmorProfileCondition
 	for nodeName, message := range policyStatus.NodeMessages {
-		if message != string(varmortypes.ArmorProfileReady) {
-			c := newArmorProfileCondition(nodeName, varmortypes.ArmorProfileReady, v1.ConditionFalse, "", message)
+		if message != string(varmor.ArmorProfileReady) {
+			c := newArmorProfileCondition(nodeName, varmor.ArmorProfileReady, v1.ConditionFalse, "", message)
 			conditions = append(conditions, *c)
 		}
 	}
@@ -556,8 +556,8 @@ func UpdateArmorProfileModelStatus(
 
 	var conditions []varmor.ArmorProfileModelCondition
 	for nodeName, message := range modelingStatus.NodeMessages {
-		if message != string(varmortypes.ArmorProfileModelReady) {
-			c := newArmorProfileModelCondition(nodeName, varmortypes.ArmorProfileModelReady, v1.ConditionFalse, "", message)
+		if message != string(varmor.ArmorProfileModelReady) {
+			c := newArmorProfileModelCondition(nodeName, varmor.ArmorProfileModelReady, v1.ConditionFalse, "", message)
 			conditions = append(conditions, *c)
 		}
 	}

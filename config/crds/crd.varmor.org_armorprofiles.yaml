@@ -37,7 +37,8 @@ spec:
     name: v1beta1
     schema:
       openAPIV3Schema:
-        description: ArmorProfile is the Schema for the armorprofiles API
+        description: ArmorProfile is the Schema for the armorprofiles API It's an
+          internal interface, used by vArmor only.
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation
@@ -52,7 +53,7 @@ spec:
           metadata:
             type: object
           spec:
-            description: ArmorProfileSpec defines the desired state of ArmorProfile
+            description: Spec defines the profiles for hardening target workloads.
             properties:
               behaviorModeling:
                 properties:
@@ -314,9 +315,11 @@ spec:
             - updateExistingWorkloads
             type: object
           status:
-            description: ArmorProfileStatus defines the observed state of ArmorProfile
+            description: Status defines the observed state of ArmorProfile
             properties:
               conditions:
+                description: Conditions is a list of conditions that describe the
+                  state of the ArmorProfile.
                 items:
                   properties:
                     lastTransitionTime:
@@ -329,6 +332,8 @@ spec:
                         the transition.
                       type: string
                     nodeName:
+                      description: NodeName is the name of the node where the condition
+                        is applicable.
                       type: string
                     reason:
                       description: The reason for the condition's last transition.
@@ -346,9 +351,13 @@ spec:
                   type: object
                 type: array
               currentNumberLoaded:
+                description: CurrentNumberLoaded is the current number of profiles
+                  that are loaded.
                 format: int32
                 type: integer
               desiredNumberLoaded:
+                description: DesiredNumberLoaded is the desired number of profiles
+                  that should be loaded.
                 format: int32
                 type: integer
             required:
