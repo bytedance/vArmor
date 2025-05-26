@@ -24,8 +24,6 @@ import (
 
 	goversion "github.com/hashicorp/go-version"
 	"k8s.io/apimachinery/pkg/version"
-
-	varmorTypes "github.com/bytedance/vArmor/internal/types"
 )
 
 const (
@@ -140,17 +138,6 @@ func retrieveNodeName(inContainer bool) (string, error) {
 		return "", fmt.Errorf("the NODE_NAME environment variable doesn't exist")
 	}
 	return nodeName, nil
-}
-
-func newProfileStatus(namespace, name, nodeName string, status varmorTypes.Status, message string) *varmorTypes.ProfileStatus {
-	s := varmorTypes.ProfileStatus{
-		Namespace:   namespace,
-		ProfileName: name,
-		NodeName:    nodeName,
-		Status:      status,
-		Message:     message,
-	}
-	return &s
 }
 
 // This profile is not used to be loaded into the kernel.

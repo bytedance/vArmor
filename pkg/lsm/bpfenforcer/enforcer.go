@@ -361,8 +361,6 @@ func (enforcer *BpfEnforcer) eventHandler(stopCh <-chan struct{}) {
 					if err != nil {
 						logger.Error(err, "setPodIps() failed")
 					}
-				} else {
-					logger.Error(fmt.Errorf("unexpected behavior: unable to obtain the Pod IP of the container"), "setPodIps() failed")
 				}
 
 				// apply the BPF profile for the target container

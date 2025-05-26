@@ -385,9 +385,20 @@ func GenerateRawNetworkEgressRuleWithIpCidrPorts(bpfContent *varmor.BpfContent, 
 
 func generateRawNetworkEgressRuleForDestinations(bpfContent *varmor.BpfContent, mode uint32, destinations []varmor.Destination) error {
 	for _, destination := range destinations {
-		err := GenerateRawNetworkEgressRuleWithIpCidrPorts(bpfContent, mode, destination.CIDR, destination.IP, destination.Ports)
-		if err != nil {
-			return err
+		if destination.IP == varmor.LocalhostIP {
+			err := GenerateRawNetworkEgressRuleWithIpCidrPorts(bpfContent, mode, destination.CIDR, "127.0.0.1", destination.Ports)
+			if err != nil {
+				return err
+			}
+			err = GenerateRawNetworkEgressRuleWithIpCidrPorts(bpfContent, mode, destination.CIDR, "::1", destination.Ports)
+			if err != nil {
+				return err
+			}
+		} else {
+			err := GenerateRawNetworkEgressRuleWithIpCidrPorts(bpfContent, mode, destination.CIDR, destination.IP, destination.Ports)
+			if err != nil {
+				return err
+			}
 		}
 	}
 	return nil

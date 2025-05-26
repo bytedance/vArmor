@@ -168,6 +168,12 @@ func (monitor *RuntimeMonitor) retrievePodInfo(containerInfo *varmortypes.Contai
 		}
 
 		if response.Status.Network != nil {
+			if response.Status.Linux != nil &&
+				response.Status.Linux.Namespaces != nil &&
+				response.Status.Linux.Namespaces.Options != nil &&
+				response.Status.Linux.Namespaces.Options.Network == runtimeapi.NamespaceMode_NODE {
+				return nil
+			}
 			containerInfo.PodIPs = append(containerInfo.PodIPs, response.Status.Network.Ip)
 			for _, ip := range response.Status.Network.AdditionalIps {
 				containerInfo.PodIPs = append(containerInfo.PodIPs, ip.Ip)
