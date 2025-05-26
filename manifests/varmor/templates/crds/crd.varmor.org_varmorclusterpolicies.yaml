@@ -230,9 +230,10 @@ spec:
                                         ip:
                                           description: ip defines this rule on a particular
                                             IP. Please use a valid textual representation
-                                            of an IP, or special entities like "pod-self"
-                                            or "unspecified". Note that the ip field
-                                            and cidr field are mutually exclusive.
+                                            of an IP, or special entities like "pod-self",
+                                            "unspecified" or "localhost". Note that
+                                            the ip field and cidr field are mutually
+                                            exclusive.
                                           type: string
                                         ports:
                                           description: ports define this rule on particular

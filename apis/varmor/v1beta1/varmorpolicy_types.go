@@ -115,11 +115,13 @@ const (
 	// Unspecified is an entity that represents the all-zeros address — specifically, 0.0.0.0 and ::.
 	// Its full name is unspecified address, referring to binding to all interfaces.
 	Unspecified string = "unspecified"
+	// LocalhostIP is an entity that represents the loopback addresses - specifically, 127.0.0.1 and ::1.
+	LocalhostIP string = "localhost"
 )
 
 type Destination struct {
 	// ip defines this rule on a particular IP. Please use a valid textual representation of an IP, or special
-	// entities like "pod-self" or "unspecified". Note that the ip field and cidr field are mutually exclusive.
+	// entities like "pod-self", "unspecified" or "localhost". Note that the ip field and cidr field are mutually exclusive.
 	// +optional
 	IP string `json:"ip,omitempty"`
 	// cidr defines this rule on a particular CIDR. Note that the ip field and cidr field are mutually exclusive.
