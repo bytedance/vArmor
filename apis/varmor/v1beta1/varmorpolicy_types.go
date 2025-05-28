@@ -41,9 +41,9 @@ type VarmorPolicy struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	// Spec describes the desired policy to be used for hardening the target workloads.
+	// spec describes the desired policy to be used for hardening the target workloads.
 	Spec VarmorPolicySpec `json:"spec"`
-	// Status describes the observed status of the policy.
+	// status describes the observed status of the policy.
 	Status VarmorPolicyStatus `json:"status,omitempty"`
 }
 

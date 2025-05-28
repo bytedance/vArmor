@@ -44,7 +44,7 @@ spec:
               internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
             type: string
           data:
-            description: Data contains the behavior model and the profiles. It is
+            description: data contains the behavior model and the profiles. It is
               used to store the DynamicResult, StaticResult and the generated profiles.
             properties:
               dynamicResult:
@@ -330,16 +330,16 @@ spec:
           metadata:
             type: object
           status:
-            description: Status defines the observed state of ArmorProfileModel
+            description: status defines the observed state of ArmorProfileModel
             properties:
               completedNumber:
-                description: CompletedNumber is the number of results that have been
+                description: completedNumber is the number of results that have been
                   received from the agents. It is used to determine whether the modeling
                   is completed.
                 format: int32
                 type: integer
               conditions:
-                description: Conditions is a list of conditions that are used to indicate
+                description: conditions is a list of conditions that are used to indicate
                   the status of the ArmorProfileModel.
                 items:
                   properties:
@@ -353,8 +353,7 @@ spec:
                         the transition.
                       type: string
                     nodeName:
-                      description: NodeName is the name of the node where the condition
-                        is applicable.
+                      description: The name of the node where the condition is applicable.
                       type: string
                     reason:
                       description: The reason for the condition's last transition.
@@ -372,20 +371,20 @@ spec:
                   type: object
                 type: array
               desiredNumber:
-                description: DesiredNumber is the number of desired results to be
+                description: desiredNumber is the number of desired results to be
                   received from the agents. It is used to determine whether the modeling
                   is completed.
                 format: int32
                 type: integer
               ready:
-                description: Ready indicate whether the profile is generated and ready
+                description: ready indicate whether the profile is generated and ready
                   to use.
                 type: boolean
             required:
             - ready
             type: object
           storageType:
-            description: 'StorageType indicates which storage type to use to save
+            description: 'storageType indicates which storage type to use to save
               the DynamicResult, StaticResult and profiles. Possible values: CRDInternal,
               LocalDisk'
             type: string

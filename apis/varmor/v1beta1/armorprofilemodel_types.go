@@ -113,7 +113,7 @@ type ArmorProfileModelCondition struct {
 	// A human readable message indicating details about the transition.
 	// +optional
 	Message string `json:"message,omitempty"`
-	// NodeName is the name of the node where the condition is applicable.
+	// The name of the node where the condition is applicable.
 	NodeName string `json:"nodeName"`
 }
 
@@ -121,15 +121,15 @@ type ArmorProfileModelStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	// DesiredNumber is the number of desired results to be received from the agents.
+	// desiredNumber is the number of desired results to be received from the agents.
 	// It is used to determine whether the modeling is completed.
 	DesiredNumber int32 `json:"desiredNumber,omitempty"`
-	// CompletedNumber is the number of results that have been received from the agents.
+	// completedNumber is the number of results that have been received from the agents.
 	// It is used to determine whether the modeling is completed.
 	CompletedNumber int32 `json:"completedNumber,omitempty"`
-	// Ready indicate whether the profile is generated and ready to use.
+	// ready indicate whether the profile is generated and ready to use.
 	Ready bool `json:"ready"`
-	// Conditions is a list of conditions that are used to indicate the status of the ArmorProfileModel.
+	// conditions is a list of conditions that are used to indicate the status of the ArmorProfileModel.
 	Conditions []ArmorProfileModelCondition `json:"conditions,omitempty"`
 }
 
@@ -149,13 +149,13 @@ type ArmorProfileModel struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	// StorageType indicates which storage type to use to save the DynamicResult, StaticResult and profiles.
+	// storageType indicates which storage type to use to save the DynamicResult, StaticResult and profiles.
 	// Possible values: CRDInternal, LocalDisk
 	StorageType StorageType `json:"storageType,omitempty"`
-	// Data contains the behavior model and the profiles.
+	// data contains the behavior model and the profiles.
 	// It is used to store the DynamicResult, StaticResult and the generated profiles.
 	Data ArmorProfileModelData `json:"data"`
-	// Status defines the observed state of ArmorProfileModel
+	// status defines the observed state of ArmorProfileModel
 	Status ArmorProfileModelStatus `json:"status,omitempty"`
 }
 
