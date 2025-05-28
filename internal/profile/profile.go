@@ -69,7 +69,6 @@ func GenerateProfile(
 	profile := varmor.Profile{
 		Name:     name,
 		Enforcer: policy.Enforcer,
-		Mode:     "enforce",
 	}
 
 	e := varmortypes.GetEnforcerType(policy.Enforcer)
@@ -79,6 +78,9 @@ func GenerateProfile(
 		if e == varmortypes.Unknown {
 			return nil, nil, fmt.Errorf("unknown enforcer")
 		}
+
+		profile.Mode = varmor.ProfileModeEnforce
+
 		// AppArmor
 		if (e & varmortypes.AppArmor) != 0 {
 			profile.Content = apparmorprofile.GenerateAlwaysAllowProfile(name)
@@ -97,6 +99,9 @@ func GenerateProfile(
 		if e == varmortypes.Unknown {
 			return nil, nil, fmt.Errorf("unknown enforcer")
 		}
+
+		profile.Mode = varmor.ProfileModeEnforce
+
 		// AppArmor
 		if (e & varmortypes.AppArmor) != 0 {
 			profile.Content = apparmorprofile.GenerateRuntimeDefaultProfile(name)
@@ -124,8 +129,10 @@ func GenerateProfile(
 		}
 
 		if policy.EnhanceProtect == nil {
-			return nil, nil, fmt.Errorf("the EnhanceProtect field is nil")
+			return nil, nil, fmt.Errorf("the policy.enhanceProtect field cannot be nil")
 		}
+
+		profile.Mode = varmor.ProfileModeEnforce
 
 		// AppArmor
 		if (e & varmortypes.AppArmor) != 0 {
@@ -152,23 +159,25 @@ func GenerateProfile(
 		if e == varmortypes.Unknown {
 			return nil, nil, fmt.Errorf("unknown enforcer")
 		}
+
 		// BPF
 		if (e & varmortypes.BPF) != 0 {
-			return nil, nil, fmt.Errorf("fatal error: not supported by the enforcer")
+			return nil, nil, fmt.Errorf("not supported by the BPF enforcer for now")
 		}
 		// AppArmor
 		if (e & varmortypes.AppArmor) != 0 {
 			if complete {
 				// Create profile based on the AlwaysAllow template after the behvior modeling was completed.
+				profile.Mode = varmor.ProfileModeEnforce
 				profile.Content = apparmorprofile.GenerateAlwaysAllowProfile(name)
 			} else {
-				profile.Mode = "complain"
+				profile.Mode = varmor.ProfileModeComplain
 				profile.Content = apparmorprofile.GenerateBehaviorModelingProfile(name)
 			}
 		}
 		// Seccomp
 		if (e & varmortypes.Seccomp) != 0 {
-			profile.Mode = "complain"
+			profile.Mode = varmor.ProfileModeComplain
 			profile.SeccompContent = seccompprofile.GenerateBehaviorModelingProfile()
 		}
 
@@ -176,26 +185,82 @@ func GenerateProfile(
 		if e == varmortypes.Unknown {
 			return nil, nil, fmt.Errorf("unknown enforcer")
 		}
+
+		if policy.DefenseInDepth == nil {
+			return nil, nil, fmt.Errorf("the policy.defenseInDepth field cannot be nil")
+		}
+
 		// BPF
 		if (e & varmortypes.BPF) != 0 {
-			return nil, nil, fmt.Errorf("fatal error: not supported by the enforcer")
+			return nil, nil, fmt.Errorf("not supported by the BPF enforcer for now")
 		}
 		// AppArmor
 		if (e & varmortypes.AppArmor) != 0 {
-			apm, err := varmorapm.RetrieveArmorProfileModel(varmorInterface, namespace, name, false, logger)
-			if err == nil && apm.Data.Profile.Content != "" {
-				profile.Content = apm.Data.Profile.Content
+			if policy.DefenseInDepth.AppArmor == nil {
+				return nil, nil, fmt.Errorf("the policy.defenseInDepth.appArmor field cannot be nil")
+			}
+
+			if policy.DefenseInDepth.AllowViolations {
+				profile.Mode = varmor.ProfileModeComplain
 			} else {
-				return nil, nil, fmt.Errorf("fatal error: no existing AppArmor model found")
+				profile.Mode = varmor.ProfileModeEnforce
+			}
+
+			switch policy.DefenseInDepth.AppArmor.ProfileType {
+			case varmor.ProfileTypeBehaviorModel:
+				apm, err := varmorapm.RetrieveArmorProfileModel(varmorInterface, namespace, name, false, logger)
+				if err != nil || apm.Data.Profile.Content == "" {
+					return nil, nil, fmt.Errorf("failed to retrieve the AppArmor profile from the ArmorProfileModel object (%s/%s)", namespace, name)
+				}
+
+				profile.Content = apparmorprofile.GenerateDefenseInDepthProfile(
+					policy.DefenseInDepth.AppArmor.AppArmorRawRules,
+					apm.Data.Profile.Content,
+					name)
+
+			case varmor.ProfileTypeCustom:
+				if policy.DefenseInDepth.AppArmor.CustomProfile == "" {
+					return nil, nil, fmt.Errorf("the policy.defenseInDepth.appArmor.customProfile field cannot be empty")
+				}
+
+				profile.Content = apparmorprofile.GenerateDefenseInDepthProfile(
+					policy.DefenseInDepth.AppArmor.AppArmorRawRules,
+					policy.DefenseInDepth.AppArmor.CustomProfile,
+					name)
 			}
 		}
 		// Seccomp
 		if (e & varmortypes.Seccomp) != 0 {
-			apm, err := varmorapm.RetrieveArmorProfileModel(varmorInterface, namespace, name, false, logger)
-			if err == nil && apm.Data.Profile.SeccompContent != "" {
-				profile.SeccompContent = apm.Data.Profile.SeccompContent
+			if policy.DefenseInDepth.Seccomp == nil {
+				return nil, nil, fmt.Errorf("the policy.defenseInDepth.seccomp field cannot be nil")
+			}
+
+			if policy.DefenseInDepth.AllowViolations {
+				profile.Mode = varmor.ProfileModeComplain
 			} else {
-				return nil, nil, fmt.Errorf("fatal error: no existing Seccomp model found")
+				profile.Mode = varmor.ProfileModeEnforce
+			}
+
+			switch policy.DefenseInDepth.Seccomp.ProfileType {
+			case varmor.ProfileTypeBehaviorModel:
+				apm, err := varmorapm.RetrieveArmorProfileModel(varmorInterface, namespace, name, false, logger)
+				if err != nil || apm.Data.Profile.SeccompContent == "" {
+					return nil, nil, fmt.Errorf("failed to retrieve Seccomp profile from the ArmorProfileModel object (%s/%s). error: %w", namespace, name, err)
+				}
+				profile.SeccompContent, err = seccompprofile.GenerateDefenseInDepthProfile(policy.DefenseInDepth, apm.Data.Profile.SeccompContent)
+				if err != nil {
+					return nil, nil, fmt.Errorf("failed to parse the Seccomp profile from the ArmorProfileModel object (%s/%s). error: %w", namespace, name, err)
+				}
+			case varmor.ProfileTypeCustom:
+				if policy.DefenseInDepth.Seccomp.CustomProfile == "" {
+					return nil, nil, fmt.Errorf("the policy.defenseInDepth.seccomp.customProfile field cannot be empty")
+				}
+				profile.SeccompContent, err = seccompprofile.GenerateDefenseInDepthProfile(
+					policy.DefenseInDepth,
+					policy.DefenseInDepth.Seccomp.CustomProfile)
+				if err != nil {
+					return nil, nil, fmt.Errorf("failed to parse the custom Seccomp profile from the policy.defenseInDepth.seccomp.customProfile field. error: %w", err)
+				}
 			}
 		}
 

@@ -460,7 +460,7 @@ func (agent *Agent) handleCreateOrUpdateArmorProfile(ap *varmor.ArmorProfile, ke
 	if (enforcer & varmortypes.AppArmor) != 0 {
 		// Save and load AppArmor profile.
 		if needLoadApparmor {
-			logger.Info(fmt.Sprintf("saving the AppArmor profile ('%s') to Node/%s", ap.Spec.Profile.Name, agent.nodeName))
+			logger.Info(fmt.Sprintf("saving the AppArmor profile '%s (%s)' to Node/%s", ap.Spec.Profile.Name, ap.Spec.Profile.Mode, agent.nodeName))
 			profilePath := filepath.Join(agent.appArmorProfileDir, ap.Spec.Profile.Name)
 			err := varmorapparmor.SaveAppArmorProfile(profilePath, ap.Spec.Profile.Content)
 			if err != nil {
@@ -471,7 +471,7 @@ func (agent *Agent) handleCreateOrUpdateArmorProfile(ap *varmor.ArmorProfile, ke
 			if yes, _ := varmorapparmor.IsAppArmorProfileLoaded(ap.Spec.Profile.Name); !yes {
 				// Load a new AppArmor profile to kernel for ArmorProfile creation event.
 				logger.Info(fmt.Sprintf("loading '%s (%s)' to Node/%s's kernel", ap.Spec.Profile.Name, ap.Spec.Profile.Mode, agent.nodeName))
-				output, err := varmorapparmor.LoadAppArmorProfile(profilePath, ap.Spec.Profile.Mode)
+				output, err := varmorapparmor.LoadAppArmorProfile(profilePath, string(ap.Spec.Profile.Mode))
 				if err != nil {
 					logger.Error(err, "LoadAppArmorProfile()", "output", output)
 					return agent.sendStatus(ap, varmortypes.Failed, "LoadAppArmorProfile(): "+err.Error()+" "+output)
@@ -479,7 +479,7 @@ func (agent *Agent) handleCreateOrUpdateArmorProfile(ap *varmor.ArmorProfile, ke
 			} else {
 				// Update a existing AppArmor profile for ArmorProfile update event.
 				logger.Info(fmt.Sprintf("reloading '%s (%s)' to Node/%s's kernel", ap.Spec.Profile.Name, ap.Spec.Profile.Mode, agent.nodeName))
-				output, err := varmorapparmor.UpdateAppArmorProfile(profilePath, ap.Spec.Profile.Mode)
+				output, err := varmorapparmor.UpdateAppArmorProfile(profilePath, string(ap.Spec.Profile.Mode))
 				if err != nil {
 					logger.Error(err, "UpdateAppArmorProfile()", "output", output)
 					return agent.sendStatus(ap, varmortypes.Failed, "UpdateAppArmorProfile(): "+err.Error()+" "+output)
@@ -490,8 +490,8 @@ func (agent *Agent) handleCreateOrUpdateArmorProfile(ap *varmor.ArmorProfile, ke
 
 	// BPF
 	if (enforcer & varmortypes.BPF) != 0 {
-		// Save BPF profile.
-		logger.Info(fmt.Sprintf("saving and applying the BPF profile ('%s')", ap.Spec.Profile.Name))
+		// Save and apply BPF profile.
+		logger.Info(fmt.Sprintf("saving and applying the BPF profile '%s (%s)' to Node/%s", ap.Spec.Profile.Name, ap.Spec.Profile.Mode, agent.nodeName))
 		err := agent.bpfEnforcer.SaveAndApplyBpfProfile(ap.Spec.Profile.Name, *ap.Spec.Profile.BpfContent)
 		if err != nil {
 			logger.Error(err, "SaveAndApplyBpfProfile()")
@@ -502,7 +502,7 @@ func (agent *Agent) handleCreateOrUpdateArmorProfile(ap *varmor.ArmorProfile, ke
 	// Seccomp
 	if (enforcer & varmortypes.Seccomp) != 0 {
 		// Save Seccomp profile.
-		logger.Info(fmt.Sprintf("saving the Seccomp profile ('%s') to Node/%s", ap.Spec.Profile.Name, agent.nodeName))
+		logger.Info(fmt.Sprintf("saving the Seccomp profile '%s (%s)' to Node/%s", ap.Spec.Profile.Name, ap.Spec.Profile.Mode, agent.nodeName))
 		profilePath := filepath.Join(agent.seccompProfileDir, ap.Spec.Profile.Name)
 		err := varmorseccomp.SaveSeccompProfile(profilePath, ap.Spec.Profile.SeccompContent)
 		if err != nil {

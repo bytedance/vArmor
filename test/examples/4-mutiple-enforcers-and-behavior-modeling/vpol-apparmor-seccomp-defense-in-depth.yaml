@@ -1,0 +1,150 @@
+apiVersion: crd.varmor.org/v1beta1
+kind: VarmorPolicy
+metadata:
+  name: demo-4
+  namespace: demo
+spec:
+  # Perform a rolling update on existing workloads.
+  # It's disabled by default.
+  updateExistingWorkloads: true
+  target:
+    kind: Deployment
+    selector:
+      matchLabels:
+        app: demo-4
+  policy:
+    enforcer: AppArmorSeccomp
+    mode: DefenseInDepth
+    defenseInDepth:
+      allowViolations: true
+      seccomp:
+        # profileType: BehaviorModel
+        profileType: Custom
+        customProfile: |
+          {
+            "defaultAction": "SCMP_ACT_LOG",
+            "syscalls": [
+              {
+                "names": [
+                  "open",
+                  "openat",
+                  "openat2",
+                  "close",
+                  "read",
+                  "write",
+                  "fcntl",
+                  "epoll_ctl",
+                  "fstatfs",
+                  "getdents64",
+                  "chdir",
+                  "capget",
+                  "prctl",
+                  "newfstatat",
+                  "fstat",
+                  "setgroups",
+                  "setgid",
+                  "setuid",
+                  "capset",
+                  "getppid",
+                  "faccessat2",
+                  "futex",
+                  "getpid",
+                  "execve",
+                  "brk",
+                  "access",
+                  "mmap",
+                  "mprotect",
+                  "arch_prctl",
+                  "munmap",
+                  "getuid",
+                  "getgid",
+                  "rt_sigaction",
+                  "geteuid",
+                  "getcwd",
+                  "getegid",
+                  "stat",
+                  "clone",
+                  "wait4",
+                  "nanosleep",
+                  "rt_sigprocmask",
+                  "ioctl",
+                  "sysinfo",
+                  "uname",
+                  "socket",
+                  "connect",
+                  "lseek",
+                  "getpgrp",
+                  "dup",
+                  "prlimit64",
+                  "dup2",
+                  "faccessat",
+                  "pselect6",
+                  "select",
+                  "pipe",
+                  "setpgid",
+                  "set_tid_address",
+                  "set_robust_list",
+                  "statfs",
+                  "exit_group",
+                  "rt_sigreturn",
+                  "fadvise64",
+                  "chown",
+                  "lstat",
+                  "lgetxattr",
+                  "getxattr",
+                  "umask"
+                ],
+                "action": "SCMP_ACT_ALLOW"
+              }
+            ]
+          }
+        syscallRawRules:
+        - names:
+          - chmod
+          - fchmod
+          - fchmodat
+          - fchmodat2
+          action: SCMP_ACT_ALLOW
+      appArmor:
+        # profileType: BehaviorModel
+        profileType: Custom
+        appArmorRawRules:
+        - rules: |
+            /etc/shadow r,
+        - rules: |
+            /etc/hostname r,
+          targets:
+          - /bin/grep
+        customProfile: |
+          abi <abi/3.0>,
+          #include <tunables/global>
+
+          profile varmor-demo-demo-4 flags=(attach_disconnected,mediate_deleted) {
+
+            #include <abstractions/base>
+
+            /bin/cat ix,
+            /bin/ls ix,
+            /bin/sleep ix,
+
+            owner / r,
+            owner /bin/cat r,
+            owner /bin/ls r,
+            owner /bin/sleep r,
+            owner /dev/tty rw,
+            owner /etc/bash.bashrc r,
+            owner /etc/hosts r,
+            owner /etc/ld.so.cache r,
+            owner /etc/nsswitch.conf r,
+            owner /etc/passwd r,
+            owner /lib/terminfo/x/xterm r,
+            owner /lib/x86_64-linux-gnu/** mr,
+            owner /proc/filesystems r,
+            owner /root/.bash_history rw,
+            owner /root/.bashrc r,
+
+            network,
+            ptrace,
+            signal,
+            umount,
+          }

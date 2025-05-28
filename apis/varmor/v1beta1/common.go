@@ -1,3 +1,19 @@
+/*
+Copyright The vArmor Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package v1beta1
 
 import (
@@ -38,16 +54,6 @@ type AttackProtectionRules struct {
 	Targets []string `json:"targets,omitempty"`
 }
 
-type AppArmorRawRules struct {
-	// rules define the custom AppArmor rules. You should make sure that they satisfy
-	// the AppArmor syntax on your own.
-	Rules string `json:"rules"`
-	// targets specify the executable files for which the rules apply.
-	// They must be specified as full paths to the executable files.
-	// +optional
-	Targets []string `json:"targets,omitempty"`
-}
-
 // VarmorPolicyMode defines the mode of VarmorPolicy and VarmorClusterPolicy.
 // +enum
 type VarmorPolicyMode string
@@ -60,9 +66,6 @@ const (
 	// "cri-containerd.apparmor.d" profile provided by containerd.
 	RuntimeDefaultMode VarmorPolicyMode = "RuntimeDefault"
 	// EnhanceProtectMode provides built-in rules and custom interfaces for Allow-by-Default protection.
-	// By default (when the `EnhanceProtect.Privileged` field is nil or false), its profile is based on
-	// `RuntimeDefaultMode`. When `EnhanceProtect.Privileged` is true, it enables enhanced protection
-	// based on `AlwaysAllowMode`.
 	EnhanceProtectMode VarmorPolicyMode = "EnhanceProtect"
 	// BehaviorModelingMode dynamically models the behavior of target workloads and generates security profiles
 	// based on the modeling results.
@@ -100,16 +103,17 @@ type EnhanceProtect struct {
 	// If set to `true`, vArmor will not build Seccomp profile for the target workloads.
 	// +optional
 	Privileged bool `json:"privileged,omitempty"`
-	// auditViolations determines whether to audit the actions that violate the mandatory access
-	// control rules. Any detected violation will be logged to `/var/log/varmor/violations.log`
-	// file in the host. Please note that the Seccomp enforcer does not support auditing violations
-	// when the allowViolations field is set to `false`.
+	// auditViolations determines whether to audit the actions that violate the mandatory access control rules.
+	// If this field is set, any detected violation will be logged to `/var/log/varmor/violations.log` file in
+	// the host. Please note that the Seccomp enforcer does not support auditing violations when the
+	// allowViolations field is set to `false`.
 	//
 	// Default is false.
 	// +optional
 	AuditViolations bool `json:"auditViolations,omitempty"`
-	// allowViolations determines whether to allow the actions that are against the mandatory
-	// access control rules. Any detected violation will be allowed instead of being blocked.
+	// allowViolations determines whether to allow the actions that are against mandatory access control rules.
+	// If this field is set, any detected violation will be allowed rather than blocked, and an `ALLOWED` audit
+	// event will be generated and logged.
 	//
 	// Default is false.
 	// +optional
@@ -119,6 +123,37 @@ type EnhanceProtect struct {
 type ModelingOptions struct {
 	// duration is the duration in minutes to modeling
 	Duration int `json:"duration"`
+}
+
+// ProfileType defines the type of AppArmor or Seccomp profile.
+// +enum
+type ProfileType string
+
+const (
+	// ProfileTypeBehaviorModel indicates that a profile generated via the BehaviorModeling mode will be used
+	// in the DefenseInDepth mode.
+	ProfileTypeBehaviorModel ProfileType = "BehaviorModel"
+	// ProfileTypeCustom indicates that a custom profile defined in the customProfile field will be used in
+	// the DefenseInDepth mode.
+	ProfileTypeCustom ProfileType = "Custom"
+)
+
+type DefenseInDepth struct {
+	// appArmor specifies the AppArmor profile and additional custom rules for the Deny-by-Default protection.
+	// +optional
+	AppArmor *AppArmorProfile `json:"appArmor,omitempty"`
+	// seccomp specifies the Seccomp profile and additional custom rules for the Deny-by-Default protection.
+	// +optional
+	Seccomp *SeccompProfile `json:"seccomp,omitempty"`
+	// allowViolations determines whether to allow the actions that are against mandatory access control rules.
+	// If this field is set, any detected violation will be allowed rather than blocked, and an `ALLOWED` audit
+	// event will be generated and logged. This can be used to gather violations for improving Deny-by-Default
+	// protection profiles. If this field is not set, any detected violation will be blocked, and a `DENIED`
+	// audit event will be generated and logged.
+	//
+	// Default is false.
+	// +optional
+	AllowViolations bool `json:"allowViolations,omitempty"`
 }
 
 type Policy struct {
@@ -132,12 +167,17 @@ type Policy struct {
 	// BehaviorModeling and DefenseInDepth modes are experimental features and currently only work
 	// with AppArmor and Seccomp enforcers.
 	Mode VarmorPolicyMode `json:"mode"`
-	// enhanceProtect is used to specify which built-in or custom rules are employed to protect the target workloads.
+	// enhanceProtect configures the EnhanceProtect mode. It allows you to select built-in and custom rules to
+	// generate profiles for workload protection and control the behavior of generated profiles (e.g., audit or block
+	// violations)
 	// +optional
 	EnhanceProtect *EnhanceProtect `json:"enhanceProtect,omitempty"`
-	// modelingOptions is used for the modeling settings.
+	// modelingOptions configures the BehaviorModeling mode.
 	// +optional
 	ModelingOptions *ModelingOptions `json:"modelingOptions,omitempty"`
+	// defenseInDepth configures the DefenseInDepth mode.
+	// +optional
+	DefenseInDepth *DefenseInDepth `json:"defenseInDepth,omitempty"`
 }
 
 type VarmorPolicySpec struct {

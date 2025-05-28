@@ -1,3 +1,19 @@
+/*
+Copyright The vArmor Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package v1beta1
 
 import (
@@ -76,7 +92,7 @@ type Destination struct {
 	// cidr defines this rule on a particular CIDR. Note that the ip field and cidr field are mutually exclusive.
 	// +optional
 	CIDR string `json:"cidr,omitempty"`
-	// ports define this rule on particular ports. Each item in this list is combined using a logical OR.
+	// ports defines this rule on particular ports. Each item in this list is combined using a logical OR.
 	// If this field is empty or not present, this rule matches all ports. If this field is present and contains
 	// at least one item, then this rule matches all ports in the list.
 	// +optional
