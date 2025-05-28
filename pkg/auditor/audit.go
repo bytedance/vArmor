@@ -75,7 +75,7 @@ func (auditor *Auditor) processAuditEvent(event string) {
 			"pid", e.PID, "time", e.Epoch, "event", strings.TrimSpace(event))
 
 		// Try to parse the AppArmor profile name from the event
-		profileName := ParseVarmorProfileName(e.Profile)
+		profileName := ParseProfileName(e.Profile)
 
 		if deniedEvent {
 			auditor.violationLogger.Warn().
@@ -159,7 +159,12 @@ func (auditor *Auditor) processAuditEvent(event string) {
 			// field of the Seccomp audit event. So people might see the profile name in the
 			// Seccomp event if they use both AppArmor and Seccomp enforcer.
 			// We can utilize this feature to extract the profile name from the Seccomp event.
-			profileName := ParseVarmorProfileName(e.Subj)
+			profileName := ParseProfileName(e.Subj)
+			if profileName == "" {
+				// If the profile name is not found in the event, we can also try to get it from
+				// the container cache.
+				profileName = info.ProfileName
+			}
 
 			auditor.violationLogger.Debug().
 				Str("nodeName", auditor.nodeName).

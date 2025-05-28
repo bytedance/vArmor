@@ -184,7 +184,7 @@ func (monitor *RuntimeMonitor) retrievePodInfo(containerInfo *varmortypes.Contai
 	return nil
 }
 
-func shouldNotifySubscriber(info varmortypes.ContainerInfo) bool {
+func extractVarmorProfileName(info varmortypes.ContainerInfo) string {
 	keys := []string{
 		fmt.Sprintf("container.bpf.security.beta.varmor.org/%s", info.ContainerName),
 		fmt.Sprintf("container.apparmor.security.beta.kubernetes.io/%s", info.ContainerName),
@@ -195,11 +195,11 @@ func shouldNotifySubscriber(info varmortypes.ContainerInfo) bool {
 	for _, key := range keys {
 		if value, ok := info.PodAnnotations[key]; ok {
 			if strings.HasPrefix(value, "localhost/") {
-				return true
+				return strings.TrimPrefix(value, "localhost/")
 			}
 		}
 	}
-	return false
+	return ""
 }
 
 // eventHandler monitor the start and delete events of containerd and send them to subscribers to handle
@@ -257,7 +257,8 @@ func (monitor *RuntimeMonitor) eventHandler(stopCh <-chan struct{}) {
 					continue
 				}
 
-				if shouldNotifySubscriber(info) {
+				info.ProfileName = extractVarmorProfileName(info)
+				if info.ProfileName != "" {
 					logger.V(2).Info("notify subscribers of the '/tasks/start'", "info", info)
 					for _, ch := range monitor.taskStartChs {
 						ch <- info
@@ -374,7 +375,8 @@ func (monitor *RuntimeMonitor) CollectExistingTargetContainers() error {
 			continue
 		}
 
-		if shouldNotifySubscriber(info) {
+		info.ProfileName = extractVarmorProfileName(info)
+		if info.ProfileName != "" {
 			for _, ch := range monitor.taskStartChs {
 				ch <- info
 			}

@@ -42,4 +42,5 @@ type ContainerInfo struct {
 	PodUID         string
 	PodIPs         []string
 	PodAnnotations map[string]string
+	ProfileName    string
 }

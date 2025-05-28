@@ -295,6 +295,8 @@ func (auditor *Auditor) readFromAuditEventRingBuf() {
 				Uint32("mntNsID", eventHeader.MntNs).
 				Uint64("eventTimestamp", eventHeader.Ktime/uint64(time.Second)+auditor.bootTimestamp).
 				Str("eventType", "BPF").
+				Str("action", "DENIED").
+				Str("profileName", auditor.containerCache[eventHeader.MntNs].ProfileName).
 				Interface("event", e).Msg("violation event")
 
 		case bpfenforcer.AuditMode:
@@ -310,6 +312,8 @@ func (auditor *Auditor) readFromAuditEventRingBuf() {
 				Uint32("mntNsID", eventHeader.MntNs).
 				Uint64("eventTimestamp", eventHeader.Ktime/uint64(time.Second)+auditor.bootTimestamp).
 				Str("eventType", "BPF").
+				Str("action", "ALLOWED").
+				Str("profileName", auditor.containerCache[eventHeader.MntNs].ProfileName).
 				Interface("event", e).Msg("violation event")
 
 		case bpfenforcer.ComplainMode:

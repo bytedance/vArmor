@@ -333,7 +333,7 @@ func ParseSeccompAuditEvent(e string) (*SeccompEvent, error) {
 	return &event, nil
 }
 
-func ParseVarmorProfileName(profile string) string {
+func ParseProfileName(profile string) string {
 	if profile == "" || profile == "?" {
 		return ""
 	}

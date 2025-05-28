@@ -27,7 +27,7 @@ func getSyscallName(syscall int) string {
 	return name
 }
 
-func Test_parseSeccompLineByte(t *testing.T) {
+func Test_ParseSeccompAuditEvent(t *testing.T) {
 	testCases := []struct {
 		name          string
 		line          string
@@ -136,7 +136,7 @@ func Test_parseSeccompLineByte(t *testing.T) {
 	}
 }
 
-func Test_parseVarmorProfileName(t *testing.T) {
+func Test_ParseProfileName(t *testing.T) {
 	testCases := []struct {
 		name                string
 		eventType           string
@@ -217,12 +217,12 @@ func Test_parseVarmorProfileName(t *testing.T) {
 			case "AppArmor":
 				e, err := ParseAppArmorEvent(tc.line)
 				assert.NilError(t, err)
-				profileName := ParseVarmorProfileName(e.Profile)
+				profileName := ParseProfileName(e.Profile)
 				assert.Equal(t, profileName, tc.expectedProfileName)
 			case "Seccomp":
 				e, err := ParseSeccompAuditEvent(tc.line)
 				assert.NilError(t, err)
-				profileName := ParseVarmorProfileName(e.Subj)
+				profileName := ParseProfileName(e.Subj)
 				assert.Equal(t, profileName, tc.expectedProfileName)
 			}
 		})
