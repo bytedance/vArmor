@@ -1,10 +1,10 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: demo-4
-  namespace: default
+  name: demo-6
+  namespace: test
   labels:
-    app: demo-4
+    app: demo-6
     # This label is required with target workloads. 
     # You can disable the feature with --set 'manager.args={--webhookMatchLabel=}'
     sandbox.varmor.org/enable: "true"
@@ -12,14 +12,19 @@ spec:
   replicas: 2
   selector:
     matchLabels:
-      app: demo-4
+      app: demo-6
   template:
     metadata:
       labels:
-        app: demo-4
+        app: demo-6
     spec:
+      shareProcessNamespace: true
       containers:
       - name: c0
+        image: debian:10
+        command: ["/bin/sh", "-c", "sleep infinity"]
+        imagePullPolicy: IfNotPresent
+      - name: c1
         image: debian:10
         command: ["/bin/sh", "-c", "sleep infinity"]
         imagePullPolicy: IfNotPresent

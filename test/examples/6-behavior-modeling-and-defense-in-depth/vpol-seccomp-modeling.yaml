@@ -1,8 +1,8 @@
 apiVersion: crd.varmor.org/v1beta1
 kind: VarmorPolicy
 metadata:
-  name: demo-4
-  namespace: test
+  name: demo-6
+  namespace: demo
 spec:
   # Perform a rolling update on existing workloads.
   # It's disabled by default.
@@ -11,12 +11,11 @@ spec:
     kind: Deployment
     selector:
       matchLabels:
-        app: demo-4
+        app: demo-6
   policy:
-    enforcer: AppArmorSeccomp
+    enforcer: Seccomp
     # Note: Switching the mode from BehaviorModeling to others is prohibited, and vice versa.
     #       You need recraete the policy to switch the mode from BehaviorModeling to DefenseInDepth.
-    # mode: DefenseInDepth
     mode: BehaviorModeling
     modelingOptions:
       duration: 3

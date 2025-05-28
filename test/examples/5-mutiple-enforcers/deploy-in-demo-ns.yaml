@@ -1,10 +1,10 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: demo-4
+  name: demo-5
   namespace: demo
   labels:
-    app: demo-4
+    app: demo-5
     # This label is required with target workloads. 
     # You can disable the feature with --set 'manager.args={--webhookMatchLabel=}'
     sandbox.varmor.org/enable: "true"
@@ -12,11 +12,11 @@ spec:
   replicas: 2
   selector:
     matchLabels:
-      app: demo-4
+      app: demo-5
   template:
     metadata:
       labels:
-        app: demo-4
+        app: demo-5
       annotations:
         # Use these annotation to explicitly disable the protection for the container named c0.
         # It always takes precedence over the '.spec.target.containers' field of VarmorPolicy 
