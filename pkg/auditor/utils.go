@@ -332,3 +332,11 @@ func ParseSeccompAuditEvent(e string) (*SeccompEvent, error) {
 
 	return &event, nil
 }
+
+func ParseVarmorProfileName(profile string) string {
+	if profile == "" || profile == "?" {
+		return ""
+	}
+	s := strings.Split(profile, "/")[0]
+	return strings.Split(s, " ")[0]
+}
