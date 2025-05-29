@@ -17,7 +17,7 @@ limitations under the License.
 package v1beta1
 
 type AppArmorRawRules struct {
-	// rules defines the custom AppArmor rules. You should ensure they adhere to AppArmor syntax on
+	// rules defines the custom AppArmor rules. You should ensure they conform to AppArmor syntax on
 	// your own.
 	Rules string `json:"rules"`
 	// targets specifies the executable files for which the rules apply. They must be specified as
@@ -32,7 +32,7 @@ type AppArmorProfile struct {
 	// Custom - a custom profile defined in the customProfile field will be used.
 	ProfileType ProfileType `json:"profileType"`
 	// customProfile holds the user-defined AppArmor profile content. It must be a valid profile that
-	// adheres to AppArmor syntax. If you want vArmor to apply the profile to target workloads automatically,
+	// conforms to AppArmor syntax. If you want vArmor to apply the profile to target workloads automatically,
 	// the profile's name must match the ArmorProfile object name. For example:
 	//
 	// abi <abi/3.0>,

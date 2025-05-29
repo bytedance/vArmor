@@ -132,7 +132,7 @@ const (
 )
 
 type ArmorProfileCondition struct {
-	// Type of ArmorProfile condition.
+	// Type of condition.
 	Type ArmorProfileConditionType `json:"type"`
 	// Status of the condition, one of True, False, Unknown.
 	Status v1.ConditionStatus `json:"status"`

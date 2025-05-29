@@ -342,7 +342,7 @@ spec:
                       description: Status of the condition, one of True, False, Unknown.
                       type: string
                     type:
-                      description: Type of ArmorProfile condition.
+                      description: Type of condition.
                       type: string
                   required:
                   - nodeName

@@ -44,16 +44,6 @@ type Target struct {
 	Selector *metav1.LabelSelector `json:"selector,omitempty"`
 }
 
-type AttackProtectionRules struct {
-	// rules is the list of built-in attack protection rules to be used.
-	Rules []string `json:"rules"`
-	// targets specify the executable files for which the rules and rawRules apply.
-	// They must be specified as full paths to the executable files.
-	// This feature is only effective when using AppArmor as the enforcer.
-	// +optional
-	Targets []string `json:"targets,omitempty"`
-}
-
 // VarmorPolicyMode defines the mode of VarmorPolicy and VarmorClusterPolicy.
 // +enum
 type VarmorPolicyMode string
@@ -75,6 +65,16 @@ const (
 	DefenseInDepthMode VarmorPolicyMode = "DefenseInDepth"
 )
 
+type AttackProtectionRules struct {
+	// rules is the list of built-in attack protection rules to be used.
+	Rules []string `json:"rules"`
+	// targets specifies the executable files for which the rules apply.
+	// They must be specified as full paths to the executable files.
+	// This feature is only effective when using AppArmor enforcer.
+	// +optional
+	Targets []string `json:"targets,omitempty"`
+}
+
 type EnhanceProtect struct {
 	// hardeningRules are used to specify the built-in hardening rules.
 	// +optional
@@ -91,11 +91,13 @@ type EnhanceProtect struct {
 	// bpfRawRules is used to set custom BPF rules.
 	// +optional
 	BpfRawRules *BpfRawRules `json:"bpfRawRules,omitempty"`
-	// syscallRawRules is used to set the syscalls blocklist rules with Seccomp enforcer.
+	// syscallRawRules is used to set the custom syscalls blocklist rules with Seccomp enforcer.
+	// Please refer to https://github.com/opencontainers/runtime-spec/blob/main/config-linux.md#seccomp
+	// to create custom rules.
 	// +optional
 	SyscallRawRules []specs.LinuxSyscall `json:"syscallRawRules,omitempty"`
 	// privileged is used to identify whether the policy is for the privileged container.
-	// If set to `nil` or `false`, the EnhanceProtect mode will build AppArmor or BPF profile on
+	// If set to `false`, the EnhanceProtect mode will build AppArmor or BPF profile on
 	// top of the RuntimeDefault mode. Otherwise, it will build AppArmor or BPF profile on top of the AlwaysAllow mode.
 	// Default is false.
 	//
@@ -214,10 +216,11 @@ const (
 )
 
 type VarmorPolicyCondition struct {
-	// Type of ArmorProfile condition.
-	// Possible values: Created, Updated, Ready
+	// Type of condition.
+	// Possible values: Created, Updated, Ready.
 	Type VarmorPolicyConditionType `json:"type"`
-	// Status of the condition, one of True, False, Unknown.
+	// Status of the condition.
+	// Possible values: True, False, Unknown.
 	Status v1.ConditionStatus `json:"status"`
 	// Last time the condition transitioned from one status to another.
 	// +optional
@@ -273,8 +276,8 @@ type VarmorPolicyStatus struct {
 	// Possible values: Pending, Modeling, Completed, Protecting, Error.
 	//
 	// Note:
-	// You can find out which varmor-agent has an error by reading the
-	// ArmorProfile/status corresponding to the current VarmorPolicy
+	// You can find out which varmor-agent has an error by getting the ArmorProfile/status resource
+	// corresponding to the current VarmorPolicy or VarmorClusterPolicy object.
 	// +optional
 	Phase VarmorPolicyPhase `json:"phase,omitempty"`
 }

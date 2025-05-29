@@ -22,9 +22,9 @@ import (
 
 type FileRule struct {
 	// pattern can be any string (maximum length 128 bytes) that conforms to the policy syntax,
-	// used for matching file paths and filenames
+	// used for matching file paths and filenames.
 	Pattern string `json:"pattern"`
-	// permissions are used to specify the file permissions to be disabled.
+	// permissions are used to specify the file permissions.
 	//
 	// Available values: all(*), read(r), write(w), exec(x), append(a)
 	Permissions []string `json:"permissions"`
@@ -188,10 +188,10 @@ type PtraceRule struct {
 }
 
 type MountRule struct {
-	// sourcePattern can be any string (maximum length 128 bytes) that conforms to the policy syntax,
-	// used for matching file paths and filenames
+	// sourcePattern can be any string (maximum length 128 bytes) that conforms to the policy syntax, used for matching the
+	// source paramater of mount(2), the target paramater of umount(2), and the from_pathname paramater of move_mount(2).
 	SourcePattern string `json:"sourcePattern"`
-	// fstype is used to specify the type of filesystem to enforce. It can be '*' to match any type.
+	// fstype is used to specify the type of filesystem (maximum length 16 bytes) to enforce. It can be '*' to match any type.
 	Fstype string `json:"fstype"`
 	// flags are used to specify the mount flags to enforce. They are almost the same as the 'MOUNT FLAGS LIST' of AppArmor.
 	//
@@ -209,14 +209,14 @@ type MountRule struct {
 }
 
 type BpfRawRules struct {
-	// Files specifies the file access control rules.
+	// files specifies the file access control rules.
 	Files []FileRule `json:"files,omitempty"`
-	// Processes specifies the process access control rules.
+	// processes specifies the process access control rules.
 	Processes []FileRule `json:"processes,omitempty"`
-	// Network specifies the network access control rules.
+	// network specifies the network access control rules.
 	Network *NetworkRule `json:"network,omitempty"`
-	// Ptrace specifies the ptrace-based access control rules.
+	// ptrace specifies the ptrace-based access control rules.
 	Ptrace *PtraceRule `json:"ptrace,omitempty"`
-	// Mounts specifies mount point access control rules.
+	// mounts specifies mount point access control rules.
 	Mounts []MountRule `json:"mounts,omitempty"`
 }
