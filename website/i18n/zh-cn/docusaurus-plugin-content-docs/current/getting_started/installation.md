@@ -52,6 +52,13 @@ helm install varmor varmor-0.7.1.tgz \
 --set bpfLsmEnforcer.enabled=true
 ```
 
+#### 开启 Pod 和 Service 出口控制
+此功能扩展了网络访问控制，以限制容器对特定 Pod 和 Service 的访问。默认值：关闭。
+
+```bash
+--set podServiceEgressControl.enabled=true
+```
+
 #### 开启 BehaviorModeling 模式
 这是一个实验性质的功能。当前只有 AppArmor 和 Seccomp enforcer 支持 BehaviorModeling 模式。请参考  [BehaviorModeling Mode](../guides/policies_and_rules/policy_modes/behavior_modeling.md) 了解更多细节。默认值：关闭。
 
