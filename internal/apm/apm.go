@@ -29,7 +29,6 @@ import (
 
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
 	varmorconfig "github.com/bytedance/vArmor/internal/config"
-	varmortypes "github.com/bytedance/vArmor/internal/types"
 	varmorutils "github.com/bytedance/vArmor/internal/utils"
 	varmorinterface "github.com/bytedance/vArmor/pkg/client/clientset/versioned/typed/varmor/v1beta1"
 )
@@ -47,14 +46,14 @@ func RetrieveArmorProfileModel(
 			a := varmor.ArmorProfileModel{}
 			a.Name = name
 			a.Namespace = namespace
-			a.StorageType = varmortypes.StorageTypeCRDInternal
+			a.StorageType = varmor.StorageTypeCRDInternal
 			return varmorInterface.ArmorProfileModels(namespace).Create(context.Background(), &a, metav1.CreateOptions{})
 		}
 		return nil, err
 	}
 
 	// Load behavior data and profile of the ArmorProfileModel object from the local file
-	if apm.StorageType != varmortypes.StorageTypeCRDInternal {
+	if apm.StorageType != varmor.StorageTypeCRDInternal {
 		if strings.Contains(name, "/") || strings.Contains(name, "\\") || strings.Contains(name, "..") {
 			logger.Error(fmt.Errorf("invalid file name"), "Invalid file name: "+name)
 			return apm, nil
@@ -116,7 +115,7 @@ func UpdateArmorProfileModel(varmorInterface varmorinterface.CrdV1beta1Interface
 }
 
 func PersistArmorProfileModel(varmorInterface varmorinterface.CrdV1beta1Interface, apm *varmor.ArmorProfileModel, logger logr.Logger) (*varmor.ArmorProfileModel, error) {
-	if apm.StorageType == varmortypes.StorageTypeCRDInternal {
+	if apm.StorageType == varmor.StorageTypeCRDInternal {
 		apm, err := UpdateArmorProfileModel(varmorInterface, apm)
 		if err == nil {
 			return apm, nil
@@ -146,7 +145,7 @@ func PersistArmorProfileModel(varmorInterface varmorinterface.CrdV1beta1Interfac
 
 	// Update the ArmorProfileModel object without behavior data and profiles
 	apm.Data = varmor.ArmorProfileModelData{}
-	apm.StorageType = varmortypes.StorageTypeLocalDisk
+	apm.StorageType = varmor.StorageTypeLocalDisk
 	a, err := UpdateArmorProfileModel(varmorInterface, apm)
 
 	// Recover behavior data and profiles

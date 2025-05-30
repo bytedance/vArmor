@@ -194,7 +194,7 @@ func (c *PolicyController) ignoreAdd(vp *varmor.VarmorPolicy, logger logr.Logger
 	if vp.Spec.Target.Kind != "Deployment" && vp.Spec.Target.Kind != "StatefulSet" && vp.Spec.Target.Kind != "DaemonSet" && vp.Spec.Target.Kind != "Pod" {
 		err := fmt.Errorf("Target.Kind is not supported")
 		logger.Error(err, "update VarmorPolicy/status with forbidden info")
-		err = statusmanager.UpdateVarmorPolicyStatus(c.varmorInterface, vp, "", false, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyCreated, apicorev1.ConditionFalse,
+		err = statusmanager.UpdateVarmorPolicyStatus(c.varmorInterface, vp, "", false, varmor.VarmorPolicyError, varmor.VarmorPolicyCreated, apicorev1.ConditionFalse,
 			"Forbidden",
 			"This kind of target is not supported.")
 		return true, err
@@ -203,7 +203,7 @@ func (c *PolicyController) ignoreAdd(vp *varmor.VarmorPolicy, logger logr.Logger
 	if vp.Spec.Target.Name == "" && vp.Spec.Target.Selector == nil {
 		err := fmt.Errorf("target.Name and target.Selector are empty")
 		logger.Error(err, "update VarmorPolicy/status with forbidden info")
-		err = statusmanager.UpdateVarmorPolicyStatus(c.varmorInterface, vp, "", false, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyCreated, apicorev1.ConditionFalse,
+		err = statusmanager.UpdateVarmorPolicyStatus(c.varmorInterface, vp, "", false, varmor.VarmorPolicyError, varmor.VarmorPolicyCreated, apicorev1.ConditionFalse,
 			"Forbidden",
 			"You should specify the target workload by name or selector.")
 		return true, err
@@ -212,34 +212,34 @@ func (c *PolicyController) ignoreAdd(vp *varmor.VarmorPolicy, logger logr.Logger
 	if vp.Spec.Target.Name != "" && vp.Spec.Target.Selector != nil {
 		err := fmt.Errorf("target.Name and target.Selector are exclusive")
 		logger.Error(err, "update VarmorPolicy/status with forbidden info")
-		err = statusmanager.UpdateVarmorPolicyStatus(c.varmorInterface, vp, "", false, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyCreated, apicorev1.ConditionFalse,
+		err = statusmanager.UpdateVarmorPolicyStatus(c.varmorInterface, vp, "", false, varmor.VarmorPolicyError, varmor.VarmorPolicyCreated, apicorev1.ConditionFalse,
 			"Forbidden",
 			"You shouldn't specify the target workload by both both name and selector.")
 		return true, err
 	}
 
-	if vp.Spec.Policy.Mode == varmortypes.EnhanceProtectMode && vp.Spec.Policy.EnhanceProtect == nil {
+	if vp.Spec.Policy.Mode == varmor.EnhanceProtectMode && vp.Spec.Policy.EnhanceProtect == nil {
 		err := fmt.Errorf("the EnhanceProtect field is not set when running in the EnhanceProtect mode")
 		logger.Error(err, "update VarmorClusterPolicy/status with forbidden info")
-		err = statusmanager.UpdateVarmorPolicyStatus(c.varmorInterface, vp, "", false, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyCreated, apicorev1.ConditionFalse,
+		err = statusmanager.UpdateVarmorPolicyStatus(c.varmorInterface, vp, "", false, varmor.VarmorPolicyError, varmor.VarmorPolicyCreated, apicorev1.ConditionFalse,
 			"Forbidden",
 			"The EnhanceProtect field should be set when running in the EnhanceProtect mode.")
 		return true, err
 	}
 
-	if !c.enableBehaviorModeling && vp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode {
+	if !c.enableBehaviorModeling && vp.Spec.Policy.Mode == varmor.BehaviorModelingMode {
 		err := fmt.Errorf("the BehaviorModeling feature is not enabled")
 		logger.Error(err, "update VarmorPolicy/status with forbidden info")
-		err = statusmanager.UpdateVarmorPolicyStatus(c.varmorInterface, vp, "", false, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyCreated, apicorev1.ConditionFalse,
+		err = statusmanager.UpdateVarmorPolicyStatus(c.varmorInterface, vp, "", false, varmor.VarmorPolicyError, varmor.VarmorPolicyCreated, apicorev1.ConditionFalse,
 			"Forbidden",
 			"The BehaviorModeling feature is not enabled.")
 		return true, err
 	}
 
-	if c.enableBehaviorModeling && vp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode && vp.Spec.Policy.ModelingOptions == nil {
+	if c.enableBehaviorModeling && vp.Spec.Policy.Mode == varmor.BehaviorModelingMode && vp.Spec.Policy.ModelingOptions == nil {
 		err := fmt.Errorf("the ModelingOptions field is not set when running in the BehaviorModeling mode")
 		logger.Error(err, "update VarmorClusterPolicy/status with forbidden info")
-		err = statusmanager.UpdateVarmorPolicyStatus(c.varmorInterface, vp, "", false, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyCreated, apicorev1.ConditionFalse,
+		err = statusmanager.UpdateVarmorPolicyStatus(c.varmorInterface, vp, "", false, varmor.VarmorPolicyError, varmor.VarmorPolicyCreated, apicorev1.ConditionFalse,
 			"Forbidden",
 			"The ModelingOptions field should be set when running in the BehaviorModeling mode.")
 		return true, err
@@ -252,7 +252,7 @@ func (c *PolicyController) ignoreAdd(vp *varmor.VarmorPolicy, logger logr.Logger
 		err := fmt.Errorf("the length of ArmorProfile name is exceed 63. name: %s, length: %d", profileName, len(profileName))
 		logger.Error(err, "update VarmorPolicy/status with forbidden info")
 		msg := fmt.Sprintf("The length of VarmorProfile object name is too long, please limit it to %d bytes.", 63-len(varmorprofile.ProfileNameTemplate)+4-len(vp.Namespace))
-		err = statusmanager.UpdateVarmorPolicyStatus(c.varmorInterface, vp, "", false, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyCreated, apicorev1.ConditionFalse,
+		err = statusmanager.UpdateVarmorPolicyStatus(c.varmorInterface, vp, "", false, varmor.VarmorPolicyError, varmor.VarmorPolicyCreated, apicorev1.ConditionFalse,
 			"Forbidden",
 			msg)
 		return true, err
@@ -276,7 +276,7 @@ func (c *PolicyController) handleAddVarmorPolicy(vp *varmor.VarmorPolicy) error 
 	ap, egressInfo, err := varmorprofile.NewArmorProfile(c.kubeClient, c.varmorInterface, vp, false, c.enablePodServiceEgressControl, logger)
 	if err != nil {
 		logger.Error(err, "NewArmorProfile()")
-		err = statusmanager.UpdateVarmorPolicyStatus(c.varmorInterface, vp, "", false, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyCreated, apicorev1.ConditionFalse,
+		err = statusmanager.UpdateVarmorPolicyStatus(c.varmorInterface, vp, "", false, varmor.VarmorPolicyError, varmor.VarmorPolicyCreated, apicorev1.ConditionFalse,
 			"Error",
 			err.Error())
 		if err != nil {
@@ -287,13 +287,13 @@ func (c *PolicyController) handleAddVarmorPolicy(vp *varmor.VarmorPolicy) error 
 	}
 
 	logger.Info("update VarmorPolicy/status (created=true)")
-	err = statusmanager.UpdateVarmorPolicyStatus(c.varmorInterface, vp, ap.Spec.Profile.Name, false, varmortypes.VarmorPolicyPending, varmortypes.VarmorPolicyCreated, apicorev1.ConditionTrue, "", "")
+	err = statusmanager.UpdateVarmorPolicyStatus(c.varmorInterface, vp, ap.Spec.Profile.Name, false, varmor.VarmorPolicyPending, varmor.VarmorPolicyCreated, apicorev1.ConditionTrue, "", "")
 	if err != nil {
 		logger.Error(err, "statusmanager.UpdateVarmorClusterPolicyStatus()")
 		return err
 	}
 
-	if vp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode {
+	if vp.Spec.Policy.Mode == varmor.BehaviorModelingMode {
 		err = resetArmorProfileModelStatus(c.varmorInterface, ap.Namespace, ap.Name)
 		if err != nil {
 			logger.Error(err, "resetArmorProfileModelStatus()")
@@ -308,7 +308,7 @@ func (c *PolicyController) handleAddVarmorPolicy(vp *varmor.VarmorPolicy) error 
 		logger.Error(err, "ArmorProfile().Create()")
 		if varmorutils.IsRequestSizeError(err) {
 			return statusmanager.UpdateVarmorPolicyStatus(
-				c.varmorInterface, vp, "", false, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyCreated, apicorev1.ConditionFalse,
+				c.varmorInterface, vp, "", false, varmor.VarmorPolicyError, varmor.VarmorPolicyCreated, apicorev1.ConditionFalse,
 				"Error",
 				"The profiles are too large to create an ArmorProfile object.")
 		}
@@ -346,29 +346,29 @@ func (c *PolicyController) ignoreUpdate(newVp *varmor.VarmorPolicy, oldAp *varmo
 	if !reflect.DeepEqual(newVp.Spec.Target, oldAp.Spec.Target) {
 		err := fmt.Errorf("disallow modifying spec.target")
 		logger.Error(err, "update VarmorPolicy/status with forbidden info")
-		err = statusmanager.UpdateVarmorPolicyStatus(c.varmorInterface, newVp, "", false, varmortypes.VarmorPolicyUnchanged, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionFalse,
+		err = statusmanager.UpdateVarmorPolicyStatus(c.varmorInterface, newVp, "", false, varmor.VarmorPolicyUnchanged, varmor.VarmorPolicyUpdated, apicorev1.ConditionFalse,
 			"Forbidden",
 			"Modifying the target of VarmorPolicy is not allowed. You need to recreate the VarmorPolicy object.")
 		return true, err
 	}
 
 	// Disallow switching mode from others to BehaviorModeling.
-	if newVp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode &&
+	if newVp.Spec.Policy.Mode == varmor.BehaviorModelingMode &&
 		oldAp.Spec.BehaviorModeling.Duration == 0 {
 		err := fmt.Errorf("disallow switching spec.policy.mode from others to BehaviorModeling")
 		logger.Error(err, "update VarmorPolicy/status with forbidden info")
-		err = statusmanager.UpdateVarmorPolicyStatus(c.varmorInterface, newVp, "", false, varmortypes.VarmorPolicyUnchanged, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionFalse,
+		err = statusmanager.UpdateVarmorPolicyStatus(c.varmorInterface, newVp, "", false, varmor.VarmorPolicyUnchanged, varmor.VarmorPolicyUpdated, apicorev1.ConditionFalse,
 			"Forbidden",
 			"Switching the mode from others to BehaviorModeling is not allowed. You need to recreate the VarmorPolicy object.")
 		return true, err
 	}
 
 	// Disallow switching mode from BehaviorModeling to others.
-	if newVp.Spec.Policy.Mode != varmortypes.BehaviorModelingMode &&
+	if newVp.Spec.Policy.Mode != varmor.BehaviorModelingMode &&
 		oldAp.Spec.BehaviorModeling.Duration != 0 {
 		err := fmt.Errorf("disallow switching spec.policy.mode from BehaviorModeling to others")
 		logger.Error(err, "update VarmorPolicy/status with forbidden info")
-		err = statusmanager.UpdateVarmorPolicyStatus(c.varmorInterface, newVp, "", false, varmortypes.VarmorPolicyUnchanged, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionFalse,
+		err = statusmanager.UpdateVarmorPolicyStatus(c.varmorInterface, newVp, "", false, varmor.VarmorPolicyUnchanged, varmor.VarmorPolicyUpdated, apicorev1.ConditionFalse,
 			"Forbidden",
 			"Switching the mode from BehaviorModeling to others is not allowed. You need to recreate the VarmorPolicy object.")
 		return true, err
@@ -380,56 +380,56 @@ func (c *PolicyController) ignoreUpdate(newVp *varmor.VarmorPolicy, oldAp *varmo
 	if newEnforcers&oldEnforcers != oldEnforcers {
 		err := fmt.Errorf("disallow shutting down the enforcer that has been activated")
 		logger.Error(err, "update VarmorPolicy/status with forbidden info")
-		err = statusmanager.UpdateVarmorPolicyStatus(c.varmorInterface, newVp, "", false, varmortypes.VarmorPolicyUnchanged, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionFalse,
+		err = statusmanager.UpdateVarmorPolicyStatus(c.varmorInterface, newVp, "", false, varmor.VarmorPolicyUnchanged, varmor.VarmorPolicyUpdated, apicorev1.ConditionFalse,
 			"Forbidden",
 			"Modifying a policy to remove an already-set enforcer is not allowed. To remove enforcers, you must recreate the VarmorPolicy object.")
 		return true, err
 	}
 
 	// Disallow switching the enforcer during modeling.
-	if newEnforcers != oldEnforcers && newVp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode {
+	if newEnforcers != oldEnforcers && newVp.Spec.Policy.Mode == varmor.BehaviorModelingMode {
 		err := fmt.Errorf("disallow switching the enforcer")
 		logger.Error(err, "update VarmorPolicy/status with forbidden info")
-		err = statusmanager.UpdateVarmorPolicyStatus(c.varmorInterface, newVp, "", false, varmortypes.VarmorPolicyUnchanged, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionFalse,
+		err = statusmanager.UpdateVarmorPolicyStatus(c.varmorInterface, newVp, "", false, varmor.VarmorPolicyUnchanged, varmor.VarmorPolicyUpdated, apicorev1.ConditionFalse,
 			"Forbidden",
 			"Switching the enforcer during modeling is not allowed. You need to recreate the VarmorPolicy object.")
 		return true, err
 	}
 
 	// Make sure the EnhanceProtect field has been set when running in the EnhanceProtect mode.
-	if newVp.Spec.Policy.Mode == varmortypes.EnhanceProtectMode &&
+	if newVp.Spec.Policy.Mode == varmor.EnhanceProtectMode &&
 		newVp.Spec.Policy.EnhanceProtect == nil {
 		err := fmt.Errorf("the EnhanceProtect field is not set when running in the EnhanceProtect mode")
 		logger.Error(err, "update VarmorClusterPolicy/status with forbidden info")
-		err = statusmanager.UpdateVarmorPolicyStatus(c.varmorInterface, newVp, "", false, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionFalse,
+		err = statusmanager.UpdateVarmorPolicyStatus(c.varmorInterface, newVp, "", false, varmor.VarmorPolicyError, varmor.VarmorPolicyUpdated, apicorev1.ConditionFalse,
 			"Forbidden",
 			"The EnhanceProtect field should be set when running in the EnhanceProtect mode.")
 		return true, err
 	}
 
 	// Disallow modifying the VarmorPolicy that runs in the BehaviorModeling mode and has already been completed.
-	if newVp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode &&
-		newVp.Status.Phase == varmortypes.VarmorPolicyCompleted {
+	if newVp.Spec.Policy.Mode == varmor.BehaviorModelingMode &&
+		newVp.Status.Phase == varmor.VarmorPolicyCompleted {
 		if newVp.Spec.Policy.ModelingOptions == nil ||
 			newVp.Spec.Policy.ModelingOptions.Duration != oldAp.Spec.BehaviorModeling.Duration {
 			err := fmt.Errorf("disallow modifying the VarmorPolicy that runs in the BehaviorModeling mode and has already been completed")
 			logger.Error(err, "update VarmorPolicy/status with forbidden info")
-			err = statusmanager.UpdateVarmorPolicyStatus(c.varmorInterface, newVp, "", false, varmortypes.VarmorPolicyUnchanged, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionFalse,
+			err = statusmanager.UpdateVarmorPolicyStatus(c.varmorInterface, newVp, "", false, varmor.VarmorPolicyUnchanged, varmor.VarmorPolicyUpdated, apicorev1.ConditionFalse,
 				"Forbidden",
 				"Modifying the VarmorPolicy that runs in the BehaviorModeling mode and has already been completed is not allowed. You need to recreate the VarmorPolicy object.")
 			return true, err
 		} else {
-			err := statusmanager.UpdateVarmorPolicyStatus(c.varmorInterface, newVp, "", true, varmortypes.VarmorPolicyUnchanged, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionTrue, "", "")
+			err := statusmanager.UpdateVarmorPolicyStatus(c.varmorInterface, newVp, "", true, varmor.VarmorPolicyUnchanged, varmor.VarmorPolicyUpdated, apicorev1.ConditionTrue, "", "")
 			return true, err
 		}
 	}
 
 	// Make sure the ModelingOptions field has been set when running with BehaviorModeling mode.
-	if newVp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode &&
+	if newVp.Spec.Policy.Mode == varmor.BehaviorModelingMode &&
 		newVp.Spec.Policy.ModelingOptions == nil {
 		err := fmt.Errorf("the ModelingOptions field is not set when running in the BehaviorModeling mode")
 		logger.Error(err, "update VarmorClusterPolicy/status with forbidden info")
-		err = statusmanager.UpdateVarmorPolicyStatus(c.varmorInterface, newVp, "", false, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionFalse,
+		err = statusmanager.UpdateVarmorPolicyStatus(c.varmorInterface, newVp, "", false, varmor.VarmorPolicyError, varmor.VarmorPolicyUpdated, apicorev1.ConditionFalse,
 			"Forbidden",
 			"The ModelingOptions field should be set when running in the BehaviorModeling mode.")
 		return true, err
@@ -452,7 +452,7 @@ func (c *PolicyController) handleUpdateVarmorPolicy(newVp *varmor.VarmorPolicy, 
 
 	// First, reset VarmorPolicy/status
 	logger.Info("1. reset VarmorPolicy/status (updated=true)", "namesapce", newVp.Namespace, "name", newVp.Name)
-	err := statusmanager.UpdateVarmorPolicyStatus(c.varmorInterface, newVp, "", false, varmortypes.VarmorPolicyPending, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionTrue, "", "")
+	err := statusmanager.UpdateVarmorPolicyStatus(c.varmorInterface, newVp, "", false, varmor.VarmorPolicyPending, varmor.VarmorPolicyUpdated, apicorev1.ConditionTrue, "", "")
 	if err != nil {
 		logger.Error(err, "statusmanager.UpdateVarmorClusterPolicyStatus()")
 		return err
@@ -463,7 +463,7 @@ func (c *PolicyController) handleUpdateVarmorPolicy(newVp *varmor.VarmorPolicy, 
 	newProfile, egressInfo, err := varmorprofile.GenerateProfile(c.kubeClient, c.varmorInterface, newVp.Spec.Policy, oldAp.Name, oldAp.Namespace, false, c.enablePodServiceEgressControl, logger)
 	if err != nil {
 		logger.Error(err, "GenerateProfile()")
-		err = statusmanager.UpdateVarmorPolicyStatus(c.varmorInterface, newVp, "", false, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionFalse,
+		err = statusmanager.UpdateVarmorPolicyStatus(c.varmorInterface, newVp, "", false, varmor.VarmorPolicyError, varmor.VarmorPolicyUpdated, apicorev1.ConditionFalse,
 			"Error",
 			err.Error())
 		if err != nil {
@@ -474,7 +474,7 @@ func (c *PolicyController) handleUpdateVarmorPolicy(newVp *varmor.VarmorPolicy, 
 	}
 	newApSpec.Profile = *newProfile
 	newApSpec.UpdateExistingWorkloads = newVp.Spec.UpdateExistingWorkloads
-	if newVp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode {
+	if newVp.Spec.Policy.Mode == varmor.BehaviorModelingMode {
 		newApSpec.BehaviorModeling.Duration = newVp.Spec.Policy.ModelingOptions.Duration
 	}
 
@@ -503,7 +503,7 @@ func (c *PolicyController) handleUpdateVarmorPolicy(newVp *varmor.VarmorPolicy, 
 			return err
 		}
 
-		if newVp.Spec.Policy.Mode == varmortypes.BehaviorModelingMode {
+		if newVp.Spec.Policy.Mode == varmor.BehaviorModelingMode {
 			err = resetArmorProfileModelStatus(c.varmorInterface, oldAp.Namespace, oldAp.Name)
 			if err != nil {
 				logger.Error(err, "resetArmorProfileModelStatus()")
@@ -518,7 +518,7 @@ func (c *PolicyController) handleUpdateVarmorPolicy(newVp *varmor.VarmorPolicy, 
 			logger.Error(err, "ArmorProfile().Update()")
 			if varmorutils.IsRequestSizeError(err) {
 				return statusmanager.UpdateVarmorPolicyStatus(
-					c.varmorInterface, newVp, "", false, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionFalse,
+					c.varmorInterface, newVp, "", false, varmor.VarmorPolicyError, varmor.VarmorPolicyUpdated, apicorev1.ConditionFalse,
 					"Error",
 					"The profiles are too large to update the existing ArmorProfile object.")
 			}
@@ -532,7 +532,7 @@ func (c *PolicyController) handleUpdateVarmorPolicy(newVp *varmor.VarmorPolicy, 
 			logger.Error(err, "ArmorProfile().Update()")
 			if varmorutils.IsRequestSizeError(err) {
 				return statusmanager.UpdateVarmorPolicyStatus(
-					c.varmorInterface, newVp, "", false, varmortypes.VarmorPolicyError, varmortypes.VarmorPolicyUpdated, apicorev1.ConditionFalse,
+					c.varmorInterface, newVp, "", false, varmor.VarmorPolicyError, varmor.VarmorPolicyUpdated, apicorev1.ConditionFalse,
 					"Error",
 					"The profiles are too large to update the existing ArmorProfile object.")
 			}

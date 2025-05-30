@@ -207,7 +207,7 @@ func buildSeccompPatch(
 		if container.SecurityContext == nil {
 			jsonPatch += fmt.Sprintf(`{"op": "add", "path": "/spec/template/spec/containers/%d/securityContext", "value": {}},`, index)
 		}
-		if mode == varmortypes.RuntimeDefaultMode {
+		if mode == varmor.RuntimeDefaultMode {
 			jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/containers/%d/securityContext/seccompProfile", "value": {"type": "RuntimeDefault"}},`, index)
 		} else {
 			jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/containers/%d/securityContext/seccompProfile", "value": {"type": "Localhost", "localhostProfile": "%s"}},`, index, profileName)
@@ -217,7 +217,7 @@ func buildSeccompPatch(
 		if container.SecurityContext == nil {
 			jsonPatch += fmt.Sprintf(`{"op": "add", "path": "/spec/containers/%d/securityContext", "value": {}},`, index)
 		}
-		if mode == varmortypes.RuntimeDefaultMode {
+		if mode == varmor.RuntimeDefaultMode {
 			jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/containers/%d/securityContext/seccompProfile", "value": {"type": "RuntimeDefault"}},`, index)
 		} else {
 			jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/containers/%d/securityContext/seccompProfile", "value": {"type": "Localhost", "localhostProfile": "%s"}},`, index, profileName)

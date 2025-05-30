@@ -517,3 +517,25 @@ func GenerateEnhanceProtectProfile(enhanceProtect *varmor.EnhanceProtect, profil
 	}
 	return string(p), nil
 }
+
+func GenerateDefenseInDepthProfile(defenseInDepth *varmor.DefenseInDepth, profile string) (string, error) {
+	finalProfile := specs.LinuxSeccomp{}
+	err := json.Unmarshal([]byte(profile), &finalProfile)
+	if err != nil {
+		return "", err
+	}
+
+	if defenseInDepth.AllowViolations {
+		finalProfile.DefaultAction = specs.ActLog
+	} else {
+		finalProfile.DefaultAction = specs.ActErrno
+	}
+
+	finalProfile.Syscalls = append(finalProfile.Syscalls, defenseInDepth.Seccomp.SyscallRawRules...)
+
+	p, err := json.Marshal(finalProfile)
+	if err != nil {
+		return "", err
+	}
+	return string(p), nil
+}

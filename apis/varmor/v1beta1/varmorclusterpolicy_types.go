@@ -1,5 +1,5 @@
 /*
-Copyright The Kubernetes Authors.
+Copyright The vArmor Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -40,11 +40,14 @@ import (
 //+kubebuilder:printcolumn:name="AGE",type=date,JSONPath=`.metadata.creationTimestamp`
 
 // VarmorClusterPolicy is the Schema for the varmorclusterpolicies API
+// VarmorClusterPolicy is a cluster-level security policy for hardening the workloads across the entire cluster.
 type VarmorClusterPolicy struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   VarmorPolicySpec   `json:"spec"`
+	// spec describes the desired policy to be used for hardening the target workloads.
+	Spec VarmorPolicySpec `json:"spec"`
+	// status describes the observed status of the policy.
 	Status VarmorPolicyStatus `json:"status,omitempty"`
 }
 

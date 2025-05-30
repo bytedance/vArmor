@@ -26,6 +26,7 @@ import (
 	"go.opentelemetry.io/otel/metric"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 
+	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
 	varmortypes "github.com/bytedance/vArmor/internal/types"
 )
 
@@ -142,7 +143,7 @@ func (m *StatusManager) updatePolicyStatus(statusKey string, profileStatus *varm
 	case varmortypes.Failed:
 		if nodeMessage, ok := policyStatus.NodeMessages[profileStatus.NodeName]; ok {
 
-			if nodeMessage == string(varmortypes.ArmorProfileReady) {
+			if nodeMessage == string(varmor.ArmorProfileReady) {
 				// Succeeded status -> Failed status
 				policyStatus.SuccessedNumber -= 1
 				policyStatus.FailedNumber += 1
@@ -161,17 +162,17 @@ func (m *StatusManager) updatePolicyStatus(statusKey string, profileStatus *varm
 	case varmortypes.Succeeded:
 		if nodeMessage, ok := policyStatus.NodeMessages[profileStatus.NodeName]; ok {
 
-			if nodeMessage != string(varmortypes.ArmorProfileReady) {
+			if nodeMessage != string(varmor.ArmorProfileReady) {
 				// Failed status -> Succeeded status
 				policyStatus.FailedNumber -= 1
 				policyStatus.SuccessedNumber += 1
-				policyStatus.NodeMessages[profileStatus.NodeName] = string(varmortypes.ArmorProfileReady)
+				policyStatus.NodeMessages[profileStatus.NodeName] = string(varmor.ArmorProfileReady)
 			}
 
 		} else {
 			// new Succeeded status
 			policyStatus.SuccessedNumber += 1
-			policyStatus.NodeMessages[profileStatus.NodeName] = string(varmortypes.ArmorProfileReady)
+			policyStatus.NodeMessages[profileStatus.NodeName] = string(varmor.ArmorProfileReady)
 		}
 	}
 

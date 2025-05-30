@@ -49,7 +49,8 @@ spec:
     schema:
       openAPIV3Schema:
         description: VarmorClusterPolicy is the Schema for the varmorclusterpolicies
-          API
+          API VarmorClusterPolicy is a cluster-level security policy for hardening
+          the workloads across the entire cluster.
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation
@@ -64,27 +65,158 @@ spec:
           metadata:
             type: object
           spec:
-            description: VarmorPolicySpec defines the desired state of VarmorPolicy
-              or VarmorClusterPolicy
+            description: spec describes the desired policy to be used for hardening
+              the target workloads.
             properties:
               policy:
                 description: policy specifies which enforcer, mode and rules you want
                   to use to apply to the target.
                 properties:
+                  defenseInDepth:
+                    description: defenseInDepth configures the DefenseInDepth mode.
+                    properties:
+                      allowViolations:
+                        description: "allowViolations determines whether to allow
+                          the actions that are against mandatory access control rules.
+                          If this field is set, any detected violation will be allowed
+                          rather than blocked, and an `ALLOWED` audit event will be
+                          generated and logged. This can be used to gather violations
+                          for improving Deny-by-Default protection profiles. If this
+                          field is not set, any detected violation will be blocked,
+                          and a `DENIED` audit event will be generated and logged.
+                          \n Default is false."
+                        type: boolean
+                      appArmor:
+                        description: appArmor specifies the AppArmor profile and additional
+                          custom rules for the Deny-by-Default protection.
+                        properties:
+                          appArmorRawRules:
+                            description: appArmorRawRules specifies custom AppArmor
+                              rules. These rules will be added to the end of the AppArmor
+                              profile that you specified.
+                            items:
+                              properties:
+                                rules:
+                                  description: rules defines the custom AppArmor rules.
+                                    You should ensure they conform to AppArmor syntax
+                                    on your own.
+                                  type: string
+                                targets:
+                                  description: targets specifies the executable files
+                                    for which the rules apply. They must be specified
+                                    as full paths to the executable files.
+                                  items:
+                                    type: string
+                                  type: array
+                              required:
+                              - rules
+                              type: object
+                            type: array
+                          customProfile:
+                            description: "customProfile holds the user-defined AppArmor
+                              profile content. It must be a valid profile that conforms
+                              to AppArmor syntax. If you want vArmor to apply the
+                              profile to target workloads automatically, the profile's
+                              name must match the ArmorProfile object name. For example:
+                              \n abi <abi/3.0>, #include <tunables/global> profile
+                              varmor-demo-demo-4 flags=(attach_disconnected,mediate_deleted)
+                              { #include <abstractions/base> file, network, } \n The
+                              profile name \"varmor-demo-demo-4\" is identical to
+                              the ArmorProfile object name."
+                            type: string
+                          profileType:
+                            description: 'profileType indicates which kind of AppArmor
+                              profile will be applied. Valid options are: BehaviorModel
+                              - a profile generated via the BehaviorModeling mode
+                              will be used. Custom - a custom profile defined in the
+                              customProfile field will be used.'
+                            type: string
+                        required:
+                        - profileType
+                        type: object
+                      seccomp:
+                        description: seccomp specifies the Seccomp profile and additional
+                          custom rules for the Deny-by-Default protection.
+                        properties:
+                          customProfile:
+                            description: customProfile holds the user-defined Seccomp
+                              profile content. It must be a valid profile that adheres
+                              to Seccomp syntax. See https://github.com/opencontainers/runtime-spec/blob/main/config-linux.md#seccomp
+                            type: string
+                          profileType:
+                            description: 'profileType indicates which kind of Seccomp
+                              profile will be applied. Valid options are: BehaviorModel
+                              - a profile generated via the BehaviorModeling mode
+                              will be used. Custom - a custom profile defined in the
+                              customProfile field will be used.'
+                            type: string
+                          syscallRawRules:
+                            description: syscallRawRules specifies custom Seccomp
+                              rules. These rules will be added to the end of the Seccomp
+                              profile that you specified.
+                            items:
+                              description: LinuxSyscall is used to match a syscall
+                                in Seccomp
+                              properties:
+                                action:
+                                  description: LinuxSeccompAction taken upon Seccomp
+                                    rule match
+                                  type: string
+                                args:
+                                  items:
+                                    description: LinuxSeccompArg used for matching
+                                      specific syscall arguments in Seccomp
+                                    properties:
+                                      index:
+                                        type: integer
+                                      op:
+                                        description: LinuxSeccompOperator used to
+                                          match syscall arguments in Seccomp
+                                        type: string
+                                      value:
+                                        format: int64
+                                        type: integer
+                                      valueTwo:
+                                        format: int64
+                                        type: integer
+                                    required:
+                                    - index
+                                    - op
+                                    - value
+                                    type: object
+                                  type: array
+                                errnoRet:
+                                  type: integer
+                                names:
+                                  items:
+                                    type: string
+                                  type: array
+                              required:
+                              - action
+                              - names
+                              type: object
+                            type: array
+                        required:
+                        - profileType
+                        type: object
+                    type: object
                   enforcer:
                     description: 'enforcer is used to specify which LSM to use for
                       mandatory access control. Available values: AppArmor, BPF, Seccomp,
                       AppArmorBPF, AppArmorSeccomp, BPFSeccomp, AppArmorBPFSeccomp'
                     type: string
                   enhanceProtect:
-                    description: enhanceProtect is used to specify which built-in
-                      or custom rules are employed to protect the target workloads.
+                    description: enhanceProtect configures the EnhanceProtect mode.
+                      It allows you to select built-in and custom rules to generate
+                      profiles for workload protection and control the behavior of
+                      generated profiles (e.g., audit or allow violations)
                     properties:
                       allowViolations:
                         description: "allowViolations determines whether to allow
-                          the actions that are against the mandatory access control
-                          rules. Any detected violation will be allowed instead of
-                          being blocked. \n Default is false."
+                          the actions that are against mandatory access control rules.
+                          If this field is set, any detected violation will be allowed
+                          rather than blocked, and an `ALLOWED` audit event will be
+                          generated and logged. \n Default is false."
                         type: boolean
                       appArmorRawRules:
                         description: appArmorRawRules is used to set custom AppArmor
@@ -92,14 +224,14 @@ spec:
                         items:
                           properties:
                             rules:
-                              description: rules define the custom AppArmor rules.
-                                You should make sure that they satisfy the AppArmor
-                                syntax on your own.
+                              description: rules defines the custom AppArmor rules.
+                                You should ensure they conform to AppArmor syntax
+                                on your own.
                               type: string
                             targets:
-                              description: targets specify the executable files for
-                                which the rules apply. They must be specified as full
-                                paths to the executable files.
+                              description: targets specifies the executable files
+                                for which the rules apply. They must be specified
+                                as full paths to the executable files.
                               items:
                                 type: string
                               type: array
@@ -119,10 +251,10 @@ spec:
                                 type: string
                               type: array
                             targets:
-                              description: targets specify the executable files for
-                                which the rules and rawRules apply. They must be specified
+                              description: targets specifies the executable files
+                                for which the rules apply. They must be specified
                                 as full paths to the executable files. This feature
-                                is only effective when using AppArmor as the enforcer.
+                                is only effective when using AppArmor enforcer.
                               items:
                                 type: string
                               type: array
@@ -133,26 +265,28 @@ spec:
                       auditViolations:
                         description: "auditViolations determines whether to audit
                           the actions that violate the mandatory access control rules.
-                          Any detected violation will be logged to `/var/log/varmor/violations.log`
-                          file in the host. Please note that the Seccomp enforcer
-                          does not support auditing violations when the allowViolations
-                          field is set to `false`. \n Default is false."
+                          If this field is set, any detected violation will be logged
+                          to `/var/log/varmor/violations.log` file in the host. Please
+                          note that the Seccomp enforcer does not support auditing
+                          violations when the allowViolations field is set to `false`.
+                          \n Default is false."
                         type: boolean
                       bpfRawRules:
                         description: bpfRawRules is used to set custom BPF rules.
                         properties:
                           files:
+                            description: files specifies the file access control rules.
                             items:
                               properties:
                                 pattern:
                                   description: pattern can be any string (maximum
                                     length 128 bytes) that conforms to the policy
-                                    syntax, used for matching file paths and filenames
+                                    syntax, used for matching file paths and filenames.
                                   type: string
                                 permissions:
                                   description: "permissions are used to specify the
-                                    file permissions to be disabled. \n Available
-                                    values: all(*), read(r), write(w), exec(x), append(a)"
+                                    file permissions. \n Available values: all(*),
+                                    read(r), write(w), exec(x), append(a)"
                                   items:
                                     type: string
                                   type: array
@@ -162,6 +296,8 @@ spec:
                               type: object
                             type: array
                           mounts:
+                            description: mounts specifies mount point access control
+                              rules.
                             items:
                               properties:
                                 flags:
@@ -183,13 +319,15 @@ spec:
                                   type: array
                                 fstype:
                                   description: fstype is used to specify the type
-                                    of filesystem to enforce. It can be '*' to match
-                                    any type.
+                                    of filesystem (maximum length 16 bytes) to enforce.
+                                    It can be '*' to match any type.
                                   type: string
                                 sourcePattern:
                                   description: sourcePattern can be any string (maximum
                                     length 128 bytes) that conforms to the policy
-                                    syntax, used for matching file paths and filenames
+                                    syntax, used for matching the source paramater
+                                    of mount(2), the target paramater of umount(2),
+                                    and the from_pathname paramater of move_mount(2).
                                   type: string
                               required:
                               - flags
@@ -198,8 +336,8 @@ spec:
                               type: object
                             type: array
                           network:
-                            description: NetworkRule describes a network rule to match
-                              traffic
+                            description: network specifies the network access control
+                              rules.
                             properties:
                               egress:
                                 description: 'egress defines network egress rules
@@ -236,13 +374,13 @@ spec:
                                             exclusive.
                                           type: string
                                         ports:
-                                          description: ports define this rule on particular
-                                            ports. Each item in this list is combined
-                                            using a logical OR. If this field is empty
-                                            or not present, this rule matches all
-                                            ports. If this field is present and contains
-                                            at least one item, then this rule matches
-                                            all ports in the list.
+                                          description: ports defines this rule on
+                                            particular ports. Each item in this list
+                                            is combined using a logical OR. If this
+                                            field is empty or not present, this rule
+                                            matches all ports. If this field is present
+                                            and contains at least one item, then this
+                                            rule matches all ports in the list.
                                           items:
                                             description: Port describes a port or
                                               port range to match traffic.
@@ -551,17 +689,19 @@ spec:
                                 type: array
                             type: object
                           processes:
+                            description: processes specifies the process access control
+                              rules.
                             items:
                               properties:
                                 pattern:
                                   description: pattern can be any string (maximum
                                     length 128 bytes) that conforms to the policy
-                                    syntax, used for matching file paths and filenames
+                                    syntax, used for matching file paths and filenames.
                                   type: string
                                 permissions:
                                   description: "permissions are used to specify the
-                                    file permissions to be disabled. \n Available
-                                    values: all(*), read(r), write(w), exec(x), append(a)"
+                                    file permissions. \n Available values: all(*),
+                                    read(r), write(w), exec(x), append(a)"
                                   items:
                                     type: string
                                   type: array
@@ -571,6 +711,8 @@ spec:
                               type: object
                             type: array
                           ptrace:
+                            description: ptrace specifies the ptrace-based access
+                              control rules.
                             properties:
                               permissions:
                                 description: "permissions are used to indicate which
@@ -618,16 +760,17 @@ spec:
                         type: array
                       privileged:
                         description: "privileged is used to identify whether the policy
-                          is for the privileged container. If set to `nil` or `false`,
-                          the EnhanceProtect mode will build AppArmor or BPF profile
-                          on top of the RuntimeDefault mode. Otherwise, it will build
+                          is for the privileged container. If set to `false`, the
+                          EnhanceProtect mode will build AppArmor or BPF profile on
+                          top of the RuntimeDefault mode. Otherwise, it will build
                           AppArmor or BPF profile on top of the AlwaysAllow mode.
                           Default is false. \n Note: If set to `true`, vArmor will
                           not build Seccomp profile for the target workloads."
                         type: boolean
                       syscallRawRules:
-                        description: syscallRawRules is used to set the syscalls blocklist
-                          rules with Seccomp enforcer.
+                        description: syscallRawRules is used to set the custom syscalls
+                          blocklist rules with Seccomp enforcer. Please refer to https://github.com/opencontainers/runtime-spec/blob/main/config-linux.md#seccomp
+                          to create custom rules.
                         items:
                           description: LinuxSyscall is used to match a syscall in
                             Seccomp
@@ -682,10 +825,10 @@ spec:
                       values: AlwaysAllow, RuntimeDefault, EnhanceProtect, BehaviorModeling,
                       DefenseInDepth \n Note: BehaviorModeling and DefenseInDepth
                       modes are experimental features and currently only work with
-                      AppArmor/Seccomp/AppArmorSeccomp enforcers."
+                      AppArmor and Seccomp enforcers."
                     type: string
                   modelingOptions:
-                    description: modelingOptions is used for the modeling settings.
+                    description: modelingOptions configures the BehaviorModeling mode.
                     properties:
                       duration:
                         description: duration is the duration in minutes to modeling
@@ -785,11 +928,12 @@ spec:
             - target
             type: object
           status:
-            description: VarmorPolicyStatus defines the observed state of VarmorPolicy
-              or VarmorClusterPolicy
+            description: status describes the observed status of the policy.
             properties:
               conditions:
-                description: Conditions
+                description: conditions is a list of conditions that indicate the
+                  status of the policy. It can include conditions such as Created,
+                  Updated, Ready, etc.
                 items:
                   properties:
                     lastTransitionTime:
@@ -805,11 +949,12 @@ spec:
                       description: The reason for the condition's last transition.
                       type: string
                     status:
-                      description: Status of the condition, one of True, False, Unknown.
+                      description: 'Status of the condition. Possible values: True,
+                        False, Unknown.'
                       type: string
                     type:
-                      description: 'Type of ArmorProfile condition. Possible values:
-                        Created, Updated, Ready'
+                      description: 'Type of condition. Possible values: Created, Updated,
+                        Ready.'
                       type: string
                   required:
                   - status
@@ -817,16 +962,21 @@ spec:
                   type: object
                 type: array
               phase:
-                description: "Phase is used to indicate the processing phase of the
+                description: "phase is used to indicate the processing phase of the
                   policy. Possible values: Pending, Modeling, Completed, Protecting,
                   Error. \n Note: You can find out which varmor-agent has an error
-                  by reading the ArmorProfile/status corresponding to the current
-                  VarmorPolicy"
+                  by getting the ArmorProfile/status resource corresponding to the
+                  current VarmorPolicy or VarmorClusterPolicy object."
                 type: string
               profileName:
+                description: profileName is the name of the AppArmor, BPF and Seccomp
+                  profile that is generated by the policy. It is in the format of
+                  "varmor-{namespace}-{name}" for namespaced policies or "varmor-cluster-{namespace}-{name}"
+                  for cluster-scoped policies. It is equivalent to the name of the
+                  ArmorProfile object that is created by the policy.
                 type: string
               ready:
-                description: Ready is used to indicate whether the profile of policy
+                description: ready is used to indicate whether the profile of policy
                   is loaded.
                 type: boolean
             required:

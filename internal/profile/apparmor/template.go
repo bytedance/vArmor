@@ -253,3 +253,28 @@ profile %s flags=(attach_disconnected,mediate_deleted) {
 %s
 }
 `
+
+const defenseInDepthChildTemplate = `
+# processes with parent profile may send signal to processes with child profile
+signal (send) peer=%s,
+# processes with parent profile may ptrace processes with child profile, but not vice versa.
+ptrace (trace,read) peer=%s,
+
+%s
+profile %s flags=(attach_disconnected,mediate_deleted) {
+  %s
+  #include <abstractions/base>
+
+  # processes with child profile may receive signals from processes with parent profile.
+  signal (receive) peer=%s,
+  # processes with child profile may send signals amongst themselves.
+  signal (send,receive) peer=%s,
+
+  # processes with parent profile may ptrace processes with child profile, but not vice versa.
+  ptrace (tracedby,readby) peer=%s,
+  # processes with child profile may ptrace processes amongst themselves.
+  ptrace (trace,read,tracedby,readby) peer=%s,
+
+%s
+}
+`

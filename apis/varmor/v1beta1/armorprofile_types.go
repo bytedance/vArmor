@@ -1,5 +1,5 @@
 /*
-Copyright 2021.
+Copyright The vArmor Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -23,6 +23,13 @@ import (
 
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
+
+type profileMode string
+
+const (
+	ProfileModeEnforce  profileMode = "enforce"
+	ProfileModeComplain profileMode = "complain"
+)
 
 type CapabilitiesContent struct {
 	Mode         uint32 `json:"mode,omitempty"`
@@ -88,7 +95,7 @@ type BpfContent struct {
 type Profile struct {
 	Name           string      `json:"name"`
 	Enforcer       string      `json:"enforcer"`
-	Mode           string      `json:"mode"`
+	Mode           profileMode `json:"mode"`
 	Content        string      `json:"content,omitempty"`
 	BpfContent     *BpfContent `json:"bpfContent,omitempty"`
 	SeccompContent string      `json:"seccompContent,omitempty"`
@@ -101,7 +108,6 @@ type BehaviorModeling struct {
 	Duration int `json:"duration"`
 }
 
-// ArmorProfileSpec defines the desired state of ArmorProfile
 type ArmorProfileSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
@@ -112,10 +118,21 @@ type ArmorProfileSpec struct {
 	UpdateExistingWorkloads bool             `json:"updateExistingWorkloads"`
 }
 
+// ArmorProfileConditionType defines the type of condition for ArmorProfile.
+// +enum
 type ArmorProfileConditionType string
 
+const (
+	// ArmorProfileReady indicates that the ArmorProfile is ready.
+	// This condition is set to True when the desired number of profiles are loaded and the conditions are met.
+	ArmorProfileReady ArmorProfileConditionType = "Ready"
+	// ArmorProfileModelReady indicates that the ArmorProfileModel is ready.
+	// This condition is set to True when the model has been successfully created and is ready for use.
+	ArmorProfileModelReady ArmorProfileModelConditionType = "Ready"
+)
+
 type ArmorProfileCondition struct {
-	// Type of ArmorProfile condition.
+	// Type of condition.
 	Type ArmorProfileConditionType `json:"type"`
 	// Status of the condition, one of True, False, Unknown.
 	Status v1.ConditionStatus `json:"status"`
@@ -127,18 +144,21 @@ type ArmorProfileCondition struct {
 	Reason string `json:"reason,omitempty"`
 	// A human readable message indicating details about the transition.
 	// +optional
-	Message  string `json:"message,omitempty"`
+	Message string `json:"message,omitempty"`
+	// NodeName is the name of the node where the condition is applicable.
 	NodeName string `json:"nodeName"`
 }
 
-// ArmorProfileStatus defines the observed state of ArmorProfile
 type ArmorProfileStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	DesiredNumberLoaded int32                   `json:"desiredNumberLoaded"`
-	CurrentNumberLoaded int32                   `json:"currentNumberLoaded"`
-	Conditions          []ArmorProfileCondition `json:"conditions,omitempty"`
+	// DesiredNumberLoaded is the desired number of profiles that should be loaded.
+	DesiredNumberLoaded int32 `json:"desiredNumberLoaded"`
+	// CurrentNumberLoaded is the current number of profiles that are loaded.
+	CurrentNumberLoaded int32 `json:"currentNumberLoaded"`
+	// Conditions is a list of conditions that describe the state of the ArmorProfile.
+	Conditions []ArmorProfileCondition `json:"conditions,omitempty"`
 }
 
 //+genclient
@@ -153,11 +173,14 @@ type ArmorProfileStatus struct {
 //+kubebuilder:printcolumn:name="AGE",type=date,JSONPath=`.metadata.creationTimestamp`
 
 // ArmorProfile is the Schema for the armorprofiles API
+// It's an internal interface, used by vArmor only.
 type ArmorProfile struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   ArmorProfileSpec   `json:"spec"`
+	// Spec defines the profiles for hardening target workloads.
+	Spec ArmorProfileSpec `json:"spec"`
+	// Status defines the observed state of ArmorProfile
 	Status ArmorProfileStatus `json:"status,omitempty"`
 }
 

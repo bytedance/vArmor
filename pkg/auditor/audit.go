@@ -26,76 +26,96 @@ func (auditor *Auditor) processAuditEvent(event string) {
 	if strings.Contains(event, "type=1400") || strings.Contains(event, "type=AVC") {
 		auditor.log.V(2).Info("receive an AppArmor audit event", "event", strings.TrimSpace(event))
 
-		eventForEnforceMode := strings.Contains(event, "apparmor=\"DENIED\"")
-		eventForAuditMode := strings.Contains(event, "apparmor=\"AUDIT\"")
+		// Events of AppArmor profile in the enforce mode
+		deniedEvent := strings.Contains(event, "apparmor=\"DENIED\"")
+		auditEvent := strings.Contains(event, "apparmor=\"AUDIT\"")
+		// Events of AppArmor profile in the complain mode
+		allowedEvent := strings.Contains(event, "apparmor=\"ALLOWED\"")
 
-		if eventForEnforceMode || eventForAuditMode {
-			// Write the violation event into the log file
-			index := strings.Index(event, "type=1400 audit")
-			if index != -1 {
-				event = strings.Replace(event[index:], "type=1400 audit", "type=AVC msg=audit", 1)
-			}
-
-			// Call parse_record() of libapparmor.so to parse the event,
-			// and convert it to AppArmorEvent object
-			e, err := ParseAppArmorEvent(event)
-			if err != nil {
-				auditor.log.Error(err, "ParseAppArmorEvent() failed", "event", event)
-				return
-			}
-
-			// Try to read the process' mnt ns id from the proc filesystem.
-			// Note:
-			//   This might fail if the process has already been destroyed.
-			//   If so, we can't associate container information for violations.
-			var mntNsID uint32
-			var ok bool
-			if mntNsID, ok = auditor.mntNsIDCache[uint32(e.PID)]; !ok {
-				mntNsID, _ = varmorutils.ReadMntNsID(uint32(e.PID))
-			}
-
-			info := auditor.containerCache[mntNsID]
-			auditor.log.V(2).Info("audit event",
-				"container id", info.ContainerID,
-				"container name", info.ContainerName,
-				"pod name", info.PodName,
-				"pod namespace", info.PodNamespace,
-				"pod uid", info.PodUID,
-				"pid", e.PID, "time", e.Epoch, "event", strings.TrimSpace(event))
-
-			if eventForEnforceMode {
-				auditor.violationLogger.Warn().
-					Str("nodeName", auditor.nodeName).
-					Str("containerID", info.ContainerID).
-					Str("containerName", info.ContainerName).
-					Str("podName", info.PodName).
-					Str("podNamespace", info.PodNamespace).
-					Str("podUID", info.PodUID).
-					Uint32("pid", uint32(e.PID)).
-					Uint32("mntNsID", mntNsID).
-					Uint64("eventTimestamp", uint64(e.Epoch)).
-					Str("eventType", "AppArmor").
-					Interface("event", e).Msg("violation event")
-			} else {
-				auditor.violationLogger.Debug().
-					Str("nodeName", auditor.nodeName).
-					Str("containerID", info.ContainerID).
-					Str("containerName", info.ContainerName).
-					Str("podName", info.PodName).
-					Str("podNamespace", info.PodNamespace).
-					Str("podUID", info.PodUID).
-					Uint32("pid", uint32(e.PID)).
-					Uint32("mntNsID", mntNsID).
-					Uint64("eventTimestamp", uint64(e.Epoch)).
-					Str("eventType", "AppArmor").
-					Interface("event", e).Msg("violation event")
-			}
-
+		action := ""
+		if deniedEvent {
+			action = "DENIED"
+		} else if auditEvent || allowedEvent {
+			action = "ALLOWED"
 		} else {
-			// Send behavior event to subscribers
-			for _, ch := range auditor.auditEventChs {
-				ch <- event
-			}
+			return
+		}
+
+		// Write the violation event into the log file
+		index := strings.Index(event, "type=1400 audit")
+		if index != -1 {
+			event = strings.Replace(event[index:], "type=1400 audit", "type=AVC msg=audit", 1)
+		}
+
+		// Call parse_record() of libapparmor.so to parse the event,
+		// and convert it to AppArmorEvent object
+		e, err := ParseAppArmorEvent(event)
+		if err != nil {
+			auditor.log.Error(err, "ParseAppArmorEvent() failed", "event", event)
+			return
+		}
+
+		// Try to read the process' mnt ns id from the proc filesystem.
+		// Note:
+		//   This might fail if the process has already been destroyed.
+		//   If so, we can't associate container information for violations.
+		var mntNsID uint32
+		var ok bool
+		if mntNsID, ok = auditor.mntNsIDCache[uint32(e.PID)]; !ok {
+			mntNsID, _ = varmorutils.ReadMntNsID(uint32(e.PID))
+		}
+
+		info := auditor.containerCache[mntNsID]
+		auditor.log.V(2).Info("audit event",
+			"container id", info.ContainerID,
+			"container name", info.ContainerName,
+			"pod name", info.PodName,
+			"pod namespace", info.PodNamespace,
+			"pod uid", info.PodUID,
+			"pid", e.PID, "time", e.Epoch, "event", strings.TrimSpace(event))
+
+		// Try to parse the AppArmor profile name from the event
+		profileName := ParseProfileName(e.Profile)
+
+		if deniedEvent {
+			auditor.violationLogger.Warn().
+				Str("nodeName", auditor.nodeName).
+				Str("containerID", info.ContainerID).
+				Str("containerName", info.ContainerName).
+				Str("podName", info.PodName).
+				Str("podNamespace", info.PodNamespace).
+				Str("podUID", info.PodUID).
+				Uint32("pid", uint32(e.PID)).
+				Uint32("mntNsID", mntNsID).
+				Uint64("eventTimestamp", uint64(e.Epoch)).
+				Str("eventType", "AppArmor").
+				Str("action", action).
+				Str("profileName", profileName).
+				Interface("event", e).Msg("violation event")
+		}
+
+		// Only record the allowed event when there is no policy in the BehaviorModeling mode.
+		// This can reduce the noise in the violation log.
+		if auditEvent || (allowedEvent && len(auditor.auditEventChs) == 0) {
+			auditor.violationLogger.Debug().
+				Str("nodeName", auditor.nodeName).
+				Str("containerID", info.ContainerID).
+				Str("containerName", info.ContainerName).
+				Str("podName", info.PodName).
+				Str("podNamespace", info.PodNamespace).
+				Str("podUID", info.PodUID).
+				Uint32("pid", uint32(e.PID)).
+				Uint32("mntNsID", mntNsID).
+				Uint64("eventTimestamp", uint64(e.Epoch)).
+				Str("eventType", "AppArmor").
+				Str("action", action).
+				Str("profileName", profileName).
+				Interface("event", e).Msg("violation event")
+		}
+
+		// Send behavior event to subscribers
+		for _, ch := range auditor.auditEventChs {
+			ch <- event
 		}
 	}
 
@@ -103,7 +123,10 @@ func (auditor *Auditor) processAuditEvent(event string) {
 	if strings.Contains(event, "type=1326") || strings.Contains(event, "type=SECCOMP") {
 		auditor.log.V(2).Info("receive a Seccomp audit event", "event", strings.TrimSpace(event))
 
-		// Only record the event when there is no policy in the BehaviorModeling mode.
+		action := "ALLOWED"
+
+		// Only record the allowed event when there is no policy in the BehaviorModeling mode.
+		// This can reduce the noise in the violation log.
 		if len(auditor.auditEventChs) == 0 {
 			e, err := ParseSeccompAuditEvent(event)
 			if err != nil {
@@ -130,6 +153,19 @@ func (auditor *Auditor) processAuditEvent(event string) {
 				"pod uid", info.PodUID,
 				"pid", e.PID, "time", e.Epoch, "event", strings.TrimSpace(event))
 
+			// Try to parse the AppArmor profile name from the event
+			// Note:
+			// Some systems will output the AppArmor security context of the task in the Subj
+			// field of the Seccomp audit event. So people might see the profile name in the
+			// Seccomp event if they use both AppArmor and Seccomp enforcer.
+			// We can utilize this feature to extract the profile name from the Seccomp event.
+			profileName := ParseProfileName(e.Subj)
+			if profileName == "" {
+				// If the profile name is not found in the event, we can also try to get it from
+				// the container cache.
+				profileName = info.ProfileName
+			}
+
 			auditor.violationLogger.Debug().
 				Str("nodeName", auditor.nodeName).
 				Str("containerID", info.ContainerID).
@@ -141,6 +177,8 @@ func (auditor *Auditor) processAuditEvent(event string) {
 				Uint32("mntNsID", mntNsID).
 				Uint64("eventTimestamp", e.Epoch).
 				Str("eventType", "Seccomp").
+				Str("action", action).
+				Str("profileName", profileName).
 				Interface("event", e).Msg("violation event")
 		}
 
