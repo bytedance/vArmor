@@ -209,7 +209,7 @@ spec:
                     description: enhanceProtect configures the EnhanceProtect mode.
                       It allows you to select built-in and custom rules to generate
                       profiles for workload protection and control the behavior of
-                      generated profiles (e.g., audit or block violations)
+                      generated profiles (e.g., audit or allow violations)
                     properties:
                       allowViolations:
                         description: "allowViolations determines whether to allow

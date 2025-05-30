@@ -170,7 +170,7 @@ type Policy struct {
 	// with AppArmor and Seccomp enforcers.
 	Mode VarmorPolicyMode `json:"mode"`
 	// enhanceProtect configures the EnhanceProtect mode. It allows you to select built-in and custom rules to
-	// generate profiles for workload protection and control the behavior of generated profiles (e.g., audit or block
+	// generate profiles for workload protection and control the behavior of generated profiles (e.g., audit or allow
 	// violations)
 	// +optional
 	EnhanceProtect *EnhanceProtect `json:"enhanceProtect,omitempty"`
