@@ -32,8 +32,8 @@ vArmor 是一个云原生容器沙箱系统，它借助 Linux 的 [AppArmor LSM]
 * **Multiple Enforcers**. vArmor 将 AppArmor、BPF、Seccomp 抽象为 Enforcer，并支持单独或组合使用，从而对容器的文件访问、进程执行、网络外联、系统调用等进行访问控制。
 * **Allow-by-Default**. vArmor 当前重点支持此安全模型，即只有显式声明的行为会被阻断，从而减少性能损失和增加易用性。vArmor 支持对违反访问控制规则的行为进行审计，并支持放行违反访问控制规则的行为。
 * **Built-in Rules**. vArmor 提供了一系列开箱即用的内置规则。这些规则为 Allow-by-Default 安全模型设计，从而极大降低对用户专业知识的要求。
-* **Behavior Modeling**. vArmor 支持对工作负载进行行为建模。这可用于开发白名单安全策略、分析哪些内置规则可用于加固应用、指导工作负载的配置遵循权限最小化原则。
-* **Deny-by-Default**. vArmor 可以基于行为模型创建白名单安全策略，从而确保仅显式声明的行为被允许。
+* **Behavior Modeling**. vArmor 支持对工作负载进行行为建模。这对于制定白名单安全策略、分析哪些内置规则可用于加固应用，或指导工作负载的配置以遵循最小权限原则非常有用。
+* **Deny-by-Default**. vArmor 可以使用白名单安全策略来加固工作负载，并提供一种更便于用户使用的方式来开发和管理安全策略。
 
 vArmor 由字节跳动终端安全团队的 **Elkeid Team** 研发，目前该项目仍在积极迭代中。
 
