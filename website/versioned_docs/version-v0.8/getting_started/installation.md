@@ -61,6 +61,8 @@ This feature extends network access control to restrict container access to spec
 --set podServiceEgressControl.enabled=true
 ```
 
+This feature requires Kubernetes v1.21 or higher.
+
 #### Enable the BehaviorModeling Mode
 This is an experimental feature. Currently, only the AppArmor and Seccomp enforcers support the BehaviorModeling mode. Please refer to the [BehaviorModeling Mode](../guides/policies_and_rules/policy_modes/behavior_modeling.md) for more details. Default: disabled.
 
