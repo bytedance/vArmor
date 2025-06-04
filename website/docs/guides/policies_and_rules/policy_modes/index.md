@@ -20,7 +20,8 @@ The modes can be specified through the `spec.policy.mode` field of [VarmorPolicy
 
 Note:
 * vArmor policy supports dynamic switching of running modes (limited to AlwaysAllow, EnhanceProtect, RuntimeDefault, DefenseInDepth) and updating sandbox rules without having to restart the workloads. However, when using the **Seccomp enforcer**, the workload must be restarted for changes to the **Seccomp Profile** to take effect.
-* vArmor supports modifying policies to add new enforcers, but does not support removing enforcers that have been set. In addition, newly added enforcers only take effect for newly created Workloads.
+* vArmor supports modifying policies to add new enforcers, and the newly added enforcers only take effect on newly created Workloads.
+* vArmor supports modifying policies to remove the BPF enforcer.
 
 ## Experimentals
 import DocCardList from '@theme/DocCardList';

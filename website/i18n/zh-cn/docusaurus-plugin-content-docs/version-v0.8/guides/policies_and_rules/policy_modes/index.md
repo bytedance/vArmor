@@ -21,7 +21,8 @@ sidebar_position: 1
 
 注意：
 * vArmor 策略支持动态切换运行模式（限 EnhanceProtect, RuntimeDefault, AlwaysAllow, DefenseInDepth）、更新沙箱规则，而无需重启工作负载。但当使用 **Seccomp enforcer** 时，需要重启工作负载来使 **Seccomp Profile** 的变更生效。
-* vArmor 支持修改策略为其添加新的 enforcer，但不支持删除已经设置的 enforcer。新添加的 enforcer 仅对新创建的 Workloads 生效。
+* vArmor 支持修改策略为其添加新的 enforcer，新添加的 enforcer 仅对新创建的 Workloads 生效。
+* vArmor 支持修改策略移除 BPF enforcer。
 
 
 ## 实验特性
