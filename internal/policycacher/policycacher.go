@@ -22,6 +22,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
+	varmortypes "github.com/bytedance/vArmor/internal/types"
 	varmorinformer "github.com/bytedance/vArmor/pkg/client/informers/externalversions/varmor/v1beta1"
 	varmorlister "github.com/bytedance/vArmor/pkg/client/listers/varmor/v1beta1"
 )
@@ -87,7 +88,14 @@ func (c *PolicyCacher) updateVarmorClusterPolicy(oldObj, newObj interface{}) {
 		logger.Error(err, "cache.MetaNamespaceKeyFunc()")
 		return
 	}
-	c.ClusterPolicyTargets[key] = vcp.Spec.DeepCopy().Target
+	// Don't update the enforcer if the activated AppArmor or Seccomp enforcer was removed.
+	if e, ok := c.ClusterPolicyEnforcer[key]; ok {
+		oldEnforcers := varmortypes.GetEnforcerType(e)
+		newEnforcers := varmortypes.GetEnforcerType(vcp.Spec.Policy.Enforcer)
+		if (newEnforcers&oldEnforcers != oldEnforcers) && (newEnforcers|varmortypes.BPF != oldEnforcers) {
+			return
+		}
+	}
 	c.ClusterPolicyEnforcer[key] = vcp.Spec.Policy.Enforcer
 	c.ClusterPolicyMode[key] = vcp.Spec.Policy.Mode
 }
@@ -126,7 +134,14 @@ func (c *PolicyCacher) updateVarmorPolicy(oldObj, newObj interface{}) {
 		logger.Error(err, "cache.MetaNamespaceKeyFunc()")
 		return
 	}
-	c.PolicyTargets[key] = vp.Spec.DeepCopy().Target
+	// Don't update the enforcer if the activated AppArmor or Seccomp enforcer was removed.
+	if e, ok := c.PolicyEnforcer[key]; ok {
+		oldEnforcers := varmortypes.GetEnforcerType(e)
+		newEnforcers := varmortypes.GetEnforcerType(vp.Spec.Policy.Enforcer)
+		if (newEnforcers&oldEnforcers != oldEnforcers) && (newEnforcers|varmortypes.BPF != oldEnforcers) {
+			return
+		}
+	}
 	c.PolicyEnforcer[key] = vp.Spec.Policy.Enforcer
 	c.PolicyMode[key] = vp.Spec.Policy.Mode
 }

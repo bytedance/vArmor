@@ -497,6 +497,14 @@ func (agent *Agent) handleCreateOrUpdateArmorProfile(ap *varmor.ArmorProfile, ke
 			logger.Error(err, "SaveAndApplyBpfProfile()")
 			errorMessages = append(errorMessages, "SaveAndApplyBpfProfile(): "+err.Error())
 		}
+	} else if agent.bpfLsmSupported && agent.bpfEnforcer.IsBpfProfileExist(ap.Spec.Profile.Name) {
+		// Remove BPF profile if the policy no longer uses the BPF enforcer.
+		logger.Info(fmt.Sprintf("unloading the BPF profile '%s' from Node/%s's kernel", ap.Spec.Profile.Name, agent.nodeName))
+		err := agent.bpfEnforcer.DeleteBpfProfile(ap.Spec.Profile.Name)
+		if err != nil {
+			logger.Error(err, "DeleteBpfProfile()")
+			errorMessages = append(errorMessages, "DeleteBpfProfile(): "+err.Error())
+		}
 	}
 
 	// Seccomp
