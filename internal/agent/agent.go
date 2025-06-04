@@ -23,6 +23,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -356,27 +357,22 @@ func (agent *Agent) selectEnforcer(ap *varmor.ArmorProfile) (varmortypes.Enforce
 	e := varmortypes.GetEnforcerType(ap.Spec.Profile.Enforcer)
 
 	if (e&varmortypes.AppArmor != 0) && !agent.appArmorSupported {
-		agent.sendStatus(ap, varmortypes.Failed, "the AppArmor LSM feature is not supported by the host, or the AppArmor enforcer has been disabled in vArmor.")
 		return e, fmt.Errorf("the AppArmor LSM feature is not supported by the host, or the AppArmor enforcer has been disabled in vArmor")
 	}
 
 	if (e&varmortypes.BPF != 0) && !agent.bpfLsmSupported {
-		agent.sendStatus(ap, varmortypes.Failed, "The BPF LSM feature is not supported by the host, or the BPF enforcer has not been enabled in vArmor.")
 		return e, fmt.Errorf("the BPF LSM feature is not supported by the host, or the BPF enforcer has not been enabled in vArmor")
 	}
 
 	if (e&varmortypes.Seccomp != 0) && !agent.seccompSupported {
-		agent.sendStatus(ap, varmortypes.Failed, "The Seccomp enforcer needs Kubernetes v1.19 and above.")
 		return e, fmt.Errorf("the Seccomp enforcer needs Kubernetes v1.19 and above")
 	}
 
 	if (e&varmortypes.BPF != 0) && ap.Spec.BehaviorModeling.Enable {
-		agent.sendStatus(ap, varmortypes.Failed, "the BPF enforcer does not support the BehaviorModeling mode.")
 		return e, fmt.Errorf("the BPF enforcer does not support the BehaviorModeling mode")
 	}
 
 	if e&varmortypes.Unknown != 0 {
-		agent.sendStatus(ap, varmortypes.Failed, "Unknown enforcer.")
 		return e, fmt.Errorf("unknown enforcer")
 	}
 
@@ -402,7 +398,9 @@ func (agent *Agent) handleCreateOrUpdateArmorProfile(ap *varmor.ArmorProfile, ke
 
 	enforcer, err := agent.selectEnforcer(ap)
 	if err != nil {
-		return nil
+		// If the enforcer is not supported, we should send a failed status to the manager.
+		logger.Info("send a failed status to the manager", "error", err.Error())
+		return agent.sendStatus(ap, varmortypes.Failed, err.Error())
 	}
 
 	// [Experimental feature] For BehaviorModeling mode,
@@ -456,6 +454,8 @@ func (agent *Agent) handleCreateOrUpdateArmorProfile(ap *varmor.ArmorProfile, ke
 		}
 	}
 
+	var errorMessages []string
+
 	// AppArmor
 	if (enforcer & varmortypes.AppArmor) != 0 {
 		// Save and load AppArmor profile.
@@ -465,24 +465,24 @@ func (agent *Agent) handleCreateOrUpdateArmorProfile(ap *varmor.ArmorProfile, ke
 			err := varmorapparmor.SaveAppArmorProfile(profilePath, ap.Spec.Profile.Content)
 			if err != nil {
 				logger.Error(err, "SaveAppArmorProfile()")
-				return agent.sendStatus(ap, varmortypes.Failed, "SaveAppArmorProfile(): "+err.Error())
-			}
-
-			if yes, _ := varmorapparmor.IsAppArmorProfileLoaded(ap.Spec.Profile.Name); !yes {
-				// Load a new AppArmor profile to kernel for ArmorProfile creation event.
-				logger.Info(fmt.Sprintf("loading '%s (%s)' to Node/%s's kernel", ap.Spec.Profile.Name, ap.Spec.Profile.Mode, agent.nodeName))
-				output, err := varmorapparmor.LoadAppArmorProfile(profilePath, string(ap.Spec.Profile.Mode))
-				if err != nil {
-					logger.Error(err, "LoadAppArmorProfile()", "output", output)
-					return agent.sendStatus(ap, varmortypes.Failed, "LoadAppArmorProfile(): "+err.Error()+" "+output)
-				}
+				errorMessages = append(errorMessages, "SaveAppArmorProfile(): "+err.Error())
 			} else {
-				// Update a existing AppArmor profile for ArmorProfile update event.
-				logger.Info(fmt.Sprintf("reloading '%s (%s)' to Node/%s's kernel", ap.Spec.Profile.Name, ap.Spec.Profile.Mode, agent.nodeName))
-				output, err := varmorapparmor.UpdateAppArmorProfile(profilePath, string(ap.Spec.Profile.Mode))
-				if err != nil {
-					logger.Error(err, "UpdateAppArmorProfile()", "output", output)
-					return agent.sendStatus(ap, varmortypes.Failed, "UpdateAppArmorProfile(): "+err.Error()+" "+output)
+				if yes, _ := varmorapparmor.IsAppArmorProfileLoaded(ap.Spec.Profile.Name); !yes {
+					// Load a new AppArmor profile to kernel for ArmorProfile creation event.
+					logger.Info(fmt.Sprintf("loading '%s (%s)' to Node/%s's kernel", ap.Spec.Profile.Name, ap.Spec.Profile.Mode, agent.nodeName))
+					output, err := varmorapparmor.LoadAppArmorProfile(profilePath, string(ap.Spec.Profile.Mode))
+					if err != nil {
+						logger.Error(err, "LoadAppArmorProfile()", "output", output)
+						errorMessages = append(errorMessages, "LoadAppArmorProfile(): "+err.Error()+"  output: "+output)
+					}
+				} else {
+					// Update a existing AppArmor profile for ArmorProfile update event.
+					logger.Info(fmt.Sprintf("reloading '%s (%s)' to Node/%s's kernel", ap.Spec.Profile.Name, ap.Spec.Profile.Mode, agent.nodeName))
+					output, err := varmorapparmor.UpdateAppArmorProfile(profilePath, string(ap.Spec.Profile.Mode))
+					if err != nil {
+						logger.Error(err, "UpdateAppArmorProfile()", "output", output)
+						errorMessages = append(errorMessages, "UpdateAppArmorProfile(): "+err.Error()+"  output: "+output)
+					}
 				}
 			}
 		}
@@ -495,7 +495,7 @@ func (agent *Agent) handleCreateOrUpdateArmorProfile(ap *varmor.ArmorProfile, ke
 		err := agent.bpfEnforcer.SaveAndApplyBpfProfile(ap.Spec.Profile.Name, *ap.Spec.Profile.BpfContent)
 		if err != nil {
 			logger.Error(err, "SaveAndApplyBpfProfile()")
-			return agent.sendStatus(ap, varmortypes.Failed, "SaveAndApplyBpfProfile(): "+err.Error())
+			errorMessages = append(errorMessages, "SaveAndApplyBpfProfile(): "+err.Error())
 		}
 	}
 
@@ -507,12 +507,17 @@ func (agent *Agent) handleCreateOrUpdateArmorProfile(ap *varmor.ArmorProfile, ke
 		err := varmorseccomp.SaveSeccompProfile(profilePath, ap.Spec.Profile.SeccompContent)
 		if err != nil {
 			logger.Error(err, "SaveSeccompProfile()")
-			return agent.sendStatus(ap, varmortypes.Failed, "SaveSeccompProfile(): "+err.Error())
+			errorMessages = append(errorMessages, "SaveSeccompProfile(): "+err.Error())
 		}
 	}
 
-	logger.Info("send succeeded status to manager")
-	return agent.sendStatus(ap, varmortypes.Succeeded, string(varmor.ArmorProfileReady))
+	logger.Info("send a status to the manager")
+	if len(errorMessages) > 0 {
+		combinedErr := strings.Join(errorMessages, "; ")
+		return agent.sendStatus(ap, varmortypes.Failed, combinedErr)
+	} else {
+		return agent.sendStatus(ap, varmortypes.Succeeded, string(varmor.ArmorProfileReady))
+	}
 }
 
 func (agent *Agent) handleDeleteArmorProfile(namespace, name, key string) error {
@@ -531,7 +536,7 @@ func (agent *Agent) handleDeleteArmorProfile(namespace, name, key string) error 
 
 	// BPF
 	if agent.bpfLsmSupported && agent.bpfEnforcer.IsBpfProfileExist(name) {
-		logger.Info(fmt.Sprintf("unloading the BPF profile ('%s')", name))
+		logger.Info(fmt.Sprintf("unloading the BPF profile ('%s') from Node/%s's kernel", name, agent.nodeName))
 		err := agent.bpfEnforcer.DeleteBpfProfile(name)
 		if err != nil {
 			logger.Error(err, "DeleteBpfProfile()")
@@ -546,14 +551,12 @@ func (agent *Agent) handleDeleteArmorProfile(namespace, name, key string) error 
 			output, err := varmorapparmor.UnloadAppArmorProfile(profilePath)
 			if err != nil {
 				logger.Error(err, "UnloadAppArmorProfile()", "output", output)
-				return err
 			}
 
 			logger.Info(fmt.Sprintf("removing the AppArmor profile ('%s') from Node/%s", name, agent.nodeName))
 			err = varmorapparmor.RemoveAppArmorProfile(profilePath)
 			if err != nil {
 				logger.Error(err, "RemoveAppArmorProfile()")
-				return err
 			}
 		}
 	}
@@ -565,7 +568,6 @@ func (agent *Agent) handleDeleteArmorProfile(namespace, name, key string) error 
 		err := varmorseccomp.RemoveSeccompProfile(profilePath)
 		if err != nil {
 			logger.Error(err, "RemoveSeccompProfile()")
-			return err
 		}
 	}
 
