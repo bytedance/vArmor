@@ -23,6 +23,7 @@ spec:
         # or VarmorClusterPolicy object.
         container.apparmor.security.beta.varmor.org/c0: unconfined
         container.seccomp.security.beta.varmor.org/c0: unconfined
+        container.bpf.security.beta.varmor.org/c0: unconfined
     spec:
       shareProcessNamespace: true
       containers:

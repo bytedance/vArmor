@@ -36,7 +36,8 @@ spec:
         network:
           egress:
             toDestinations:
-            - port: 443
+            - ports:
+              - port: 443
       # The custom Seccomp rules:
       syscallRawRules:
       # disallow chmod +x XXX, chmod 111 XXX, chmod 001 XXX, chmod 010 XXX...

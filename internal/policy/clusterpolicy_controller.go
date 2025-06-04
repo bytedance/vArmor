@@ -370,15 +370,15 @@ func (c *ClusterPolicyController) ignoreUpdate(newVcp *varmor.VarmorClusterPolic
 		return true, err
 	}
 
-	// Disallow shutting down the enforcer that has been activated.
+	// Disallow shutting down the activated AppArmor or Seccomp enforcer.
 	newEnforcers := varmortypes.GetEnforcerType(newVcp.Spec.Policy.Enforcer)
 	oldEnforcers := varmortypes.GetEnforcerType(oldAp.Spec.Profile.Enforcer)
-	if newEnforcers&oldEnforcers != oldEnforcers {
-		err := fmt.Errorf("disallow shutting down the enforcer that has been activated")
+	if (newEnforcers&oldEnforcers != oldEnforcers) && (newEnforcers|varmortypes.BPF != oldEnforcers) {
+		err := fmt.Errorf("disallow shutting down the activated AppArmor or Seccomp enforcer")
 		logger.Error(err, "update VarmorClusterPolicy/status with forbidden info")
 		err = statusmanager.UpdateVarmorClusterPolicyStatus(c.varmorInterface, newVcp, "", false, varmor.VarmorPolicyUnchanged, varmor.VarmorPolicyUpdated, apicorev1.ConditionFalse,
 			"Forbidden",
-			"Modifying a policy to remove an already-set enforcer is not allowed. To remove enforcers, you must recreate the VarmorClusterPolicy object.")
+			"Modifying a policy to remove the AppArmor or Seccomp enforcer is not allowed. To remove them, you need to recreate the VarmorClusterPolicy object.")
 		return true, err
 	}
 

@@ -44,10 +44,8 @@ func modifyDeploymentAnnotationsAndEnv(enforcer string, mode varmor.VarmorPolicy
 	// Clean up first
 	for key, value := range deploy.Spec.Template.Annotations {
 		// BPF
-		if (e & varmortypes.BPF) != 0 {
-			if strings.HasPrefix(key, "container.bpf.security.beta.varmor.org/") && value != "unconfined" {
-				delete(deploy.Spec.Template.Annotations, key)
-			}
+		if strings.HasPrefix(key, "container.bpf.security.beta.varmor.org/") && value != "unconfined" {
+			delete(deploy.Spec.Template.Annotations, key)
 		}
 		// AppArmor
 		if (e & varmortypes.AppArmor) != 0 {
@@ -181,10 +179,8 @@ func modifyStatefulSetAnnotationsAndEnv(enforcer string, mode varmor.VarmorPolic
 	// Clean up first
 	for key, value := range stateful.Spec.Template.Annotations {
 		// BPF
-		if (e & varmortypes.BPF) != 0 {
-			if strings.HasPrefix(key, "container.bpf.security.beta.varmor.org/") && value != "unconfined" {
-				delete(stateful.Spec.Template.Annotations, key)
-			}
+		if strings.HasPrefix(key, "container.bpf.security.beta.varmor.org/") && value != "unconfined" {
+			delete(stateful.Spec.Template.Annotations, key)
 		}
 		// AppArmor
 		if (e & varmortypes.AppArmor) != 0 {
@@ -318,10 +314,8 @@ func modifyDaemonSetAnnotationsAndEnv(enforcer string, mode varmor.VarmorPolicyM
 	// Clean up first
 	for key, value := range daemon.Spec.Template.Annotations {
 		// BPF
-		if (e & varmortypes.BPF) != 0 {
-			if strings.HasPrefix(key, "container.bpf.security.beta.varmor.org/") && value != "unconfined" {
-				delete(daemon.Spec.Template.Annotations, key)
-			}
+		if strings.HasPrefix(key, "container.bpf.security.beta.varmor.org/") && value != "unconfined" {
+			delete(daemon.Spec.Template.Annotations, key)
 		}
 		// AppArmor
 		if (e & varmortypes.AppArmor) != 0 {
