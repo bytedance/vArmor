@@ -77,6 +77,17 @@ vArmor 顺序检查对应的审计日志是否存在，并通过监控第一个�
 --set "agent.args={--auditLogPaths=FILE_PATH|FILE_PATH}"
 ```
 
+#### 注入元数据到违规事件
+此功能使您能够将自定义元数据注入到违规事件。它通过将违规事件与特定于环境的上下文相关联来增强 vArmor 审计日志的可观测性。默认值为空。
+
+您可以使用类似下面的选项来添加元数据的键值对。
+
+```bash
+--set auditEventMetadata.clusterID="ID" \ 
+--set auditEventMetadata.clusterName="NAME" \  
+--set auditEventMetadata.region="REGION"  
+```
+
 #### 配置监控指标
 您可以开启指标来监控 vArmor。指标将在所有 Manager 实例 `8081` 端口上的 `/metric` 路径对外暴露。默认值：关闭。
 

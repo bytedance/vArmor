@@ -93,6 +93,17 @@ The default format of agent and manager is TEXT. You can use the following comma
 --set jsonLogFormat.enabled=true
 ```
 
+#### Inject Metadata into Violation Events
+This feature enables you to inject custom metadata into violation events. It enhances the observability of vArmor's audit logs by associating violation events with environment-specific context. Default: No custom metadata.
+
+You can add key-value pairs of metadata using commands similar to the following.
+
+```bash
+--set auditEventMetadata.clusterID="ID" \ 
+--set auditEventMetadata.clusterName="NAME" \  
+--set auditEventMetadata.region="REGION"  
+```
+
 ### Advanced Options
 #### Set the Match Label of Webhook
 vArmor will only enable sandbox protection for workloads that contain a specific label. You can set the label you want or disable this feature by using `--set 'manager.args={--webhookMatchLabel=}'`. Default: `sandbox.varmor.org/enable=true`.
