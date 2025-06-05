@@ -35,6 +35,7 @@ import (
 const (
 	logDirectory    = "/var/log/varmor"
 	ratelimitSysctl = "/proc/sys/kernel/printk_ratelimit"
+	metadataJSONEnv = "AUDIT_EVENT_METADATA"
 )
 
 type Auditor struct {
@@ -58,6 +59,7 @@ type Auditor struct {
 	filePermissionMap      map[uint32]string
 	ptracePermissionMap    map[uint32]string
 	mountFlagMap           map[uint32]string
+	auditEventMetadata     map[string]string // auditEventMetadata used for storing additional information of the violation event
 	violationLogger        zerolog.Logger
 	log                    logr.Logger
 }
@@ -81,6 +83,7 @@ func NewAuditor(nodeName string, appArmorSupported, bpfLsmSupported, enableBehav
 		filePermissionMap:      initFilePermissionMap(),
 		ptracePermissionMap:    initPtracePermissionMap(),
 		mountFlagMap:           initMountFlagMap(),
+		auditEventMetadata:     loadAuditEventMetadata(),
 		log:                    log,
 	}
 
@@ -107,7 +110,7 @@ func NewAuditor(nodeName string, appArmorSupported, bpfLsmSupported, enableBehav
 			return nil, err
 		}
 		auditor.auditLogTail = t
-		auditor.log.Info("start tailing audit log", "path", auditor.auditLogPath)
+		auditor.log.Info("start tailing audit log", "path", auditor.auditLogPath, "metadata", auditor.auditEventMetadata)
 	}
 
 	// Load the ringbuf map of BPF enforcer

@@ -24,6 +24,7 @@ import "C"
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strconv"
@@ -176,6 +177,15 @@ func initMountFlagMap() map[uint32]string {
 		unix.MS_STRICTATIME:     "MS_STRICTATIME",
 		bpfenforcer.AaMayUmount: "UMOUNT",
 	}
+}
+
+func loadAuditEventMetadata() map[string]string {
+	metadata := make(map[string]string)
+	s := os.Getenv(metadataJSONEnv)
+	if s != "" {
+		json.Unmarshal([]byte(s), &metadata)
+	}
+	return metadata
 }
 
 func ParseAppArmorEvent(e string) (*AppArmorEvent, error) {

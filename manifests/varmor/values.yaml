@@ -43,6 +43,14 @@ jsonLogFormat:
   args:
   - --logFormat=json
 
+auditEventMetadata:
+  # The metadata is used to enrich the audit events.
+  # It can be used to add additional information to the audit events.
+  # For example, you can add the cluster id, name, region, or any other information that is relevant to your environment.
+  # clusterId: "ccvbve8igndqr18dnk0vg"
+  # clusterName: "production-cluster-1"
+  # clusterRegion: "cn-beijing"
+
 image:
   registry: ""
   namespace: varmor
