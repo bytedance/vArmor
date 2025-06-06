@@ -45,6 +45,8 @@ vArmor 支持将策略对象配置为仅告警不拦截（观察模式）、拦�
   "mntNsID": 4026532637,
   "eventTimestamp": 1740381264,
   "eventType": "BPF",
+  "action": "DENIED",
+  "profileName": "varmor-demo-demo-2",
   "event": {
     "permissions": [
       "read"
@@ -69,6 +71,8 @@ vArmor 支持将策略对象配置为仅告警不拦截（观察模式）、拦�
   "mntNsID": 4026532725,
   "eventTimestamp": 1740366282,
   "eventType": "AppArmor",
+  "action": "DENIED",
+  "profileName": "varmor-demo-demo-1",
   "event": {
     "version": 1,
     "event": 4,
@@ -132,6 +136,8 @@ vArmor 支持将策略对象配置为仅告警不拦截（观察模式）、拦�
   "mntNsID": 4026533364,
   "eventTimestamp": 1740621808,
   "eventType": "Seccomp",
+  "action": "ALLOWED",
+  "profileName": "varmor-demo-demo-5",
   "event": {
     "auditID": "1740621808.346:683",
     "epoch": 1740621808,

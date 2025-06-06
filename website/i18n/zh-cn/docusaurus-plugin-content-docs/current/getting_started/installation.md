@@ -52,6 +52,15 @@ helm install varmor varmor-0.7.1.tgz \
 --set bpfLsmEnforcer.enabled=true
 ```
 
+#### 开启 Pod 和 Service 出口控制
+此功能扩展了网络访问控制，以限制容器对特定 Pod 和 Service 的访问。默认值：关闭。
+
+```bash
+--set podServiceEgressControl.enabled=true
+```
+
+此功能需要 Kubernetes v1.21 及以上版本。
+
 #### 开启 BehaviorModeling 模式
 这是一个实验性质的功能。当前只有 AppArmor 和 Seccomp enforcer 支持 BehaviorModeling 模式。请参考  [BehaviorModeling Mode](../guides/policies_and_rules/policy_modes/behavior_modeling.md) 了解更多细节。默认值：关闭。
 
@@ -59,13 +68,24 @@ helm install varmor varmor-0.7.1.tgz \
 --set behaviorModeling.enabled=true
 ```
 
-#### 配置审计日志的搜索列表
-vArmor 顺序检查对应的审计日志是否存在，并通过监控第一个有效的文件来获取 AppArmor 和 Seccomp 的审计事件，从而用于违规审计和行为建模功能。当您使用 *auditd* 时，AppArmor 和 Seccomp 的审计事件会默认保存在 `/var/log/audit/audit.log` 文件中。否则，他们通常会被保存在 `/var/log/kern.log` 文件中。
+#### 配置系统审计日志的搜索列表
+vArmor 顺序检查系统的审计日志是否存在，并通过监控第一个有效的文件来获取 AppArmor 和 Seccomp 的审计事件，从而用于违规审计和行为建模功能。当您使用 *auditd* 时，AppArmor 和 Seccomp 的审计事件会默认保存在 `/var/log/audit/audit.log` 文件中。否则，他们通常会被保存在 `/var/log/kern.log` 文件中。
 
 你可以使用这个选项来配置审计日志、文件搜索顺序。请使用`|`来分割文件。默认值：`/var/log/audit/audit.log|/var/log/kern.log`。
 
 ```bash
 --set "agent.args={--auditLogPaths=FILE_PATH|FILE_PATH}"
+```
+
+#### 注入元数据到违规事件
+此功能使您能够将自定义元数据注入到违规事件。它通过将违规事件与特定于环境的上下文相关联来增强 vArmor 审计日志的可观测性。默认值为空。
+
+您可以使用类似下面的选项来添加元数据的键值对。
+
+```bash
+--set auditEventMetadata.clusterID="ID" \ 
+--set auditEventMetadata.clusterName="NAME" \  
+--set auditEventMetadata.region="REGION"  
 ```
 
 #### 配置监控指标
