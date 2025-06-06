@@ -285,12 +285,13 @@ func (auditor *Auditor) readFromAuditEventRingBuf() {
 		case bpfenforcer.EnforceMode | bpfenforcer.AuditMode:
 			// Write the violation event that is denied by vArmor into the log file
 			auditor.violationLogger.Warn().
+				Interface("metadata", auditor.auditEventMetadata).
 				Str("nodeName", auditor.nodeName).
-				Str("containerID", auditor.containerCache[eventHeader.MntNs].ContainerID).
-				Str("containerName", auditor.containerCache[eventHeader.MntNs].ContainerName).
+				Str("podUID", auditor.containerCache[eventHeader.MntNs].PodUID).
 				Str("podName", auditor.containerCache[eventHeader.MntNs].PodName).
 				Str("podNamespace", auditor.containerCache[eventHeader.MntNs].PodNamespace).
-				Str("podUID", auditor.containerCache[eventHeader.MntNs].PodUID).
+				Str("containerID", auditor.containerCache[eventHeader.MntNs].ContainerID).
+				Str("containerName", auditor.containerCache[eventHeader.MntNs].ContainerName).
 				Uint32("pid", eventHeader.Tgid).
 				Uint32("mntNsID", eventHeader.MntNs).
 				Uint64("eventTimestamp", eventHeader.Ktime/uint64(time.Second)+auditor.bootTimestamp).
@@ -302,12 +303,13 @@ func (auditor *Auditor) readFromAuditEventRingBuf() {
 		case bpfenforcer.AuditMode:
 			// Write the violation event into log the file
 			auditor.violationLogger.Debug().
+				Interface("metadata", auditor.auditEventMetadata).
 				Str("nodeName", auditor.nodeName).
-				Str("containerID", auditor.containerCache[eventHeader.MntNs].ContainerID).
-				Str("containerName", auditor.containerCache[eventHeader.MntNs].ContainerName).
+				Str("podUID", auditor.containerCache[eventHeader.MntNs].PodUID).
 				Str("podName", auditor.containerCache[eventHeader.MntNs].PodName).
 				Str("podNamespace", auditor.containerCache[eventHeader.MntNs].PodNamespace).
-				Str("podUID", auditor.containerCache[eventHeader.MntNs].PodUID).
+				Str("containerID", auditor.containerCache[eventHeader.MntNs].ContainerID).
+				Str("containerName", auditor.containerCache[eventHeader.MntNs].ContainerName).
 				Uint32("pid", eventHeader.Tgid).
 				Uint32("mntNsID", eventHeader.MntNs).
 				Uint64("eventTimestamp", eventHeader.Ktime/uint64(time.Second)+auditor.bootTimestamp).

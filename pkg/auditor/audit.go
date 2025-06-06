@@ -79,12 +79,13 @@ func (auditor *Auditor) processAuditEvent(event string) {
 
 		if deniedEvent {
 			auditor.violationLogger.Warn().
+				Interface("metadata", auditor.auditEventMetadata).
 				Str("nodeName", auditor.nodeName).
-				Str("containerID", info.ContainerID).
-				Str("containerName", info.ContainerName).
+				Str("podUID", info.PodUID).
 				Str("podName", info.PodName).
 				Str("podNamespace", info.PodNamespace).
-				Str("podUID", info.PodUID).
+				Str("containerID", info.ContainerID).
+				Str("containerName", info.ContainerName).
 				Uint32("pid", uint32(e.PID)).
 				Uint32("mntNsID", mntNsID).
 				Uint64("eventTimestamp", uint64(e.Epoch)).
@@ -98,12 +99,13 @@ func (auditor *Auditor) processAuditEvent(event string) {
 		// This can reduce the noise in the violation log.
 		if auditEvent || (allowedEvent && len(auditor.auditEventChs) == 0) {
 			auditor.violationLogger.Debug().
+				Interface("metadata", auditor.auditEventMetadata).
 				Str("nodeName", auditor.nodeName).
-				Str("containerID", info.ContainerID).
-				Str("containerName", info.ContainerName).
+				Str("podUID", info.PodUID).
 				Str("podName", info.PodName).
 				Str("podNamespace", info.PodNamespace).
-				Str("podUID", info.PodUID).
+				Str("containerID", info.ContainerID).
+				Str("containerName", info.ContainerName).
 				Uint32("pid", uint32(e.PID)).
 				Uint32("mntNsID", mntNsID).
 				Uint64("eventTimestamp", uint64(e.Epoch)).
@@ -167,12 +169,13 @@ func (auditor *Auditor) processAuditEvent(event string) {
 			}
 
 			auditor.violationLogger.Debug().
+				Interface("metadata", auditor.auditEventMetadata).
 				Str("nodeName", auditor.nodeName).
-				Str("containerID", info.ContainerID).
-				Str("containerName", info.ContainerName).
+				Str("podUID", info.PodUID).
 				Str("podName", info.PodName).
 				Str("podNamespace", info.PodNamespace).
-				Str("podUID", info.PodUID).
+				Str("containerID", info.ContainerID).
+				Str("containerName", info.ContainerName).
 				Uint32("pid", uint32(e.PID)).
 				Uint32("mntNsID", mntNsID).
 				Uint64("eventTimestamp", e.Epoch).
