@@ -35,10 +35,15 @@ spec:
         image: "{{ .Values.image.registry }}/{{ .Values.image.namespace }}/{{ .Values.manager.image.name }}:{{ .Values.manager.image.tag | default .Chart.AppVersion }}"
         imagePullPolicy: {{ .Values.manager.image.pullPolicy }}
         command: ["/varmor/vArmor"]
-        {{- if or .Values.manager.args .Values.behaviorModeling.enabled .Values.podServiceEgressControl.enabled .Values.restartExistWorkloads.enabled .Values.bpfExclusiveMode.enabled .Values.metrics.enabled .Values.jsonLogFormat.enabled }}
+        {{- if or .Values.manager.args .Values.bpfLsmEnforcer.enabled .Values.behaviorModeling.enabled .Values.podServiceEgressControl.enabled .Values.restartExistWorkloads.enabled .Values.bpfExclusiveMode.enabled .Values.metrics.enabled .Values.jsonLogFormat.enabled }}
         args:
           {{- if .Values.manager.args }}
             {{- with .Values.manager.args }}
+              {{- toYaml . | nindent 8 }}
+            {{- end }}
+          {{- end }}
+          {{- if .Values.bpfLsmEnforcer.enabled }}
+            {{- with .Values.manager.bpfLsmEnforcer.args }}
               {{- toYaml . | nindent 8 }}
             {{- end }}
           {{- end }}
