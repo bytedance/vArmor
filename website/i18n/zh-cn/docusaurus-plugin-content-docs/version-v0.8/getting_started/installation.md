@@ -59,7 +59,7 @@ helm install varmor varmor-0.7.1.tgz \
 --set podServiceEgressControl.enabled=true
 ```
 
-此功能需要 Kubernetes v1.21 及以上版本。
+当前仅 BPF enforcer 支持此功能，并且需要 Kubernetes v1.21 及以上版本。
 
 #### 开启 BehaviorModeling 模式
 这是一个实验性质的功能。当前只有 AppArmor 和 Seccomp enforcer 支持 BehaviorModeling 模式。请参考  [BehaviorModeling Mode](../guides/policies_and_rules/policy_modes/behavior_modeling.md) 了解更多细节。默认值：关闭。
