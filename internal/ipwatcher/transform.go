@@ -83,6 +83,7 @@ func TransformEndpointSliceFunc(obj interface{}) (interface{}, error) {
 				UID:             eps.UID,
 			},
 			Endpoints: eps.Endpoints,
+			Ports:     eps.Ports,
 		}, nil
 	}
 	return obj, nil

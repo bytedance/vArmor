@@ -34,8 +34,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 
-	// discoveryinformers "k8s.io/client-go/kubernetes/typed/discovery/v1"
-
+	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
 	statusmanager "github.com/bytedance/vArmor/internal/status/apis/v1"
 	varmortypes "github.com/bytedance/vArmor/internal/types"
 	varmorinterface "github.com/bytedance/vArmor/pkg/client/clientset/versioned/typed/varmor/v1beta1"
@@ -49,10 +48,11 @@ const (
 type SlimObject struct {
 	metav1.TypeMeta
 	metav1.ObjectMeta
+	EventType  string
 	IPs        []string
 	AddedIPs   []string
 	DeletedIPs []string
-	EventType  string
+	Ports      []varmor.Port
 }
 
 type IPWatcher struct {
@@ -68,7 +68,7 @@ type IPWatcher struct {
 	epsLister        discoverylisters.EndpointSliceLister
 	statusManager    *statusmanager.StatusManager
 	queue            workqueue.RateLimitingInterface
-	ipCache          *IPCache
+	ipPortCache      *IPPortCache
 	egressCache      map[string]varmortypes.EgressInfo
 	egressCacheMutex *sync.RWMutex
 	log              logr.Logger
@@ -100,7 +100,7 @@ func NewIPWatcher(
 		epsinformer:      epsinformer,
 		epsLister:        epsinformer.Lister(),
 		queue:            workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "ip"),
-		ipCache:          &IPCache{},
+		ipPortCache:      &IPPortCache{},
 		egressCache:      egressCache,
 		egressCacheMutex: egressCacheMutex,
 		log:              log,
@@ -187,10 +187,9 @@ func (i *IPWatcher) Run(workers int, stopCh <-chan struct{}) {
 						Kind: "Pod",
 					},
 					ObjectMeta: pod.ObjectMeta,
+					EventType:  "UPDATE",
 					IPs:        IPs,
 					AddedIPs:   IPs,
-					DeletedIPs: []string{},
-					EventType:  "UPDATE",
 				})
 			}
 		},
@@ -211,10 +210,9 @@ func (i *IPWatcher) Run(workers int, stopCh <-chan struct{}) {
 						Kind: "Pod",
 					},
 					ObjectMeta: pod.ObjectMeta,
-					IPs:        IPs,
-					AddedIPs:   []string{},
-					DeletedIPs: IPs,
 					EventType:  "DELETE",
+					IPs:        IPs,
+					DeletedIPs: IPs,
 				})
 			}
 		},
@@ -234,10 +232,9 @@ func (i *IPWatcher) Run(workers int, stopCh <-chan struct{}) {
 						Kind: "Service",
 					},
 					ObjectMeta: svc.ObjectMeta,
+					EventType:  "ADD",
 					IPs:        svc.Spec.ClusterIPs,
 					AddedIPs:   svc.Spec.ClusterIPs,
-					DeletedIPs: []string{},
-					EventType:  "ADD",
 				})
 			}
 		},
@@ -249,11 +246,11 @@ func (i *IPWatcher) Run(workers int, stopCh <-chan struct{}) {
 			addedIPs := svc.Spec.ClusterIPs
 
 			var deletedIPs []string
-			lastIPs, ok := i.ipCache.Get(string(svc.UID))
+			lastIPPort, ok := i.ipPortCache.Get(string(svc.UID))
 			if !ok {
-				lastIPs = oldSvc.Spec.ClusterIPs
+				lastIPPort.IPs = oldSvc.Spec.ClusterIPs
 			}
-			for _, lastIP := range lastIPs {
+			for _, lastIP := range lastIPPort.IPs {
 				found := false
 				for _, ip := range addedIPs {
 					if lastIP == ip {
@@ -267,7 +264,7 @@ func (i *IPWatcher) Run(workers int, stopCh <-chan struct{}) {
 			}
 
 			if len(deletedIPs) != 0 ||
-				!reflect.DeepEqual(addedIPs, lastIPs) ||
+				!reflect.DeepEqual(addedIPs, lastIPPort.IPs) ||
 				!reflect.DeepEqual(svc.Labels, oldSvc.Labels) {
 				logger.V(2).Info("service updated", "new", svc, "old", oldSvc)
 
@@ -276,10 +273,10 @@ func (i *IPWatcher) Run(workers int, stopCh <-chan struct{}) {
 						Kind: "Service",
 					},
 					ObjectMeta: svc.ObjectMeta,
+					EventType:  "UPDATE",
 					IPs:        addedIPs,
 					AddedIPs:   addedIPs,
 					DeletedIPs: deletedIPs,
-					EventType:  "UPDATE",
 				})
 			}
 		},
@@ -291,9 +288,9 @@ func (i *IPWatcher) Run(workers int, stopCh <-chan struct{}) {
 				logger.V(2).Info("service deleted", "service", svc)
 
 				var deletedIPs []string
-				lastIPs, ok := i.ipCache.Get(string(svc.UID))
+				lastIPPort, ok := i.ipPortCache.Get(string(svc.UID))
 				if ok {
-					deletedIPs = lastIPs
+					deletedIPs = lastIPPort.IPs
 				} else {
 					deletedIPs = svc.Spec.ClusterIPs
 				}
@@ -303,10 +300,9 @@ func (i *IPWatcher) Run(workers int, stopCh <-chan struct{}) {
 						Kind: "Service",
 					},
 					ObjectMeta: svc.ObjectMeta,
-					IPs:        deletedIPs,
-					AddedIPs:   []string{},
-					DeletedIPs: deletedIPs,
 					EventType:  "DELETE",
+					IPs:        deletedIPs,
+					DeletedIPs: deletedIPs,
 				})
 			}
 		}})
@@ -325,15 +321,24 @@ func (i *IPWatcher) Run(workers int, stopCh <-chan struct{}) {
 					addedIPs = append(addedIPs, ep.Addresses...)
 				}
 
+				var ports []varmor.Port
+				for _, port := range eps.Ports {
+					if port.Port != nil {
+						ports = append(ports, varmor.Port{
+							Port: uint16(*port.Port),
+						})
+					}
+				}
+
 				i.queue.Add(&SlimObject{
 					TypeMeta: metav1.TypeMeta{
 						Kind: "EndpointSlice",
 					},
 					ObjectMeta: eps.ObjectMeta,
+					EventType:  "ADD",
 					IPs:        addedIPs,
 					AddedIPs:   addedIPs,
-					DeletedIPs: []string{},
-					EventType:  "ADD",
+					Ports:      ports,
 				})
 			}
 		},
@@ -351,18 +356,37 @@ func (i *IPWatcher) Run(workers int, stopCh <-chan struct{}) {
 				addedIPs = append(addedIPs, ep.Addresses...)
 			}
 
-			var deletedIPs []string
-			lastIPs, ok := i.ipCache.Get(string(eps.UID))
-			if !ok {
-				for _, ep := range oldEps.Endpoints {
-					lastIPs = append(lastIPs, ep.Addresses...)
+			var ports []varmor.Port
+			for _, port := range eps.Ports {
+				if port.Port != nil {
+					ports = append(ports, varmor.Port{
+						Port: uint16(*port.Port),
+					})
 				}
 			}
-			for _, lastIP := range lastIPs {
+
+			var deletedIPs []string
+			lastIPPort, ok := i.ipPortCache.Get(string(eps.UID))
+			if !ok {
+				for _, ep := range oldEps.Endpoints {
+					lastIPPort.IPs = append(lastIPPort.IPs, ep.Addresses...)
+				}
+				for _, port := range oldEps.Ports {
+					if port.Port != nil {
+						lastIPPort.Ports = append(lastIPPort.Ports, varmor.Port{
+							Port: uint16(*port.Port),
+						})
+					}
+				}
+			}
+			isPortsNotChanged := reflect.DeepEqual(lastIPPort.Ports, ports)
+			for _, lastIP := range lastIPPort.IPs {
 				found := false
 				for _, ip := range addedIPs {
 					if lastIP == ip {
-						found = true
+						if isPortsNotChanged {
+							found = true
+						}
 						break
 					}
 				}
@@ -372,19 +396,20 @@ func (i *IPWatcher) Run(workers int, stopCh <-chan struct{}) {
 			}
 
 			if len(deletedIPs) != 0 ||
-				!reflect.DeepEqual(addedIPs, lastIPs) ||
+				!reflect.DeepEqual(addedIPs, lastIPPort.IPs) ||
 				!reflect.DeepEqual(eps.Labels, oldEps.Labels) {
-				logger.V(2).Info("endpointslice updated", "new", eps, "old", oldEps, "lastIPs", lastIPs)
+				logger.V(2).Info("endpointslice updated", "new", eps, "old", oldEps, "lastIPPort", lastIPPort)
 
 				i.queue.Add(&SlimObject{
 					TypeMeta: metav1.TypeMeta{
 						Kind: "EndpointSlice",
 					},
 					ObjectMeta: eps.ObjectMeta,
+					EventType:  "UPDATE",
 					IPs:        addedIPs,
 					AddedIPs:   addedIPs,
 					DeletedIPs: deletedIPs,
-					EventType:  "UPDATE",
+					Ports:      ports,
 				})
 			}
 		},
@@ -396,9 +421,9 @@ func (i *IPWatcher) Run(workers int, stopCh <-chan struct{}) {
 				logger.V(2).Info("endpointslice deleted", "endpointslice", eps)
 
 				var deletedIPs []string
-				lastIPs, ok := i.ipCache.Get(string(eps.UID))
+				lastIPPort, ok := i.ipPortCache.Get(string(eps.UID))
 				if ok {
-					deletedIPs = lastIPs
+					deletedIPs = lastIPPort.IPs
 				} else {
 					for _, ep := range eps.Endpoints {
 						deletedIPs = append(deletedIPs, ep.Addresses...)
@@ -410,10 +435,9 @@ func (i *IPWatcher) Run(workers int, stopCh <-chan struct{}) {
 						Kind: "EndpointSlice",
 					},
 					ObjectMeta: eps.ObjectMeta,
-					IPs:        deletedIPs,
-					AddedIPs:   []string{},
-					DeletedIPs: deletedIPs,
 					EventType:  "DELETE",
+					IPs:        deletedIPs,
+					DeletedIPs: deletedIPs,
 				})
 			}
 		}})
@@ -439,12 +463,12 @@ func (i *IPWatcher) Run(workers int, stopCh <-chan struct{}) {
 				}
 			}
 			i.egressCacheMutex.RUnlock()
-			i.ipCache.SyncCache(ec, i.serviceLister, i.epsLister)
+			i.ipPortCache.SyncCache(ec, i.serviceLister, i.epsLister)
 
 			// Clean up the IP cache hourly
 			time.Sleep(time.Hour * 1)
 			i.log.Info("Clean up the IP cache regularly")
-			if err := i.ipCache.CleanupStaleEntries(i.serviceLister, i.epsLister); err != nil {
+			if err := i.ipPortCache.CleanupStaleEntries(i.serviceLister, i.epsLister); err != nil {
 				i.log.Error(err, "Resync cleanup failed")
 			}
 		}
