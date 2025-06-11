@@ -97,6 +97,10 @@ manager:
 
   args: []
 
+  bpfLsmEnforcer:
+    args:
+    - --enableBpfEnforcer
+
   behaviorModeling:
     args:
     - --enableBehaviorModeling
