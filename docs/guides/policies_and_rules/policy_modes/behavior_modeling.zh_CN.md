@@ -36,7 +36,7 @@ BehaviorModeling 模式的前置条件如下所示：
 
     
     *注意：* 
-    * *vArmor 顺序检查对应的审计日志是否存在，并通过监控第一个有效的文件来获取 AppArmor 和 Seccomp 的审计事件，从而用于违规审计和行为建模功能。当您使用 **auditd** 时，AppArmor 和 Seccomp 的审计事件会默认保存在 `/var/log/audit/audit.log` 文件中。否则，他们通常会被保存在 `/var/log/kern.log` 文件中。*
+    * *vArmor 顺序检查系统审计日志是否存在，并通过监控第一个有效的文件来获取 AppArmor 和 Seccomp 的审计事件，从而用于违规审计和行为建模功能。当您使用 **auditd** 时，AppArmor 和 Seccomp 的审计事件会默认保存在 `/var/log/audit/audit.log` 文件中。否则，他们通常会被保存在 `/var/log/kern.log` 文件中。*
 
     * *启用 BehaviorModeling 特性时，**varmor-agent** 需要如下所示的追加资源。另外，**varmor-classifier** 组件也会被部署，用于识别路径中的随机字符串。*
 
