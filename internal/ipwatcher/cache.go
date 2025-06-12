@@ -17,54 +17,63 @@ package ipwatcher
 import (
 	"sync"
 
+	discoveryv1 "k8s.io/api/discovery/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
 	corelisters "k8s.io/client-go/listers/core/v1"
 	discoverylisters "k8s.io/client-go/listers/discovery/v1"
 
+	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
 	varmortypes "github.com/bytedance/vArmor/internal/types"
 )
 
-type IPCache struct {
-	cache sync.Map // key: UID (string), value: []string (IPs)
+type ipPort struct {
+	IPs   []string
+	Ports []varmor.Port
 }
 
-func (c *IPCache) Get(uid string) ([]string, bool) {
+type IPPortCache struct {
+	cache sync.Map // key: uid, value: ipPort
+}
+
+func (c *IPPortCache) Get(uid string) (ipPort, bool) {
 	value, ok := c.cache.Load(uid)
 	if !ok {
-		return []string{}, false
+		return ipPort{}, false
 	}
-	ips, ok := value.([]string)
+	i, ok := value.(ipPort)
 	if !ok {
-		return []string{}, false
+		return ipPort{}, false
 	}
-	return ips, true
+	return i, true
 }
 
-func (c *IPCache) Update(uid string, ips []string) {
-	c.cache.Store(uid, ips)
+func (c *IPPortCache) Update(uid string, i ipPort) {
+	c.cache.Store(uid, i)
 }
 
-func (c *IPCache) Delete(uid string) {
+func (c *IPPortCache) Delete(uid string) {
 	c.cache.Delete(uid)
 }
 
-func (c *IPCache) GetAllEntries() map[string][]string {
-	m := make(map[string][]string)
+func (c *IPPortCache) GetAllEntries() map[string]ipPort {
+	m := make(map[string]ipPort)
 
 	c.cache.Range(func(key, value interface{}) bool {
 		uid := key.(string)
-		ips := value.([]string)
-		m[uid] = ips
+		i := value.(ipPort)
+		m[uid] = i
 		return true
 	})
 
 	return m
 }
 
-func (c *IPCache) SyncCache(ec map[string]varmortypes.EgressInfo, svcLister corelisters.ServiceLister, epsLister discoverylisters.EndpointSliceLister) {
+func (c *IPPortCache) SyncCache(ec map[string]varmortypes.EgressInfo, svcLister corelisters.ServiceLister, epsLister discoverylisters.EndpointSliceLister) {
 	for _, egressInfo := range ec {
 		for _, toService := range egressInfo.ToServices {
+			var endpointSlices []*discoveryv1.EndpointSlice
+
 			if toService.ServiceSelector != nil {
 				serviceSelector, err := metav1.LabelSelectorAsSelector(toService.ServiceSelector)
 				if err != nil {
@@ -78,25 +87,14 @@ func (c *IPCache) SyncCache(ec map[string]varmortypes.EgressInfo, svcLister core
 				for _, service := range services {
 					if len(service.Spec.ClusterIPs) != 0 {
 						if _, ok := c.Get(string(service.UID)); !ok {
-							c.Update(string(service.UID), service.Spec.ClusterIPs)
+							c.Update(string(service.UID), ipPort{IPs: service.Spec.ClusterIPs})
 						}
 					}
 				}
 
-				endpointSlices, err := epsLister.List(serviceSelector)
+				endpointSlices, err = epsLister.List(serviceSelector)
 				if err != nil {
 					continue
-				}
-				for _, endpointSlice := range endpointSlices {
-					var IPs []string
-					for _, endpoint := range endpointSlice.Endpoints {
-						IPs = append(IPs, endpoint.Addresses...)
-					}
-					if len(IPs) != 0 {
-						if _, ok := c.Get(string(endpointSlice.UID)); !ok {
-							c.Update(string(endpointSlice.UID), IPs)
-						}
-					}
 				}
 			} else {
 				service, err := svcLister.Services(toService.Namespace).Get(toService.Name)
@@ -105,26 +103,35 @@ func (c *IPCache) SyncCache(ec map[string]varmortypes.EgressInfo, svcLister core
 				}
 				if len(service.Spec.ClusterIPs) != 0 {
 					if _, ok := c.Get(string(service.UID)); !ok {
-						c.Update(string(service.UID), service.Spec.ClusterIPs)
+						c.Update(string(service.UID), ipPort{IPs: service.Spec.ClusterIPs})
 					}
 				}
 
 				labelSelector := labels.SelectorFromSet(labels.Set{
 					"kubernetes.io/service-name": toService.Name,
 				})
-				endpointSlices, err := epsLister.EndpointSlices(toService.Namespace).List(labelSelector)
+				endpointSlices, err = epsLister.EndpointSlices(toService.Namespace).List(labelSelector)
 				if err != nil {
 					continue
 				}
-				for _, endpointSlice := range endpointSlices {
-					var IPs []string
-					for _, endpoint := range endpointSlice.Endpoints {
-						IPs = append(IPs, endpoint.Addresses...)
+			}
+
+			for _, endpointSlice := range endpointSlices {
+				var ips []string
+				for _, endpoint := range endpointSlice.Endpoints {
+					ips = append(ips, endpoint.Addresses...)
+				}
+				var ports []varmor.Port
+				for _, port := range endpointSlice.Ports {
+					if port.Port != nil {
+						ports = append(ports, varmor.Port{
+							Port: uint16(*port.Port),
+						})
 					}
-					if len(IPs) != 0 {
-						if _, ok := c.Get(string(endpointSlice.UID)); !ok {
-							c.Update(string(endpointSlice.UID), IPs)
-						}
+				}
+				if len(ips) != 0 {
+					if _, ok := c.Get(string(endpointSlice.UID)); !ok {
+						c.Update(string(endpointSlice.UID), ipPort{IPs: ips, Ports: ports})
 					}
 				}
 			}
@@ -132,7 +139,7 @@ func (c *IPCache) SyncCache(ec map[string]varmortypes.EgressInfo, svcLister core
 	}
 }
 
-func (c *IPCache) CleanupStaleEntries(svcLister corelisters.ServiceLister, epsLister discoverylisters.EndpointSliceLister) error {
+func (c *IPPortCache) CleanupStaleEntries(svcLister corelisters.ServiceLister, epsLister discoverylisters.EndpointSliceLister) error {
 	currentUIDs := make(map[string]bool)
 
 	epsList, err := epsLister.List(labels.Everything())

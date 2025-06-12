@@ -31,7 +31,7 @@ import (
 	bpfenforcer "github.com/bytedance/vArmor/pkg/lsm/bpfenforcer"
 )
 
-func (i *IPWatcher) updateArmorProfile(policyKey string, obj *SlimObject, mode uint32, ports []varmor.Port) (bool, error) {
+func (i *IPWatcher) updateArmorProfile(policyKey string, mode uint32, addedIPs []string, deletedIPs []string, ports []varmor.Port) (bool, error) {
 	updated := false
 	namespace, name, err := cache.SplitMetaNamespaceKey(policyKey)
 	if err != nil {
@@ -46,9 +46,9 @@ func (i *IPWatcher) updateArmorProfile(policyKey string, obj *SlimObject, mode u
 				return err
 			}
 
-			if len(obj.AddedIPs) != 0 && ap.Spec.Profile.BpfContent == nil {
+			if len(addedIPs) != 0 && ap.Spec.Profile.BpfContent == nil {
 				ap.Spec.Profile.BpfContent = &varmor.BpfContent{}
-			} else if len(obj.DeletedIPs) != 0 && (ap.Spec.Profile.BpfContent == nil || ap.Spec.Profile.BpfContent.Networks == nil) {
+			} else if len(deletedIPs) != 0 && (ap.Spec.Profile.BpfContent == nil || ap.Spec.Profile.BpfContent.Networks == nil) {
 				return nil
 			}
 
@@ -60,7 +60,7 @@ func (i *IPWatcher) updateArmorProfile(policyKey string, obj *SlimObject, mode u
 					continue
 				}
 				found := false
-				for _, IP := range obj.DeletedIPs {
+				for _, IP := range deletedIPs {
 					if IP == network.Address.IP {
 						found = true
 						updated = true
@@ -74,7 +74,7 @@ func (i *IPWatcher) updateArmorProfile(policyKey string, obj *SlimObject, mode u
 			ap.Spec.Profile.BpfContent.Networks = newNetworks
 
 			// Add rules to the ArmorProfile object
-			for _, IP := range obj.AddedIPs {
+			for _, IP := range addedIPs {
 				found := false
 				for _, network := range ap.Spec.Profile.BpfContent.Networks {
 					if network.Address != nil && network.Address.IP == IP {
@@ -152,7 +152,7 @@ func (i *IPWatcher) sync(obj *SlimObject) error {
 				logger.Info("the pod matched by the policy", "policy key", policyKey, "rule", toPod,
 					"name", obj.Name, "namespace", obj.Namespace, "labels", obj.Labels,
 					"event type", obj.EventType, "added ips", obj.AddedIPs, "deleted ips", obj.DeletedIPs)
-				updated, err := i.updateArmorProfile(policyKey, obj, toPod.Mode, toPod.Ports)
+				updated, err := i.updateArmorProfile(policyKey, toPod.Mode, obj.AddedIPs, obj.DeletedIPs, toPod.Ports)
 				if err != nil {
 					logger.Error(fmt.Errorf("failed to update ArmorProfile for the pod object. error: %w", err),
 						"policy key", policyKey, "name", obj.Name, "namespace", obj.Namespace)
@@ -197,16 +197,19 @@ func (i *IPWatcher) sync(obj *SlimObject) error {
 				// Update the ArmorProfile object with the Service's cluster IPs
 				logger.Info("the service matched by the policy", "policy key", policyKey, "rule", toService,
 					"name", obj.Name, "namespace", obj.Namespace, "labels", obj.Labels,
-					"event type", obj.EventType, "added ips", obj.AddedIPs, "deleted ips", obj.DeletedIPs)
-				updated, err := i.updateArmorProfile(policyKey, obj, toService.Mode, []varmor.Port{})
+					"event type", obj.EventType, "added ips", obj.AddedIPs, "deleted ips", obj.DeletedIPs, "ports", obj.Ports)
+				updated, err := i.updateArmorProfile(policyKey, toService.Mode, obj.AddedIPs, obj.DeletedIPs, obj.Ports)
 				if err != nil {
 					logger.Error(fmt.Errorf("failed to update ArmorProfile for the service object. error: %w", err),
 						"policy key", policyKey, "name", obj.Name, "namespace", obj.Namespace)
 				} else {
 					if obj.EventType == "DELETE" {
-						i.ipCache.Delete(string(obj.UID))
+						i.ipPortCache.Delete(string(obj.UID))
 					} else {
-						i.ipCache.Update(string(obj.UID), obj.IPs)
+						i.ipPortCache.Update(string(obj.UID), ipPort{
+							IPs:   obj.IPs,
+							Ports: obj.Ports,
+						})
 					}
 					// We assume that there is only one service item in the policy's toServices array that matches the service.
 					// So we can just break out of this iteration.
@@ -248,16 +251,19 @@ func (i *IPWatcher) sync(obj *SlimObject) error {
 				// Update the ArmorProfile object with the endpoints' IPs
 				logger.Info("the endpointslice matched by the policy", "policy key", policyKey, "rule", toService,
 					"name", obj.Name, "namespace", obj.Namespace, "labels", obj.Labels,
-					"event type", obj.EventType, "added ips", obj.AddedIPs, "deleted ips", obj.DeletedIPs)
-				updated, err := i.updateArmorProfile(policyKey, obj, toService.Mode, []varmor.Port{})
+					"event type", obj.EventType, "added ips", obj.AddedIPs, "deleted ips", obj.DeletedIPs, "ports", obj.Ports)
+				updated, err := i.updateArmorProfile(policyKey, toService.Mode, obj.AddedIPs, obj.DeletedIPs, obj.Ports)
 				if err != nil {
 					logger.Error(fmt.Errorf("failed to update ArmorProfile for the endpointslice object. error: %w", err),
 						"policy key", policyKey, "name", obj.Name, "namespace", obj.Namespace)
 				} else {
 					if obj.EventType == "DELETE" {
-						i.ipCache.Delete(string(obj.UID))
+						i.ipPortCache.Delete(string(obj.UID))
 					} else {
-						i.ipCache.Update(string(obj.UID), obj.IPs)
+						i.ipPortCache.Update(string(obj.UID), ipPort{
+							IPs:   obj.IPs,
+							Ports: obj.Ports,
+						})
 					}
 					// We assume that there is only one service item in the policy's toServices array that matches the endpoint.
 					// So we can just break out of this iteration.

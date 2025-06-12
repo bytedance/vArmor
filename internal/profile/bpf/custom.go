@@ -20,6 +20,7 @@ import (
 	"strings"
 
 	"golang.org/x/sys/unix"
+	discoveryv1 "k8s.io/api/discovery/v1"
 	k8errors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -496,9 +497,10 @@ func generateRawNetworkEgressRuleForServices(
 		ServiceSelector: toService.ServiceSelector,
 	}
 
-	// Retrieve the Cluster IPs of services
-	var IPs []string
+	var epsList *discoveryv1.EndpointSliceList
+
 	if toService.ServiceSelector != nil {
+		// Retrieve the services with the label selector
 		serviceSelector, err := metav1.LabelSelectorAsSelector(toService.ServiceSelector)
 		if err != nil {
 			return nil, err
@@ -510,26 +512,27 @@ func generateRawNetworkEgressRuleForServices(
 		if err != nil {
 			return nil, err
 		}
+
+		// Generate rules for the services
 		for _, service := range serviceList.Items {
-			if len(service.Spec.ClusterIPs) != 0 {
-				IPs = append(IPs, service.Spec.ClusterIPs...)
+			for _, ip := range service.Spec.ClusterIPs {
+				err := GenerateRawNetworkEgressRuleWithIpCidrPorts(bpfContent, mode, "", ip, []varmor.Port{})
+				if err != nil {
+					return nil, err
+				}
 			}
 		}
 
-		// Retrieve the endpointslices of the services
-		epsList, err := kubeClient.DiscoveryV1().EndpointSlices(metav1.NamespaceAll).List(context.TODO(), metav1.ListOptions{
+		// Retrieve the endpointslices of services with the same label selector
+		epsList, err = kubeClient.DiscoveryV1().EndpointSlices(metav1.NamespaceAll).List(context.TODO(), metav1.ListOptions{
 			LabelSelector:   serviceSelector.String(),
 			ResourceVersion: "0",
 		})
 		if err != nil {
 			return nil, err
 		}
-		for _, endpoint := range epsList.Items {
-			for _, ep := range endpoint.Endpoints {
-				IPs = append(IPs, ep.Addresses...)
-			}
-		}
 	} else {
+		// Retrieve the service with name and namespace
 		service, err := kubeClient.CoreV1().Services(toService.Namespace).Get(context.TODO(), toService.Name, metav1.GetOptions{})
 		if err != nil {
 			if k8errors.IsNotFound(err) {
@@ -538,30 +541,45 @@ func generateRawNetworkEgressRuleForServices(
 				return nil, err
 			}
 		}
-		if len(service.Spec.ClusterIPs) != 0 {
-			IPs = append(IPs, service.Spec.ClusterIPs...)
+
+		// Generate rules for the service
+		for _, ip := range service.Spec.ClusterIPs {
+			err := GenerateRawNetworkEgressRuleWithIpCidrPorts(bpfContent, mode, "", ip, []varmor.Port{})
+			if err != nil {
+				return nil, err
+			}
 		}
 
-		// Retrieve the endpointslice of the service
-		epsList, err := kubeClient.DiscoveryV1().EndpointSlices(toService.Namespace).List(context.TODO(), metav1.ListOptions{
+		// Retrieve the endpointslice of the service with the 'kubernetes.io/service-name' label
+		epsList, err = kubeClient.DiscoveryV1().EndpointSlices(toService.Namespace).List(context.TODO(), metav1.ListOptions{
 			LabelSelector: fmt.Sprintf("kubernetes.io/service-name=%s", toService.Name),
 		})
 		if err != nil {
 			return nil, err
 		}
-		for _, endpoint := range epsList.Items {
-			for _, ep := range endpoint.Endpoints {
-				IPs = append(IPs, ep.Addresses...)
-			}
-		}
 	}
 
-	// generate rules for services' IPs
-	var ports []varmor.Port
-	for _, IP := range IPs {
-		err := GenerateRawNetworkEgressRuleWithIpCidrPorts(bpfContent, mode, "", IP, ports)
-		if err != nil {
-			return nil, err
+	// Generate rules for the endpointslices
+	for _, eps := range epsList.Items {
+		ips := []string{}
+		for _, ep := range eps.Endpoints {
+			ips = append(ips, ep.Addresses...)
+		}
+
+		ports := []varmor.Port{}
+		for _, port := range eps.Ports {
+			if port.Port != nil {
+				ports = append(ports, varmor.Port{
+					Port: uint16(*port.Port),
+				})
+			}
+		}
+
+		for _, ip := range ips {
+			err := GenerateRawNetworkEgressRuleWithIpCidrPorts(bpfContent, mode, "", ip, ports)
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 
