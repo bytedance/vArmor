@@ -18,7 +18,6 @@ import (
 	"context"
 	"fmt"
 
-	k8errors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/tools/cache"
@@ -130,22 +129,9 @@ func (i *IPWatcher) sync(obj *SlimObject) error {
 				if !selector.Matches(labels.Set(obj.Labels)) {
 					continue
 				}
-				// Check If the namespaceSelector of the rule matches the pod.
-				if toPod.NamespaceSelector != nil {
-					ns, err := i.nsLister.Get(obj.Namespace)
-					if err != nil {
-						if k8errors.IsNotFound(err) && obj.EventType == "DELETE" {
-							// The namespace of the pod has already been deleted, but we still need to
-							// try to remove its IPs from the profile when the pod is deleted.
-						} else {
-							continue
-						}
-					} else {
-						selector, _ := metav1.LabelSelectorAsSelector(toPod.NamespaceSelector)
-						if !selector.Matches(labels.Set(ns.Labels)) {
-							continue
-						}
-					}
+				// Check If the namespace of the rule matches the pod.
+				if toPod.Namespace != "" && toPod.Namespace != obj.Namespace {
+					continue
 				}
 
 				// Update the ArmorProfile object with the Pod's IPs.

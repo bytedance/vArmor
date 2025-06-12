@@ -27,11 +27,6 @@ func (in *Service) DeepCopy() *Service {
 
 func (in *Pod) DeepCopyInto(out *Pod) {
 	*out = *in
-	if in.NamespaceSelector != nil {
-		in, out := &in.NamespaceSelector, &out.NamespaceSelector
-		*out = new(metav1.LabelSelector)
-		(*in).DeepCopyInto(*out)
-	}
 	if in.PodSelector != nil {
 		in, out := &in.PodSelector, &out.PodSelector
 		*out = new(metav1.LabelSelector)

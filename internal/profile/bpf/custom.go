@@ -411,33 +411,10 @@ func generateRawNetworkEgressRuleForPods(
 	toPod varmor.Pod) (pod *varmortypes.Pod, err error) {
 
 	p := varmortypes.Pod{
-		Mode:              mode,
-		NamespaceSelector: toPod.NamespaceSelector,
-		PodSelector:       toPod.PodSelector,
-		Ports:             toPod.Ports,
-	}
-
-	// Select namespaces
-	var namespaces []string
-	if toPod.NamespaceSelector != nil {
-		nsSelecter, err := metav1.LabelSelectorAsSelector(toPod.NamespaceSelector)
-		if err != nil {
-			return nil, err
-		}
-
-		nsList, err := kubeClient.CoreV1().Namespaces().List(context.TODO(), metav1.ListOptions{
-			LabelSelector:   nsSelecter.String(),
-			ResourceVersion: "0",
-		})
-		if err != nil {
-			return nil, err
-		}
-
-		for _, ns := range nsList.Items {
-			namespaces = append(namespaces, ns.Name)
-		}
-	} else {
-		namespaces = []string{metav1.NamespaceAll}
+		Mode:        mode,
+		Namespace:   toPod.Namespace,
+		PodSelector: toPod.PodSelector,
+		Ports:       toPod.Ports,
 	}
 
 	// Select pods and retrieve their IPs
@@ -445,22 +422,19 @@ func generateRawNetworkEgressRuleForPods(
 	if err != nil {
 		return nil, err
 	}
+	podList, err := kubeClient.CoreV1().Pods(toPod.Namespace).List(context.TODO(), metav1.ListOptions{
+		LabelSelector:   podSelector.String(),
+		FieldSelector:   "status.phase=Running",
+		ResourceVersion: "0",
+	})
+	if err != nil {
+		return nil, err
+	}
 
 	var IPs []string
-	for _, ns := range namespaces {
-		podList, err := kubeClient.CoreV1().Pods(ns).List(context.TODO(), metav1.ListOptions{
-			LabelSelector:   podSelector.String(),
-			FieldSelector:   "status.phase=Running",
-			ResourceVersion: "0",
-		})
-		if err != nil {
-			return nil, err
-		}
-
-		for _, p := range podList.Items {
-			for _, ip := range p.Status.PodIPs {
-				IPs = append(IPs, ip.IP)
-			}
+	for _, p := range podList.Items {
+		for _, ip := range p.Status.PodIPs {
+			IPs = append(IPs, ip.IP)
 		}
 	}
 
@@ -486,7 +460,7 @@ func generateRawNetworkEgressRuleForServices(
 	}
 
 	if toService.ServiceSelector == nil && (toService.Name == "" || toService.Namespace == "") {
-		return nil, fmt.Errorf("please set both the name and namespace fields in the toServices field")
+		return nil, fmt.Errorf("please set both the name and namespace fields to select a service")
 	}
 
 	s := varmortypes.Service{
