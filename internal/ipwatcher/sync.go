@@ -190,6 +190,9 @@ func (i *IPWatcher) sync(obj *SlimObject) error {
 					if !selector.Matches(labels.Set(obj.Labels)) {
 						continue
 					}
+					if toService.Namespace != "" && toService.Namespace != obj.Namespace {
+						continue
+					}
 				} else if toService.Name != obj.Name || toService.Namespace != obj.Namespace {
 					continue
 				}
@@ -241,6 +244,9 @@ func (i *IPWatcher) sync(obj *SlimObject) error {
 				if toService.ServiceSelector != nil {
 					selector, _ := metav1.LabelSelectorAsSelector(toService.ServiceSelector)
 					if !selector.Matches(labels.Set(obj.Labels)) {
+						continue
+					}
+					if toService.Namespace != "" && toService.Namespace != obj.Namespace {
 						continue
 					}
 				} else if toService.Name != obj.Labels["kubernetes.io/service-name"] ||

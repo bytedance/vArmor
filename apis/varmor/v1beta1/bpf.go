@@ -38,8 +38,10 @@ type Service struct {
 	// +optional
 	Name string `json:"name,omitempty"`
 	// serviceSelector is a label selector which selects services. This field follows standard label
-	// selector semantics. It selects the services matching serviceSelector in all namespaces.
-	// Note that the serviceSelector field and other fields are mutually exclusive.
+	// selector semantics. It selects the services matching serviceSelector in the namespace. If the
+	// namespace field is empty or not present, it selects the services matching serviceSelector in all
+	// namespaces.
+	// Note that the serviceSelector field and name field are mutually exclusive.
 	// +optional
 	ServiceSelector *metav1.LabelSelector `json:"serviceSelector,omitempty"`
 }

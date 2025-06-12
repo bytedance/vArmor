@@ -20,7 +20,6 @@ import (
 	"strings"
 
 	"golang.org/x/sys/unix"
-	discoveryv1 "k8s.io/api/discovery/v1"
 	k8errors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -482,8 +481,8 @@ func generateRawNetworkEgressRuleForServices(
 	mode uint32,
 	toService varmor.Service) (*varmortypes.Service, error) {
 
-	if toService.ServiceSelector != nil && (toService.Name != "" || toService.Namespace != "") {
-		return nil, fmt.Errorf("the ServiceSelector field and other fields are mutually exclusive")
+	if toService.ServiceSelector != nil && toService.Name != "" {
+		return nil, fmt.Errorf("the ServiceSelector field and name field are mutually exclusive")
 	}
 
 	if toService.ServiceSelector == nil && (toService.Name == "" || toService.Namespace == "") {
@@ -497,7 +496,7 @@ func generateRawNetworkEgressRuleForServices(
 		ServiceSelector: toService.ServiceSelector,
 	}
 
-	var epsList *discoveryv1.EndpointSliceList
+	var epsLabelSelector string
 
 	if toService.ServiceSelector != nil {
 		// Retrieve the services with the label selector
@@ -505,13 +504,14 @@ func generateRawNetworkEgressRuleForServices(
 		if err != nil {
 			return nil, err
 		}
-		serviceList, err := kubeClient.CoreV1().Services(metav1.NamespaceAll).List(context.TODO(), metav1.ListOptions{
+		serviceList, err := kubeClient.CoreV1().Services(toService.Namespace).List(context.TODO(), metav1.ListOptions{
 			LabelSelector:   serviceSelector.String(),
 			ResourceVersion: "0",
 		})
 		if err != nil {
 			return nil, err
 		}
+		epsLabelSelector = serviceSelector.String()
 
 		// Generate rules for the services
 		for _, service := range serviceList.Items {
@@ -521,15 +521,6 @@ func generateRawNetworkEgressRuleForServices(
 					return nil, err
 				}
 			}
-		}
-
-		// Retrieve the endpointslices of services with the same label selector
-		epsList, err = kubeClient.DiscoveryV1().EndpointSlices(metav1.NamespaceAll).List(context.TODO(), metav1.ListOptions{
-			LabelSelector:   serviceSelector.String(),
-			ResourceVersion: "0",
-		})
-		if err != nil {
-			return nil, err
 		}
 	} else {
 		// Retrieve the service with name and namespace
@@ -541,6 +532,7 @@ func generateRawNetworkEgressRuleForServices(
 				return nil, err
 			}
 		}
+		epsLabelSelector = fmt.Sprintf("kubernetes.io/service-name=%s", toService.Name)
 
 		// Generate rules for the service
 		for _, ip := range service.Spec.ClusterIPs {
@@ -549,14 +541,15 @@ func generateRawNetworkEgressRuleForServices(
 				return nil, err
 			}
 		}
+	}
 
-		// Retrieve the endpointslice of the service with the 'kubernetes.io/service-name' label
-		epsList, err = kubeClient.DiscoveryV1().EndpointSlices(toService.Namespace).List(context.TODO(), metav1.ListOptions{
-			LabelSelector: fmt.Sprintf("kubernetes.io/service-name=%s", toService.Name),
-		})
-		if err != nil {
-			return nil, err
-		}
+	// Retrieve the endpointslices of services with the label selector
+	epsList, err := kubeClient.DiscoveryV1().EndpointSlices(toService.Namespace).List(context.TODO(), metav1.ListOptions{
+		LabelSelector:   epsLabelSelector,
+		ResourceVersion: "0",
+	})
+	if err != nil {
+		return nil, err
 	}
 
 	// Generate rules for the endpointslices
