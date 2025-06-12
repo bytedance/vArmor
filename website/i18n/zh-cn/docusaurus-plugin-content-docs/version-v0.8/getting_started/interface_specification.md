@@ -145,16 +145,16 @@ description: vArmor 的接口规范。
 
 | 字段 | 描述 |
 |-----|------|
-|namespace<br />*string*|可选字段。Namespace 通过名称和命名空间对来选择服务。|
-|name<br />*string*|可选字段。Name 通过名称和命名空间对来选择服务。|
-|serviceSelector<br />*[LabelSelector](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#LabelSelector)*|可选字段。ServiceSelector 是一个标签选择器，用于选择服务。该字段遵循标准的标签选择器语义。它会选择所有命名空间中与 serviceSelector 匹配的服务。请注意，serviceSelector 字段与其他字段是互斥的。|
+|namespace<br />*string*|可选字段。Namespace 用于指定 Service 所在的命名空间。|
+|name<br />*string*|可选字段。Name 通过名称和命名空间对来选择 Service。|
+|serviceSelector<br />*[LabelSelector](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#LabelSelector)*|可选字段。ServiceSelector 是一个标签选择器，用于选择 Service。该字段遵循标准的标签选择器语义。它会选择 namespace 中与 serviceSelector 匹配的 Service。如果 namespace 为空或未指定，它会选择所有命名空间中与 serviceSelector 匹配的 Service。请注意，serviceSelector 字段与 name 字段是互斥的。|
 
 ### Pod
 
 | 字段 | 描述 |
 |-----|------|
-|namespaceSelector<br />*[LabelSelector](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#LabelSelector)*|可选字段。NamespaceSelector 使用集群范围的标签来选择命名空间。此字段遵循标准的标签选择器语义；如果此字段不存在，则会选择所有命名空间。|
-|podSelector<br />*[LabelSelector](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#LabelSelector)*|PodSelector 是一个标签选择器，用于选择 Pod。该字段遵循标准的标签选择器语义。如果同时设置了 namespaceSelector，那么此规则将选择 namespaceSelector 所选命名空间中与 podSelector 匹配的Pod。否则，它将选择所有命名空间中与 podSelector 匹配的Pod。|
+|namespace<br />*string*|可选字段。Namespace 用于指定 Pod 所在的命名空间。|
+|podSelector<br />*[LabelSelector](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#LabelSelector)*|PodSelector 是一个标签选择器，用于选择 Pod。该字段遵循标准的标签选择器语义。它会选择 namespace 中与 podSelector 匹配的 Pod。如果 namespace 为空或未指定，它会选择所有命名空间中与 podSelector 匹配的 Pod。|
 |ports<br />*[Port](#port) array*|可选字段。Ports 在特定端口上定义此规则。此列表中的每个条目使用逻辑 “或” 进行组合。如果此字段为空或不存在，则此规则匹配所有端口。如果此字段存在且至少包含一个条目，则此规则匹配列表中的所有端口。|
 
 ### Port

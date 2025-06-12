@@ -142,16 +142,16 @@ English | [简体中文](interface_specification.zh_CN.md)
 
 | Field | Description |
 |-------|-------------|
-|namespace<br />*string*|Optional. Namespace selects a service by the name and namespace pair.|
+|namespace<br />*string*|Optional. Namespace specifies in which namespace to select services.|
 |name<br />*string*|Optional. Name selects a service by the name and namespace pair.|
-|serviceSelector<br />*[LabelSelector](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#LabelSelector)*|Optional. ServiceSelector is a label selector which selects services. This field follows standard label selector semantics. It selects the services matching serviceSelector in all namespaces. Note that the serviceSelector field and other fields are mutually exclusive.|
+|serviceSelector<br />*[LabelSelector](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#LabelSelector)*|Optional. ServiceSelector is a label selector which selects services. This field follows standard label selector semantics. It selects the services matching serviceSelector in the namespace. If the namespace field is empty or not present, it selects the services matching serviceSelector in all namespaces. Note that the serviceSelector field and name field are mutually exclusive.|
 
 ### Pod
 
 | Field | Description |
 |-------|-------------|
-|namespaceSelector<br />*[LabelSelector](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#LabelSelector)*|Optional. NamespaceSelector selects namespaces using cluster-scoped labels. This field follows standard label selector semantics; if not present, it selects all namespaces.|
-|podSelector<br />*[LabelSelector](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#LabelSelector)*|PodSelector is a label selector which selects pods. This field follows standard label selector semantics. If namespaceSelector is also set, then this rule selects the pods matching podSelector in the namespaces selected by NamespaceSelector. Otherwise it selects the pods matching podSelector in all namespaces.|
+|namespace<br />*string*|Optional. Namespace specifies in which namespace to select pods.|
+|podSelector<br />*[LabelSelector](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#LabelSelector)*|PodSelector is a label selector which selects pods. This field follows standard label selector semantics. It selects the pods matching podSelector in the namespace. If the namespace field is empty or not present, it selects the pods matching podSelector in all namespaces.|
 |ports<br />*[Port](#port) array*|Optional. Ports defines this rule on particular ports. Each item in this list is combined using a logical OR. If this field is empty or not present, this rule matches all ports. If this field is present and contains at least one item, then this rule matches all ports in the list.|
 
 ### Port
