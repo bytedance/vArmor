@@ -63,7 +63,6 @@ type IPWatcher struct {
 	serviceInterface typedcore.ServiceInterface
 	serviceinformer  coreinformers.ServiceInformer
 	serviceLister    corelisters.ServiceLister
-	nsLister         corelisters.NamespaceLister
 	epsinformer      discoveryinformers.EndpointSliceInformer
 	epsLister        discoverylisters.EndpointSliceLister
 	statusManager    *statusmanager.StatusManager
@@ -80,7 +79,6 @@ func NewIPWatcher(
 	serviceInterface typedcore.ServiceInterface,
 	podinformer coreinformers.PodInformer,
 	serviceinformer coreinformers.ServiceInformer,
-	nsinformer coreinformers.NamespaceInformer,
 	epsinformer discoveryinformers.EndpointSliceInformer,
 	statusManager *statusmanager.StatusManager,
 	egressCache map[string]varmortypes.EgressInfo,
@@ -96,7 +94,6 @@ func NewIPWatcher(
 		podLister:        podinformer.Lister(),
 		serviceinformer:  serviceinformer,
 		serviceLister:    serviceinformer.Lister(),
-		nsLister:         nsinformer.Lister(),
 		epsinformer:      epsinformer,
 		epsLister:        epsinformer.Lister(),
 		queue:            workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "ip"),

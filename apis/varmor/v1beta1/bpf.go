@@ -31,15 +31,16 @@ type FileRule struct {
 }
 
 type Service struct {
-	// namespace selects a service by the name and namespace pair.
+	// namespace specifies in which namespace to select services.
 	// +optional
 	Namespace string `json:"namespace,omitempty"`
 	// name selects a service by the name and namespace pair.
 	// +optional
 	Name string `json:"name,omitempty"`
-	// serviceSelector is a label selector which selects services. This field follows standard label
-	// selector semantics. It selects the services matching serviceSelector in all namespaces.
-	// Note that the serviceSelector field and other fields are mutually exclusive.
+	// serviceSelector is a label selector which selects services. This field follows standard label selector
+	// semantics. It selects the services matching serviceSelector in the namespace. If the namespace field
+	// is empty or not present, it selects the services matching serviceSelector in all namespaces. Note that
+	// the serviceSelector field and name field are mutually exclusive.
 	// +optional
 	ServiceSelector *metav1.LabelSelector `json:"serviceSelector,omitempty"`
 }
@@ -55,16 +56,12 @@ type Port struct {
 }
 
 type Pod struct {
-	// namespaceSelector selects namespaces using cluster-scoped labels. This field follows
-	// standard label selector semantics; if not present, it selects all namespaces.
+	// namespace specifies in which namespace to select pods.
 	// +optional
-	NamespaceSelector *metav1.LabelSelector `json:"namespaceSelector,omitempty"`
-	// podSelector is a label selector which selects pods. This field follows standard label
-	// selector semantics.
-	//
-	// If namespaceSelector is also set, then this rule selects the pods matching podSelector in
-	// the namespaces selected by NamespaceSelector. Otherwise it selects the pods matching podSelector
-	// in all namespaces.
+	Namespace string `json:"namespace,omitempty"`
+	// podSelector is a label selector which selects pods. This field follows standard label selector semantics.
+	// It selects the pods matching podSelector in the namespace. If the namespace field is empty or not present,
+	// it selects the pods matching podSelector in all namespaces.
 	PodSelector *metav1.LabelSelector `json:"podSelector"`
 	// ports define this rule on particular ports. Each item in this list is combined using a logical OR.
 	// If this field is empty or not present, this rule matches all ports. If this field is present and contains

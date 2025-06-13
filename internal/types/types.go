@@ -110,10 +110,10 @@ func GetEnforcerType(enforcer string) Enforcer {
 
 // Pod saves the rule for matching the traffic of pods
 type Pod struct {
-	Mode              uint32
-	NamespaceSelector *metav1.LabelSelector
-	PodSelector       *metav1.LabelSelector
-	Ports             []varmor.Port
+	Mode        uint32
+	Namespace   string
+	PodSelector *metav1.LabelSelector
+	Ports       []varmor.Port
 }
 
 // Service saves the rule for matching the traffic of services and endpointslices

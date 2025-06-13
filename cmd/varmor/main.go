@@ -396,7 +396,6 @@ func main() {
 				kubeClient.CoreV1().Services(metav1.NamespaceAll),
 				factory.Core().V1().Pods(),
 				factory.Core().V1().Services(),
-				factory.Core().V1().Namespaces(),
 				factory.Discovery().V1().EndpointSlices(),
 				statusSvc.StatusManager,
 				egressCache,

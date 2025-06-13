@@ -20,7 +20,6 @@ import (
 	"strings"
 
 	"golang.org/x/sys/unix"
-	discoveryv1 "k8s.io/api/discovery/v1"
 	k8errors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -412,33 +411,10 @@ func generateRawNetworkEgressRuleForPods(
 	toPod varmor.Pod) (pod *varmortypes.Pod, err error) {
 
 	p := varmortypes.Pod{
-		Mode:              mode,
-		NamespaceSelector: toPod.NamespaceSelector,
-		PodSelector:       toPod.PodSelector,
-		Ports:             toPod.Ports,
-	}
-
-	// Select namespaces
-	var namespaces []string
-	if toPod.NamespaceSelector != nil {
-		nsSelecter, err := metav1.LabelSelectorAsSelector(toPod.NamespaceSelector)
-		if err != nil {
-			return nil, err
-		}
-
-		nsList, err := kubeClient.CoreV1().Namespaces().List(context.TODO(), metav1.ListOptions{
-			LabelSelector:   nsSelecter.String(),
-			ResourceVersion: "0",
-		})
-		if err != nil {
-			return nil, err
-		}
-
-		for _, ns := range nsList.Items {
-			namespaces = append(namespaces, ns.Name)
-		}
-	} else {
-		namespaces = []string{metav1.NamespaceAll}
+		Mode:        mode,
+		Namespace:   toPod.Namespace,
+		PodSelector: toPod.PodSelector,
+		Ports:       toPod.Ports,
 	}
 
 	// Select pods and retrieve their IPs
@@ -446,22 +422,19 @@ func generateRawNetworkEgressRuleForPods(
 	if err != nil {
 		return nil, err
 	}
+	podList, err := kubeClient.CoreV1().Pods(toPod.Namespace).List(context.TODO(), metav1.ListOptions{
+		LabelSelector:   podSelector.String(),
+		FieldSelector:   "status.phase=Running",
+		ResourceVersion: "0",
+	})
+	if err != nil {
+		return nil, err
+	}
 
 	var IPs []string
-	for _, ns := range namespaces {
-		podList, err := kubeClient.CoreV1().Pods(ns).List(context.TODO(), metav1.ListOptions{
-			LabelSelector:   podSelector.String(),
-			FieldSelector:   "status.phase=Running",
-			ResourceVersion: "0",
-		})
-		if err != nil {
-			return nil, err
-		}
-
-		for _, p := range podList.Items {
-			for _, ip := range p.Status.PodIPs {
-				IPs = append(IPs, ip.IP)
-			}
+	for _, p := range podList.Items {
+		for _, ip := range p.Status.PodIPs {
+			IPs = append(IPs, ip.IP)
 		}
 	}
 
@@ -482,12 +455,12 @@ func generateRawNetworkEgressRuleForServices(
 	mode uint32,
 	toService varmor.Service) (*varmortypes.Service, error) {
 
-	if toService.ServiceSelector != nil && (toService.Name != "" || toService.Namespace != "") {
-		return nil, fmt.Errorf("the ServiceSelector field and other fields are mutually exclusive")
+	if toService.ServiceSelector != nil && toService.Name != "" {
+		return nil, fmt.Errorf("the ServiceSelector field and name field are mutually exclusive")
 	}
 
 	if toService.ServiceSelector == nil && (toService.Name == "" || toService.Namespace == "") {
-		return nil, fmt.Errorf("please set both the name and namespace fields in the toServices field")
+		return nil, fmt.Errorf("please set both the name and namespace fields to select a service")
 	}
 
 	s := varmortypes.Service{
@@ -497,7 +470,7 @@ func generateRawNetworkEgressRuleForServices(
 		ServiceSelector: toService.ServiceSelector,
 	}
 
-	var epsList *discoveryv1.EndpointSliceList
+	var epsLabelSelector string
 
 	if toService.ServiceSelector != nil {
 		// Retrieve the services with the label selector
@@ -505,13 +478,14 @@ func generateRawNetworkEgressRuleForServices(
 		if err != nil {
 			return nil, err
 		}
-		serviceList, err := kubeClient.CoreV1().Services(metav1.NamespaceAll).List(context.TODO(), metav1.ListOptions{
+		serviceList, err := kubeClient.CoreV1().Services(toService.Namespace).List(context.TODO(), metav1.ListOptions{
 			LabelSelector:   serviceSelector.String(),
 			ResourceVersion: "0",
 		})
 		if err != nil {
 			return nil, err
 		}
+		epsLabelSelector = serviceSelector.String()
 
 		// Generate rules for the services
 		for _, service := range serviceList.Items {
@@ -521,15 +495,6 @@ func generateRawNetworkEgressRuleForServices(
 					return nil, err
 				}
 			}
-		}
-
-		// Retrieve the endpointslices of services with the same label selector
-		epsList, err = kubeClient.DiscoveryV1().EndpointSlices(metav1.NamespaceAll).List(context.TODO(), metav1.ListOptions{
-			LabelSelector:   serviceSelector.String(),
-			ResourceVersion: "0",
-		})
-		if err != nil {
-			return nil, err
 		}
 	} else {
 		// Retrieve the service with name and namespace
@@ -541,6 +506,7 @@ func generateRawNetworkEgressRuleForServices(
 				return nil, err
 			}
 		}
+		epsLabelSelector = fmt.Sprintf("kubernetes.io/service-name=%s", toService.Name)
 
 		// Generate rules for the service
 		for _, ip := range service.Spec.ClusterIPs {
@@ -549,14 +515,15 @@ func generateRawNetworkEgressRuleForServices(
 				return nil, err
 			}
 		}
+	}
 
-		// Retrieve the endpointslice of the service with the 'kubernetes.io/service-name' label
-		epsList, err = kubeClient.DiscoveryV1().EndpointSlices(toService.Namespace).List(context.TODO(), metav1.ListOptions{
-			LabelSelector: fmt.Sprintf("kubernetes.io/service-name=%s", toService.Name),
-		})
-		if err != nil {
-			return nil, err
-		}
+	// Retrieve the endpointslices of services with the label selector
+	epsList, err := kubeClient.DiscoveryV1().EndpointSlices(toService.Namespace).List(context.TODO(), metav1.ListOptions{
+		LabelSelector:   epsLabelSelector,
+		ResourceVersion: "0",
+	})
+	if err != nil {
+		return nil, err
 	}
 
 	// Generate rules for the endpointslices
