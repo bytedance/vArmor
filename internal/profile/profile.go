@@ -64,7 +64,7 @@ func GenerateProfile(
 	logger logr.Logger) (*varmor.Profile, *varmortypes.EgressInfo, error) {
 	var err error
 
-	var egressInfo *varmortypes.EgressInfo
+	var egressInfo varmortypes.EgressInfo
 
 	profile := varmor.Profile{
 		Name:     name,
@@ -141,7 +141,7 @@ func GenerateProfile(
 		// BPF
 		if (e & varmortypes.BPF) != 0 {
 			var bpfContent varmor.BpfContent
-			egressInfo, err = bpfprofile.GenerateEnhanceProtectProfile(kubeClient, policy.EnhanceProtect, &bpfContent, enablePodServiceEgressControl)
+			err = bpfprofile.GenerateEnhanceProtectProfile(kubeClient, policy.EnhanceProtect, &bpfContent, enablePodServiceEgressControl, &egressInfo)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -268,7 +268,7 @@ func GenerateProfile(
 		return nil, nil, fmt.Errorf("unknown mode")
 	}
 
-	return &profile, egressInfo, nil
+	return &profile, &egressInfo, nil
 }
 
 func NewArmorProfile(

@@ -35,28 +35,29 @@ func generateCustomRules(
 	enhanceProtect *varmor.EnhanceProtect,
 	bpfContent *varmor.BpfContent,
 	mode uint32,
-	enablePodServiceEgressControl bool) (egressInfo *varmortypes.EgressInfo, err error) {
+	enablePodServiceEgressControl bool,
+	egressInfo *varmortypes.EgressInfo) (err error) {
 	for _, rule := range enhanceProtect.BpfRawRules.Files {
 		err = generateRawFileRule(bpfContent, mode, rule)
 		if err != nil {
-			return nil, err
+			return err
 		}
 
 		err = generateRawProcessRule(bpfContent, mode, rule)
 		if err != nil {
-			return nil, err
+			return err
 		}
 	}
 
 	for _, rule := range enhanceProtect.BpfRawRules.Processes {
 		err = generateRawFileRule(bpfContent, mode, rule)
 		if err != nil {
-			return nil, err
+			return err
 		}
 
 		err = generateRawProcessRule(bpfContent, mode, rule)
 		if err != nil {
-			return nil, err
+			return err
 		}
 	}
 
@@ -64,13 +65,13 @@ func generateCustomRules(
 		for _, socketRule := range enhanceProtect.BpfRawRules.Network.Sockets {
 			err = generateRawNetworkSocketRule(bpfContent, mode, socketRule)
 			if err != nil {
-				return nil, err
+				return err
 			}
 		}
 		if enhanceProtect.BpfRawRules.Network.Egress != nil {
-			egressInfo, err = generateRawNetworkEgressRule(kubeClient, bpfContent, mode, enhanceProtect.BpfRawRules.Network.Egress, enablePodServiceEgressControl)
+			err = generateRawNetworkEgressRule(kubeClient, bpfContent, mode, enhanceProtect.BpfRawRules.Network.Egress, enablePodServiceEgressControl, egressInfo)
 			if err != nil {
-				return nil, err
+				return err
 			}
 		}
 	}
@@ -78,7 +79,7 @@ func generateCustomRules(
 	if enhanceProtect.BpfRawRules.Ptrace != nil {
 		err = generateRawPtraceRule(bpfContent, mode, enhanceProtect.BpfRawRules.Ptrace)
 		if err != nil {
-			return nil, err
+			return err
 		}
 	}
 
@@ -86,11 +87,11 @@ func generateCustomRules(
 		for _, rule := range enhanceProtect.BpfRawRules.Mounts {
 			err = generateRawMountRule(bpfContent, mode, rule)
 			if err != nil {
-				return nil, err
+				return err
 			}
 		}
 	}
-	return egressInfo, nil
+	return nil
 }
 
 func generateRawFileRule(bpfContent *varmor.BpfContent, mode uint32, rule varmor.FileRule) error {
@@ -558,27 +559,26 @@ func generateRawNetworkEgressRule(
 	bpfContent *varmor.BpfContent,
 	mode uint32,
 	rule *varmor.NetworkEgressRule,
-	enablePodServiceEgressControl bool) (*varmortypes.EgressInfo, error) {
+	enablePodServiceEgressControl bool,
+	egressInfo *varmortypes.EgressInfo) error {
 
 	err := generateRawNetworkEgressRuleForDestinations(bpfContent, mode, rule.ToDestinations)
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate network egress rule for bolocking access destinations. error: %w", err)
+		return fmt.Errorf("failed to generate network egress rule for bolocking access destinations. error: %w", err)
 	}
 
 	if len(rule.ToPods) == 0 && len(rule.ToServices) == 0 {
-		return nil, nil
+		return nil
 	}
 
 	if (len(rule.ToPods) != 0 || len(rule.ToServices) != 0) && !enablePodServiceEgressControl {
-		return nil, fmt.Errorf("the PodServiceEgressControl feature is required to generate network egress rule for Pods and Services")
+		return fmt.Errorf("the PodServiceEgressControl feature is required to generate network egress rule for Pods and Services")
 	}
-
-	egressInfo := varmortypes.EgressInfo{}
 
 	for _, toPod := range rule.ToPods {
 		pod, err := generateRawNetworkEgressRuleForPods(kubeClient, bpfContent, mode, toPod)
 		if err != nil {
-			return nil, fmt.Errorf("failed to generate network egress rule for blocking access k8s pods. error: %w", err)
+			return fmt.Errorf("failed to generate network egress rule for blocking access k8s pods. error: %w", err)
 		}
 		if pod != nil {
 			egressInfo.ToPods = append(egressInfo.ToPods, *pod)
@@ -588,14 +588,14 @@ func generateRawNetworkEgressRule(
 	for _, toService := range rule.ToServices {
 		service, err := generateRawNetworkEgressRuleForServices(kubeClient, bpfContent, mode, toService)
 		if err != nil {
-			return nil, fmt.Errorf("failed to generate network egress rule for blocking access k8s services. error: %w", err)
+			return fmt.Errorf("failed to generate network egress rule for blocking access k8s services. error: %w", err)
 		}
 		if service != nil {
 			egressInfo.ToServices = append(egressInfo.ToServices, *service)
 		}
 	}
 
-	return &egressInfo, nil
+	return nil
 }
 
 func generateRawPtraceRule(bpfContent *varmor.BpfContent, mode uint32, rule *varmor.PtraceRule) error {

@@ -316,7 +316,7 @@ func (c *PolicyController) handleAddVarmorPolicy(vp *varmor.VarmorPolicy) error 
 	}
 
 	// Cache the egress information for the policy which has network egress rules with toPods and toService fields
-	if egressInfo != nil {
+	if egressInfo != nil && (len(egressInfo.ToPods) > 0 || len(egressInfo.ToServices) > 0) {
 		policyKey := vp.Namespace + "/" + vp.Name
 		c.egressCacheMutex.Lock()
 		c.egressCache[policyKey] = *egressInfo
@@ -482,7 +482,10 @@ func (c *PolicyController) handleUpdateVarmorPolicy(newVp *varmor.VarmorPolicy, 
 	if egressInfo != nil {
 		policyKey := newVp.Namespace + "/" + newVp.Name
 		c.egressCacheMutex.Lock()
-		c.egressCache[policyKey] = *egressInfo
+		delete(c.egressCache, policyKey)
+		if len(egressInfo.ToPods) > 0 || len(egressInfo.ToServices) > 0 {
+			c.egressCache[policyKey] = *egressInfo
+		}
 		c.egressCacheMutex.Unlock()
 		logger.Info("egress cache updated", "policy key", policyKey, "egress info", egressInfo)
 	}

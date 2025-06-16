@@ -583,7 +583,7 @@
       }
     },
     {
-      "id": "disallow-metadata-service",
+      "id": "block-access-to-metadata-service",
       "enforcers": ["bpf"]
     }
   ],
@@ -654,6 +654,19 @@
       "enforcers": ["apparmor", "bpf"],
       "conflicts": {
         "executions": ["su", "sudo"]
+      }
+    },
+    {
+      "id": "block-access-to-kube-apiserver",
+      "enforcers": ["bpf"],
+      "conflicts": {
+        "features": ["require-sa"],
+        "files": [
+          {
+            "path_regex": "\/run\/secrets\/kubernetes.io\/serviceaccount\/",
+            "permissions": ["r"]
+          }
+        ]
       }
     }
   ],

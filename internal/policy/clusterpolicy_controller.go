@@ -312,7 +312,7 @@ func (c *ClusterPolicyController) handleAddVarmorClusterPolicy(vcp *varmor.Varmo
 	}
 
 	// Cache the egress information for the policy which has network egress rules with toPods and toService fields
-	if egressInfo != nil {
+	if egressInfo != nil && (len(egressInfo.ToPods) > 0 || len(egressInfo.ToServices) > 0) {
 		policyKey := vcp.Name
 		c.egressCacheMutex.Lock()
 		c.egressCache[policyKey] = *egressInfo
@@ -478,7 +478,10 @@ func (c *ClusterPolicyController) handleUpdateVarmorClusterPolicy(newVcp *varmor
 	if egressInfo != nil {
 		policyKey := newVcp.Name
 		c.egressCacheMutex.Lock()
-		c.egressCache[policyKey] = *egressInfo
+		delete(c.egressCache, policyKey)
+		if len(egressInfo.ToPods) > 0 || len(egressInfo.ToServices) > 0 {
+			c.egressCache[policyKey] = *egressInfo
+		}
 		c.egressCacheMutex.Unlock()
 		logger.Info("egress cache updated", "policy key", policyKey, "egress info", egressInfo)
 	}
