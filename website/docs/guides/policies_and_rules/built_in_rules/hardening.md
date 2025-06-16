@@ -199,7 +199,7 @@ Disable CAP_SYS_MODULE.
 :::
 
 
-### `disallow-load-bpf-prog`, `disallow-load-ebpf`
+### `disallow-load-bpf-prog`
 
 Prohibit loading eBPF programs, except for those of the BPF_PROG_TYPE_SOCKET_FILTER and BPF_PROG_TYPE_CGROUP_SKB types.
 
@@ -207,8 +207,6 @@ Prohibit loading eBPF programs, except for those of the BPF_PROG_TYPE_SOCKET_FIL
 Attackers may load eBPF programs within a container (**w/ CAP_SYS_ADMIN, CAP_BPF**) to theft data or create rootkit.
 
 Before Linux 5.8, loading eBPF programs, except for those of the BPF_PROG_TYPE_SOCKET_FILTER and BPF_PROG_TYPE_CGROUP_SKB types, needs CAP_SYS_ADMIN. Since Linux 5.8, loading eBPF programs, except for those types, needs CAP_SYS_ADMIN or CAP_BPF. And some types of eBPF programs also require CAP_NET_ADMIN or CAP_PERFMON.
-
-The id of `disallow-load-ebpf` rule will be deprecated, please use `disallow-load-bpf-prog` instead.
 :::
 
 :::info[Principle & Impact]

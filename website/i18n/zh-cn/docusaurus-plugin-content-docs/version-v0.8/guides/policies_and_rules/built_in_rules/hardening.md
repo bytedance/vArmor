@@ -199,7 +199,7 @@ Attackers may attempt to escape from containers (**w/ CAP_SYS_ADMIN**) by remoun
 :::
 
 
-### `disallow-load-bpf-prog`, `disallow-load-ebpf`
+### `disallow-load-bpf-prog`
 
 禁止加载除 BPF_PROG_TYPE_SOCKET_FILTER 和 BPF_PROG_TYPE_CGROUP_SKB 类型外的 eBPF 程序。
 
@@ -207,8 +207,6 @@ Attackers may attempt to escape from containers (**w/ CAP_SYS_ADMIN**) by remoun
 攻击者可能会在特权容器中（**w/ CAP_SYS_ADMIN, CAP_BPF**），加载 ebpf Program 实现数据窃取和创建 rootkit 后门。
 
 在 Linux 5.8 之前，需要 CAP_SYS_ADMIN 才能加载除 BPF_PROG_TYPE_SOCKET_FILTER 和 BPF_PROG_TYPE_CGROUP_SKB 类型以外的 eBPF 程序。自 Linux 5.8 开始，需要 CAP_SYS_ADMIN 或 CAP_BPF 才能加载这些 eBPF 程序。与此同时，加载某些类型的 eBPF 程序还需要 CAP_NET_ADMIN 或 CAP_PERFMON。
-
-注：规则 ID `disallow-load-ebpf` 将会被弃用，请使用 `disallow-load-bpf-prog`。
 :::
 
 :::info[原理与影响]

@@ -81,14 +81,14 @@ description: 针对容器环境中渗透手法的规则。
 * BPF
 :::
 
-### `disallow-metadata-service`
+### `block-access-to-metadata-service`
 
 禁止访问云服务器的 metadata service。
 
 :::note[说明]
-攻击者获取容器内的代码执行权限后，会尝试访问云服务器的 Metadata Service 来进行信息泄露。在某些场景下，攻击者可能会获取敏感信息，从而进行权限提升、横向渗透。
-
 此规则禁止容器进程访问云服务器的 Instance Metadata Service。包含两个本地链接保留地址：**100.96.0.96** 和 **169.254.169.254**。
+
+攻击者获取容器内的代码执行权限后，会尝试访问云服务器的 Metadata Service 来进行信息泄露。在某些场景下，攻击者可能会获取敏感信息，从而进行权限提升、横向渗透。
 :::
 
 :::info[原理与影响]
@@ -350,6 +350,24 @@ description: 针对容器环境中渗透手法的规则。
 
 :::tip[支持的强制访问控制器]
 * AppArmor
+* BPF
+:::
+
+### `block-access-to-kube-apiserver`
+
+禁止访问 kube-apiserver。
+
+:::note[Description]
+此规则禁止容器进程访问kube-apiserver，包括两个内网地址：默认命名空间中 kubernetes 服务的 ClusterIP 及其端点。
+
+攻击者在获得容器内的代码执行权限或存在 SSRF 漏洞时，可能会尝试访问 kube-apiserver 以进行敏感操作。在某些情况下，攻击者可能会获取敏感信息或提升权限。 
+:::
+
+:::info[Principle & Impact]
+禁止连接到 kube-apiserver。
+:::
+
+:::tip[Supported Enforcer]
 * BPF
 :::
 

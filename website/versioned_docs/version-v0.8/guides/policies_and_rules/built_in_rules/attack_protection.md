@@ -80,7 +80,7 @@ Disallow reading ARP address resolution tables (such as `/proc/net/arp`, `/proc/
 * BPF
 :::
 
-### `disallow-metadata-service`
+### `block-access-to-metadata-service`
 
 Disallow access to the metadata service.
 
@@ -349,6 +349,24 @@ When you want to prevent a container from using UDP protocol, you can use this r
 
 :::tip[Supported Enforcer]
 * AppArmor
+* BPF
+:::
+
+### `block-access-to-kube-apiserver`
+
+Disallow access to the kube-apiserver.
+
+:::note[Description]
+This rule prohibits container processes from accessing the kube-apiserver, including two intranet addresses: the ClusterIP of the kubernetes Service in the default namespace and the endpoint of it.
+
+Attackers, upon gaining code execution privileges within a container or a SSRF vulnerability, may attempt to access the kube-apiserver for sensitive operations. In certain scenarios, attackers may obtain sensitive information, or escalate privileges.
+:::
+
+:::info[Principle & Impact]
+Prohibit connections to the kube-apiserver.
+:::
+
+:::tip[Supported Enforcer]
 * BPF
 :::
 
