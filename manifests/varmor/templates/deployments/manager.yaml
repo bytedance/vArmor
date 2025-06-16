@@ -52,9 +52,11 @@ spec:
               {{- toYaml . | nindent 8 }}
             {{- end }}
           {{- end }}
-          {{- if .Values.podServiceEgressControl.enabled }}
-            {{- with .Values.manager.podServiceEgressControl.args }}
-              {{- toYaml . | nindent 8 }}
+          {{- if semverCompare ">=1.21.0-0" .Capabilities.KubeVersion.Version }}
+            {{- if .Values.podServiceEgressControl.enabled }}
+              {{- with .Values.manager.podServiceEgressControl.args }}
+                {{- toYaml . | nindent 8 }}
+              {{- end }}
             {{- end }}
           {{- end }}
           {{- if .Values.restartExistWorkloads.enabled }}
