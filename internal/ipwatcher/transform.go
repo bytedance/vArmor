@@ -23,17 +23,17 @@ import (
 func Transform(obj interface{}) (interface{}, error) {
 	switch v := obj.(type) {
 	case *corev1.Pod:
-		return TransformPodFunc(v)
+		return transformPodFunc(v)
 	case *corev1.Service:
-		return TransformServiceFunc(v)
+		return transformServiceFunc(v)
 	case *discoveryv1.EndpointSlice:
-		return TransformEndpointSliceFunc(v)
+		return transformEndpointSliceFunc(v)
 	default:
 		return obj, nil
 	}
 }
 
-func TransformPodFunc(obj interface{}) (interface{}, error) {
+func transformPodFunc(obj interface{}) (interface{}, error) {
 	if pod, ok := obj.(*corev1.Pod); ok {
 		return &corev1.Pod{
 			TypeMeta: pod.TypeMeta,
@@ -52,7 +52,7 @@ func TransformPodFunc(obj interface{}) (interface{}, error) {
 	return obj, nil
 }
 
-func TransformServiceFunc(obj interface{}) (interface{}, error) {
+func transformServiceFunc(obj interface{}) (interface{}, error) {
 	if svc, ok := obj.(*corev1.Service); ok {
 		return &corev1.Service{
 			TypeMeta: svc.TypeMeta,
@@ -71,7 +71,7 @@ func TransformServiceFunc(obj interface{}) (interface{}, error) {
 	return obj, nil
 }
 
-func TransformEndpointSliceFunc(obj interface{}) (interface{}, error) {
+func transformEndpointSliceFunc(obj interface{}) (interface{}, error) {
 	if eps, ok := obj.(*discoveryv1.EndpointSlice); ok {
 		return &discoveryv1.EndpointSlice{
 			TypeMeta: eps.TypeMeta,

@@ -30,7 +30,7 @@ behaviorModeling:
   enabled: false
 
 podServiceEgressControl:
-  enabled: false
+  enabled: true
 
 unloadAllAaProfiles:
   enabled: false

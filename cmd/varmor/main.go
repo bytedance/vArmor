@@ -30,7 +30,6 @@ import (
 	"github.com/rs/zerolog"
 	"go.uber.org/automaxprocs/maxprocs"
 	"golang.org/x/sys/unix"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kubeinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/util/retry"
@@ -377,27 +376,23 @@ func main() {
 			os.Exit(1)
 		}
 
+		// Create an IPWatcher to watch the Pod and Service IP changes.
+		// It uses the IP that matches the egress rules of policies to update the armorprofile.
+		// It's only run by the leader.
+		//
+		// Please note that only the BPF enforcer supports restricting container access to specific
+		// Pods and Services currently. After the AppArmor enforcer is adapted to AppArmor 4.0, it
+		// will also support this feature.
 		egressCache := make(map[string]varmortypes.EgressInfo)
 		egressCacheMutex := &sync.RWMutex{}
 		var ipWatcher *ipwatcher.IPWatcher
-
 		if enablePodServiceEgressControl && enableBpfEnforcer {
-			// Create an IPWatcher to watch the Pod and Service IP changes.
-			// It uses the IP that matches the egress rules of policies to update the armorprofile.
-			// It's only run by the leader.
-			//
-			// Please note that only the BPF enforcer supports restricting container access to specific
-			// Pods and Services currently. After the AppArmor enforcer is adapted to AppArmor 4.0, it
-			// will also support this feature.
 			factory := kubeinformers.NewSharedInformerFactoryWithOptions(kubeClient, ipResyncPeriod, kubeinformers.WithTransform(ipwatcher.Transform))
 			ipWatcher, err = ipwatcher.NewIPWatcher(
 				varmorClient.CrdV1beta1(),
-				kubeClient.CoreV1().Pods(metav1.NamespaceAll),
-				kubeClient.CoreV1().Services(metav1.NamespaceAll),
 				factory.Core().V1().Pods(),
 				factory.Core().V1().Services(),
 				factory.Discovery().V1().EndpointSlices(),
-				statusSvc.StatusManager,
 				egressCache,
 				egressCacheMutex,
 				log.Log.WithName("IP-WATCHER"))
