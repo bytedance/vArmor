@@ -50,15 +50,6 @@ The BPF enforcer can be enabled when the system supports BPF LSM. Default: disab
 --set bpfLsmEnforcer.enabled=true
 ```
 
-#### Enable Pod and Service Egress Control
-This feature extends network access control to restrict container access to specific Pods and Services. Default: disabled.
-
-```bash
---set podServiceEgressControl.enabled=true
-```
-
-This feature is currently only supported by the BPF enforcer and requires Kubernetes v1.21 or higher.
-
 #### Enable the BehaviorModeling Mode
 This is an experimental feature. Currently, only the AppArmor and Seccomp enforcers support the BehaviorModeling mode. Please refer to the [BehaviorModeling Mode](../guides/policies_and_rules/policy_modes/behavior_modeling.md) for more details. Default: disabled.
 
@@ -120,6 +111,15 @@ vArmor allows users to decide whether to perform a rolling restart on all target
 ```bash
 --set restartExistWorkloads.enabled=false
 ```
+
+#### Disable Pod and Service Egress Control
+The feature extends network access control to restrict container access to specific Pods and Services. You can use the following option to disable it. Default: enabled.
+
+```bash
+--set podServiceEgressControl.enabled=false
+```
+
+The feature is currently only supported by the BPF enforcer and requires Kubernetes v1.21 or higher.
 
 #### Run Agent in HostNetwork Mode
 The agent runs in its own network namespace and exposes the readinessProbe on port `6080` by default. If you want to run it in the host's network namespace, you can use following options.

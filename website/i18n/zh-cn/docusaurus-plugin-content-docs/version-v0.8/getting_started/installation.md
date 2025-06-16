@@ -52,15 +52,6 @@ helm install varmor varmor-0.7.1.tgz \
 --set bpfLsmEnforcer.enabled=true
 ```
 
-#### 开启 Pod 和 Service 出口控制
-此功能扩展了网络访问控制，以限制容器对特定 Pod 和 Service 的访问。默认值：关闭。
-
-```bash
---set podServiceEgressControl.enabled=true
-```
-
-当前仅 BPF enforcer 支持此功能，并且需要 Kubernetes v1.21 及以上版本。
-
 #### 开启 BehaviorModeling 模式
 这是一个实验性质的功能。当前只有 AppArmor 和 Seccomp enforcer 支持 BehaviorModeling 模式。请参考  [BehaviorModeling Mode](../guides/policies_and_rules/policy_modes/behavior_modeling.md) 了解更多细节。默认值：关闭。
 
@@ -123,6 +114,15 @@ vArmor 只会对包含此 label 的 Workloads 开启沙箱防护。你可以使�
 ```bash
 --set restartExistWorkloads.enabled=false
 ```
+
+#### 关闭 Pod 和 Service 出口控制
+此功能扩展了网络访问控制，以限制容器对特定 Pod 和 Service 的访问。您可以使用下面的选项关闭它。默认值：开启。
+
+```bash
+--set podServiceEgressControl.enabled=false
+```
+
+当前仅 BPF enforcer 支持此功能，并且需要 Kubernetes v1.21 及以上版本。
 
 #### 在宿主机网络命名空间中运行 Agent
 vArmor 的 Agent 默认运行在独立的网络命名空间中，并在端口 `6080` 暴露就绪探针。如果您想将其部署在宿主网络命名空间中，那么可以使用下面的选项进行配置。

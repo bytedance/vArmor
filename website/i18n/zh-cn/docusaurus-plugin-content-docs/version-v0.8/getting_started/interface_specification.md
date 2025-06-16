@@ -131,7 +131,7 @@ description: vArmor 的接口规范。
 <br />- 在同一字段内，多个规则间也处于逻辑“或”关系。
 <br />- 针对同一 Pod、Service、IP 的重叠规则可能会导致意外的端口组合或冲突。
 <br />- 系统不保证对重叠目标进行重复数据删除或冲突解决。用户必须确保这些字段中的规则不会重复定义相同的 Pod、Service、IP，以避免出现不可预测的流量控制行为。
-<br />- toServices 和 toPods 规则仅在开启 **podServiceEgressControl 特性**时生效，详见[开启 Pod 和 Service 出口控制](../getting_started/installation.md#开启-pod-和-service-出口控制)。
+<br />- toServices 和 toPods 规则仅在 Kubernetes 版本为 1.21 或更高版本时生效。
 
 ### Destination
 
