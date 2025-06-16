@@ -565,8 +565,12 @@ func generateRawNetworkEgressRule(
 		return nil, fmt.Errorf("failed to generate network egress rule for bolocking access destinations. error: %w", err)
 	}
 
-	if !enablePodServiceEgressControl {
+	if len(rule.ToPods) == 0 && len(rule.ToServices) == 0 {
 		return nil, nil
+	}
+
+	if (len(rule.ToPods) != 0 || len(rule.ToServices) != 0) && !enablePodServiceEgressControl {
+		return nil, fmt.Errorf("the PodServiceEgressControl feature is required to generate network egress rule for Pods and Services")
 	}
 
 	egressInfo := varmortypes.EgressInfo{}
