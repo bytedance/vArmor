@@ -134,8 +134,8 @@
 
 | 字段 | 描述 |
 |-----|------|
-|ip<br />*string*|可选字段。IP 在特定 IP 上定义此规则。请使用有效的 IP 文本表示形式，或诸如 `pod-self`、`unspecified` 或 `localhost` 特殊实体。请注意，ip 字段和 cidr 字段是互斥的。|
-|cidr<br />*string*|可选字段。CIDR 在特定的无类别域间路由上定义了此规则。请注意，IP 字段和无类别域间路由字段是互斥的。<br /><br />- pod-self: 一个表示 Pod 自身 IP 地址的实体。对于 IPv4 和 IPv6，每个 Pod 最多可分配 1 个地址。<br />- unspecified: 一种表示全零地址的实体，具体来说，就是0.0.0.0和::。 它的全称是未指定地址（Unspecified Address），指的是绑定到所有接口。<br />- localhost: 一种代表环回地址的实体，具体来说，就是 127.0.0.1 和 ::1。|
+|ip<br />*string*|可选字段。IP 在特定 IP 上定义此规则。请使用有效的 IP 文本表示形式，或诸如 `pod-self`、`unspecified` 或 `localhost` 特殊实体。请注意，ip 字段和 cidr 字段是互斥的。<br /><br />- pod-self: 表示 Pod 自身 IP 地址的实体。对于 IPv4 和 IPv6，每个 Pod 最多可分配 1 个地址。<br />- unspecified: 表示全零地址的实体，具体来说，就是 0.0.0.0 和 ::。 它的全称是未指定地址（Unspecified Address），指的是绑定到所有接口。<br />- localhost: 代表环回地址的实体，具体来说，就是 127.0.0.1 和 ::1。|
+|cidr<br />*string*|可选字段。CIDR 在特定的无类别域间路由上定义了此规则。请注意，IP 字段和无类别域间路由字段是互斥的。|
 |ports<br />*[Port](#port) array*|可选字段。Ports 在特定端口上定义此规则。此列表中的每个条目使用逻辑 “或” 进行组合。如果此字段为空或不存在，则此规则匹配所有端口。如果此字段存在且至少包含一个条目，则此规则匹配列表中的所有端口。|
 
 ### Service
