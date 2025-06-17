@@ -353,7 +353,14 @@ func generateHardeningRules(content *varmor.BpfContent, mode uint32, privileged 
 	return nil
 }
 
-func generateVulMitigationRules(content *varmor.BpfContent, mode uint32, rule string) error {
+func generateVulMitigationRules(
+	kubeClient *kubernetes.Clientset,
+	content *varmor.BpfContent,
+	mode uint32,
+	rule string,
+	enablePodServiceEgressControl bool,
+	egressInfo *varmortypes.EgressInfo) error {
+
 	rule = strings.ToLower(rule)
 	rule = strings.ReplaceAll(rule, "_", "-")
 
@@ -388,6 +395,29 @@ func generateVulMitigationRules(content *varmor.BpfContent, mode uint32, rule st
 			return err
 		}
 		content.Files = append(content.Files, *fileContent)
+	case "ingress-nightmare-mitigation":
+		if enablePodServiceEgressControl {
+			service, err := generateRawNetworkEgressRuleForServices(kubeClient, content, mode, varmor.Service{
+				Namespace: "ingress-nginx",
+				Name:      "ingress-nginx-controller-admission",
+			})
+			if err != nil {
+				return fmt.Errorf("failed to generate network egress rule for blocking access to the ingress-nginx/ingress-nginx-controller-admission service. error: %w", err)
+			}
+			if service != nil {
+				egressInfo.ToServices = append(egressInfo.ToServices, *service)
+			}
+			service, err = generateRawNetworkEgressRuleForServices(kubeClient, content, mode, varmor.Service{
+				Namespace: "kube-system",
+				Name:      "ingress-nginx-controller-admission",
+			})
+			if err != nil {
+				return fmt.Errorf("failed to generate network egress rule for blocking access to the kube-system/ingress-nginx-controller-admission service. error: %w", err)
+			}
+			if service != nil {
+				egressInfo.ToServices = append(egressInfo.ToServices, *service)
+			}
+		}
 	}
 	return nil
 }
@@ -643,7 +673,7 @@ func GenerateEnhanceProtectProfile(
 
 	// Vulnerability Mitigation
 	for _, rule := range enhanceProtect.VulMitigationRules {
-		err = generateVulMitigationRules(bpfContent, mode, rule)
+		err = generateVulMitigationRules(kubeClient, bpfContent, mode, rule, enablePodServiceEgressControl, egressInfo)
 		if err != nil {
 			return err
 		}
