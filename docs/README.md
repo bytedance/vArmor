@@ -17,10 +17,10 @@ vArmor is a cloud-native container sandbox system. It leverages Linux's [AppArmo
 **vArmor Features:**
 * Cloud-Native. vArmor follows the Kubernetes Operator design pattern, allowing users to harden specific workloads by manipulating the [CRD API](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/). This approach enables sandboxing of containerized microservices from a perspective closely aligned with business needs.
 * Multiple Enforcers. vArmor abstracts AppArmor, BPF, and Seccomp as enforcers, supporting their use individually or in combination. This enables enforcing access control on container file access, process execution, network outbound, syscalls, and more.
-* Allow-by-Default. vArmor currently focuses on supporting this model, where only explicitly declared behaviors will be blocked, which effectively minimizes performance impact and enhances usability. Besides, it supports auditing behaviors that violate the access control rules, and the violation behaviors can also be allowed instead of being blocked.
+* Allow-by-Default. vArmor currently focuses on supporting this model, where only explicitly declared behaviors will be blocked, which effectively minimizes performance impact and enhances usability. Besides, it supports auditing violations, and these violations can also be allowed rather than blocked.
 * Built-in Rules. vArmor features a range of built-in rules ready to use out of the box. They are designed for the Allow-by-Default security model, eliminating the need for expertise in security profile creation.
-* Behavior Modeling. vArmor supports behavior modeling for workloads. This can be used for developing an allowlist profile, analyze which built-in rules can harden the application, or guide the configuration of workloads to adhere to the principle of least privilege.
-* Deny-by-Default. vArmor is capable of creating an allowlist profile from behavior models and ensuring that only explicitly declared behaviors are permitted.
+* Behavior Modeling. vArmor features a range of built-in rules ready to use out of the box. They are designed for the Allow-by-Default security model, eliminating the need for expertise in security profile creation.
+* Deny-by-Default. vArmor is capable of using allowlist profiles to harden workloads and provide a more user-friendly approach to develop and manage profiles.
 
 vArmor was created by the **Elkeid Team** of the endpoint security department at ByteDance. And the project is still in active development.
 

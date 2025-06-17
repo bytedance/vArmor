@@ -36,29 +36,29 @@ helm install varmor varmor-0.7.1.tgz \
 vArmor allows you to configure its functionality during installation using the helm command.
 
 ### General Options
-#### Disable AppArmor enforcer
+#### Disable AppArmor Enforcer
 The AppArmor enforcer should be disabled when the system doesn't support AppArmor LSM. Default: enabled.
 
 ```bash
 --set appArmorLsmEnforcer.enabled=false
 ```
 
-#### Enable BPF enforcer
+#### Enable BPF Enforcer
 The BPF enforcer can be enabled when the system supports BPF LSM. Default: disabled.
 
 ```bash
 --set bpfLsmEnforcer.enabled=true
 ```
 
-#### Enable the BehaviorModeling mode
+#### Enable the BehaviorModeling Mode
 This is an experimental feature. Currently, only the AppArmor and Seccomp enforcers support the BehaviorModeling mode. Please refer to the [BehaviorModeling Mode](../guides/policies_and_rules/policy_modes/behavior_modeling.md) for more details. Default: disabled.
 
 ```bash
 --set behaviorModeling.enabled=true
 ```
 
-#### Configure the search list of audit logs
-vArmor sequentially checks whether the audit logs exist and monitors the first valid file to consume AppArmor and Seccomp audit events for the violation auditing and behavioral modeling features. If you are using *auditd*, the audit events of AppArmor and Seccomp will be stored by default in `/var/log/audit/audit.log`. Otherwise they will be stored in `/var/log/kern.log`. 
+#### Configure the Search List for System Audit Logs
+vArmor sequentially checks whether the system audit logs exist and monitors the first valid file to consume AppArmor and Seccomp audit events for the violation auditing and behavioral modeling features. If you are using *auditd*, the audit events of AppArmor and Seccomp will be stored by default in `/var/log/audit/audit.log`. Otherwise they will be stored in `/var/log/kern.log`. 
 
 You can use the option to specify the audit logs or determine the search order yourself. Please use a vertical bar to separate file paths. Default: `/var/log/audit/audit.log|/var/log/kern.log`.
 
@@ -66,7 +66,7 @@ You can use the option to specify the audit logs or determine the search order y
 --set "agent.args={--auditLogPaths=FILE_PATH|FILE_PATH}"
 ```
 
-#### Configure metrics
+#### Configure Metrics
 You can enable metrics to monitor the operation of vArmor. All metrics are exposed at the `/metric` endpoint on port `8081` of every manager instance. Default: disabled.
 
 ```bash
@@ -79,29 +79,49 @@ You can use the following command to create a `ServiceMonitor` object in the nam
 --set metrics.serviceMonitorEnabled=true
 ```
 
-#### Set the log output format to JSON
+#### Set the Log Output Format to JSON
 The default format of agent and manager is TEXT. You can use the following command to set it to JSON.
 
 ```bash
 --set jsonLogFormat.enabled=true
 ```
 
+#### Inject Metadata into Violation Events
+This feature enables you to inject custom metadata into violation events. It enhances the observability of vArmor's audit logs by associating violation events with environment-specific context. Default: No custom metadata.
+
+You can add key-value pairs of metadata using commands similar to the following.
+
+```bash
+--set auditEventMetadata.clusterID="ID" \ 
+--set auditEventMetadata.clusterName="NAME" \  
+--set auditEventMetadata.region="REGION"  
+```
+
 ### Advanced Options
-#### Set the match label of webhook
+#### Set the Match Label of Webhook
 vArmor will only enable sandbox protection for workloads that contain a specific label. You can set the label you want or disable this feature by using `--set 'manager.args={--webhookMatchLabel=}'`. Default: `sandbox.varmor.org/enable=true`.
 
 ```bash
 --set "manager.args={--webhookMatchLabel=KEY=VALUE}"
 ```
 
-#### Disallow restarting the existing workloads
+#### Disallow Restarting the Existing Workloads
 vArmor allows users to decide whether to perform a rolling restart on all target workloads or not, when creating or deleting a policy with the `.spec.updateExistingWorkloads` field. You can disable this feature with following option. Default: enabled.
 
 ```bash
 --set restartExistWorkloads.enabled=false
 ```
 
-#### Run Agent in hostNetwork mode
+#### Disable Pod and Service Egress Control
+The feature extends network access control to restrict container access to specific Pods and Services. You can use the following option to disable it. Default: enabled.
+
+```bash
+--set podServiceEgressControl.enabled=false
+```
+
+The feature is currently only supported by the BPF enforcer and requires Kubernetes v1.21 or higher.
+
+#### Run Agent in HostNetwork Mode
 The agent runs in its own network namespace and exposes the readinessProbe on port `6080` by default. If you want to run it in the host's network namespace, you can use following options.
 
 ```bash
@@ -109,7 +129,7 @@ The agent runs in its own network namespace and exposes the readinessProbe on po
 --set agent.network.readinessPort=HOSTPORT
 ```
 
-#### Enable exclusive mode for BPF enforcer
+#### Enable Exclusive Mode for BPF Enforcer
 If your system supports AppArmor LSM, the default AppArmor profile of container runtime will be applied to the workloads which don't have an AppArmor setting explicitly.
 You can use this option to disable the default AppArmor profile if a policy with a BPF enforcer is applied to the workload. Default: disabled.
 
@@ -117,7 +137,7 @@ You can use this option to disable the default AppArmor profile if a policy with
 --set bpfExclusiveMode.enabled=true
 ```
 
-#### Unload all AppArmor profiles
+#### Unload All AppArmor Profiles
 All AppArmor profiles managed by vArmor will not be unloaded when the Agent exits or vArmor is uninstalled.
 You can use the following option to change this behavior. Default: disabled.
 
@@ -125,7 +145,7 @@ You can use the following option to change this behavior. Default: disabled.
 --set unloadAllAaProfiles.enabled=true
 ```
 
-#### Remove all Seccomp profiles
+#### Remove All Seccomp Profiles
 All Seccomp profiles managed by vArmor will not be removed when the Agent exits or vArmor is uninstalled.
 You can use the following option to change this behavior. Default: disabled.
 
