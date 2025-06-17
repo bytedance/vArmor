@@ -353,7 +353,14 @@ func generateHardeningRules(content *varmor.BpfContent, mode uint32, privileged 
 	return nil
 }
 
-func generateVulMitigationRules(content *varmor.BpfContent, mode uint32, rule string) error {
+func generateVulMitigationRules(
+	kubeClient *kubernetes.Clientset,
+	content *varmor.BpfContent,
+	mode uint32,
+	rule string,
+	enablePodServiceEgressControl bool,
+	egressInfo *varmortypes.EgressInfo) error {
+
 	rule = strings.ToLower(rule)
 	rule = strings.ReplaceAll(rule, "_", "-")
 
@@ -388,11 +395,41 @@ func generateVulMitigationRules(content *varmor.BpfContent, mode uint32, rule st
 			return err
 		}
 		content.Files = append(content.Files, *fileContent)
+	case "ingress-nightmare-mitigation":
+		if enablePodServiceEgressControl {
+			service, err := generateRawNetworkEgressRuleForServices(kubeClient, content, mode, varmor.Service{
+				Namespace: "ingress-nginx",
+				Name:      "ingress-nginx-controller-admission",
+			})
+			if err != nil {
+				return fmt.Errorf("failed to generate network egress rule for blocking access to the ingress-nginx/ingress-nginx-controller-admission service. error: %w", err)
+			}
+			if service != nil {
+				egressInfo.ToServices = append(egressInfo.ToServices, *service)
+			}
+			service, err = generateRawNetworkEgressRuleForServices(kubeClient, content, mode, varmor.Service{
+				Namespace: "kube-system",
+				Name:      "ingress-nginx-controller-admission",
+			})
+			if err != nil {
+				return fmt.Errorf("failed to generate network egress rule for blocking access to the kube-system/ingress-nginx-controller-admission service. error: %w", err)
+			}
+			if service != nil {
+				egressInfo.ToServices = append(egressInfo.ToServices, *service)
+			}
+		}
 	}
 	return nil
 }
 
-func generateAttackProtectionRules(content *varmor.BpfContent, mode uint32, rule string) error {
+func generateAttackProtectionRules(
+	kubeClient *kubernetes.Clientset,
+	content *varmor.BpfContent,
+	mode uint32,
+	rule string,
+	enablePodServiceEgressControl bool,
+	egressInfo *varmortypes.EgressInfo) error {
+
 	var fileContent *varmor.FileContent
 	var networkContent *varmor.NetworkContent
 	var err error
@@ -444,7 +481,7 @@ func generateAttackProtectionRules(content *varmor.BpfContent, mode uint32, rule
 			return err
 		}
 		content.Files = append(content.Files, *fileContent)
-	case "disallow-metadata-service":
+	case "block-access-to-metadata-service", "disallow-metadata-service":
 		// For Aliyun, Volc Engine, etc.
 		networkContent, err = newBpfNetworkConnectRule(mode, "", "100.96.0.96", 0, 0, nil)
 		if err != nil {
@@ -583,6 +620,19 @@ func generateAttackProtectionRules(content *varmor.BpfContent, mode uint32, rule
 			return err
 		}
 		content.Networks = append(content.Networks, *networkContent)
+	case "block-access-to-kube-apiserver":
+		if enablePodServiceEgressControl {
+			service, err := generateRawNetworkEgressRuleForServices(kubeClient, content, mode, varmor.Service{
+				Namespace: "default",
+				Name:      "kubernetes",
+			})
+			if err != nil {
+				return fmt.Errorf("failed to generate network egress rule for blocking access to the kube-apiserver. error: %w", err)
+			}
+			if service != nil {
+				egressInfo.ToServices = append(egressInfo.ToServices, *service)
+			}
+		}
 	}
 	return nil
 }
@@ -591,8 +641,10 @@ func GenerateEnhanceProtectProfile(
 	kubeClient *kubernetes.Clientset,
 	enhanceProtect *varmor.EnhanceProtect,
 	bpfContent *varmor.BpfContent,
-	enablePodServiceEgressControl bool) (egressInfo *varmortypes.EgressInfo, err error) {
+	enablePodServiceEgressControl bool,
+	egressInfo *varmortypes.EgressInfo) error {
 
+	var err error
 	var mode uint32
 
 	if enhanceProtect.AuditViolations {
@@ -607,7 +659,7 @@ func GenerateEnhanceProtectProfile(
 	if !enhanceProtect.Privileged {
 		err = GenerateRuntimeDefaultProfile(bpfContent, mode)
 		if err != nil {
-			return nil, err
+			return err
 		}
 	}
 
@@ -615,15 +667,15 @@ func GenerateEnhanceProtectProfile(
 	for _, rule := range enhanceProtect.HardeningRules {
 		err = generateHardeningRules(bpfContent, mode, enhanceProtect.Privileged, rule)
 		if err != nil {
-			return nil, err
+			return err
 		}
 	}
 
 	// Vulnerability Mitigation
 	for _, rule := range enhanceProtect.VulMitigationRules {
-		err = generateVulMitigationRules(bpfContent, mode, rule)
+		err = generateVulMitigationRules(kubeClient, bpfContent, mode, rule, enablePodServiceEgressControl, egressInfo)
 		if err != nil {
-			return nil, err
+			return err
 		}
 	}
 
@@ -631,9 +683,9 @@ func GenerateEnhanceProtectProfile(
 	for _, attackProtectionRule := range enhanceProtect.AttackProtectionRules {
 		if len(attackProtectionRule.Targets) == 0 {
 			for _, rule := range attackProtectionRule.Rules {
-				err = generateAttackProtectionRules(bpfContent, mode, rule)
+				err = generateAttackProtectionRules(kubeClient, bpfContent, mode, rule, enablePodServiceEgressControl, egressInfo)
 				if err != nil {
-					return nil, err
+					return err
 				}
 			}
 		}
@@ -641,31 +693,31 @@ func GenerateEnhanceProtectProfile(
 
 	// Custom
 	if enhanceProtect.BpfRawRules != nil {
-		egressInfo, err = generateCustomRules(kubeClient, enhanceProtect, bpfContent, mode, enablePodServiceEgressControl)
+		err = generateCustomRules(kubeClient, enhanceProtect, bpfContent, mode, enablePodServiceEgressControl, egressInfo)
 		if err != nil {
-			return nil, err
+			return err
 		}
 	}
 
 	if len(bpfContent.Files) > bpfenforcer.MaxBpfFileRuleCount {
-		return nil, fmt.Errorf("the maximum number of BPF file rules exceeded (max: %d, expected: %d)",
+		return fmt.Errorf("the maximum number of BPF file rules exceeded (max: %d, expected: %d)",
 			bpfenforcer.MaxBpfFileRuleCount, len(bpfContent.Files))
 	}
 
 	if len(bpfContent.Processes) > bpfenforcer.MaxBpfBprmRuleCount {
-		return nil, fmt.Errorf("the maximum number of BPF bprm rules exceeded (max: %d, expected: %d)",
+		return fmt.Errorf("the maximum number of BPF bprm rules exceeded (max: %d, expected: %d)",
 			bpfenforcer.MaxBpfBprmRuleCount, len(bpfContent.Processes))
 	}
 
 	if len(bpfContent.Networks) > bpfenforcer.MaxBpfNetworkRuleCount {
-		return nil, fmt.Errorf("the maximum number of BPF network rules exceeded (max: %d, expected: %d)",
+		return fmt.Errorf("the maximum number of BPF network rules exceeded (max: %d, expected: %d)",
 			bpfenforcer.MaxBpfNetworkRuleCount, len(bpfContent.Networks))
 	}
 
 	if len(bpfContent.Mounts) > bpfenforcer.MaxBpfMountRuleCount {
-		return nil, fmt.Errorf("the maximum number of BPF mount rules exceeded (max: %d, expected: %d)",
+		return fmt.Errorf("the maximum number of BPF mount rules exceeded (max: %d, expected: %d)",
 			bpfenforcer.MaxBpfMountRuleCount, len(bpfContent.Mounts))
 	}
 
-	return egressInfo, nil
+	return nil
 }

@@ -20,6 +20,7 @@ import (
 	"gotest.tools/assert"
 
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
+	varmortypes "github.com/bytedance/vArmor/internal/types"
 	"github.com/bytedance/vArmor/pkg/lsm/bpfenforcer"
 )
 
@@ -33,7 +34,7 @@ func TestGenerateRawNetworkEgressRule_1(t *testing.T) {
 	}
 
 	bpfContent := &varmor.BpfContent{}
-	_, err := generateRawNetworkEgressRule(nil, bpfContent, 0, &rule, false)
+	err := generateRawNetworkEgressRule(nil, bpfContent, 0, &rule, false, &varmortypes.EgressInfo{})
 	assert.NilError(t, err)
 	assert.Equal(t, len(bpfContent.Networks), 1)
 	assert.Equal(t, uint32(bpfenforcer.Ipv6Match|bpfenforcer.PreciseMatch), bpfContent.Networks[0].Flags)
@@ -55,7 +56,7 @@ func TestGenerateRawNetworkEgressRule_2(t *testing.T) {
 	}
 
 	bpfContent := &varmor.BpfContent{}
-	_, err := generateRawNetworkEgressRule(nil, bpfContent, 0, &rule, false)
+	err := generateRawNetworkEgressRule(nil, bpfContent, 0, &rule, false, &varmortypes.EgressInfo{})
 	assert.NilError(t, err)
 	assert.Equal(t, len(bpfContent.Networks), 1)
 	assert.Equal(t, bpfContent.Networks[0].Flags, uint32(bpfenforcer.Ipv4Match|bpfenforcer.PreciseMatch|bpfenforcer.PortMatch))
@@ -77,7 +78,7 @@ func TestGenerateRawNetworkEgressRule_3(t *testing.T) {
 	}
 
 	bpfContent := &varmor.BpfContent{}
-	_, err := generateRawNetworkEgressRule(nil, bpfContent, 0, &rule, false)
+	err := generateRawNetworkEgressRule(nil, bpfContent, 0, &rule, false, &varmortypes.EgressInfo{})
 	assert.NilError(t, err)
 	assert.Equal(t, len(bpfContent.Networks), 1)
 	assert.Equal(t, bpfContent.Networks[0].Flags, uint32(bpfenforcer.PortMatch|bpfenforcer.Ipv4Match|bpfenforcer.Ipv6Match))
@@ -99,7 +100,7 @@ func TestGenerateRawNetworkEgressRule_4(t *testing.T) {
 	}
 
 	bpfContent := &varmor.BpfContent{}
-	_, err := generateRawNetworkEgressRule(nil, bpfContent, 0, &rule, false)
+	err := generateRawNetworkEgressRule(nil, bpfContent, 0, &rule, false, &varmortypes.EgressInfo{})
 	assert.NilError(t, err)
 	assert.Equal(t, len(bpfContent.Networks), 1)
 	assert.Equal(t, bpfContent.Networks[0].Flags, uint32(bpfenforcer.PortRangeMatch|bpfenforcer.Ipv4Match|bpfenforcer.Ipv6Match))
@@ -127,7 +128,7 @@ func TestGenerateRawNetworkEgressRule_5(t *testing.T) {
 	}
 
 	bpfContent := &varmor.BpfContent{}
-	_, err := generateRawNetworkEgressRule(nil, bpfContent, 0, &rule, false)
+	err := generateRawNetworkEgressRule(nil, bpfContent, 0, &rule, false, &varmortypes.EgressInfo{})
 	assert.NilError(t, err)
 	assert.Equal(t, len(bpfContent.Networks), 1)
 	assert.Equal(t, bpfContent.Networks[0].Flags, uint32(bpfenforcer.PortsMatch|bpfenforcer.Ipv4Match|bpfenforcer.Ipv6Match))
@@ -150,7 +151,7 @@ func TestGenerateRawNetworkEgressRule_6(t *testing.T) {
 	}
 
 	bpfContent := &varmor.BpfContent{}
-	_, err := generateRawNetworkEgressRule(nil, bpfContent, 0, &rule, false)
+	err := generateRawNetworkEgressRule(nil, bpfContent, 0, &rule, false, &varmortypes.EgressInfo{})
 	assert.NilError(t, err)
 	assert.Equal(t, len(bpfContent.Networks), 1)
 	assert.Equal(t, bpfContent.Networks[0].Flags, uint32(bpfenforcer.Ipv4Match|bpfenforcer.PreciseMatch|bpfenforcer.PortRangeMatch))
@@ -180,7 +181,7 @@ func TestGenerateRawNetworkEgressRule_7(t *testing.T) {
 	}
 
 	bpfContent := &varmor.BpfContent{}
-	_, err := generateRawNetworkEgressRule(nil, bpfContent, 0, &rule, false)
+	err := generateRawNetworkEgressRule(nil, bpfContent, 0, &rule, false, &varmortypes.EgressInfo{})
 	assert.NilError(t, err)
 	assert.Equal(t, len(bpfContent.Networks), 1)
 	assert.Equal(t, bpfContent.Networks[0].Flags, uint32(bpfenforcer.Ipv4Match|bpfenforcer.PreciseMatch|bpfenforcer.PortsMatch))
@@ -199,7 +200,7 @@ func TestGenerateRawNetworkEgressRule_8(t *testing.T) {
 	}
 
 	bpfContent := &varmor.BpfContent{}
-	_, err := generateRawNetworkEgressRule(nil, bpfContent, 0, &rule, false)
+	err := generateRawNetworkEgressRule(nil, bpfContent, 0, &rule, false, &varmortypes.EgressInfo{})
 	assert.NilError(t, err)
 	assert.Equal(t, len(bpfContent.Networks), 2)
 	assert.Equal(t, bpfContent.Networks[0].Flags, uint32(bpfenforcer.Ipv4Match|bpfenforcer.PreciseMatch|bpfenforcer.PortsMatch))
@@ -235,7 +236,7 @@ func TestGenerateRawNetworkEgressRule_9(t *testing.T) {
 	}
 
 	bpfContent := &varmor.BpfContent{}
-	_, err := generateRawNetworkEgressRule(nil, bpfContent, 0, &rule, false)
+	err := generateRawNetworkEgressRule(nil, bpfContent, 0, &rule, false, &varmortypes.EgressInfo{})
 	assert.NilError(t, err)
 	assert.Equal(t, len(bpfContent.Networks), 2)
 	assert.Equal(t, bpfContent.Networks[0].Flags, uint32(bpfenforcer.Ipv4Match|bpfenforcer.CidrMatch|bpfenforcer.PortRangeMatch))
@@ -278,7 +279,7 @@ func TestGenerateRawNetworkEgressRule_10(t *testing.T) {
 	}
 
 	bpfContent := &varmor.BpfContent{}
-	_, err := generateRawNetworkEgressRule(nil, bpfContent, 0, &rule, false)
+	err := generateRawNetworkEgressRule(nil, bpfContent, 0, &rule, false, &varmortypes.EgressInfo{})
 	assert.NilError(t, err)
 	assert.Equal(t, len(bpfContent.Networks), 3)
 	assert.Equal(t, bpfContent.Networks[0].Flags, uint32(bpfenforcer.Ipv4Match|bpfenforcer.PreciseMatch|bpfenforcer.PortRangeMatch))
@@ -315,7 +316,7 @@ func TestGenerateRawNetworkEgressRule_11(t *testing.T) {
 	}
 
 	bpfContent := &varmor.BpfContent{}
-	_, err := generateRawNetworkEgressRule(nil, bpfContent, 0, &rule, false)
+	err := generateRawNetworkEgressRule(nil, bpfContent, 0, &rule, false, &varmortypes.EgressInfo{})
 	assert.NilError(t, err)
 	assert.Equal(t, len(bpfContent.Networks), 1)
 	assert.Equal(t, bpfContent.Networks[0].Flags, uint32(bpfenforcer.PreciseMatch|bpfenforcer.Ipv4Match|bpfenforcer.Ipv6Match|bpfenforcer.PortsMatch))
@@ -338,7 +339,7 @@ func TestGenerateRawNetworkEgressRule_12(t *testing.T) {
 	}
 
 	bpfContent := &varmor.BpfContent{}
-	_, err := generateRawNetworkEgressRule(nil, bpfContent, 0, &rule, false)
+	err := generateRawNetworkEgressRule(nil, bpfContent, 0, &rule, false, &varmortypes.EgressInfo{})
 	assert.NilError(t, err)
 	assert.Equal(t, len(bpfContent.Networks), 1)
 	assert.Equal(t, bpfContent.Networks[0].Flags, uint32(bpfenforcer.PodSelfIpMatch|bpfenforcer.Ipv4Match|bpfenforcer.Ipv6Match|bpfenforcer.PortMatch))

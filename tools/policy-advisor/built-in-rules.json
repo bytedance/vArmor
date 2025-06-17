@@ -583,7 +583,7 @@
       }
     },
     {
-      "id": "disallow-metadata-service",
+      "id": "block-access-to-metadata-service",
       "enforcers": ["bpf"]
     }
   ],
@@ -655,6 +655,19 @@
       "conflicts": {
         "executions": ["su", "sudo"]
       }
+    },
+    {
+      "id": "block-access-to-kube-apiserver",
+      "enforcers": ["bpf"],
+      "conflicts": {
+        "features": ["require-sa"],
+        "files": [
+          {
+            "path_regex": "\/run\/secrets\/kubernetes.io\/serviceaccount\/",
+            "permissions": ["r"]
+          }
+        ]
+      }
     }
   ],
   "vulnerability_mitigation": [
@@ -689,6 +702,10 @@
         "syscalls": ["splice"]
       },
       "applicable": {}
+    },
+    {
+      "id": "ingress-nightmare-mitigation",
+      "enforcers": ["bpf"]
     }
   ]
 }
