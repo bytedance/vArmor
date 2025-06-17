@@ -358,7 +358,7 @@ description: 针对容器环境中渗透手法的规则。
 禁止访问 kube-apiserver。
 
 :::note[Description]
-此规则禁止容器进程访问kube-apiserver，包括两个内网地址：默认命名空间中 kubernetes 服务的 ClusterIP 及其端点。
+此规则禁止容器进程访问 kube-apiserver，包括两个内网地址：默认命名空间中 kubernetes 服务的 ClusterIP 及其端点。
 
 攻击者在获得容器内的代码执行权限或存在 SSRF 漏洞时，可能会尝试访问 kube-apiserver 以进行敏感操作。在某些情况下，攻击者可能会获取敏感信息或提升权限。 
 :::
