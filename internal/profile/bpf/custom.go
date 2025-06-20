@@ -425,7 +425,6 @@ func generateRawNetworkEgressRuleForPods(
 	}
 	podList, err := kubeClient.CoreV1().Pods(toPod.Namespace).List(context.TODO(), metav1.ListOptions{
 		LabelSelector:   podSelector.String(),
-		FieldSelector:   "status.phase=Running",
 		ResourceVersion: "0",
 	})
 	if err != nil {

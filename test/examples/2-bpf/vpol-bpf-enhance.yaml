@@ -37,6 +37,9 @@ spec:
       - rules:
         - disable-write-etc
         - mitigate-sa-leak
+        - block-access-to-kube-apiserver
+      vulMitigationRules:
+      - ingress-nightmare-mitigation
       bpfRawRules:
         processes:
         - pattern: "**ping"
@@ -68,12 +71,6 @@ spec:
                 matchLabels:
                   app: demo-3
             toServices:
-            - name: kubernetes
-              namespace: default
-            - name: ingress-nginx-controller-admission
-              namespace: ingress-nginx
-            - name: ingress-nginx-controller-admission
-              namespace: kube-system
             - serviceSelector:
                 matchLabels:
                   app: nginx
