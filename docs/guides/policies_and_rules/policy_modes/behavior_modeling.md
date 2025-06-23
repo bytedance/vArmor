@@ -27,13 +27,6 @@ The requirements for the BehaviorModeling mode are as follows.
 
    * [Optional] Use the `--set "agent.args={--auditLogPaths=FILE_PATH|FILE_PATH}"` argument to specify the audit log file or determine the search order yourself.
 
-    ```
-    helm upgrade varmor varmor-0.7.1.tgz \
-        --namespace varmor --create-namespace \
-        --set image.registry="elkeid-cn-beijing.cr.volces.com" \
-        --set behaviorModeling.enabled=true
-    ```
-    
     *Note:* 
     * *vArmor sequentially checks whether the files `/var/log/audit/audit.log` and `/var/log/kern.log` exist, and monitors the first valid file to consume AppArmor and Seccomp audit events for violation auditing and behavioral modeling. If you are using **auditd**, the audit events of AppArmor and Seccomp will be stored by default in `/var/log/audit/audit.log`. Otherwise they will be stored in `/var/log/kern.log`.*
 
