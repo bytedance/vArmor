@@ -48,7 +48,7 @@ const config = {
       /** @type {import('@docusaurus/preset-classic').Options} */
       ({
         docs: {
-          lastVersion: 'v0.7',
+          lastVersion: 'v0.8',
           versions: {
             current: {
               label: 'main',
@@ -68,7 +68,7 @@ const config = {
             'v0.8': {
               label: 'v0.8',
               path: 'v0.8',
-              banner: 'unreleased',
+              banner: 'none',
             }
           },
           sidebarPath: './sidebars.js',
