@@ -27,3 +27,13 @@ ObservationMode:
   label: Observation Mode
   permalink: /observationmode
   description: Observation Mode
+
+NewFeatures:
+  label: New Features
+  permalink: /newfeatures
+  description: New Features
+
+ReleaseNotes:
+  label: Release Notes
+  permalink: /releasenotes
+  description: Release Notes
