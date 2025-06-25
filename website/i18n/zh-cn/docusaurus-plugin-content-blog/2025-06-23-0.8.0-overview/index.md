@@ -92,7 +92,7 @@ vArmor 的 EnhanceProtect 模式支持仅告警不拦截（观察模式）、拦
     --set auditEventMetadata.region="REGION"  
     ```
 
-    Log Example:
+    日志示例：
     ```json
     {
       "level": "warn",
