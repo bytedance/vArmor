@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package statusmanagerv1 implements version v1 of status manager to handle the status from agents.
 package statusmanagerv1
 
 import (

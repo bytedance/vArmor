@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package recorder records the events of AppArmor and Seccomp, and the events from processtracer
 package recorder
 
 import (

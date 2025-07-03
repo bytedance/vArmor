@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package audit is used to audit the violations of target containers
+// Package audit is used to audit the violations of target containers, and
+// send the audit event to subscribers.
 package audit
 
 import (

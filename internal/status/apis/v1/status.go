@@ -40,9 +40,9 @@ const (
 func (m *StatusManager) Status(c *gin.Context) {
 	logger := m.log.WithName("Status()")
 
-	reqBody, err := getHttpBody(c)
+	reqBody, err := getHTTPBody(c)
 	if err != nil {
-		logger.Error(err, "getHttpBody()")
+		logger.Error(err, "getHTTPBody()")
 		c.JSON(http.StatusBadRequest, nil)
 		return
 	}

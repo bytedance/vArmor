@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package preprocessor processes the audit events of AppArmor and Seccomp
 package preprocessor
 
 import (
@@ -146,13 +147,13 @@ func (p *DataPreprocessor) gatherTargetPIDs() {
 				// Add child's tgid
 				p.addTargetPID(event.ChildTgid)
 				// Add child's mnt ns id if it's in a new mnt namespace
-				if !p.containTargetMnt(event.MntNsId) {
-					p.addTargetMnt(event.MntNsId)
+				if !p.containTargetMnt(event.MntNsID) {
+					p.addTargetMnt(event.MntNsID)
 				}
 				continue
 			}
 
-			if p.containTargetMnt(event.MntNsId) &&
+			if p.containTargetMnt(event.MntNsID) &&
 				!p.containTargetPID(event.ChildTgid) {
 				p.addTargetPID(event.ChildTgid)
 				continue
@@ -252,7 +253,7 @@ func (p *DataPreprocessor) processAuditRecords() error {
 	return nil
 }
 
-// Preprocess the audit records with the pid list of target container
+// Process the audit records with the pid list of target container
 func (p *DataPreprocessor) Process() []byte {
 	defaultData := fmt.Sprintf("{\"namespace\":\"%s\",\"armorProfile\":\"%s\",\"nodeName\":\"%s\",\"dynamicResult\":{},\"status\":\"succeeded\",\"message\":\"\"}",
 		p.namespace, p.profileName, p.nodeName)

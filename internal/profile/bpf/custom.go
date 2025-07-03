@@ -309,7 +309,7 @@ func generateRawNetworkSocketRule(bpfContent *varmor.BpfContent, mode uint32, ru
 	return nil
 }
 
-func GenerateRawNetworkEgressRuleWithIpCidrPorts(bpfContent *varmor.BpfContent, mode uint32, CIDR string, IP string, Ports []varmor.Port) error {
+func GenerateRawNetworkEgressRuleWithIPCidrPorts(bpfContent *varmor.BpfContent, mode uint32, CIDR string, IP string, Ports []varmor.Port) error {
 	var ports []uint16
 	var portRanges []varmor.Port
 
@@ -387,16 +387,16 @@ func GenerateRawNetworkEgressRuleWithIpCidrPorts(bpfContent *varmor.BpfContent, 
 func generateRawNetworkEgressRuleForDestinations(bpfContent *varmor.BpfContent, mode uint32, destinations []varmor.Destination) error {
 	for _, destination := range destinations {
 		if destination.IP == varmor.LocalhostIP {
-			err := GenerateRawNetworkEgressRuleWithIpCidrPorts(bpfContent, mode, destination.CIDR, "127.0.0.1", destination.Ports)
+			err := GenerateRawNetworkEgressRuleWithIPCidrPorts(bpfContent, mode, destination.CIDR, "127.0.0.1", destination.Ports)
 			if err != nil {
 				return err
 			}
-			err = GenerateRawNetworkEgressRuleWithIpCidrPorts(bpfContent, mode, destination.CIDR, "::1", destination.Ports)
+			err = GenerateRawNetworkEgressRuleWithIPCidrPorts(bpfContent, mode, destination.CIDR, "::1", destination.Ports)
 			if err != nil {
 				return err
 			}
 		} else {
-			err := GenerateRawNetworkEgressRuleWithIpCidrPorts(bpfContent, mode, destination.CIDR, destination.IP, destination.Ports)
+			err := GenerateRawNetworkEgressRuleWithIPCidrPorts(bpfContent, mode, destination.CIDR, destination.IP, destination.Ports)
 			if err != nil {
 				return err
 			}
@@ -440,7 +440,7 @@ func generateRawNetworkEgressRuleForPods(
 
 	// generate rules with pods' IPs
 	for _, IP := range IPs {
-		err := GenerateRawNetworkEgressRuleWithIpCidrPorts(bpfContent, mode, "", IP, toPod.Ports)
+		err := GenerateRawNetworkEgressRuleWithIPCidrPorts(bpfContent, mode, "", IP, toPod.Ports)
 		if err != nil {
 			return nil, err
 		}
@@ -490,7 +490,7 @@ func generateRawNetworkEgressRuleForServices(
 		// Generate rules for the services
 		for _, service := range serviceList.Items {
 			for _, ip := range service.Spec.ClusterIPs {
-				err := GenerateRawNetworkEgressRuleWithIpCidrPorts(bpfContent, mode, "", ip, []varmor.Port{})
+				err := GenerateRawNetworkEgressRuleWithIPCidrPorts(bpfContent, mode, "", ip, []varmor.Port{})
 				if err != nil {
 					return nil, err
 				}
@@ -510,7 +510,7 @@ func generateRawNetworkEgressRuleForServices(
 
 		// Generate rules for the service
 		for _, ip := range service.Spec.ClusterIPs {
-			err := GenerateRawNetworkEgressRuleWithIpCidrPorts(bpfContent, mode, "", ip, []varmor.Port{})
+			err := GenerateRawNetworkEgressRuleWithIPCidrPorts(bpfContent, mode, "", ip, []varmor.Port{})
 			if err != nil {
 				return nil, err
 			}
@@ -543,7 +543,7 @@ func generateRawNetworkEgressRuleForServices(
 		}
 
 		for _, ip := range ips {
-			err := GenerateRawNetworkEgressRuleWithIpCidrPorts(bpfContent, mode, "", ip, ports)
+			err := GenerateRawNetworkEgressRuleWithIPCidrPorts(bpfContent, mode, "", ip, ports)
 			if err != nil {
 				return nil, err
 			}

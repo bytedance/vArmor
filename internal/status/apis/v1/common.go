@@ -33,7 +33,7 @@ import (
 	varmorinterface "github.com/bytedance/vArmor/pkg/client/clientset/versioned/typed/varmor/v1beta1"
 )
 
-func getHttpBody(c *gin.Context) ([]byte, error) {
+func getHTTPBody(c *gin.Context) ([]byte, error) {
 	var body []byte
 
 	if c.Request.Body == nil {
