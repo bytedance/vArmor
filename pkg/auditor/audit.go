@@ -202,7 +202,7 @@ func (auditor *Auditor) readFromAuditLogFile() {
 
 // setRateLimit set the printk_ratelimit to 0 for recording the audit logs of AppArmor and Seccomp.
 func (auditor *Auditor) setRateLimit() error {
-	rateLimit, err := sysctl_read(ratelimitSysctl)
+	rateLimit, err := sysctlRead(ratelimitSysctl)
 	if err != nil {
 		return err
 	}
@@ -211,7 +211,7 @@ func (auditor *Auditor) setRateLimit() error {
 		return err
 	}
 	if auditor.savedRateLimit != 0 {
-		return sysctl_write(ratelimitSysctl, 0)
+		return sysctlWrite(ratelimitSysctl, 0)
 	}
 	return nil
 }
@@ -219,7 +219,7 @@ func (auditor *Auditor) setRateLimit() error {
 // restoreRateLimit recover the printk_ratelimit to previous value.
 func (auditor *Auditor) restoreRateLimit() error {
 	if auditor.savedRateLimit != 0 {
-		return sysctl_write(ratelimitSysctl, auditor.savedRateLimit)
+		return sysctlWrite(ratelimitSysctl, auditor.savedRateLimit)
 	}
 	return nil
 }

@@ -53,9 +53,9 @@ type AppArmorEvent struct {
 	Task           uint64 `json:"task"`
 	MagicToken     uint64 `json:"magicToken"`
 	Epoch          int64  `json:"epoch"`
-	AuditSubId     uint32 `json:"auditSubId"`
+	AuditSubID     uint32 `json:"auditSubID"`
 	BitMask        int32  `json:"bitMask"`
-	AuditId        string `json:"auditID"`
+	AuditID        string `json:"auditID"`
 	Operation      string `json:"operation"`
 	DeniedMask     string `json:"deniedMask"`
 	RequestedMask  string `json:"requestedMask"`
