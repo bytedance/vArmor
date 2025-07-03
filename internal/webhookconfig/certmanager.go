@@ -15,6 +15,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package webhookconfig implements the webhook register and cert manager for the admission webhook.
 package webhookconfig
 
 import (

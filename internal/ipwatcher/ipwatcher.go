@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package ipwatcher watches the IP and port changes of pods, services and endpointslices
 package ipwatcher
 
 import (

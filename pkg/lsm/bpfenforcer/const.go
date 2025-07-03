@@ -50,8 +50,8 @@ const (
 	// the size of `struct mount_rule` in BPF code for consistent map entry size.
 	MountRuleSize = 4*3 + MaxFileSystemTypeLength + PathPatternSize
 
-	// IpAddressSize is the size of IP address and mask.
-	IpAddressSize = 16
+	// IPAddressSize is the size of IP address and mask.
+	IPAddressSize = 16
 
 	// MaxPortsCount is the maximum count of ports in network rule,
 	// it's equal to PORTS_COUNT_MAX in BPF code
@@ -59,7 +59,7 @@ const (
 
 	// NetRuleSize is the size of bpfNetworkRule structure, which must match
 	// the size of `struct net_rule` in BPF code for consistent map entry size.
-	NetRuleSize = 4*2 + 8*3 + 2*(2+MaxPortsCount) + IpAddressSize*2
+	NetRuleSize = 4*2 + 8*3 + 2*(2+MaxPortsCount) + IPAddressSize*2
 
 	// PinPath is the path we want to pin the maps
 	PinPath = "/sys/fs/bpf/varmor"
@@ -86,7 +86,7 @@ const (
 	SocketMatch    = 0x00000200
 	PortRangeMatch = 0x00000400
 	PortsMatch     = 0x00000800
-	PodSelfIpMatch = 0x00001000
+	PodSelfIPMatch = 0x00001000
 
 	// Matching Permissions
 	AaMayExec     = 0x00000001

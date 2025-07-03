@@ -15,6 +15,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package tls implements the certificate renewer for the admission webhook
 package tls
 
 import (
@@ -248,7 +249,7 @@ func (c *CertRenewer) InitTLSPemPair() (*PemPair, error) {
 	return c.buildTLSPemPairAndWriteToSecrets(certProps)
 }
 
-// RollingUpdate triggers a rolling update of varmor-manager pod.
+// RollingUpdateVarmorManager triggers a rolling update of varmor-manager pod.
 // It is used when the rootCA is renewed, the restart of
 // varmor-manager pod will register webhook server with new cert.
 func (c *CertRenewer) RollingUpdateVarmorManager() error {

@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package profile generates the AppArmor/Seccomp/BPF profiles for policies
 package profile
 
 import (

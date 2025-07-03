@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package bpfenforcer manages the BPF programs and interacts with them through the BPF maps
 package bpfenforcer
 
 import (
@@ -139,11 +140,11 @@ func (enforcer *BpfEnforcer) initBPF() error {
 	collectionSpec.Maps["v_mount_outer"].InnerMap = &mountInnerMap
 
 	// Set the mnt ns id to the BPF program
-	initMntNsId, err := varmorutils.ReadMntNsID(1)
+	initMntNsID, err := varmorutils.ReadMntNsID(1)
 	if err != nil {
 		return err
 	}
-	collectionSpec.Variables["init_mnt_ns"].Set(initMntNsId)
+	collectionSpec.Variables["init_mnt_ns"].Set(initMntNsID)
 
 	// Load pre-compiled programs and maps into the kernel.
 	if err := os.MkdirAll(PinPath, os.ModePerm); err != nil {

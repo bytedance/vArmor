@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package utils implements the utils for vArmor.
 package utils
 
 import (

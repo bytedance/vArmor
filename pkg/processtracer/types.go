@@ -6,7 +6,7 @@ type BpfProcessEvent struct {
 	ParentTgid uint32
 	ChildPid   uint32
 	ChildTgid  uint32
-	MntNsId    uint32
+	MntNsID    uint32
 	ParentTask [16]uint8
 	ChildTask  [16]uint8
 	Filename   [64]uint8
