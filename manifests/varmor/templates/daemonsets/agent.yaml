@@ -40,18 +40,6 @@ spec:
         image: "{{ .Values.image.registry }}/{{ .Values.image.namespace }}/{{ .Values.agent.image.name }}:{{ .Values.agent.image.tag | default .Chart.AppVersion }}"
         imagePullPolicy: {{ .Values.agent.image.pullPolicy }}
         command: ["/varmor/vArmor", "--agent"]
-        env:
-        - name: NODE_NAME
-          valueFrom:
-            fieldRef:
-              apiVersion: v1
-              fieldPath: spec.nodeName
-        - name: READINESS_PORT
-          value: "{{ .Values.agent.network.readinessPort }}"
-        {{- if .Values.auditEventMetadata }}
-        - name: AUDIT_EVENT_METADATA
-          value: '{{- toJson .Values.auditEventMetadata}}'
-        {{- end }}
         {{- if or .Values.jsonLogFormat.enabled .Values.agent.args .Values.behaviorModeling.enabled .Values.bpfLsmEnforcer.enabled .Values.unloadAllAaProfiles.enabled .Values.removeAllSeccompProfiles.enabled }}
         args:
           {{- if .Values.jsonLogFormat.enabled }}
@@ -84,6 +72,18 @@ spec:
               {{- toYaml . | nindent 8 }}
             {{- end }}
           {{- end }}
+        {{- end }}
+        env:
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: spec.nodeName
+        - name: READINESS_PORT
+          value: "{{ .Values.agent.network.readinessPort }}"
+        {{- if .Values.auditEventMetadata }}
+        - name: AUDIT_EVENT_METADATA
+          value: '{{- toJson .Values.auditEventMetadata}}'
         {{- end }}
         securityContext:
           {{- with .Values.agent.securityContext }}

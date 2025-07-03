@@ -83,7 +83,7 @@ func NewAuditor(nodeName string, appArmorSupported, bpfLsmSupported, enableBehav
 		filePermissionMap:      initFilePermissionMap(),
 		ptracePermissionMap:    initPtracePermissionMap(),
 		mountFlagMap:           initMountFlagMap(),
-		auditEventMetadata:     loadAuditEventMetadata(),
+		auditEventMetadata:     LoadAuditEventMetadata(),
 		log:                    log,
 	}
 

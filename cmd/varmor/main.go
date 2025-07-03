@@ -86,7 +86,7 @@ var (
 	gitCommit                     string
 	buildDate                     string
 	goVersion                     string
-	setupLog                      = log.Log.WithName("SETUP")
+	logger                        = log.Log
 )
 
 func setLogger() {
@@ -107,6 +107,19 @@ func setLogger() {
 	}
 	log.SetLogger(logrLogger)
 	klog.SetLogger(logrLogger)
+
+	if id, ok := config.AuditEventMetadata["accountId"]; ok {
+		logger = logger.WithValues("accountId", id)
+	}
+	if region, ok := config.AuditEventMetadata["region"]; ok {
+		logger = logger.WithValues("region", region)
+	}
+	if id, ok := config.AuditEventMetadata["clusterId"]; ok {
+		logger = logger.WithValues("clusterId", id)
+	}
+	if name, ok := config.AuditEventMetadata["clusterName"]; ok {
+		logger = logger.WithValues("clusterName", name)
+	}
 }
 
 func main() {
@@ -146,7 +159,7 @@ func main() {
 	if webhookMatchLabel != "" {
 		labelKvs := strings.Split(webhookMatchLabel, "=")
 		if len(labelKvs) != 2 {
-			setupLog.Error(fmt.Errorf("format error"), "failed to parse the --webhookMatchLabel argument, the valid format is key=value or nil")
+			logger.WithName("SETUP").Error(fmt.Errorf("format error"), "failed to parse the --webhookMatchLabel argument, the valid format is key=value or nil")
 			os.Exit(1)
 		}
 		config.WebhookSelectorLabel[labelKvs[0]] = labelKvs[1]
@@ -157,20 +170,20 @@ func main() {
 
 	clientConfig, err := config.CreateClientConfig(kubeconfig, clientRateLimitQPS, clientRateLimitBurst, log.Log)
 	if err != nil {
-		setupLog.Error(err, "config.CreateClientConfig()")
+		logger.WithName("SETUP").Error(err, "config.CreateClientConfig()")
 		os.Exit(1)
 	}
 
 	kubeClient, err := kubernetes.NewForConfig(clientConfig)
 	if err != nil {
-		setupLog.Error(err, "kubernetes.NewForConfig()")
+		logger.WithName("SETUP").Error(err, "kubernetes.NewForConfig()")
 		os.Exit(1)
 	}
 
 	// vArmor CRD CLIENT, access CRD resources: ArmorProfile & VarmorPolicy
 	varmorClient, err := varmorclient.NewForConfig(clientConfig)
 	if err != nil {
-		setupLog.Error(err, "varmorclient.NewForConfig()")
+		logger.WithName("SETUP").Error(err, "varmorclient.NewForConfig()")
 		os.Exit(1)
 	}
 
@@ -180,13 +193,13 @@ func main() {
 	// Gather APIServer version
 	config.ServerVersion, err = kubeClient.ServerVersion()
 	if err != nil {
-		setupLog.Error(err, "kubeClient.ServerVersion()")
+		logger.WithName("SETUP").Error(err, "kubeClient.ServerVersion()")
 		os.Exit(1)
 	}
 
 	config.AppArmorGA, err = varmorutils.IsAppArmorGA(config.ServerVersion)
 	if err != nil {
-		setupLog.Error(err, "varmorutils.IsAppArmorGA()")
+		logger.WithName("SETUP").Error(err, "varmorutils.IsAppArmorGA()")
 		os.Exit(1)
 	}
 
@@ -197,16 +210,16 @@ func main() {
 	}
 
 	// init a metrics
-	metricsModule := metrics.NewMetricsModule(log.Log.WithName("METRICS"), enableMetrics, 10)
+	metricsModule := metrics.NewMetricsModule(logger.WithName("METRICS"), enableMetrics, 10)
 
 	if agent {
-		setupLog.Info("vArmor agent startup")
+		logger.WithName("SETUP").Info("vArmor agent startup")
 
 		// RemoveMemlock requires the write permission for /proc/sys/kernel/printk_ratelimit
 		if inContainer {
 			err = unix.Unmount("/proc/sys", 0)
 			if err != nil {
-				setupLog.Error(err, "unix.Unmount(\"/proc/sys\", 0)")
+				logger.WithName("SETUP").Error(err, "unix.Unmount(\"/proc/sys\", 0)")
 				os.Exit(1)
 			}
 		}
@@ -226,31 +239,31 @@ func main() {
 			auditLogPaths,
 			stopCh,
 			metricsModule,
-			log.Log.WithName("AGENT"),
+			logger.WithName("AGENT"),
 		)
 		if err != nil {
-			setupLog.Error(err, "agent.NewAgent()")
+			logger.WithName("SETUP").Error(err, "agent.NewAgent()")
 			os.Exit(1)
 		}
 		varmorFactory.Start(stopCh)
 		go agentCtrl.Run(1, stopCh)
 
 		// Wait for the manager to be ready.
-		setupLog.Info("Waiting for the manager to be ready")
+		logger.WithName("SETUP").Info("Waiting for the manager to be ready")
 		varmorutils.WaitForManagerReady(inContainer, managerIP, config.StatusServicePort)
 
 		// Set the agent to ready.
 		varmorutils.SetAgentReady()
 
-		setupLog.Info("vArmor agent is online")
+		logger.WithName("SETUP").Info("vArmor agent is online")
 
 		<-stopCh
 
 		agentCtrl.CleanUp()
-		setupLog.Info("vArmor agent shutdown successful")
+		logger.WithName("SETUP").Info("vArmor agent shutdown successful")
 
 	} else {
-		setupLog.Info("vArmor manager startup")
+		logger.WithName("SETUP").Info("vArmor manager startup")
 
 		// leader election context
 		leaderCtx, cancel := context.WithCancel(context.Background())
@@ -264,7 +277,7 @@ func main() {
 		cacher, _ := policycacher.NewPolicyCacher(
 			varmorFactory.Crd().V1beta1().VarmorClusterPolicies(),
 			varmorFactory.Crd().V1beta1().VarmorPolicies(),
-			log.Log.WithName("POLICY-CACHER"))
+			logger.WithName("POLICY-CACHER"))
 		go cacher.Run(stopCh)
 
 		certRenewer := varmortls.NewCertRenewer(
@@ -275,7 +288,7 @@ func main() {
 			config.CertValidityDuration,
 			managerIP,
 			inContainer,
-			log.Log.WithName("CERT-RENEWER"),
+			logger.WithName("CERT-RENEWER"),
 		)
 
 		secretFactory := kubeinformers.NewSharedInformerFactoryWithOptions(kubeClient, secretResyncPeriod, kubeinformers.WithNamespace(config.Namespace))
@@ -285,7 +298,7 @@ func main() {
 			kubeClient.CoreV1().Secrets(config.Namespace),
 			secretFactory.Core().V1().Secrets(),
 			stopCh,
-			log.Log.WithName("CERT-MANAGER"),
+			logger.WithName("CERT-MANAGER"),
 		)
 		secretFactory.Start(stopCh)
 
@@ -302,7 +315,7 @@ func main() {
 			int32(webhookTimeout),
 			inContainer,
 			stopCh,
-			log.Log.WithName("WEBHOOK-CONFIG"),
+			logger.WithName("WEBHOOK-CONFIG"),
 		)
 		mwcFactory.Start(stopCh)
 
@@ -313,7 +326,7 @@ func main() {
 			// Only leader registers the MutatingWebhookConfiguration object.
 			err = webhookRegister.Register()
 			if err != nil {
-				setupLog.Error(err, "webhookRegister.Register()")
+				logger.WithName("SETUP").Error(err, "webhookRegister.Register()")
 				os.Exit(1)
 			}
 		}
@@ -323,9 +336,9 @@ func main() {
 			kubeClient,
 			registerWebhookConfigurations,
 			nil,
-			log.Log.WithName("webhook-register/LeaderElection"))
+			logger.WithName("webhook-register/LeaderElection"))
 		if err != nil {
-			setupLog.Error(err, "failed to elect a leader")
+			logger.WithName("SETUP").Error(err, "failed to elect a leader")
 			os.Exit(1)
 		}
 		go webhookRegisterLeader.Run(leaderCtx)
@@ -333,7 +346,7 @@ func main() {
 		// Create a TLS key/certificate pair for the webhook server and status server
 		tlsPair, err := certManager.GetTLSPemPair()
 		if err != nil {
-			setupLog.Error(err, "Failed to get TLS key/certificate pair")
+			logger.WithName("SETUP").Error(err, "Failed to get TLS key/certificate pair")
 			os.Exit(1)
 		}
 
@@ -347,9 +360,9 @@ func main() {
 			config.WebhookServicePort,
 			bpfExclusiveMode,
 			metricsModule,
-			log.Log.WithName("WEBHOOK-SERVER"))
+			logger.WithName("WEBHOOK-SERVER"))
 		if err != nil {
-			setupLog.Error(err, "Failed to create webhook webhookServer")
+			logger.WithName("SETUP").Error(err, "Failed to create webhook webhookServer")
 			os.Exit(1)
 		}
 		go webhookServer.Run()
@@ -369,10 +382,10 @@ func main() {
 			kubeClient.AuthorizationV1(),
 			statusUpdateCycle,
 			metricsModule,
-			log.Log.WithName("STATUS-SERVICE"),
+			logger.WithName("STATUS-SERVICE"),
 		)
 		if err != nil {
-			setupLog.Error(err, "service.NewStatusService()")
+			logger.WithName("SETUP").Error(err, "service.NewStatusService()")
 			os.Exit(1)
 		}
 
@@ -395,9 +408,9 @@ func main() {
 				factory.Discovery().V1().EndpointSlices(),
 				egressCache,
 				egressCacheMutex,
-				log.Log.WithName("IP-WATCHER"))
+				logger.WithName("IP-WATCHER"))
 			if err != nil {
-				setupLog.Error(err, "ipwatcher.NewIPWatcher()")
+				logger.WithName("SETUP").Error(err, "ipwatcher.NewIPWatcher()")
 				os.Exit(1)
 			}
 			factory.Start(stopCh)
@@ -416,10 +429,10 @@ func main() {
 			enableBehaviorModeling,
 			enablePodServiceEgressControl,
 			bpfExclusiveMode,
-			log.Log.WithName("CLUSTER-POLICY"),
+			logger.WithName("CLUSTER-POLICY"),
 		)
 		if err != nil {
-			setupLog.Error(err, "policy.NewClusterPolicyController()")
+			logger.WithName("SETUP").Error(err, "policy.NewClusterPolicyController()")
 			os.Exit(1)
 		}
 
@@ -436,10 +449,10 @@ func main() {
 			enableBehaviorModeling,
 			enablePodServiceEgressControl,
 			bpfExclusiveMode,
-			log.Log.WithName("POLICY"),
+			logger.WithName("POLICY"),
 		)
 		if err != nil {
-			setupLog.Error(err, "policy.NewPolicyController()")
+			logger.WithName("SETUP").Error(err, "policy.NewPolicyController()")
 			os.Exit(1)
 		}
 
@@ -474,7 +487,7 @@ func main() {
 				}
 				err := retry.OnError(retry.DefaultRetry, retriable, tag)
 				if err != nil {
-					setupLog.Error(err, "Retag Leader failed")
+					logger.WithName("SETUP").Error(err, "Retag Leader failed")
 					os.Exit(1)
 				}
 			}
@@ -487,14 +500,14 @@ func main() {
 			signal.RequestShutdown()
 		}
 
-		leader, err := leaderelection.New("varmor-manager", config.Namespace, kubeClient, leaderRun, leaderStop, log.Log.WithName("varmor-manager/LeaderElection"))
+		leader, err := leaderelection.New("varmor-manager", config.Namespace, kubeClient, leaderRun, leaderStop, logger.WithName("varmor-manager/LeaderElection"))
 		if err != nil {
-			setupLog.Error(err, "failed to elect a leader")
+			logger.WithName("SETUP").Error(err, "failed to elect a leader")
 			os.Exit(1)
 		}
 		go leader.Run(leaderCtx)
 
-		setupLog.Info("vArmor manager is online")
+		logger.WithName("SETUP").Info("vArmor manager is online")
 
 		<-stopCh
 
@@ -504,6 +517,6 @@ func main() {
 		}
 		webhookServer.CleanUp()
 
-		setupLog.Info("vArmor manager shutdown successful")
+		logger.WithName("SETUP").Info("vArmor manager shutdown successful")
 	}
 }

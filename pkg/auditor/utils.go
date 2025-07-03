@@ -179,7 +179,7 @@ func initMountFlagMap() map[uint32]string {
 	}
 }
 
-func loadAuditEventMetadata() map[string]string {
+func LoadAuditEventMetadata() map[string]string {
 	metadata := make(map[string]string)
 	s := os.Getenv(metadataJSONEnv)
 	if s != "" {

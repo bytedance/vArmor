@@ -49,7 +49,7 @@ auditEventMetadata:
   # For example, you can add the cluster id, name, region, or any other information that is relevant to your environment.
   # clusterId: "ccvbve8igndqr18dnk0vg"
   # clusterName: "production-cluster-1"
-  # clusterRegion: "cn-beijing"
+  # region: "cn-beijing"
 
 image:
   registry: ""

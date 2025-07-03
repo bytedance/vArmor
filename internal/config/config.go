@@ -26,6 +26,8 @@ import (
 	"k8s.io/apimachinery/pkg/version"
 	rest "k8s.io/client-go/rest"
 	clientcmd "k8s.io/client-go/tools/clientcmd"
+
+	varmorauditor "github.com/bytedance/vArmor/pkg/auditor"
 )
 
 var (
@@ -133,6 +135,9 @@ var (
 
 	// ArmorProfileModelDataDirectory saves the ArmorProfileModel objects in the manager pod
 	ArmorProfileModelDataDirectory = "/var/log/varmor/apmdata"
+
+	// AuditEventMetadata caches the cluster metadata that can be injected into the logs
+	AuditEventMetadata = varmorauditor.LoadAuditEventMetadata()
 )
 
 // CreateClientConfig creates client config and applies rate limit QPS and burst
