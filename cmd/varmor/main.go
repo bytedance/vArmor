@@ -108,14 +108,14 @@ func setLogger() {
 	log.SetLogger(logrLogger)
 	klog.SetLogger(logrLogger)
 
-	if id, ok := config.AuditEventMetadata["accountId"]; ok {
-		logger = logger.WithValues("accountId", id)
+	if id, ok := config.AuditEventMetadata["accountID"]; ok {
+		logger = logger.WithValues("accountID", id)
 	}
 	if region, ok := config.AuditEventMetadata["region"]; ok {
 		logger = logger.WithValues("region", region)
 	}
-	if id, ok := config.AuditEventMetadata["clusterId"]; ok {
-		logger = logger.WithValues("clusterId", id)
+	if id, ok := config.AuditEventMetadata["clusterID"]; ok {
+		logger = logger.WithValues("clusterID", id)
 	}
 	if name, ok := config.AuditEventMetadata["clusterName"]; ok {
 		logger = logger.WithValues("clusterName", name)

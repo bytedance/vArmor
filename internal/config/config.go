@@ -12,9 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package config is used to store the configuration of vArmor
 package config
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
 	"os"
@@ -25,8 +27,6 @@ import (
 	"k8s.io/apimachinery/pkg/version"
 	rest "k8s.io/client-go/rest"
 	clientcmd "k8s.io/client-go/tools/clientcmd"
-
-	varmorauditor "github.com/bytedance/vArmor/pkg/auditor"
 )
 
 var (
@@ -139,7 +139,7 @@ var (
 	ArmorProfileModelDataDirectory = "/var/log/varmor/apmdata"
 
 	// AuditEventMetadata caches the cluster metadata that can be injected into the logs
-	AuditEventMetadata = varmorauditor.LoadAuditEventMetadata()
+	AuditEventMetadata = loadAuditEventMetadata()
 )
 
 // CreateClientConfig creates client config and applies rate limit QPS and burst
@@ -201,4 +201,14 @@ func getAgentReadinessPort() int {
 		}
 	}
 	return -1
+}
+
+func loadAuditEventMetadata() map[string]string {
+	metadata := make(map[string]string)
+	s := os.Getenv("AUDIT_EVENT_METADATA")
+	if s != "" {
+		json.Unmarshal([]byte(s), &metadata)
+	}
+	metadata["varmorNamespace"] = getPodNamespace()
+	return metadata
 }
