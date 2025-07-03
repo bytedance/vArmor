@@ -120,6 +120,8 @@ func setLogger() {
 	if name, ok := config.AuditEventMetadata["clusterName"]; ok {
 		logger = logger.WithValues("clusterName", name)
 	}
+	logger = logger.WithValues("podName", config.Name)
+	logger = logger.WithValues("podNamespace", config.Namespace)
 }
 
 func main() {
@@ -168,7 +170,7 @@ func main() {
 	inContainer := kubeconfig == ""
 	stopCh := signal.SetupSignalHandler()
 
-	clientConfig, err := config.CreateClientConfig(kubeconfig, clientRateLimitQPS, clientRateLimitBurst, log.Log)
+	clientConfig, err := config.CreateClientConfig(kubeconfig, clientRateLimitQPS, clientRateLimitBurst, logger)
 	if err != nil {
 		logger.WithName("SETUP").Error(err, "config.CreateClientConfig()")
 		os.Exit(1)

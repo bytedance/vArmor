@@ -19,7 +19,6 @@ import (
 	"math"
 	"os"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -37,8 +36,11 @@ var (
 	// appArmorGA is true if the APIServer version is 1.30 and above
 	AppArmorGA = false
 
-	// Namespace is the vArmor namespace
-	Namespace = getNamespace()
+	// Name is the name of Pod that the vArmor is running in
+	Name = getPodName()
+
+	// Namespace is the namespace of Pod that the vArmor is running in
+	Namespace = getPodNamespace()
 
 	// ManagerName is the deployment name of vArmor manager
 	ManagerName = "varmor-manager"
@@ -174,16 +176,23 @@ func createClientConfig(kubeconfig string, log logr.Logger) (*rest.Config, error
 	return clientcmd.BuildConfigFromFlags("", kubeconfig)
 }
 
-func getNamespace() string {
-	content, err := os.ReadFile("/run/secrets/kubernetes.io/serviceaccount/namespace")
-	if err != nil {
+func getPodName() string {
+	name := os.Getenv("POD_NAME")
+	if name == "" {
+		name, _ = os.Hostname()
+	}
+	return name
+}
+
+func getPodNamespace() string {
+	ns := os.Getenv("POD_NAMESPACE")
+	if ns == "" {
 		return "varmor"
 	}
-	return strings.Trim(string(content), "\n")
+	return ns
 }
 
 func getAgentReadinessPort() int {
-	os.LookupEnv("READINESS_PORT")
 	readinessPort := os.Getenv("READINESS_PORT")
 	if readinessPort != "" {
 		port, err := strconv.Atoi(readinessPort)
