@@ -144,6 +144,8 @@ func (monitor *RuntimeMonitor) retrieveContainerInfo(containerInfo *varmortypes.
 		return fmt.Errorf("spec.Annotations['io.kubernetes.cri.container-name] isn't exist")
 	}
 
+	containerInfo.Image = info.Image
+
 	return nil
 }
 

@@ -67,11 +67,12 @@ func (auditor *Auditor) processAuditEvent(event string) {
 
 		info := auditor.containerCache[mntNsID]
 		auditor.log.V(2).Info("audit event",
-			"container id", info.ContainerID,
-			"container name", info.ContainerName,
+			"pod uid", info.PodUID,
 			"pod name", info.PodName,
 			"pod namespace", info.PodNamespace,
-			"pod uid", info.PodUID,
+			"container id", info.ContainerID,
+			"container name", info.ContainerName,
+			"image", info.Image,
 			"pid", e.PID, "time", e.Epoch, "event", strings.TrimSpace(event))
 
 		// Try to parse the AppArmor profile name from the event
@@ -86,6 +87,7 @@ func (auditor *Auditor) processAuditEvent(event string) {
 				Str("podNamespace", info.PodNamespace).
 				Str("containerID", info.ContainerID).
 				Str("containerName", info.ContainerName).
+				Str("image", info.Image).
 				Uint32("pid", uint32(e.PID)).
 				Uint32("mntNsID", mntNsID).
 				Uint64("eventTimestamp", uint64(e.Epoch)).
@@ -106,6 +108,7 @@ func (auditor *Auditor) processAuditEvent(event string) {
 				Str("podNamespace", info.PodNamespace).
 				Str("containerID", info.ContainerID).
 				Str("containerName", info.ContainerName).
+				Str("image", info.Image).
 				Uint32("pid", uint32(e.PID)).
 				Uint32("mntNsID", mntNsID).
 				Uint64("eventTimestamp", uint64(e.Epoch)).
@@ -148,11 +151,12 @@ func (auditor *Auditor) processAuditEvent(event string) {
 
 			info := auditor.containerCache[mntNsID]
 			auditor.log.V(2).Info("audit event",
-				"container id", info.ContainerID,
-				"container name", info.ContainerName,
+				"pod uid", info.PodUID,
 				"pod name", info.PodName,
 				"pod namespace", info.PodNamespace,
-				"pod uid", info.PodUID,
+				"container id", info.ContainerID,
+				"container name", info.ContainerName,
+				"image", info.Image,
 				"pid", e.PID, "time", e.Epoch, "event", strings.TrimSpace(event))
 
 			// Try to parse the AppArmor profile name from the event
@@ -176,6 +180,7 @@ func (auditor *Auditor) processAuditEvent(event string) {
 				Str("podNamespace", info.PodNamespace).
 				Str("containerID", info.ContainerID).
 				Str("containerName", info.ContainerName).
+				Str("image", info.Image).
 				Uint32("pid", uint32(e.PID)).
 				Uint32("mntNsID", mntNsID).
 				Uint64("eventTimestamp", e.Epoch).
