@@ -38,10 +38,11 @@ type ContainerInfo struct {
 	ContainerID    string
 	ContainerName  string
 	PodID          string
+	PodUID         string
 	PodName        string
 	PodNamespace   string
-	PodUID         string
 	PodIPs         []string
 	PodAnnotations map[string]string
+	Image          string
 	ProfileName    string
 }
