@@ -34,8 +34,8 @@ type bpfNetworkRule struct {
 	Domains   uint64
 	Types     uint64
 	Protocols uint64
-	Address   [IpAddressSize]byte
-	Mask      [IpAddressSize]byte
+	Address   [IPAddressSize]byte
+	Mask      [IPAddressSize]byte
 	Port      uint16
 	EndPort   uint16
 	Ports     [MaxPortsCount]uint16
@@ -50,7 +50,7 @@ type bpfMountRule struct {
 	Pattern           pathPattern
 }
 
-// Audit Event
+// EventType is the type of bpf event
 type EventType uint32
 
 type BpfEvent struct {

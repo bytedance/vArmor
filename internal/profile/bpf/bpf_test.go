@@ -342,7 +342,7 @@ func TestGenerateRawNetworkEgressRule_12(t *testing.T) {
 	err := generateRawNetworkEgressRule(nil, bpfContent, 0, &rule, false, &varmortypes.EgressInfo{})
 	assert.NilError(t, err)
 	assert.Equal(t, len(bpfContent.Networks), 1)
-	assert.Equal(t, bpfContent.Networks[0].Flags, uint32(bpfenforcer.PodSelfIpMatch|bpfenforcer.Ipv4Match|bpfenforcer.Ipv6Match|bpfenforcer.PortMatch))
+	assert.Equal(t, bpfContent.Networks[0].Flags, uint32(bpfenforcer.PodSelfIPMatch|bpfenforcer.Ipv4Match|bpfenforcer.Ipv6Match|bpfenforcer.PortMatch))
 	assert.Equal(t, bpfContent.Networks[0].Address.IP, "pod-self")
 	assert.Equal(t, bpfContent.Networks[0].Address.Port, uint16(80))
 }

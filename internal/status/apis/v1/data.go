@@ -36,9 +36,9 @@ import (
 func (m *StatusManager) Data(c *gin.Context) {
 	logger := m.log.WithName("Data()")
 
-	reqBody, err := getHttpBody(c)
+	reqBody, err := getHTTPBody(c)
 	if err != nil {
-		logger.Error(err, "getHttpBody()")
+		logger.Error(err, "getHTTPBody()")
 		c.JSON(http.StatusBadRequest, nil)
 		return
 	}

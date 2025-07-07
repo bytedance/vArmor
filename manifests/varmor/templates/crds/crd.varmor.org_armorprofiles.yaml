@@ -3,8 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.11.3
-  creationTimestamp: null
+    controller-gen.kubebuilder.io/version: v0.17.3
   name: armorprofiles.crd.varmor.org
 spec:
   group: crd.varmor.org
@@ -37,18 +36,24 @@ spec:
     name: v1beta1
     schema:
       openAPIV3Schema:
-        description: ArmorProfile is the Schema for the armorprofiles API It's an
-          internal interface, used by vArmor only.
+        description: |-
+          ArmorProfile is the Schema for the armorprofiles API
+          It's an internal interface, used by vArmor only.
         properties:
           apiVersion:
-            description: 'APIVersion defines the versioned schema of this representation
-              of an object. Servers should convert recognized schemas to the latest
-              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
             type: string
           kind:
-            description: 'Kind is a string value representing the REST resource this
-              object represents. Servers may infer this from the endpoint the client
-              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
             type: string
           metadata:
             type: object
@@ -238,51 +243,51 @@ spec:
               target:
                 properties:
                   containers:
-                    description: containers are used to specify the names of the containers.
-                      If it is empty, sandbox protection will be enabled for all containers
-                      within the workload (excluding initContainers and ephemeralContainers).
+                    description: |-
+                      containers are used to specify the names of the containers. If it is empty, sandbox protection
+                      will be enabled for all containers within the workload (excluding initContainers and ephemeralContainers).
                     items:
                       type: string
                     type: array
                   kind:
-                    description: 'kind is used to specify the type of workloads for
-                      the protection targets. Available values: Deployment, StatefulSet,
-                      DaemonSet, Pod.'
+                    description: |-
+                      kind is used to specify the type of workloads for the protection targets.
+                      Available values: Deployment, StatefulSet, DaemonSet, Pod.
                     type: string
                   name:
-                    description: name is used to specify a specific workload in the
-                      policy's namespace or all namespace. Note that the name field
-                      and selector field are mutually exclusive.
+                    description: |-
+                      name is used to specify a specific workload in the policy's namespace or all namespace.
+                      Note that the name field and selector field are mutually exclusive.
                     type: string
                   selector:
-                    description: selector is a label selector which selects workloads
-                      in the policy's namespace or all namespace. This field follows
-                      standard label selector semantics. Note that the selector field
-                      and name field are mutually exclusive.
+                    description: |-
+                      selector is a label selector which selects workloads in the policy's namespace or all namespace.
+                      This field follows standard label selector semantics.
+                      Note that the selector field and name field are mutually exclusive.
                     properties:
                       matchExpressions:
                         description: matchExpressions is a list of label selector
                           requirements. The requirements are ANDed.
                         items:
-                          description: A label selector requirement is a selector
-                            that contains values, a key, and an operator that relates
-                            the key and values.
+                          description: |-
+                            A label selector requirement is a selector that contains values, a key, and an operator that
+                            relates the key and values.
                           properties:
                             key:
                               description: key is the label key that the selector
                                 applies to.
                               type: string
                             operator:
-                              description: operator represents a key's relationship
-                                to a set of values. Valid operators are In, NotIn,
-                                Exists and DoesNotExist.
+                              description: |-
+                                operator represents a key's relationship to a set of values.
+                                Valid operators are In, NotIn, Exists and DoesNotExist.
                               type: string
                             values:
-                              description: values is an array of string values. If
-                                the operator is In or NotIn, the values array must
-                                be non-empty. If the operator is Exists or DoesNotExist,
-                                the values array must be empty. This array is replaced
-                                during a strategic merge patch.
+                              description: |-
+                                values is an array of string values. If the operator is In or NotIn,
+                                the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                                the values array must be empty. This array is replaced during a strategic
+                                merge patch.
                               items:
                                 type: string
                               type: array
@@ -296,11 +301,10 @@ spec:
                       matchLabels:
                         additionalProperties:
                           type: string
-                        description: matchLabels is a map of {key,value} pairs. A
-                          single {key,value} in the matchLabels map is equivalent
-                          to an element of matchExpressions, whose key field is "key",
-                          the operator is "In", and the values array contains only
-                          "value". The requirements are ANDed.
+                        description: |-
+                          matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
+                          map is equivalent to an element of matchExpressions, whose key field is "key", the
+                          operator is "In", and the values array contains only "value". The requirements are ANDed.
                         type: object
                     type: object
                     x-kubernetes-map-type: atomic

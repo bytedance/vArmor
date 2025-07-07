@@ -84,7 +84,7 @@ func (i *IPWatcher) updateArmorProfile(policyKey string, mode uint32, addedIPs [
 				if !found {
 					updated = true
 					b := varmor.BpfContent{}
-					err = varmorbpfprofile.GenerateRawNetworkEgressRuleWithIpCidrPorts(&b, mode, "", IP, ports)
+					err = varmorbpfprofile.GenerateRawNetworkEgressRuleWithIPCidrPorts(&b, mode, "", IP, ports)
 					if err != nil {
 						continue
 					}

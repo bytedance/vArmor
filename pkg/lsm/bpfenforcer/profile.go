@@ -89,7 +89,7 @@ func (enforcer *BpfEnforcer) applyFileRules(nsID uint32, files []varmor.FileCont
 					Suffix: suffix,
 				},
 			}
-			var index uint32 = uint32(i)
+			index := uint32(i)
 			err = innerMap.Put(&index, &rule)
 			if err != nil {
 				return err
@@ -139,7 +139,7 @@ func (enforcer *BpfEnforcer) applyProcessRules(nsID uint32, processes []varmor.F
 					Suffix: suffix,
 				},
 			}
-			var index uint32 = uint32(i)
+			index := uint32(i)
 			err = innerMap.Put(&index, &rule)
 			if err != nil {
 				return err
@@ -219,7 +219,7 @@ func (enforcer *BpfEnforcer) applyNetworkRules(nsID uint32, networks []varmor.Ne
 				continue
 			}
 
-			var index uint32 = uint32(i)
+			index := uint32(i)
 			err = innerMap.Put(&index, &rule)
 			if err != nil {
 				return err
@@ -290,7 +290,7 @@ func (enforcer *BpfEnforcer) applyMountRules(nsID uint32, mounts []varmor.MountC
 			rule.Pattern.Flags = mount.Pattern.Flags
 			rule.Pattern.Prefix = prefix
 			rule.Pattern.Suffix = suffix
-			var index uint32 = uint32(i)
+			index := uint32(i)
 			err = innerMap.Put(&index, &rule)
 			if err != nil {
 				return err

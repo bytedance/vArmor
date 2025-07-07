@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package policycacher caches the VarmorPolicy and VarmorClusterPolicy objects for the admission webhook
 package policycacher
 
 import (

@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package policy implements the VarmorPolicy and VarmorClusterPolicy controllers
 package policy
 
 import (

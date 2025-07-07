@@ -212,7 +212,7 @@ func newBpfNetworkConnectRule(mode uint32, cidr string, ip string, port uint16, 
 		case "":
 			networkRule.Flags |= bpfenforcer.Ipv4Match | bpfenforcer.Ipv6Match
 		case varmor.PodSelfIP:
-			networkRule.Flags |= bpfenforcer.PodSelfIpMatch | bpfenforcer.Ipv4Match | bpfenforcer.Ipv6Match
+			networkRule.Flags |= bpfenforcer.PodSelfIPMatch | bpfenforcer.Ipv4Match | bpfenforcer.Ipv6Match
 			networkRule.Address.IP = varmor.PodSelfIP
 		case varmor.Unspecified:
 			networkRule.Flags |= bpfenforcer.PreciseMatch | bpfenforcer.Ipv4Match | bpfenforcer.Ipv6Match

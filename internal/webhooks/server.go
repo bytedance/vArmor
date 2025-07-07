@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package webhooks implements the webhook server for the admission webhook.
 package webhooks
 
 import (

@@ -71,7 +71,7 @@ endef
 # Download controller-gen locally if necessary.
 CONTROLLER_GEN = $(shell pwd)/bin/controller-gen
 controller-gen:
-	$(call go-get-tool,$(CONTROLLER_GEN),sigs.k8s.io/controller-tools/cmd/controller-gen@v0.11.3)
+	$(call go-get-tool,$(CONTROLLER_GEN),sigs.k8s.io/controller-tools/cmd/controller-gen@v0.17.3)
 
 # Download envtest-setup locally if necessary.
 ENVTEST = $(shell pwd)/bin/setup-envtest

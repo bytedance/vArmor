@@ -24,7 +24,6 @@ import "C"
 
 import (
 	"bufio"
-	"encoding/json"
 	"fmt"
 	"os"
 	"strconv"
@@ -58,7 +57,7 @@ func readBootTime() (uint64, error) {
 	return 0, fmt.Errorf("btime not found")
 }
 
-func sysctl_read(path string) (string, error) {
+func sysctlRead(path string) (string, error) {
 	content, err := os.ReadFile(path)
 	if err != nil {
 		return "", err
@@ -66,7 +65,7 @@ func sysctl_read(path string) (string, error) {
 	return strings.Trim(string(content), "\n"), nil
 }
 
-func sysctl_write(path string, value uint64) error {
+func sysctlWrite(path string, value uint64) error {
 	file, err := os.OpenFile(path, os.O_WRONLY, 0)
 	if err != nil {
 		return err
@@ -179,15 +178,6 @@ func initMountFlagMap() map[uint32]string {
 	}
 }
 
-func loadAuditEventMetadata() map[string]string {
-	metadata := make(map[string]string)
-	s := os.Getenv(metadataJSONEnv)
-	if s != "" {
-		json.Unmarshal([]byte(s), &metadata)
-	}
-	return metadata
-}
-
 func ParseAppArmorEvent(e string) (*AppArmorEvent, error) {
 	msg := C.CString(e)
 	defer C.free(unsafe.Pointer(msg))
@@ -206,9 +196,9 @@ func ParseAppArmorEvent(e string) (*AppArmorEvent, error) {
 		Task:           uint64(record.task),
 		MagicToken:     uint64(record.magic_token),
 		Epoch:          int64(record.epoch),
-		AuditSubId:     uint32(record.audit_sub_id),
+		AuditSubID:     uint32(record.audit_sub_id),
 		BitMask:        int32(record.bitmask),
-		AuditId:        C.GoString(record.audit_id),
+		AuditID:        C.GoString(record.audit_id),
 		Operation:      C.GoString(record.operation),
 		DeniedMask:     C.GoString(record.denied_mask),
 		RequestedMask:  C.GoString(record.requested_mask),

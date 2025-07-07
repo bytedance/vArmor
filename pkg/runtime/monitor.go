@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package runtime implements a monitor to watch the task events
 package runtime
 
 import (
@@ -142,6 +143,8 @@ func (monitor *RuntimeMonitor) retrieveContainerInfo(containerInfo *varmortypes.
 	} else {
 		return fmt.Errorf("spec.Annotations['io.kubernetes.cri.container-name] isn't exist")
 	}
+
+	containerInfo.Image = info.Image
 
 	return nil
 }

@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package types defines the types used in vArmor
 package types
 
 import (
@@ -37,10 +38,11 @@ type ContainerInfo struct {
 	ContainerID    string
 	ContainerName  string
 	PodID          string
+	PodUID         string
 	PodName        string
 	PodNamespace   string
-	PodUID         string
 	PodIPs         []string
 	PodAnnotations map[string]string
+	Image          string
 	ProfileName    string
 }
