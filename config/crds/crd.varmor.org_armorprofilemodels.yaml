@@ -3,8 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.11.3
-  creationTimestamp: null
+    controller-gen.kubebuilder.io/version: v0.17.3
   name: armorprofilemodels.crd.varmor.org
 spec:
   group: crd.varmor.org
@@ -34,18 +33,21 @@ spec:
     name: v1beta1
     schema:
       openAPIV3Schema:
-        description: ArmorProfileModel is the Schema for the armorprofilemodels API
-          ArmorProfileModel is used to store the behavior model and the profiles generated
-          from the DynamicResult and StaticResult.
+        description: |-
+          ArmorProfileModel is the Schema for the armorprofilemodels API
+          ArmorProfileModel is used to store the behavior model and the profiles generated from the DynamicResult and StaticResult.
         properties:
           apiVersion:
-            description: 'APIVersion defines the versioned schema of this representation
-              of an object. Servers should convert recognized schemas to the latest
-              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
             type: string
           data:
-            description: data contains the behavior model and the profiles. It is
-              used to store the DynamicResult, StaticResult and the generated profiles.
+            description: |-
+              data contains the behavior model and the profiles.
+              It is used to store the DynamicResult, StaticResult and the generated profiles.
             properties:
               dynamicResult:
                 description: DynamicResult stores the behavior data that has been
@@ -323,9 +325,12 @@ spec:
                 type: object
             type: object
           kind:
-            description: 'Kind is a string value representing the REST resource this
-              object represents. Servers may infer this from the endpoint the client
-              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
             type: string
           metadata:
             type: object
@@ -333,9 +338,9 @@ spec:
             description: status defines the observed state of ArmorProfileModel
             properties:
               completedNumber:
-                description: completedNumber is the number of results that have been
-                  received from the agents. It is used to determine whether the modeling
-                  is completed.
+                description: |-
+                  completedNumber is the number of results that have been received from the agents.
+                  It is used to determine whether the modeling is completed.
                 format: int32
                 type: integer
               conditions:
@@ -371,9 +376,9 @@ spec:
                   type: object
                 type: array
               desiredNumber:
-                description: desiredNumber is the number of desired results to be
-                  received from the agents. It is used to determine whether the modeling
-                  is completed.
+                description: |-
+                  desiredNumber is the number of desired results to be received from the agents.
+                  It is used to determine whether the modeling is completed.
                 format: int32
                 type: integer
               ready:
@@ -384,9 +389,9 @@ spec:
             - ready
             type: object
           storageType:
-            description: 'storageType indicates which storage type to use to save
-              the DynamicResult, StaticResult and profiles. Possible values: CRDInternal,
-              LocalDisk'
+            description: |-
+              storageType indicates which storage type to use to save the DynamicResult, StaticResult and profiles.
+              Possible values: CRDInternal, LocalDisk
             type: string
         required:
         - data
