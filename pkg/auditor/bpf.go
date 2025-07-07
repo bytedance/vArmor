@@ -157,11 +157,12 @@ func (auditor *Auditor) readFromAuditEventRingBuf() {
 			e = auditor.convertBpfEvent(bpfenforcer.CapabilityType, &event)
 
 			auditor.log.V(2).Info("audit event",
-				"container id", auditor.containerCache[eventHeader.MntNs].ContainerID,
-				"container name", auditor.containerCache[eventHeader.MntNs].ContainerName,
+				"pod uid", auditor.containerCache[eventHeader.MntNs].PodUID,
 				"pod name", auditor.containerCache[eventHeader.MntNs].PodName,
 				"pod namespace", auditor.containerCache[eventHeader.MntNs].PodNamespace,
-				"pod uid", auditor.containerCache[eventHeader.MntNs].PodUID,
+				"container id", auditor.containerCache[eventHeader.MntNs].ContainerID,
+				"container name", auditor.containerCache[eventHeader.MntNs].ContainerName,
+				"image", auditor.containerCache[eventHeader.MntNs].Image,
 				"pid", eventHeader.Tgid, "ktime", eventHeader.Ktime, "mnt ns", eventHeader.MntNs,
 				"capability", event.Capability)
 
@@ -177,11 +178,12 @@ func (auditor *Auditor) readFromAuditEventRingBuf() {
 			e = auditor.convertBpfEvent(bpfenforcer.FileType, &event)
 
 			auditor.log.V(2).Info("audit event",
-				"container id", auditor.containerCache[eventHeader.MntNs].ContainerID,
-				"container name", auditor.containerCache[eventHeader.MntNs].ContainerName,
+				"pod uid", auditor.containerCache[eventHeader.MntNs].PodUID,
 				"pod name", auditor.containerCache[eventHeader.MntNs].PodName,
 				"pod namespace", auditor.containerCache[eventHeader.MntNs].PodNamespace,
-				"pod uid", auditor.containerCache[eventHeader.MntNs].PodUID,
+				"container id", auditor.containerCache[eventHeader.MntNs].ContainerID,
+				"container name", auditor.containerCache[eventHeader.MntNs].ContainerName,
+				"image", auditor.containerCache[eventHeader.MntNs].Image,
 				"pid", eventHeader.Tgid, "ktime", eventHeader.Ktime, "mnt ns", eventHeader.MntNs,
 				"path", unix.ByteSliceToString(event.Path[:]), "permissions", event.Permissions)
 
@@ -197,11 +199,12 @@ func (auditor *Auditor) readFromAuditEventRingBuf() {
 			e = auditor.convertBpfEvent(bpfenforcer.BprmType, &event)
 
 			auditor.log.V(2).Info("audit event",
-				"container id", auditor.containerCache[eventHeader.MntNs].ContainerID,
-				"container name", auditor.containerCache[eventHeader.MntNs].ContainerName,
+				"pod uid", auditor.containerCache[eventHeader.MntNs].PodUID,
 				"pod name", auditor.containerCache[eventHeader.MntNs].PodName,
 				"pod namespace", auditor.containerCache[eventHeader.MntNs].PodNamespace,
-				"pod uid", auditor.containerCache[eventHeader.MntNs].PodUID,
+				"container id", auditor.containerCache[eventHeader.MntNs].ContainerID,
+				"container name", auditor.containerCache[eventHeader.MntNs].ContainerName,
+				"image", auditor.containerCache[eventHeader.MntNs].Image,
 				"pid", eventHeader.Tgid, "ktime", eventHeader.Ktime, "mnt ns", eventHeader.MntNs,
 				"path", unix.ByteSliceToString(event.Path[:]), "permissions", event.Permissions)
 
@@ -219,22 +222,24 @@ func (auditor *Auditor) readFromAuditEventRingBuf() {
 			switch event.Type {
 			case bpfenforcer.SocketType:
 				auditor.log.V(2).Info("audit event",
-					"container id", auditor.containerCache[eventHeader.MntNs].ContainerID,
-					"container name", auditor.containerCache[eventHeader.MntNs].ContainerName,
+					"pod uid", auditor.containerCache[eventHeader.MntNs].PodUID,
 					"pod name", auditor.containerCache[eventHeader.MntNs].PodName,
 					"pod namespace", auditor.containerCache[eventHeader.MntNs].PodNamespace,
-					"pod uid", auditor.containerCache[eventHeader.MntNs].PodUID,
+					"container id", auditor.containerCache[eventHeader.MntNs].ContainerID,
+					"container name", auditor.containerCache[eventHeader.MntNs].ContainerName,
+					"image", auditor.containerCache[eventHeader.MntNs].Image,
 					"pid", eventHeader.Tgid, "ktime", eventHeader.Ktime, "mnt ns", eventHeader.MntNs,
 					"domain", e.(*BpfNetworkCreateEvent).Domain,
 					"type", e.(*BpfNetworkCreateEvent).Type,
 					"protocol", e.(*BpfNetworkCreateEvent).Protocol)
 			case bpfenforcer.ConnectType:
 				auditor.log.V(2).Info("audit event",
-					"container id", auditor.containerCache[eventHeader.MntNs].ContainerID,
-					"container name", auditor.containerCache[eventHeader.MntNs].ContainerName,
+					"pod uid", auditor.containerCache[eventHeader.MntNs].PodUID,
 					"pod name", auditor.containerCache[eventHeader.MntNs].PodName,
 					"pod namespace", auditor.containerCache[eventHeader.MntNs].PodNamespace,
-					"pod uid", auditor.containerCache[eventHeader.MntNs].PodUID,
+					"container id", auditor.containerCache[eventHeader.MntNs].ContainerID,
+					"container name", auditor.containerCache[eventHeader.MntNs].ContainerName,
+					"image", auditor.containerCache[eventHeader.MntNs].Image,
 					"pid", eventHeader.Tgid, "ktime", eventHeader.Ktime, "mnt ns", eventHeader.MntNs,
 					"address", e.(*BpfNetworkConnectEvent).IP, "port", e.(*BpfNetworkConnectEvent).Port)
 			}
@@ -251,11 +256,12 @@ func (auditor *Auditor) readFromAuditEventRingBuf() {
 			e = auditor.convertBpfEvent(bpfenforcer.PtraceType, &event)
 
 			auditor.log.V(2).Info("audit event",
-				"container id", auditor.containerCache[eventHeader.MntNs].ContainerID,
-				"container name", auditor.containerCache[eventHeader.MntNs].ContainerName,
+				"pod uid", auditor.containerCache[eventHeader.MntNs].PodUID,
 				"pod name", auditor.containerCache[eventHeader.MntNs].PodName,
 				"pod namespace", auditor.containerCache[eventHeader.MntNs].PodNamespace,
-				"pod uid", auditor.containerCache[eventHeader.MntNs].PodUID,
+				"container id", auditor.containerCache[eventHeader.MntNs].ContainerID,
+				"container name", auditor.containerCache[eventHeader.MntNs].ContainerName,
+				"image", auditor.containerCache[eventHeader.MntNs].Image,
 				"pid", eventHeader.Tgid, "ktime", eventHeader.Ktime, "mnt ns", eventHeader.MntNs,
 				"permissions", event.Permissions, "externel", event.External)
 
@@ -271,11 +277,12 @@ func (auditor *Auditor) readFromAuditEventRingBuf() {
 			e = auditor.convertBpfEvent(bpfenforcer.MountType, &event)
 
 			auditor.log.V(2).Info("audit event",
-				"container id", auditor.containerCache[eventHeader.MntNs].ContainerID,
-				"container name", auditor.containerCache[eventHeader.MntNs].ContainerName,
+				"pod uid", auditor.containerCache[eventHeader.MntNs].PodUID,
 				"pod name", auditor.containerCache[eventHeader.MntNs].PodName,
 				"pod namespace", auditor.containerCache[eventHeader.MntNs].PodNamespace,
-				"pod uid", auditor.containerCache[eventHeader.MntNs].PodUID,
+				"container id", auditor.containerCache[eventHeader.MntNs].ContainerID,
+				"container name", auditor.containerCache[eventHeader.MntNs].ContainerName,
+				"image", auditor.containerCache[eventHeader.MntNs].Image,
 				"pid", eventHeader.Tgid, "ktime", eventHeader.Ktime, "mnt ns", eventHeader.MntNs,
 				"Device Name:", unix.ByteSliceToString(event.DevName[:]),
 				"FileSystem Type:", unix.ByteSliceToString(event.Type[:]), "Flags:", event.Flags)
@@ -292,6 +299,7 @@ func (auditor *Auditor) readFromAuditEventRingBuf() {
 				Str("podNamespace", auditor.containerCache[eventHeader.MntNs].PodNamespace).
 				Str("containerID", auditor.containerCache[eventHeader.MntNs].ContainerID).
 				Str("containerName", auditor.containerCache[eventHeader.MntNs].ContainerName).
+				Str("image", auditor.containerCache[eventHeader.MntNs].Image).
 				Uint32("pid", eventHeader.Tgid).
 				Uint32("mntNsID", eventHeader.MntNs).
 				Uint64("eventTimestamp", eventHeader.Ktime/uint64(time.Second)+auditor.bootTimestamp).
@@ -310,6 +318,7 @@ func (auditor *Auditor) readFromAuditEventRingBuf() {
 				Str("podNamespace", auditor.containerCache[eventHeader.MntNs].PodNamespace).
 				Str("containerID", auditor.containerCache[eventHeader.MntNs].ContainerID).
 				Str("containerName", auditor.containerCache[eventHeader.MntNs].ContainerName).
+				Str("image", auditor.containerCache[eventHeader.MntNs].Image).
 				Uint32("pid", eventHeader.Tgid).
 				Uint32("mntNsID", eventHeader.MntNs).
 				Uint64("eventTimestamp", eventHeader.Ktime/uint64(time.Second)+auditor.bootTimestamp).
