@@ -23,7 +23,6 @@ import (
 	"io"
 	"math/rand"
 	"net/http"
-	"os"
 	"reflect"
 	"strconv"
 	"strings"
@@ -152,9 +151,9 @@ func PostDataToStatusService(reqBody []byte, inContainer bool, address string, p
 	return httpsPostWithRetryAndToken(reqBody, inContainer, varmorconfig.StatusServiceName, varmorconfig.Namespace, address, port, varmorconfig.DataSyncPath, retryTimes)
 }
 
-func TagLeaderPod(podInterface corev1.PodInterface) error {
+func TagLeaderPod(podInterface corev1.PodInterface, name string) error {
 	jsonPatch := `[{"op": "add", "path": "/metadata/labels/identity", "value": "leader"}]`
-	_, err := podInterface.Patch(context.Background(), os.Getenv("HOSTNAME"), types.JSONPatchType, []byte(jsonPatch), metav1.PatchOptions{})
+	_, err := podInterface.Patch(context.Background(), name, types.JSONPatchType, []byte(jsonPatch), metav1.PatchOptions{})
 
 	return err
 }

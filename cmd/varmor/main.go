@@ -485,7 +485,7 @@ func main() {
 					if err != nil {
 						return err
 					}
-					return varmorutils.TagLeaderPod(kubeClient.CoreV1().Pods(config.Namespace))
+					return varmorutils.TagLeaderPod(kubeClient.CoreV1().Pods(config.Namespace), config.Name)
 				}
 				err := retry.OnError(retry.DefaultRetry, retriable, tag)
 				if err != nil {
