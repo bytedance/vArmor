@@ -33,7 +33,7 @@ spec:
       hostPID: true
       {{- if .Values.agent.network.hostNetwork }}
       hostNetwork: true
-      dnsPolicy: ClusterFirstWithHostNet
+      dnsPolicy: {{ .Values.agent.network.dnsPolicy }}
       {{- end}}
       containers:
       - name: {{ .Values.agent.name }}
@@ -89,12 +89,18 @@ spec:
             fieldRef:
               apiVersion: v1
               fieldPath: metadata.namespace
-        - name: READINESS_PORT
+        - name: AGENT_READINESS_PORT
           value: "{{ .Values.agent.network.readinessPort }}"
         {{- if .Values.auditEventMetadata }}
         - name: AUDIT_EVENT_METADATA
           value: '{{- toJson .Values.auditEventMetadata}}'
         {{- end }}
+        readinessProbe:
+          httpGet:
+            path: /health/readiness
+            port: {{ .Values.agent.network.readinessPort }}
+          initialDelaySeconds: 5
+          periodSeconds: 10
         securityContext:
           {{- with .Values.agent.securityContext }}
             {{- toYaml . | nindent 10 }}
@@ -137,12 +143,6 @@ spec:
         {{- else }}
           {{- toYaml .Values.agent.appArmorLsmEnforcer.resources | nindent 10 }}
         {{- end }}
-        readinessProbe:
-          httpGet:
-            path: /health/readiness
-            port: {{ .Values.agent.network.readinessPort }}
-          initialDelaySeconds: 5
-          periodSeconds: 10
       volumes:
       - hostPath:
           path: /sys/kernel/security

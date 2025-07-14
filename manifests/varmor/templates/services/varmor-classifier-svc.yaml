@@ -11,7 +11,7 @@ spec:
   ports:
   - port: 5000
     name: class
-    targetPort: 5000
+    targetPort: {{ .Values.classifier.network.servicePort }}
   selector:
      {{- include "varmor.classifier.selectorLabels" . | nindent 4 }}
 {{- end}}

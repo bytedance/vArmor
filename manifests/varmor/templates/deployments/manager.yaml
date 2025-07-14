@@ -91,24 +91,30 @@ spec:
             fieldRef:
               apiVersion: v1
               fieldPath: metadata.namespace
+        - name: STATUS_SERVICE_PORT
+          value: "{{ .Values.manager.network.statusPort }}"
+        - name: WEBHOOK_SERVICE_PORT
+          value: "{{ .Values.manager.network.webhookPort }}"
+        - name: METRICS_SERVICE_PORT
+          value: "{{ .Values.manager.network.metricsPort }}"
         {{- if .Values.auditEventMetadata }}
         - name: AUDIT_EVENT_METADATA
           value: '{{- toJson .Values.auditEventMetadata}}'
         {{- end }}
-        securityContext:
-          {{- toYaml .Values.manager.securityContext | nindent 10 }}
         ports:
         - name: webhook
-          containerPort: 3443
+          containerPort: {{ .Values.manager.network.webhookPort }}
           protocol: TCP
         - name: status
-          containerPort: 8080
+          containerPort: {{ .Values.manager.network.statusPort }}
           protocol: TCP
         {{- if .Values.metrics.enabled }}
         - name: metrics
-          containerPort: 8081
+          containerPort: {{ .Values.manager.network.metricsPort }}
           protocol: TCP
         {{- end }}
+        securityContext:
+          {{- toYaml .Values.manager.securityContext | nindent 10 }}
         {{- if .Values.behaviorModeling.enabled }}
         volumeMounts:
           {{- with .Values.manager.behaviorModeling.volumeMounts }}

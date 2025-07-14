@@ -95,6 +95,11 @@ manager:
       - MKNOD
       - NET_RAW
 
+  network:
+    statusPort: 8080
+    webhookPort: 3443
+    metricsPort: 8081
+
   args: []
 
   bpfLsmEnforcer:
@@ -196,11 +201,12 @@ agent:
       - IPC_LOCK
     runAsUser: 0
 
-  args: []
-
   network:
     hostNetwork: false
+    dnsPolicy: ClusterFirstWithHostNet
     readinessPort: 6080
+
+  args: []
 
   appArmorLsmEnforcer:
     volumeMounts:
@@ -331,6 +337,9 @@ classifier:
       drop:
       - MKNOD
       - NET_RAW
+
+  network:
+    servicePort: 5000
 
   resources: {}
     # We usually recommend not to specify default resources and to leave this as a conscious

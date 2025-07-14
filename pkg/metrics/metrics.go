@@ -16,6 +16,7 @@
 package metrics
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 
@@ -37,7 +38,7 @@ type MetricsModule struct {
 	log     logr.Logger
 }
 
-func NewMetricsModule(log logr.Logger, enabled bool, refresh int) *MetricsModule {
+func NewMetricsModule(log logr.Logger, enabled bool, refresh int, port int) *MetricsModule {
 	exporter, err := prometheus.New()
 	if err != nil {
 		log.Error(err, "failed to create Prometheus exporter")
@@ -46,11 +47,11 @@ func NewMetricsModule(log logr.Logger, enabled bool, refresh int) *MetricsModule
 	meter := provider.Meter(MeterName)
 	if enabled {
 		go func() {
-			log.Info("Serving metrics at :8081/metrics")
+			log.Info(fmt.Sprintf("Serving metrics at :%d/metrics", port))
 			http.Handle("/metrics", promhttp.Handler())
-			err := http.ListenAndServe(":8081", nil)
+			err := http.ListenAndServe(fmt.Sprintf(":%d", port), nil)
 			if err != nil {
-				log.Error(err, "failed to start metrics server")
+				log.Error(err, fmt.Sprintf("failed to start metrics server at :%d", port))
 			}
 		}()
 	}

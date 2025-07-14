@@ -34,16 +34,19 @@ spec:
       - name: {{ .Values.classifier.name }}
         image: "{{ .Values.image.registry }}/{{ .Values.image.namespace }}/{{ .Values.classifier.image.name }}:{{ .Values.classifier.image.tag | default .Chart.AppVersion }}"
         imagePullPolicy: {{ .Values.classifier.image.pullPolicy }}
-        securityContext:
-          {{- toYaml .Values.classifier.securityContext | nindent 10 }}
+        env:
+        - name: CLASSIFIER_SERVICE_PORT
+          value: "{{ .Values.classifier.network.servicePort }}"
         ports:
-        - containerPort: 5000
+        - containerPort: {{ .Values.classifier.network.servicePort }}
           name: class
           protocol: TCP
         livenessProbe:
           httpGet:
             path: /healthz
-            port: 5000
+            port: {{ .Values.classifier.network.servicePort }}
+        securityContext:
+          {{- toYaml .Values.classifier.securityContext | nindent 10 }}
         resources:
           {{- toYaml .Values.classifier.resources | nindent 10 }}
       {{- with .Values.classifier.nodeSelector }}

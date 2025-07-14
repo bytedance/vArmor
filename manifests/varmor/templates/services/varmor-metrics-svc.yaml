@@ -14,7 +14,7 @@ spec:
   type: ClusterIP
   ports:
   - port: 8081
-    targetPort: metrics
+    targetPort: {{ .Values.manager.network.metricsPort }}
     protocol: TCP
     name: metrics
   selector:

@@ -10,7 +10,7 @@ spec:
   ports:
   - port: 8080
     name: status
-    targetPort: 8080
+    targetPort: {{ .Values.manager.network.statusPort }}
   selector:
     {{- include "varmor.manager.selectorLabels" . | nindent 4 }}
     identity: leader

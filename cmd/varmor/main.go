@@ -212,7 +212,7 @@ func main() {
 	}
 
 	// init a metrics
-	metricsModule := metrics.NewMetricsModule(logger.WithName("METRICS"), enableMetrics, 10)
+	metricsModule := metrics.NewMetricsModule(logger.WithName("METRICS"), enableMetrics, 10, config.MetricsServicePort)
 
 	if agent {
 		logger.WithName("SETUP").Info("vArmor agent startup")

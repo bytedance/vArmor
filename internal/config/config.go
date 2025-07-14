@@ -49,7 +49,7 @@ var (
 	AgentName = "varmor-agent"
 
 	// AgentReadinessPort is the port of agent service
-	AgentServicePort = getAgentReadinessPort()
+	AgentReadinessPort = getAgentReadinessPort()
 
 	// AgentReadinessPath is the path for checking readness health of agent
 	AgentReadinessPath = "/health/readiness"
@@ -61,7 +61,7 @@ var (
 	ClassifierServiceName = "varmor-classifier-svc"
 
 	// ClassifierServicePort is the port of classification service
-	ClassifierServicePort = 5000
+	ClassifierServicePort = getClassifierServicePort()
 
 	// ClassifierPathClassifyPath is the path for classifing path
 	ClassifierPathClassifyPath = "/api/v1/path"
@@ -70,7 +70,7 @@ var (
 	StatusServiceName = "varmor-status-svc"
 
 	// StatusServicePort is the port of status service
-	StatusServicePort = 8080
+	StatusServicePort = getStatusServicePort()
 
 	// StatusSyncPath is the path for syncing status
 	StatusSyncPath = "/apis/v1/status"
@@ -85,7 +85,10 @@ var (
 	WebhookServiceName = "varmor-webhook-svc"
 
 	// WebhookServicePort is the port of webhook service
-	WebhookServicePort = 3443
+	WebhookServicePort = getWebhookServicePort()
+
+	// MetricsServicePort is the port of metrics service
+	MetricsServicePort = getMetricsServicePort()
 
 	// CertRenewalInterval is the renewal interval for rootCA
 	CertRenewalInterval time.Duration = 12 * time.Hour
@@ -193,14 +196,58 @@ func getPodNamespace() string {
 }
 
 func getAgentReadinessPort() int {
-	readinessPort := os.Getenv("READINESS_PORT")
+	readinessPort := os.Getenv("AGENT_READINESS_PORT")
 	if readinessPort != "" {
 		port, err := strconv.Atoi(readinessPort)
 		if err == nil && port > 1024 && port <= 65535 {
 			return port
 		}
 	}
-	return -1
+	return 6080
+}
+
+func getClassifierServicePort() int {
+	port := os.Getenv("CLASSIFIER_SERVICE_PORT")
+	if port != "" {
+		port, err := strconv.Atoi(port)
+		if err == nil && port > 1024 && port <= 65535 {
+			return port
+		}
+	}
+	return 5000
+}
+
+func getStatusServicePort() int {
+	port := os.Getenv("STATUS_SERVICE_PORT")
+	if port != "" {
+		port, err := strconv.Atoi(port)
+		if err == nil && port > 1024 && port <= 65535 {
+			return port
+		}
+	}
+	return 8080
+}
+
+func getWebhookServicePort() int {
+	port := os.Getenv("WEBHOOK_SERVICE_PORT")
+	if port != "" {
+		port, err := strconv.Atoi(port)
+		if err == nil && port > 1024 && port <= 65535 {
+			return port
+		}
+	}
+	return 3443
+}
+
+func getMetricsServicePort() int {
+	port := os.Getenv("METRICS_SERVICE_PORT")
+	if port != "" {
+		port, err := strconv.Atoi(port)
+		if err == nil && port > 1024 && port <= 65535 {
+			return port
+		}
+	}
+	return 8081
 }
 
 func loadAuditEventMetadata() map[string]string {
