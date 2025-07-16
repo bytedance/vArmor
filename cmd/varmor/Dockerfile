@@ -1,5 +1,5 @@
 ## Building AppArmor & libseccomp
-FROM debian:bookworm as apparmor-libseccomp-builder
+FROM debian:bookworm AS apparmor-libseccomp-builder
 
 LABEL maintainer="vArmor authors"
 
@@ -28,7 +28,7 @@ RUN ./autogen.sh && ./configure --prefix=/usr && \
 
 
 ## Building vArmor-ebpf
-FROM ghcr.io/cilium/ebpf-builder:1726131844 as vArmor-ebpf-builder
+FROM ghcr.io/cilium/ebpf-builder:1726131844 AS varmor-ebpf-builder
 
 RUN update-alternatives --install /usr/bin/clang clang /usr/bin/clang-17 90
 RUN update-alternatives --install /usr/bin/llvm-strip llvm-strip /usr/bin/llvm-strip-17 90
@@ -38,7 +38,7 @@ RUN make build-ebpf
 
 
 ## Building vArmor
-FROM golang:1.23-bookworm as vArmor-builder
+FROM golang:1.23-bookworm AS varmor-builder
 
 LABEL maintainer="vArmor authors"
 
@@ -53,10 +53,10 @@ COPY --from=apparmor-libseccomp-builder /usr/lib/libseccomp.* /usr/lib/
 COPY --from=apparmor-libseccomp-builder /usr/include/seccomp* /usr/include/
 COPY --from=apparmor-libseccomp-builder /usr/lib/libapparmor.* /usr/lib/
 COPY --from=apparmor-libseccomp-builder /usr/include/aalogparse /usr/include/aalogparse
-COPY --from=vArmor-ebpf-builder /varmor/vArmor-ebpf/pkg/processtracer/bpf_bpfel.go /varmor/pkg/processtracer
-COPY --from=vArmor-ebpf-builder /varmor/vArmor-ebpf/pkg/processtracer/bpf_bpfel.o /varmor/pkg/processtracer
-COPY --from=vArmor-ebpf-builder /varmor/vArmor-ebpf/pkg/bpfenforcer/bpf_bpfel.go /varmor/pkg/lsm/bpfenforcer
-COPY --from=vArmor-ebpf-builder /varmor/vArmor-ebpf/pkg/bpfenforcer/bpf_bpfel.o /varmor/pkg/lsm/bpfenforcer
+COPY --from=varmor-ebpf-builder /varmor/vArmor-ebpf/pkg/processtracer/bpf_bpfel.go /varmor/pkg/processtracer
+COPY --from=varmor-ebpf-builder /varmor/vArmor-ebpf/pkg/processtracer/bpf_bpfel.o /varmor/pkg/processtracer
+COPY --from=varmor-ebpf-builder /varmor/vArmor-ebpf/pkg/bpfenforcer/bpf_bpfel.go /varmor/pkg/lsm/bpfenforcer
+COPY --from=varmor-ebpf-builder /varmor/vArmor-ebpf/pkg/bpfenforcer/bpf_bpfel.o /varmor/pkg/lsm/bpfenforcer
 
 RUN apt-get update
 RUN apt-get install -y libseccomp2 libseccomp-dev
@@ -82,9 +82,9 @@ LABEL maintainer="vArmor authors"
 ARG TARGETARCH
 
 # Copy the varmor executable to the image
-COPY --from=vArmor-builder /output/ /varmor
+COPY --from=varmor-builder /output/ /varmor
 # Copy the AppArmor feature ABI file which used during development and testing the VarmorPolicy to the image
-COPY --from=vArmor-builder /varmor/config/apparmor.d/abi/varmor /varmor/apparmor.d/abi/varmor
+COPY --from=varmor-builder /varmor/config/apparmor.d/abi/varmor /varmor/apparmor.d/abi/varmor
 # Copy the AppArmor executables and tools to the image
 COPY --from=apparmor-libseccomp-builder /etc/apparmor/parser.conf /etc/apparmor/parser.conf
 COPY --from=apparmor-libseccomp-builder /etc/apparmor.d /varmor/apparmor.d
