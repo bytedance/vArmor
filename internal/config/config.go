@@ -250,8 +250,8 @@ func getMetricsServicePort() int {
 	return 8081
 }
 
-func loadAuditEventMetadata() map[string]string {
-	metadata := make(map[string]string)
+func loadAuditEventMetadata() map[string]interface{} {
+	metadata := make(map[string]interface{})
 	s := os.Getenv("AUDIT_EVENT_METADATA")
 	if s != "" {
 		json.Unmarshal([]byte(s), &metadata)
