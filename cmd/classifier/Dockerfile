@@ -1,4 +1,4 @@
-FROM python:3.10-slim-buster
+FROM python:3.10-slim-bookworm
 
 WORKDIR /home/varmor
 
