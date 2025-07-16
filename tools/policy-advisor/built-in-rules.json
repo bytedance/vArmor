@@ -668,6 +668,19 @@
           }
         ]
       }
+    },
+    {
+      "id": "block-access-to-container-runtime",
+      "enforcers": ["apparmor", "bpf"],
+      "conflicts": {
+        "features": ["dind"],
+        "files": [
+          {
+            "path_regex": "\/containerd.sock|\/docker.sock|\/crio.sock",
+            "permissions": ["r", "w", "a"]
+          }
+        ]
+      }
     }
   ],
   "vulnerability_mitigation": [

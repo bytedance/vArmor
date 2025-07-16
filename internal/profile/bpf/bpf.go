@@ -634,6 +634,24 @@ func generateAttackProtectionRules(
 				egressInfo.ToServices = append(egressInfo.ToServices, *service)
 			}
 		}
+	case "block-access-to-container-runtime":
+		fileContent, err = newBpfPathRule(mode, "/**/containerd.sock", bpfenforcer.AaMayRead|bpfenforcer.AaMayWrite|bpfenforcer.AaMayAppend)
+		if err != nil {
+			return err
+		}
+		content.Files = append(content.Files, *fileContent)
+
+		fileContent, err = newBpfPathRule(mode, "/**/docker.sock", bpfenforcer.AaMayRead|bpfenforcer.AaMayWrite|bpfenforcer.AaMayAppend)
+		if err != nil {
+			return err
+		}
+		content.Files = append(content.Files, *fileContent)
+
+		fileContent, err = newBpfPathRule(mode, "/**/crio.sock", bpfenforcer.AaMayRead|bpfenforcer.AaMayWrite|bpfenforcer.AaMayAppend)
+		if err != nil {
+			return err
+		}
+		content.Files = append(content.Files, *fileContent)
 	}
 	return nil
 }
