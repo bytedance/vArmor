@@ -329,7 +329,7 @@ func main() {
 		mwcFactory.Start(stopCh)
 
 		// Elect a leader to register the admission webhook configurations.
-		registerWebhookConfigurations := func() {
+		registerWebhookConfigurations := func(ctx context.Context) {
 			// Only leader initializes the secrets of CA cert and TLS pair.
 			certManager.InitTLSPemPair()
 			// Only leader registers the MutatingWebhookConfiguration object.
@@ -340,12 +340,14 @@ func main() {
 			}
 		}
 		webhookRegisterLeader, err := leaderelection.New(
+			logger.WithName("webhook-register/LeaderElection"),
 			"webhook-register",
 			config.Namespace,
 			kubeClient,
+			config.Name,
+			leaderelection.DefaultRetryPeriod,
 			registerWebhookConfigurations,
-			nil,
-			logger.WithName("webhook-register/LeaderElection"))
+			nil)
 		if err != nil {
 			logger.WithName("SETUP").Error(err, "failed to elect a leader")
 			os.Exit(1)
@@ -469,7 +471,7 @@ func main() {
 		varmorFactory.Start(stopCh)
 
 		// Wrap all controllers that need leaderelection, start them once by the leader.
-		leaderRun := func() {
+		leaderRun := func(ctx context.Context) {
 			if enablePodServiceEgressControl && enableBpfEnforcer {
 				// Only the leader watches the Pod and Service IP changes.
 				go ipWatcher.Run(1, stopCh)
@@ -509,7 +511,15 @@ func main() {
 			signal.RequestShutdown()
 		}
 
-		leader, err := leaderelection.New("varmor-manager", config.Namespace, kubeClient, leaderRun, leaderStop, logger.WithName("varmor-manager/LeaderElection"))
+		leader, err := leaderelection.New(
+			logger.WithName("varmor-manager/LeaderElection"),
+			"varmor-manager",
+			config.Namespace,
+			kubeClient,
+			config.Name,
+			leaderelection.DefaultRetryPeriod,
+			leaderRun,
+			leaderStop)
 		if err != nil {
 			logger.WithName("SETUP").Error(err, "failed to elect a leader")
 			os.Exit(1)
