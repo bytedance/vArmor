@@ -371,6 +371,30 @@ description: 针对容器环境中渗透手法的规则。
 * BPF
 :::
 
+### `block-access-to-container-runtime`
+
+禁止访问容器运行时的套接字。
+
+:::note[说明]
+此规则旨在通过禁止容器访问 Docker、containerd 和 CRI-O 的关键 Unix 域套接字，缓解由 [CVE-2024-0132](https://nvidia.custhelp.com/app/answers/detail/a_id/5582) 和 [CVE-2025-23359](https://nvidia.custhelp.com/app/answers/detail/a_id/5616) 等漏洞引发的容器逃逸风险。
+
+这些套接字是容器运行时的控制接口。正如 CVE-2024-0132 的漏洞利用所示，攻击者若突破容器隔离（例如通过漏洞将宿主机根文件系统挂载到容器内），可借助这些套接字启动特权容器、操控主机资源，进而完全攻陷主机或 Kubernetes 集群。
+:::
+
+:::info[原理与影响]
+此规则禁止容器访问 `docker.sock`、`containerd.sock` 或 `crio.sock` 文件。它针对攻击链中的关键环节：即便攻击者成功利用漏洞突破初始容器隔离（例如以只读模式挂载宿主机文件系统），通过阻断对套接字文件的访问，也能阻止其利用容器运行时来提升权限（例如启动具有完全主机访问权限的特权容器）。
+
+这种缓解措施符合 “纵深防御” 策略，侧重于阻断逃逸后的横向移动，而非仅依赖修复根源漏洞。
+
+可参考下面的链接了解更多。
+* [How Wiz found a Critical NVIDIA AI vulnerability:  Deep Dive into a container escape (CVE-2024-0132)](https://www.wiz.io/blog/nvidia-ai-vulnerability-deep-dive-cve-2024-0132)
+:::
+
+:::tip[支持的强制访问控制器]
+* AppArmor
+* BPF
+:::
+
 ## 限制特定可执行文件
 
 此规则对 “[缓解信息泄露](#mitigating-information-leakage)”、“[禁止敏感操作](#disabling-sensitive-operations)”、“[其他](#others)” 三类内置规则的使用场景进行了扩充，使用户可以只对容器内的特定可执行文件及其子进程进行限制。
