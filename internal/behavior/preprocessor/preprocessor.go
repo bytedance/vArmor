@@ -44,8 +44,7 @@ type DataPreprocessor struct {
 	bpfRecordPath   string
 	syscall         map[string]struct{}
 	behaviorData    varmortypes.BehaviorData
-	mlIP            string
-	mlPort          int
+	svcAddresses    map[string]string
 	debug           bool
 	inContainer     bool
 	debugFilePath   string
@@ -62,8 +61,7 @@ func NewDataPreprocessor(
 	enforcer string,
 	targetPIDs map[uint32]struct{},
 	targetMnts map[uint32]struct{},
-	mlIP string,
-	mlPort int,
+	svcAddresses map[string]string,
 	debug bool,
 	inContainer bool,
 	log logr.Logger) *DataPreprocessor {
@@ -79,8 +77,7 @@ func NewDataPreprocessor(
 		bpfRecordPath:   path.Join(directory, fmt.Sprintf("%s_process_records.log", name)),
 		debugFilePath:   path.Join(directory, fmt.Sprintf("%s_preprocessor_debug.log", name)),
 		syscall:         make(map[string]struct{}, 0),
-		mlIP:            mlIP,
-		mlPort:          mlPort,
+		svcAddresses:    svcAddresses,
 		debug:           debug,
 		inContainer:     inContainer,
 		log:             log,

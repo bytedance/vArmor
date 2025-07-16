@@ -226,18 +226,25 @@ func main() {
 			}
 		}
 
-		agentCtrl, err := varmoragent.NewAgent(
+		svcAddresses := make(map[string]string, 2)
+		if inContainer {
+			svcAddresses[config.StatusServiceName] = fmt.Sprintf("%s.%s:%d", config.StatusServiceName, config.Namespace, config.StatusServicePort)
+			svcAddresses[config.ClassifierServiceName] = fmt.Sprintf("%s.%s:%d", config.ClassifierServiceName, config.Namespace, config.ClassifierServicePort)
+		} else {
+			svcAddresses[config.StatusServiceName] = fmt.Sprintf("%s:%d", managerIP, config.StatusServicePort)
+			svcAddresses[config.ClassifierServiceName] = fmt.Sprintf("%s:%d", managerIP, config.ClassifierServicePort)
+		}
+
+		agent, err := varmoragent.NewAgent(
 			varmorClient.CrdV1beta1(),
 			varmorFactory.Crd().V1beta1().ArmorProfiles(),
 			enableBehaviorModeling,
 			enableBpfEnforcer,
 			unloadAllAaProfiles,
 			removeAllSeccompProfiles,
+			svcAddresses,
 			debugFlag,
 			inContainer,
-			managerIP,
-			config.StatusServicePort,
-			config.ClassifierServicePort,
 			auditLogPaths,
 			stopCh,
 			metricsModule,
@@ -248,20 +255,20 @@ func main() {
 			os.Exit(1)
 		}
 		varmorFactory.Start(stopCh)
-		go agentCtrl.Run(1, stopCh)
+		go agent.Run(1, stopCh)
 
 		// Wait for the manager to be ready.
 		logger.WithName("SETUP").Info("Waiting for the manager to be ready")
-		varmorutils.WaitForManagerReady(inContainer, managerIP, config.StatusServicePort)
+		agent.WaitForManagerReady()
 
 		// Set the agent to ready.
-		varmorutils.SetAgentReady()
+		agent.SetAgentReady()
 
 		logger.WithName("SETUP").Info("vArmor agent is online")
 
 		<-stopCh
 
-		agentCtrl.CleanUp()
+		agent.CleanUp()
 		logger.WithName("SETUP").Info("vArmor agent shutdown successful")
 
 	} else {

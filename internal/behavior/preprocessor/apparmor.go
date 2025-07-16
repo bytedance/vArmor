@@ -34,6 +34,7 @@ import (
 	"unsafe"
 
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
+	varmorconfig "github.com/bytedance/vArmor/internal/config"
 	varmorutils "github.com/bytedance/vArmor/internal/utils"
 )
 
@@ -294,9 +295,10 @@ func (p *DataPreprocessor) trimPath(path, dmask string) string {
 	}
 
 	// Replace the random pattern of path with the classifier.
-	output, err := varmorutils.RequestClassifierService([]byte(path), p.inContainer, p.mlIP, p.mlPort)
+	address := p.svcAddresses[varmorconfig.ClassifierServiceName]
+	output, err := varmorutils.HTTPPostAndGetResponseWithRetry(address, varmorconfig.ClassifierPathClassifyPath, []byte(path))
 	if err != nil {
-		p.log.Error(err, "varmorutils.RequestClassifierService() failed")
+		p.log.Error(err, "HTTPPostAndGetResponseWithRetry() failed")
 		return path
 	}
 

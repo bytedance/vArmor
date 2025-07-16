@@ -26,7 +26,6 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
-	"sync/atomic"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -39,45 +38,34 @@ import (
 	"k8s.io/client-go/util/retry"
 
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
-	varmorconfig "github.com/bytedance/vArmor/internal/config"
 	varmorinterface "github.com/bytedance/vArmor/pkg/client/clientset/versioned/typed/varmor/v1beta1"
 )
 
 const (
-	httpTimeout    = 3 * time.Second
-	retryTimes     = 5
-	httpsServerURL = "https://%s.%s:%d%s"
-	httpsDebugURL  = "https://%s:%d%s"
-	serverURL      = "http://%s.%s:%d%s"
-	debugServerURL = "http://%s:%d%s"
+	httpTimeout = 3 * time.Second
+	retryTimes  = 5
 )
 
-func httpsPostWithRetryAndToken(reqBody []byte, inContainer bool, service string, namespace string, address string, port int, path string, retryTimes int) error {
-	var url string
-	if inContainer {
-		url = fmt.Sprintf(httpsServerURL, service, namespace, port, path)
-	} else {
-		url = fmt.Sprintf(httpsDebugURL, address, port, path)
-	}
+func HTTPSPostWithRetryAndToken(address string, path string, reqBody []byte, inContainer bool) error {
+	url := fmt.Sprintf("https://%s%s", address, path)
 
 	tr := &http.Transport{
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 	}
 	client := &http.Client{Timeout: httpTimeout, Transport: tr}
 
-	var httpReq *http.Request
-	var httpRsp *http.Response
-	var err error
-
-	for i := 0; i < retryTimes; i++ {
-		httpReq, err = http.NewRequest("POST", url, bytes.NewBuffer(reqBody))
+	var lastErr error
+	for range retryTimes {
+		httpReq, err := http.NewRequest("POST", url, bytes.NewBuffer(reqBody))
 		if err == nil {
 			httpReq.Header.Set("Content-Type", "application/json")
 			httpReq.Header.Set("Token", GetToken())
-			httpRsp, err = client.Do(httpReq)
+
+			httpRsp, err := client.Do(httpReq)
 			if err == nil {
 				switch httpRsp.StatusCode {
 				case http.StatusOK:
+					httpRsp.Body.Close()
 					return nil
 				case http.StatusUnauthorized:
 					if inContainer {
@@ -85,70 +73,58 @@ func httpsPostWithRetryAndToken(reqBody []byte, inContainer bool, service string
 						updateChan <- true
 					}
 				default:
-					err = fmt.Errorf("http error code %d", httpRsp.StatusCode)
+					lastErr = fmt.Errorf("http error code %d", httpRsp.StatusCode)
 				}
 				httpRsp.Body.Close()
+			} else {
+				lastErr = err
 			}
+		} else {
+			lastErr = err
 		}
 
-		r := rand.Intn(500) + 200
-		time.Sleep(time.Duration(r) * time.Millisecond)
+		time.Sleep(time.Duration(rand.Intn(500)+200) * time.Millisecond)
 	}
 
-	return err
+	return lastErr
 }
 
-func httpPostAndGetResponseWithRetry(reqBody []byte, inContainer bool, service string, namespace string, address string, port int, path string, retryTimes int) ([]byte, error) {
-	var url string
-	if inContainer {
-		url = fmt.Sprintf(serverURL, service, namespace, port, path)
-	} else {
-		url = fmt.Sprintf(debugServerURL, address, port, path)
-	}
+func HTTPPostAndGetResponseWithRetry(address string, path string, reqBody []byte) ([]byte, error) {
+	url := fmt.Sprintf("http://%s%s", address, path)
 
 	client := &http.Client{Timeout: httpTimeout}
 
-	var httpReq *http.Request
-	var httpRsp *http.Response
-	var err error
-
-	for i := 0; i < retryTimes; i++ {
-		httpReq, err = http.NewRequest("POST", url, bytes.NewBuffer(reqBody))
+	var lastErr error
+	for range retryTimes {
+		httpReq, err := http.NewRequest("POST", url, bytes.NewBuffer(reqBody))
 		if err == nil {
 			httpReq.Header.Set("Content-Type", "application/json")
-			httpRsp, err = client.Do(httpReq)
+
+			httpRsp, err := client.Do(httpReq)
 			if err == nil {
 				if httpRsp.StatusCode == http.StatusOK {
 					rspBody := make([]byte, len(reqBody))
 					var n int
 					n, err = httpRsp.Body.Read(rspBody)
 					if n > 0 && err == io.EOF {
+						httpRsp.Body.Close()
 						return rspBody, nil
 					}
 				} else {
-					err = fmt.Errorf("http error code %d", httpRsp.StatusCode)
+					lastErr = fmt.Errorf("http error code %d", httpRsp.StatusCode)
 				}
 				httpRsp.Body.Close()
+			} else {
+				lastErr = err
 			}
+		} else {
+			lastErr = err
 		}
 
-		r := rand.Intn(500) + 200
-		time.Sleep(time.Duration(r) * time.Millisecond)
+		time.Sleep(time.Duration(rand.Intn(500)+200) * time.Millisecond)
 	}
 
-	return nil, err
-}
-
-func RequestClassifierService(reqBody []byte, inContainer bool, address string, port int) ([]byte, error) {
-	return httpPostAndGetResponseWithRetry(reqBody, inContainer, varmorconfig.ClassifierServiceName, varmorconfig.Namespace, address, port, varmorconfig.ClassifierPathClassifyPath, retryTimes)
-}
-
-func PostStatusToStatusService(reqBody []byte, inContainer bool, address string, port int) error {
-	return httpsPostWithRetryAndToken(reqBody, inContainer, varmorconfig.StatusServiceName, varmorconfig.Namespace, address, port, varmorconfig.StatusSyncPath, retryTimes)
-}
-
-func PostDataToStatusService(reqBody []byte, inContainer bool, address string, port int) error {
-	return httpsPostWithRetryAndToken(reqBody, inContainer, varmorconfig.StatusServiceName, varmorconfig.Namespace, address, port, varmorconfig.DataSyncPath, retryTimes)
+	return nil, lastErr
 }
 
 func TagLeaderPod(podInterface corev1.PodInterface, name string) error {
@@ -230,39 +206,6 @@ func InNetworksArray(i varmor.NetworkContent, array []varmor.NetworkContent) boo
 		}
 	}
 	return false
-}
-
-func SetAgentReady() {
-	atomic.StoreInt32(&AgentReady, 1)
-}
-
-func SetAgentUnready() {
-	atomic.StoreInt32(&AgentReady, 0)
-}
-
-func WaitForManagerReady(inContainer bool, address string, port int) {
-	var url string
-	if inContainer {
-		url = fmt.Sprintf(httpsServerURL, varmorconfig.StatusServiceName, varmorconfig.Namespace, port, "/healthz")
-	} else {
-		url = fmt.Sprintf(httpsDebugURL, address, port, "/healthz")
-	}
-
-	client := &http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: true,
-			},
-		},
-	}
-
-	for {
-		resp, err := client.Get(url)
-		if err == nil && resp.StatusCode == http.StatusOK {
-			return
-		}
-		time.Sleep(2 * time.Second)
-	}
 }
 
 func GinLogger() gin.HandlerFunc {

@@ -28,7 +28,6 @@ var (
 	token      string
 	mu         sync.RWMutex
 	updateChan chan bool
-	AgentReady int32 = 0
 )
 
 func InitAndStartTokenRotation(interval time.Duration, logger logr.Logger) {

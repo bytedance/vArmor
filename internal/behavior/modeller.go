@@ -50,9 +50,7 @@ type BehaviorModeller struct {
 	processRecorder *varmorrecorder.ProcessRecorder
 	ModellerStopCh  chan bool
 	stopCh          <-chan struct{}
-	managerIP       string
-	managerPort     int
-	classifierPort  int
+	svcAddresses    map[string]string
 	debug           bool
 	inContainer     bool
 	log             logr.Logger
@@ -69,9 +67,7 @@ func NewBehaviorModeller(
 	startTime time.Time,
 	duration time.Duration,
 	stopCh <-chan struct{},
-	managerIP string,
-	managerPort int,
-	classifierPort int,
+	svcAddresses map[string]string,
 	debug bool,
 	inContainer bool,
 	log logr.Logger) *BehaviorModeller {
@@ -95,9 +91,7 @@ func NewBehaviorModeller(
 		targetMnts:     make(map[uint32]struct{}, 30),
 		ModellerStopCh: make(chan bool, 1),
 		stopCh:         stopCh,
-		managerIP:      managerIP,
-		managerPort:    managerPort,
-		classifierPort: classifierPort,
+		svcAddresses:   svcAddresses,
 		debug:          debug,
 		inContainer:    inContainer,
 		log:            log,
@@ -129,8 +123,7 @@ func (modeller *BehaviorModeller) PreprocessAndSendBehaviorData() {
 		modeller.enforcer,
 		modeller.targetPIDs,
 		modeller.targetMnts,
-		modeller.managerIP,
-		modeller.classifierPort,
+		modeller.svcAddresses,
 		modeller.debug,
 		modeller.inContainer,
 		modeller.log.WithName("DATA-PREPROCESSOR"))
@@ -141,9 +134,10 @@ func (modeller *BehaviorModeller) PreprocessAndSendBehaviorData() {
 	data := preprocessor.Process()
 	if data != nil {
 		modeller.log.Info("send preprocess result to manager")
-		err := varmorutils.PostDataToStatusService(data, modeller.inContainer, modeller.managerIP, modeller.managerPort)
+		address := modeller.svcAddresses[varmorconfig.StatusServiceName]
+		err := varmorutils.HTTPSPostWithRetryAndToken(address, varmorconfig.DataSyncPath, data, modeller.inContainer)
 		if err != nil {
-			modeller.log.Error(err, "PostDataToStatusService()")
+			modeller.log.Error(err, "HTTPSPostWithRetryAndToken() failed")
 		}
 	}
 }
