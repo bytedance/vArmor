@@ -390,8 +390,8 @@ Refer to the following links for further information.
 :::
 
 :::tip[Supported Enforcer]
-* AppArmor
-* BPF
+* AppArmor 🏷️ v0.8.1
+* BPF 🏷️ v0.8.1
 :::
 
 ## Restricting Specific Executable

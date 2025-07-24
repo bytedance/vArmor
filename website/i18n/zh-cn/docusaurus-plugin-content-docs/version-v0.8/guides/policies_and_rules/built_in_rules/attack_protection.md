@@ -391,8 +391,8 @@ description: 针对容器环境中渗透手法的规则。
 :::
 
 :::tip[支持的强制访问控制器]
-* AppArmor
-* BPF
+* AppArmor 🏷️ v0.8.1
+* BPF 🏷️ v0.8.1
 :::
 
 ## 限制特定可执行文件
