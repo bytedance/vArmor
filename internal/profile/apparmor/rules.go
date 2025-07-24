@@ -345,6 +345,10 @@ func generateAttackProtectionRules(rule, qualifier string, allowViolations bool)
 		rules += qualifier + "network tcp,\n"
 	case "disable-udp":
 		rules += qualifier + "network udp,\n"
+	case "block-access-to-container-runtime":
+		rules += qualifier + "/**/containerd.sock rw,\n"
+		rules += qualifier + "/**/docker.sock rw,\n"
+		rules += qualifier + "/**/crio.sock rw,\n"
 	}
 	return rules
 }
