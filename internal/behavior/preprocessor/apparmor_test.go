@@ -33,8 +33,7 @@ func Test_trimPath(t *testing.T) {
 		"AppArmor",
 		targetPIDs,
 		targetMnts,
-		"127.0.0.1",
-		0,
+		nil,
 		true,
 		true,
 		log.Log.WithName("TEST"))

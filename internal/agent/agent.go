@@ -17,6 +17,7 @@ package agent
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -85,11 +86,10 @@ type Agent struct {
 	ptracer                  *varmorptracer.ProcessTracer
 	modellers                map[string]*varmorbehavior.BehaviorModeller
 	nodeName                 string
+	ready                    int32
 	debug                    bool
 	inContainer              bool
-	managerIP                string
-	managerPort              int
-	classifierPort           int
+	svcAddresses             map[string]string
 	stopCh                   <-chan struct{}
 	log                      logr.Logger
 }
@@ -101,11 +101,9 @@ func NewAgent(
 	enableBpfEnforcer bool,
 	unloadAllAaProfiles bool,
 	removeAllSeccompProfiles bool,
+	svcAddresses map[string]string,
 	debug bool,
 	inContainer bool,
-	managerIP string,
-	managerPort int,
-	classifierPort int,
 	auditLogPaths string,
 	stopCh <-chan struct{},
 	metricsModule *varmormetrics.MetricsModule,
@@ -129,11 +127,9 @@ func NewAgent(
 		unloadAllAaProfiles:      unloadAllAaProfiles,
 		removeAllSeccompProfiles: removeAllSeccompProfiles,
 		modellers:                make(map[string]*varmorbehavior.BehaviorModeller),
+		svcAddresses:             svcAddresses,
 		debug:                    debug,
 		inContainer:              inContainer,
-		managerIP:                managerIP,
-		managerPort:              managerPort,
-		classifierPort:           classifierPort,
 		stopCh:                   stopCh,
 		log:                      log,
 	}
@@ -147,7 +143,7 @@ func NewAgent(
 	r.Use(gin.Recovery(), varmorutils.GinLogger())
 	r.SetTrustedProxies(nil)
 	r.GET(varmorconfig.AgentReadinessPath, func(c *gin.Context) {
-		if atomic.LoadInt32(&varmorutils.AgentReady) == 1 {
+		if atomic.LoadInt32(&agent.ready) == 1 {
 			c.String(http.StatusOK, "ok")
 		} else {
 			c.Status(http.StatusServiceUnavailable)
@@ -155,14 +151,8 @@ func NewAgent(
 	})
 
 	go func() {
-		if inContainer {
-			if err := r.Run(fmt.Sprintf(":%d", varmorconfig.AgentServicePort)); err != nil {
-				log.Error(err, "fatal error: agent service failed to start")
-			}
-		} else {
-			if err := r.Run(":6080"); err != nil {
-				log.Error(err, "fatal error: agent service failed to start")
-			}
+		if err := r.Run(fmt.Sprintf(":%d", varmorconfig.AgentReadinessPort)); err != nil {
+			log.Error(err, "fatal error: agent service failed to start")
 		}
 	}()
 
@@ -278,6 +268,34 @@ func NewAgent(
 	return &agent, nil
 }
 
+func (agent *Agent) WaitForManagerReady() {
+	client := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true,
+			},
+		},
+	}
+
+	url := fmt.Sprintf("https://%s%s", agent.svcAddresses[varmorconfig.StatusServiceName], "/healthz")
+	for {
+		resp, err := client.Get(url)
+		if err == nil && resp.StatusCode == http.StatusOK {
+			resp.Body.Close()
+			return
+		}
+		time.Sleep(2 * time.Second)
+	}
+}
+
+func (agent *Agent) SetAgentReady() {
+	atomic.StoreInt32(&agent.ready, 1)
+}
+
+func (agent *Agent) SetAgentUnready() {
+	atomic.StoreInt32(&agent.ready, 0)
+}
+
 func (agent *Agent) enqueuePolicy(ap *varmor.ArmorProfile, logger logr.Logger) {
 	key, err := cache.MetaNamespaceKeyFunc(ap)
 	if err != nil {
@@ -351,7 +369,8 @@ func (agent *Agent) sendStatus(ap *varmor.ArmorProfile, status varmortypes.Statu
 		Message:     message,
 	}
 	reqBody, _ := json.Marshal(&s)
-	return varmorutils.PostStatusToStatusService(reqBody, agent.inContainer, agent.managerIP, agent.managerPort)
+	address := agent.svcAddresses[varmorconfig.StatusServiceName]
+	return varmorutils.HTTPSPostWithRetryAndToken(address, varmorconfig.StatusSyncPath, reqBody, agent.inContainer)
 }
 
 func (agent *Agent) selectEnforcer(ap *varmor.ArmorProfile) (varmortypes.Enforcer, error) {
@@ -435,9 +454,7 @@ func (agent *Agent) handleCreateOrUpdateArmorProfile(ap *varmor.ArmorProfile, ke
 				createTime,
 				Duration,
 				agent.stopCh,
-				agent.managerIP,
-				agent.managerPort,
-				agent.classifierPort,
+				agent.svcAddresses,
 				agent.debug,
 				agent.inContainer,
 				agent.log.WithName("BEHAVIOR-MODELLER"))
@@ -697,7 +714,7 @@ func (agent *Agent) Run(workers int, stopCh <-chan struct{}) {
 
 func (agent *Agent) CleanUp() {
 	agent.log.Info("cleaning up")
-	varmorutils.SetAgentUnready()
+	agent.SetAgentUnready()
 	agent.queue.ShutDown()
 	agent.monitor.Close()
 	agent.auditor.Close()

@@ -28,8 +28,8 @@ CLASSIFIER_IMAGE_DEV ?= $(REPO_DEV)/$(CLASSIFIER_IMAGE_NAME):$(CLASSIFIER_IMAGE_
 
 CHART_APP_VERSION := $(VARMOR_IMAGE_TAG)
 CHART_APP_VERSION_DEV := $(GIT_VERSION)
-CHART_VERSION := $(shell echo $(CHART_APP_VERSION)| sed 's/^v//')
-CHART_VERSION_DEV := $(shell echo $(CHART_APP_VERSION_DEV)| sed 's/^v//')
+CHART_VERSION := $(shell echo $(CHART_APP_VERSION) | sed 's/^v//')
+CHART_VERSION_DEV := $(shell echo $(CHART_APP_VERSION_DEV) | sed 's/^v//')
 
 KERNEL_RELEASE = $(shell uname -r)
 APPARMOR_ABI_NAME = kernel-$(KERNEL_RELEASE)
@@ -109,8 +109,8 @@ generate-apparmor-abi: ## Generate the AppArmor feature ABI of development envir
 	cp config/apparmor.d/abi/$(APPARMOR_ABI_NAME) config/apparmor.d/abi/varmor
 
 .PHONY: manifests
-manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
-	@echo "[+] Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects"
+manifests: controller-gen ## Generate CustomResourceDefinition objects.
+	@echo "[+] Generate CustomResourceDefinition objects"
 	$(CONTROLLER_GEN) crd paths="./apis/varmor/..." output:crd:artifacts:config=config/crds
 	cp config/crds/* manifests/varmor/templates/crds/
 

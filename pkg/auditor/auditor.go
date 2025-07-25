@@ -60,13 +60,13 @@ type Auditor struct {
 	filePermissionMap      map[uint32]string
 	ptracePermissionMap    map[uint32]string
 	mountFlagMap           map[uint32]string
-	auditEventMetadata     map[string]string // auditEventMetadata used for storing additional information of the violation event
+	auditEventMetadata     map[string]interface{} // auditEventMetadata used for storing additional information of the violation event
 	violationLogger        zerolog.Logger
 	log                    logr.Logger
 }
 
 // NewAuditor creates an auditor to audit the violations of target containers
-func NewAuditor(nodeName string, appArmorSupported, bpfLsmSupported, enableBehaviorModeling bool, auditLogPaths string, auditEventMetadata map[string]string, log logr.Logger) (*Auditor, error) {
+func NewAuditor(nodeName string, appArmorSupported, bpfLsmSupported, enableBehaviorModeling bool, auditLogPaths string, auditEventMetadata map[string]interface{}, log logr.Logger) (*Auditor, error) {
 	auditor := Auditor{
 		nodeName:               nodeName,
 		appArmorSupported:      appArmorSupported,
@@ -111,7 +111,7 @@ func NewAuditor(nodeName string, appArmorSupported, bpfLsmSupported, enableBehav
 			return nil, err
 		}
 		auditor.auditLogTail = t
-		auditor.log.Info("start tailing audit log", "path", auditor.auditLogPath, "metadata", auditor.auditEventMetadata)
+		auditor.log.Info("start tailing audit log", "path", auditor.auditLogPath)
 	}
 
 	// Load the ringbuf map of BPF enforcer

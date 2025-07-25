@@ -212,7 +212,7 @@ func main() {
 	}
 
 	// init a metrics
-	metricsModule := metrics.NewMetricsModule(logger.WithName("METRICS"), enableMetrics, 10)
+	metricsModule := metrics.NewMetricsModule(logger.WithName("METRICS"), enableMetrics, 10, config.MetricsServicePort)
 
 	if agent {
 		logger.WithName("SETUP").Info("vArmor agent startup")
@@ -226,18 +226,25 @@ func main() {
 			}
 		}
 
-		agentCtrl, err := varmoragent.NewAgent(
+		svcAddresses := make(map[string]string, 2)
+		if inContainer {
+			svcAddresses[config.StatusServiceName] = fmt.Sprintf("%s.%s:%d", config.StatusServiceName, config.Namespace, config.StatusServicePort)
+			svcAddresses[config.ClassifierServiceName] = fmt.Sprintf("%s.%s:%d", config.ClassifierServiceName, config.Namespace, config.ClassifierServicePort)
+		} else {
+			svcAddresses[config.StatusServiceName] = fmt.Sprintf("%s:%d", managerIP, config.StatusServicePort)
+			svcAddresses[config.ClassifierServiceName] = fmt.Sprintf("%s:%d", managerIP, config.ClassifierServicePort)
+		}
+
+		agent, err := varmoragent.NewAgent(
 			varmorClient.CrdV1beta1(),
 			varmorFactory.Crd().V1beta1().ArmorProfiles(),
 			enableBehaviorModeling,
 			enableBpfEnforcer,
 			unloadAllAaProfiles,
 			removeAllSeccompProfiles,
+			svcAddresses,
 			debugFlag,
 			inContainer,
-			managerIP,
-			config.StatusServicePort,
-			config.ClassifierServicePort,
 			auditLogPaths,
 			stopCh,
 			metricsModule,
@@ -248,20 +255,20 @@ func main() {
 			os.Exit(1)
 		}
 		varmorFactory.Start(stopCh)
-		go agentCtrl.Run(1, stopCh)
+		go agent.Run(1, stopCh)
 
 		// Wait for the manager to be ready.
 		logger.WithName("SETUP").Info("Waiting for the manager to be ready")
-		varmorutils.WaitForManagerReady(inContainer, managerIP, config.StatusServicePort)
+		agent.WaitForManagerReady()
 
 		// Set the agent to ready.
-		varmorutils.SetAgentReady()
+		agent.SetAgentReady()
 
 		logger.WithName("SETUP").Info("vArmor agent is online")
 
 		<-stopCh
 
-		agentCtrl.CleanUp()
+		agent.CleanUp()
 		logger.WithName("SETUP").Info("vArmor agent shutdown successful")
 
 	} else {
@@ -322,7 +329,7 @@ func main() {
 		mwcFactory.Start(stopCh)
 
 		// Elect a leader to register the admission webhook configurations.
-		registerWebhookConfigurations := func() {
+		registerWebhookConfigurations := func(ctx context.Context) {
 			// Only leader initializes the secrets of CA cert and TLS pair.
 			certManager.InitTLSPemPair()
 			// Only leader registers the MutatingWebhookConfiguration object.
@@ -333,12 +340,14 @@ func main() {
 			}
 		}
 		webhookRegisterLeader, err := leaderelection.New(
+			logger.WithName("webhook-register/LeaderElection"),
 			"webhook-register",
 			config.Namespace,
 			kubeClient,
+			config.Name,
+			leaderelection.DefaultRetryPeriod,
 			registerWebhookConfigurations,
-			nil,
-			logger.WithName("webhook-register/LeaderElection"))
+			nil)
 		if err != nil {
 			logger.WithName("SETUP").Error(err, "failed to elect a leader")
 			os.Exit(1)
@@ -462,7 +471,7 @@ func main() {
 		varmorFactory.Start(stopCh)
 
 		// Wrap all controllers that need leaderelection, start them once by the leader.
-		leaderRun := func() {
+		leaderRun := func(ctx context.Context) {
 			if enablePodServiceEgressControl && enableBpfEnforcer {
 				// Only the leader watches the Pod and Service IP changes.
 				go ipWatcher.Run(1, stopCh)
@@ -485,7 +494,7 @@ func main() {
 					if err != nil {
 						return err
 					}
-					return varmorutils.TagLeaderPod(kubeClient.CoreV1().Pods(config.Namespace))
+					return varmorutils.TagLeaderPod(kubeClient.CoreV1().Pods(config.Namespace), config.Name)
 				}
 				err := retry.OnError(retry.DefaultRetry, retriable, tag)
 				if err != nil {
@@ -502,7 +511,15 @@ func main() {
 			signal.RequestShutdown()
 		}
 
-		leader, err := leaderelection.New("varmor-manager", config.Namespace, kubeClient, leaderRun, leaderStop, logger.WithName("varmor-manager/LeaderElection"))
+		leader, err := leaderelection.New(
+			logger.WithName("varmor-manager/LeaderElection"),
+			"varmor-manager",
+			config.Namespace,
+			kubeClient,
+			config.Name,
+			leaderelection.DefaultRetryPeriod,
+			leaderRun,
+			leaderStop)
 		if err != nil {
 			logger.WithName("SETUP").Error(err, "failed to elect a leader")
 			os.Exit(1)

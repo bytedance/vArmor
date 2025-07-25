@@ -10,6 +10,6 @@ spec:
   ports:
   - port: 443
     name: status
-    targetPort: 3443
+    targetPort: {{ .Values.manager.network.webhookPort }}
   selector:
     {{- include "varmor.manager.selectorLabels" . | nindent 4 }}
