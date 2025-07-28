@@ -104,9 +104,9 @@ func NewBehaviorModeller(
 		return nil
 	}
 
-	ProcessRecorder := varmorrecorder.NewProcessRecorder(varmorconfig.AuditDataDirectory, name, stopCh, debug, log.WithName("BPF-RECORDER"))
-	if ProcessRecorder != nil {
-		modeller.processRecorder = ProcessRecorder
+	processRecorder := varmorrecorder.NewProcessRecorder(varmorconfig.AuditDataDirectory, name, stopCh, debug, log.WithName("BPF-RECORDER"))
+	if processRecorder != nil {
+		modeller.processRecorder = processRecorder
 	} else {
 		return nil
 	}
