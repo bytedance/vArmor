@@ -348,7 +348,7 @@ func (c *ClusterPolicyController) ignoreUpdate(newVcp *varmor.VarmorClusterPolic
 		return true, err
 	}
 
-	// Disallow switching mode from others to BehaviorModeling.
+	// Disallow switching the mode from others to BehaviorModeling.
 	if newVcp.Spec.Policy.Mode == varmor.BehaviorModelingMode &&
 		oldAp.Spec.BehaviorModeling.Duration == 0 {
 		err := fmt.Errorf("disallow switching spec.policy.mode from others to BehaviorModeling")
@@ -359,14 +359,14 @@ func (c *ClusterPolicyController) ignoreUpdate(newVcp *varmor.VarmorClusterPolic
 		return true, err
 	}
 
-	// Disallow switching mode from BehaviorModeling to others.
+	// Disallow switching the mode from BehaviorModeling to others when behavior modeling is still incomplete.
 	if newVcp.Spec.Policy.Mode != varmor.BehaviorModelingMode &&
-		oldAp.Spec.BehaviorModeling.Duration != 0 {
-		err := fmt.Errorf("disallow switching spec.policy.mode from BehaviorModeling to others")
+		newVcp.Status.Phase == varmor.VarmorPolicyModeling {
+		err := fmt.Errorf("disallow switching spec.policy.mode from BehaviorModeling to others when behavior modeling is still incomplete")
 		logger.Error(err, "update VarmorClusterPolicy/status with forbidden info")
 		err = statusmanager.UpdateVarmorClusterPolicyStatus(c.varmorInterface, newVcp, "", false, varmor.VarmorPolicyUnchanged, varmor.VarmorPolicyUpdated, apicorev1.ConditionFalse,
 			"Forbidden",
-			"Switching the mode from BehaviorModeling to others is not allowed. You need to recreate the VarmorClusterPolicy object.")
+			"Switching the mode from BehaviorModeling to others is not allowed when behavior modeling is still incomplete. You need to recreate the VarmorClusterPolicy object.")
 		return true, err
 	}
 
