@@ -356,17 +356,6 @@ func (c *PolicyController) ignoreUpdate(newVp *varmor.VarmorPolicy, oldAp *varmo
 		return true, err
 	}
 
-	// Disallow switching the mode of a policy from others to BehaviorModeling.
-	if newVp.Spec.Policy.Mode == varmor.BehaviorModelingMode &&
-		oldAp.Spec.BehaviorModeling.Duration == 0 {
-		err := fmt.Errorf("disallow switching the mode of a policy from others to BehaviorModeling")
-		logger.Error(err, "update the policy status with forbidden info")
-		err = statusmanager.UpdateVarmorPolicyStatus(c.varmorInterface, newVp, "", false, varmor.VarmorPolicyUnchanged, varmor.VarmorPolicyUpdated, apicorev1.ConditionFalse,
-			"Forbidden",
-			"Switching the mode of a policy from others to BehaviorModeling is not allowed. You need to recreate the policy object.")
-		return true, err
-	}
-
 	// Disallow switching the mode of a policy from BehaviorModeling to others when behavior modeling is still incomplete.
 	if newVp.Spec.Policy.Mode != varmor.BehaviorModelingMode &&
 		newVp.Status.Phase == varmor.VarmorPolicyModeling {
@@ -374,35 +363,19 @@ func (c *PolicyController) ignoreUpdate(newVp *varmor.VarmorPolicy, oldAp *varmo
 		logger.Error(err, "update the policy status with forbidden info")
 		err = statusmanager.UpdateVarmorPolicyStatus(c.varmorInterface, newVp, "", false, varmor.VarmorPolicyUnchanged, varmor.VarmorPolicyUpdated, apicorev1.ConditionFalse,
 			"Forbidden",
-			"Switching the mode of a policy from BehaviorModeling to others is not allowed when behavior modeling is still incomplete. You need to recreate the policy object.")
+			"Switching the mode of a policy from BehaviorModeling to others is not allowed when behavior modeling is still incomplete.")
 		return true, err
 	}
 
-	// Disallow modifying the modelingOptions field of a policy that runs in the BehaviorModeling mode and has already been completed.
+	// Disallow modifying the enforcer field of a policy when behavior modeling is still incomplete.
 	if newVp.Spec.Policy.Mode == varmor.BehaviorModelingMode &&
-		newVp.Status.Phase == varmor.VarmorPolicyCompleted {
-		if newVp.Spec.Policy.ModelingOptions == nil ||
-			newVp.Spec.Policy.ModelingOptions.Duration != oldAp.Spec.BehaviorModeling.Duration {
-			err := fmt.Errorf("disallow modifying the modelingOptions field of a policy that runs in the BehaviorModeling mode and has already been completed")
-			logger.Error(err, "update the policy status with forbidden info")
-			err = statusmanager.UpdateVarmorPolicyStatus(c.varmorInterface, newVp, "", false, varmor.VarmorPolicyUnchanged, varmor.VarmorPolicyUpdated, apicorev1.ConditionFalse,
-				"Forbidden",
-				"Modifying the modelingOptions field of a policy that runs in the BehaviorModeling mode and has already been completed is not allowed. You need to recreate the policy object.")
-			return true, err
-		} else {
-			err := statusmanager.UpdateVarmorPolicyStatus(c.varmorInterface, newVp, "", true, varmor.VarmorPolicyUnchanged, varmor.VarmorPolicyUpdated, apicorev1.ConditionTrue, "", "")
-			return true, err
-		}
-	}
-
-	// Disallow modifing the enforcer field of a policy that runs in the BehaviorModeling mode.
-	if newVp.Spec.Policy.Mode == varmor.BehaviorModelingMode &&
+		newVp.Status.Phase == varmor.VarmorPolicyModeling &&
 		newEnforcers != oldEnforcers {
-		err := fmt.Errorf("disallow modifing the enforcer field of a policy that runs in the BehaviorModeling mode")
+		err := fmt.Errorf("disallow modifying the enforcer field of a policy when behavior modeling is still incomplete")
 		logger.Error(err, "update the policy status with forbidden info")
 		err = statusmanager.UpdateVarmorPolicyStatus(c.varmorInterface, newVp, "", false, varmor.VarmorPolicyUnchanged, varmor.VarmorPolicyUpdated, apicorev1.ConditionFalse,
 			"Forbidden",
-			"Modifing the enforcer field of a policy in the BehaviorModeling mode is not allowed. You need to recreate the policy object.")
+			"Modifying the enforcer field of a policy is not allowed when behavior modeling is still incomplete.")
 		return true, err
 	}
 
@@ -453,6 +426,8 @@ func (c *PolicyController) handleUpdateVarmorPolicy(newVp *varmor.VarmorPolicy, 
 		return err
 	}
 
+	statusKey := newVp.Namespace + "/" + newVp.Name
+
 	// First, reset VarmorPolicy/status
 	logger.Info("1. reset VarmorPolicy/status (updated=true)", "namesapce", newVp.Namespace, "name", newVp.Name)
 	err := statusmanager.UpdateVarmorPolicyStatus(c.varmorInterface, newVp, "", false, varmor.VarmorPolicyPending, varmor.VarmorPolicyUpdated, apicorev1.ConditionTrue, "", "")
@@ -461,9 +436,19 @@ func (c *PolicyController) handleUpdateVarmorPolicy(newVp *varmor.VarmorPolicy, 
 		return err
 	}
 
-	// Second, build a new ArmorProfileSpec
-	newApSpec := oldAp.Spec.DeepCopy()
-	newProfile, egressInfo, err := varmorprofile.GenerateProfile(c.kubeClient, c.varmorInterface, newVp.Spec.Policy, oldAp.Name, oldAp.Namespace, false, c.enablePodServiceEgressControl, logger)
+	// Second, create a new ArmorProfileSpec with the updated policy
+	complete := false
+	if newVp.Spec.Policy.Mode == varmor.BehaviorModelingMode {
+		if newVp.Spec.Policy.ModelingOptions != nil {
+			createTime := oldAp.CreationTimestamp.Time
+			Duration := time.Duration(newVp.Spec.Policy.ModelingOptions.Duration) * time.Minute
+			if time.Now().After(createTime.Add(Duration)) {
+				complete = true
+			}
+		}
+	}
+
+	newProfile, egressInfo, err := varmorprofile.GenerateProfile(c.kubeClient, c.varmorInterface, newVp.Spec.Policy, oldAp.Name, oldAp.Namespace, complete, c.enablePodServiceEgressControl, logger)
 	if err != nil {
 		logger.Error(err, "GenerateProfile()")
 		err = statusmanager.UpdateVarmorPolicyStatus(c.varmorInterface, newVp, "", false, varmor.VarmorPolicyError, varmor.VarmorPolicyUpdated, apicorev1.ConditionFalse,
@@ -475,15 +460,28 @@ func (c *PolicyController) handleUpdateVarmorPolicy(newVp *varmor.VarmorPolicy, 
 		}
 		return nil
 	}
+
+	newApSpec := oldAp.Spec.DeepCopy()
 	newApSpec.Profile = *newProfile
 	newApSpec.UpdateExistingWorkloads = newVp.Spec.UpdateExistingWorkloads
 	if newVp.Spec.Policy.Mode == varmor.BehaviorModelingMode {
-		newApSpec.BehaviorModeling.Duration = newVp.Spec.Policy.ModelingOptions.Duration
+		// Update the BehaviorModeling duration
+		if newVp.Spec.Policy.ModelingOptions != nil {
+			newApSpec.BehaviorModeling.Duration = newVp.Spec.Policy.ModelingOptions.Duration
+		}
+
+		// Reset the status cache if the BehaviorModeling duration has not expired
+		if !complete {
+			newApSpec.BehaviorModeling.Enable = true
+			logger.Info("reset the status cache", "status key", statusKey)
+			atomic.StoreInt32(&c.statusManager.UpdateDesiredNumber, 1)
+			c.statusManager.ResetCh <- statusKey
+		}
 	}
 
-	// Cache the egress information for the policy which has network egress rules with toPods and toService fields
+	// Third, cache the egress information for the policy which has network egress rules with toPods and toService fields
 	if egressInfo != nil {
-		policyKey := newVp.Namespace + "/" + newVp.Name
+		policyKey := statusKey
 		c.egressCacheMutex.Lock()
 		delete(c.egressCache, policyKey)
 		if len(egressInfo.ToPods) > 0 || len(egressInfo.ToServices) > 0 {
@@ -494,10 +492,8 @@ func (c *PolicyController) handleUpdateVarmorPolicy(newVp *varmor.VarmorPolicy, 
 	}
 
 	// Last, do update
-	statusKey := newVp.Namespace + "/" + newVp.Name
-	atomic.StoreInt32(&c.statusManager.UpdateDesiredNumber, 1)
 	if !reflect.DeepEqual(oldAp.Spec, *newApSpec) {
-		// Update object
+		// Update the objects and their statuses if the spec of ArmorProfile has changed
 		logger.Info("2. update the object and its status")
 
 		logger.Info("2.1. reset ArmorProfile/status and ArmorProfileModel/Status", "namespace", oldAp.Namespace, "name", oldAp.Name)
@@ -545,7 +541,7 @@ func (c *PolicyController) handleUpdateVarmorPolicy(newVp *varmor.VarmorPolicy, 
 			return err
 		}
 	} else {
-		// Update status
+		// Update the objects' statuses
 		logger.Info("2. update the object' status")
 
 		logger.Info("2.1. update VarmorPolicy/status and ArmorProfile/status", "status key", statusKey)
