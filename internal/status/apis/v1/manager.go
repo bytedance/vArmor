@@ -56,8 +56,8 @@ type StatusManager struct {
 	// One VarmorPolicy/ClusterPolicyName object corresponds to one PolicyStatus
 	policyStatuses     map[string]varmortypes.PolicyStatus
 	policyStatusesLock sync.RWMutex
-	// Use "namespace/VarmorPolicyName" as key. One VarmorPolicy object corresponds to one ModelingStatus
-	// TODO: Rebuild modelingStatuses from ArmorProfile object when leader change occurs.
+	// Use "namespace/VarmorPolicyName" or "VarmorClusterPolicyName" as key.
+	// One VarmorPolicy/ClusterPolicyName object corresponds to one ModelingStatus
 	modelingStatuses     map[string]varmortypes.ModelingStatus
 	modelingStatusesLock sync.RWMutex
 	ResetCh              chan string
@@ -179,7 +179,7 @@ func (m *StatusManager) retrieveNodeNameList() ([]string, error) {
 	return nodes, nil
 }
 
-// rebuildPolicyStatuses rebuild the policyStatuses cache from the existing ArmorProfile objects.
+// rebuildPolicyStatuses rebuild the policyStatuses and modelingStatuses cache from the existing ArmorProfile objects.
 func (m *StatusManager) rebuildPolicyStatuses() error {
 	m.policyStatusesLock.Lock()
 	defer m.policyStatusesLock.Unlock()
@@ -214,13 +214,21 @@ func (m *StatusManager) rebuildPolicyStatuses() error {
 			}
 
 			var policyStatus varmortypes.PolicyStatus
+			var modelingStatus varmortypes.ModelingStatus
+
 			policyStatus.NodeMessages = make(map[string]string, m.desiredNumber)
+			modelingStatus.NodeMessages = make(map[string]string, m.desiredNumber)
 
 			// Only count the failed node that is still in the cluster
 			for _, condition := range ap.Status.Conditions {
 				if varmorutils.InStringArray(condition.NodeName, nodes) {
 					policyStatus.FailedNumber += 1
 					policyStatus.NodeMessages[condition.NodeName] = condition.Message
+
+					if ap.Spec.BehaviorModeling.Duration != 0 {
+						modelingStatus.FailedNumber += 1
+						modelingStatus.NodeMessages[condition.NodeName] = condition.Message
+					}
 				}
 			}
 
@@ -229,11 +237,17 @@ func (m *StatusManager) rebuildPolicyStatuses() error {
 				if _, ok := policyStatus.NodeMessages[node]; !ok {
 					policyStatus.SuccessedNumber += 1
 					policyStatus.NodeMessages[node] = string(varmor.ArmorProfileReady)
+
+					if ap.Spec.BehaviorModeling.Duration != 0 {
+						modelingStatus.CompletedNumber += 1
+						modelingStatus.NodeMessages[node] = string(varmor.ArmorProfileModelReady)
+					}
 				}
 			}
 
-			// Cache policy status
+			// Cache status
 			m.policyStatuses[statusKey] = policyStatus
+			m.modelingStatuses[statusKey] = modelingStatus
 		}
 	}
 	return nil
