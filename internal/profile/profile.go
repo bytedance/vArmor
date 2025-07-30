@@ -178,8 +178,14 @@ func GenerateProfile(
 		}
 		// Seccomp
 		if (e & varmortypes.Seccomp) != 0 {
-			profile.Mode = varmor.ProfileModeComplain
-			profile.SeccompContent = seccompprofile.GenerateBehaviorModelingProfile()
+			if complete {
+				// Create profile based on the AlwaysAllow template after the behvior modeling was completed.
+				profile.Mode = varmor.ProfileModeEnforce
+				profile.SeccompContent = seccompprofile.GenerateAlwaysAllowProfile()
+			} else {
+				profile.Mode = varmor.ProfileModeComplain
+				profile.SeccompContent = seccompprofile.GenerateBehaviorModelingProfile()
+			}
 		}
 
 	case varmor.DefenseInDepthMode:
