@@ -75,8 +75,6 @@ spec:
         app: demo-4
   policy:
     enforcer: AppArmorSeccomp
-    # Note: Switching the mode from BehaviorModeling to others is prohibited, and vice versa.
-    #       You need recraete the policy to switch the mode from BehaviorModeling to DefenseInDepth.
     # mode: DefenseInDepth
     mode: BehaviorModeling
     modelingOptions:
@@ -168,8 +166,8 @@ demo        varmor-cluster-demo-demo-4   CRDInternal    2         2           tr
 ### 注意事项
 
 * 目标工作负载需要拥有 `sandbox.varmor.org/enable="true"` 标签。您可以通过 [设置 Webhook 的匹配标签](../../../getting_started/installation.md#设置-webhook-的匹配标签) 配置选项关闭此特性。
-* 不支持将 BehaviorModeling 模式的策略切换为其他模式，反之亦然。您需要删除策略后重新创建策略才可切换。
-* 建模完成后，不支持修改策略的建模时长。您需要删除策略后重新创建策略才可以重新开始建模，但已有的行为数据会被保留。
+* 建模完成后，方可将 **BehaviorModeling** 切换为其他模式。
+* 从其他模式切换到 **BehaviorModeling** 或建模已经完成时，您需要更新建模时长并重启目标工作负载，以重新启动行为建模过程。
 
 ### 数据导出
 
@@ -313,8 +311,6 @@ spec:
         app: demo-4
   policy:
     enforcer: AppArmorSeccomp
-    # Switching the mode from BehaviorModeling to others is prohibited, and vice versa.
-    # You need recraete the policy to switch the mode from BehaviorModeling to DefenseInDepth.
     # mode: DefenseInDepth
     mode: BehaviorModeling
     modelingOptions:

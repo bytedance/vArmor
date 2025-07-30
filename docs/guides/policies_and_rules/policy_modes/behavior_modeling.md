@@ -69,8 +69,6 @@ spec:
         app: demo-4
   policy:
     enforcer: AppArmorSeccomp
-    # Note: Switching the mode from BehaviorModeling to others is prohibited, and vice versa.
-    #       You need recraete the policy to switch the mode from BehaviorModeling to DefenseInDepth.
     # mode: DefenseInDepth
     mode: BehaviorModeling
     modelingOptions:
@@ -156,8 +154,8 @@ demo        varmor-cluster-demo-demo-4   CRDInternal    2         2           tr
 ### Points to Note
 
 * The target workload needs to have a `sandbox.varmor.org/enable="true"` label. You can turn this off via the [Set matching tags for webhooks](../../../getting_started/installation.md#set-the-match-label-of-webhook) configuration option.
-* Switching policies in BehaviorModeling mode to others and vice versa is not supported. You need to delete the policy and recreate the policy to switch.
-* After the modeling is completed, it is not supported to modify the modeling duration of the policy. You must delete the policy and recreate it before restarting the modeling process. However, the existing behavioral data will be preserved.
+* The **BehaviorModeling** mode can only be switched to other modes after the modeling is completed.
+* When switching to **BehaviorModeling** mode from other modes or when the modeling has already been completed, you need to update the modeling duration and restart the target workload to restart the modeling process.
 
 ### Data Export
 
@@ -295,8 +293,6 @@ spec:
         app: demo-4
   policy:
     enforcer: AppArmorSeccomp
-    # Switching the mode from BehaviorModeling to others is prohibited, and vice versa.
-    # You need recraete the policy to switch the mode from BehaviorModeling to DefenseInDepth.
     # mode: DefenseInDepth
     mode: BehaviorModeling
     modelingOptions:
