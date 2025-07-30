@@ -313,8 +313,8 @@ func NewArmorProfile(
 		ap.Spec.UpdateExistingWorkloads = vcp.Spec.UpdateExistingWorkloads
 
 		if vcp.Spec.Policy.Mode == varmor.BehaviorModelingMode {
-			if vcp.Spec.Policy.ModelingOptions.Duration == 0 {
-				return nil, nil, fmt.Errorf("invalid parameter: .Spec.Policy.ModelingOptions.Duration == 0")
+			if vcp.Spec.Policy.ModelingOptions == nil || vcp.Spec.Policy.ModelingOptions.Duration == 0 {
+				return nil, nil, fmt.Errorf("invalid parameter: the Spec.Policy.ModelingOptions.Duration field cannot be empty or 0")
 			}
 			ap.Spec.BehaviorModeling.Enable = true
 			ap.Spec.BehaviorModeling.Duration = vcp.Spec.Policy.ModelingOptions.Duration
@@ -345,8 +345,8 @@ func NewArmorProfile(
 		ap.Spec.UpdateExistingWorkloads = vp.Spec.UpdateExistingWorkloads
 
 		if vp.Spec.Policy.Mode == varmor.BehaviorModelingMode {
-			if vp.Spec.Policy.ModelingOptions.Duration == 0 {
-				return nil, nil, fmt.Errorf("invalid parameter: .Spec.Policy.ModelingOptions.Duration == 0")
+			if vp.Spec.Policy.ModelingOptions == nil || vp.Spec.Policy.ModelingOptions.Duration == 0 {
+				return nil, nil, fmt.Errorf("invalid parameter: the Spec.Policy.ModelingOptions.Duration field cannot be empty or 0")
 			}
 			ap.Spec.BehaviorModeling.Enable = true
 			ap.Spec.BehaviorModeling.Duration = vp.Spec.Policy.ModelingOptions.Duration
