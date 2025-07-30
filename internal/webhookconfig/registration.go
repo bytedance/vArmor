@@ -106,47 +106,31 @@ func (wrc *Register) removeWebhookConfigurations() {
 	logger.Info("MutatingWebhookConfiguration deleted")
 }
 
-func (wrc *Register) workloadResourceWebhookRule() admissionregistrationapi.Rule {
-	return admissionregistrationapi.Rule{
-		Resources:   []string{"daemonsets", "deployments", "statefulsets"},
-		APIGroups:   []string{"apps"},
-		APIVersions: []string{"v1"},
-	}
-}
-
-func (wrc *Register) podResourceWebhookRule() admissionregistrationapi.Rule {
-	return admissionregistrationapi.Rule{
-		Resources:   []string{"pods"},
-		APIGroups:   []string{""},
-		APIVersions: []string{"v1"},
-	}
-}
-
-func (wrc *Register) generateDefaultDebugMutatingWebhookConfig(caData []byte) *admissionregistrationapi.MutatingWebhookConfiguration {
+func (wrc *Register) generateMutatingWebhookConfigWithURL(name, url string, caData []byte) *admissionregistrationapi.MutatingWebhookConfiguration {
 	logger := wrc.log
-	url := fmt.Sprintf("https://%s:%d%s", wrc.managerIP, config.WebhookServicePort, config.MutatingWebhookServicePath)
-	logger.Info("Debug MutatingWebhookConfiguration generated", "url", url)
+
+	logger.Info("MutatingWebhookConfiguration generated", "name", name, "url", url)
 
 	return &admissionregistrationapi.MutatingWebhookConfiguration{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: config.MutatingWebhookConfigurationDebugName,
+			Name: name,
 		},
 		Webhooks: []admissionregistrationapi.MutatingWebhook{
-			generateDebugMutatingWebhook(
+			generateMutatingWebhookWithURL(
 				config.MutatingWorkloadWebhookName,
 				url,
 				caData,
 				wrc.timeoutSeconds,
-				wrc.workloadResourceWebhookRule(),
+				workloadResourceWebhookRule(),
 				[]admissionregistrationapi.OperationType{admissionregistrationapi.Create, admissionregistrationapi.Update},
 				admissionregistrationapi.Ignore,
 			),
-			generateDebugMutatingWebhook(
+			generateMutatingWebhookWithURL(
 				config.MutatingPodWebhookName,
 				url,
 				caData,
 				wrc.timeoutSeconds,
-				wrc.podResourceWebhookRule(),
+				podResourceWebhookRule(),
 				[]admissionregistrationapi.OperationType{admissionregistrationapi.Create},
 				admissionregistrationapi.Ignore,
 			),
@@ -154,27 +138,31 @@ func (wrc *Register) generateDefaultDebugMutatingWebhookConfig(caData []byte) *a
 	}
 }
 
-func (wrc *Register) generateDefaultMutatingWebhookConfig(caData []byte) *admissionregistrationapi.MutatingWebhookConfiguration {
+func (wrc *Register) generateMutatingWebhookConfigWithService(name string, service *admissionregistrationapi.ServiceReference, caData []byte) *admissionregistrationapi.MutatingWebhookConfiguration {
+	logger := wrc.log
+
+	logger.Info("MutatingWebhookConfiguration generated", "name", name, "service", service)
+
 	return &admissionregistrationapi.MutatingWebhookConfiguration{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: config.MutatingWebhookConfigurationName,
+			Name: name,
 		},
 		Webhooks: []admissionregistrationapi.MutatingWebhook{
-			generateMutatingWebhook(
+			generateMutatingWebhookWithService(
 				config.MutatingWorkloadWebhookName,
-				config.MutatingWebhookServicePath,
+				service,
 				caData,
 				wrc.timeoutSeconds,
-				wrc.workloadResourceWebhookRule(),
+				workloadResourceWebhookRule(),
 				[]admissionregistrationapi.OperationType{admissionregistrationapi.Create, admissionregistrationapi.Update},
 				admissionregistrationapi.Ignore,
 			),
-			generateMutatingWebhook(
+			generateMutatingWebhookWithService(
 				config.MutatingPodWebhookName,
-				config.MutatingWebhookServicePath,
+				service,
 				caData,
 				wrc.timeoutSeconds,
-				wrc.podResourceWebhookRule(),
+				podResourceWebhookRule(),
 				[]admissionregistrationapi.OperationType{admissionregistrationapi.Create},
 				admissionregistrationapi.Ignore,
 			),
@@ -186,10 +174,17 @@ func (wrc *Register) createResourceMutatingWebhookConfiguration(caData []byte) e
 	logger := wrc.log
 
 	var cfg *admissionregistrationapi.MutatingWebhookConfiguration
-	if !wrc.inContainer {
-		cfg = wrc.generateDefaultDebugMutatingWebhookConfig(caData)
+
+	if wrc.inContainer {
+		service := &admissionregistrationapi.ServiceReference{
+			Namespace: config.Namespace,
+			Name:      config.WebhookServiceName,
+			Path:      &config.MutatingWebhookServicePath,
+		}
+		cfg = wrc.generateMutatingWebhookConfigWithService(config.MutatingWebhookConfigurationName, service, caData)
 	} else {
-		cfg = wrc.generateDefaultMutatingWebhookConfig(caData)
+		url := fmt.Sprintf("https://%s:%d%s", wrc.managerIP, config.WebhookServicePort, config.MutatingWebhookServicePath)
+		cfg = wrc.generateMutatingWebhookConfigWithURL(config.MutatingWebhookConfigurationDebugName, url, caData)
 	}
 
 	_, err := wrc.mutateInterface.Create(context.Background(), cfg, metav1.CreateOptions{})

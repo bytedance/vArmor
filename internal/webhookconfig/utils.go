@@ -31,8 +31,23 @@ func getResourceMutatingWebhookConfigName(inContainer bool) string {
 	return config.MutatingWebhookConfigurationName
 }
 
-// debug mutating webhook
-func generateDebugMutatingWebhook(
+func workloadResourceWebhookRule() admissionregistrationapi.Rule {
+	return admissionregistrationapi.Rule{
+		Resources:   []string{"daemonsets", "deployments", "statefulsets"},
+		APIGroups:   []string{"apps"},
+		APIVersions: []string{"v1"},
+	}
+}
+
+func podResourceWebhookRule() admissionregistrationapi.Rule {
+	return admissionregistrationapi.Rule{
+		Resources:   []string{"pods"},
+		APIGroups:   []string{""},
+		APIVersions: []string{"v1"},
+	}
+}
+
+func generateMutatingWebhookWithURL(
 	name,
 	url string,
 	caData []byte,
@@ -74,10 +89,9 @@ func generateDebugMutatingWebhook(
 	return w
 }
 
-// mutating webhook
-func generateMutatingWebhook(
-	name,
-	servicePath string,
+func generateMutatingWebhookWithService(
+	name string,
+	service *admissionregistrationapi.ServiceReference,
 	caData []byte,
 	timeoutSeconds int32,
 	rule admissionregistrationapi.Rule,
@@ -95,11 +109,7 @@ func generateMutatingWebhook(
 		ReinvocationPolicy: &reinvocationPolicy,
 		Name:               name,
 		ClientConfig: admissionregistrationapi.WebhookClientConfig{
-			Service: &admissionregistrationapi.ServiceReference{
-				Namespace: config.Namespace,
-				Name:      config.WebhookServiceName,
-				Path:      &servicePath,
-			},
+			Service:  service,
 			CABundle: caData,
 		},
 		ObjectSelector:          &selector,
