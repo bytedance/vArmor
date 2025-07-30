@@ -135,6 +135,7 @@ func NewAgent(
 	}
 
 	if inContainer {
+		// Initializes and rotates the token that is used for authenticating with the manager periodically.
 		varmorutils.InitAndStartTokenRotation(5*time.Minute, log)
 	}
 
