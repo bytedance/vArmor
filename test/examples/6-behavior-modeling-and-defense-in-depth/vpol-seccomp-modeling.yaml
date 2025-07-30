@@ -14,8 +14,6 @@ spec:
         app: demo-6
   policy:
     enforcer: Seccomp
-    # Note: Switching the mode from BehaviorModeling to others is prohibited, and vice versa.
-    #       You need recraete the policy to switch the mode from BehaviorModeling to DefenseInDepth.
     mode: BehaviorModeling
     modelingOptions:
       duration: 3

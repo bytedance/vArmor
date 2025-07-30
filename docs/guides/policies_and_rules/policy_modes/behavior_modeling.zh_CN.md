@@ -68,8 +68,6 @@ spec:
         app: demo-4
   policy:
     enforcer: AppArmorSeccomp
-    # Note: Switching the mode from BehaviorModeling to others is prohibited, and vice versa.
-    #       You need recraete the policy to switch the mode from BehaviorModeling to DefenseInDepth.
     # mode: DefenseInDepth
     mode: BehaviorModeling
     modelingOptions:
@@ -294,8 +292,6 @@ spec:
         app: demo-4
   policy:
     enforcer: AppArmorSeccomp
-    # Switching the mode from BehaviorModeling to others is prohibited, and vice versa.
-    # You need recraete the policy to switch the mode from BehaviorModeling to DefenseInDepth.
     # mode: DefenseInDepth
     mode: BehaviorModeling
     modelingOptions:

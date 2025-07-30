@@ -262,8 +262,6 @@ vArmor provides an experimental feature - the BehaviorModeling mode. Users can c
 spec:
   policy:
     enforcer: AppArmorSeccomp
-    # Switching the mode from BehaviorModeling to others is prohibited, and vice versa.
-    # You need recraete the policy to switch the mode from BehaviorModeling to DefenseInDepth.
     mode: BehaviorModeling
     modelingOptions:
       # The duration in minutes to modeling
