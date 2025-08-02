@@ -174,7 +174,7 @@ func (m *StatusManager) syncData(behaviorData varmortypes.BehaviorData) error {
 	logger.Info("4. update ArmorProfileModel/status", "namespace", behaviorData.Namespace, "name", behaviorData.ProfileName)
 	// Set the data to empty before updating the status in case the data exceeds the limit.
 	apm.Data = varmor.ArmorProfileModelData{}
-	err = UpdateArmorProfileModelStatus(m.varmorInterface, apm, &modelingStatus, m.desiredNumber, complete)
+	err = statuscommon.UpdateArmorProfileModelStatus(m.varmorInterface, apm, &modelingStatus, m.desiredNumber, complete)
 	if err != nil {
 		logger.Error(err, "UpdateArmorProfileModelStatus()")
 	}
