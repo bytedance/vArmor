@@ -40,6 +40,7 @@ import (
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
 	varmorconfig "github.com/bytedance/vArmor/internal/config"
 	varmorprofile "github.com/bytedance/vArmor/internal/profile"
+	statuscommon "github.com/bytedance/vArmor/internal/status/common"
 	varmortypes "github.com/bytedance/vArmor/internal/types"
 	varmorutils "github.com/bytedance/vArmor/internal/utils"
 	varmorinterface "github.com/bytedance/vArmor/pkg/client/clientset/versioned/typed/varmor/v1beta1"
@@ -279,7 +280,7 @@ func (m *StatusManager) updateVarmorPolicyStatus(
 		}
 	}
 
-	return UpdateVarmorPolicyStatus(m.varmorInterface, vp, "", ready, phase, varmor.VarmorPolicyReady, status, reason, message)
+	return statuscommon.UpdateVarmorPolicyStatus(m.varmorInterface, vp, "", ready, phase, varmor.VarmorPolicyReady, status, reason, message)
 }
 
 func (m *StatusManager) updateVarmorClusterPolicyStatus(
@@ -308,7 +309,7 @@ func (m *StatusManager) updateVarmorClusterPolicyStatus(
 		}
 	}
 
-	return UpdateVarmorClusterPolicyStatus(m.varmorInterface, vcp, "", ready, phase, varmor.VarmorPolicyReady, status, reason, message)
+	return statuscommon.UpdateVarmorClusterPolicyStatus(m.varmorInterface, vcp, "", ready, phase, varmor.VarmorPolicyReady, status, reason, message)
 }
 
 // updateAllCRStatus periodically reconcile all of the objects' statuses to avoid the interference from offline nodes
@@ -492,7 +493,7 @@ func (m *StatusManager) reconcileStatus(stopCh <-chan struct{}) {
 				logger.Error(err, "m.varmorInterface.ArmorProfiles().Get()")
 				break
 			}
-			err = UpdateArmorProfileStatus(m.varmorInterface, ap, &policyStatus, m.desiredNumber)
+			err = statuscommon.UpdateArmorProfileStatus(m.varmorInterface, ap, &policyStatus, m.desiredNumber)
 			if err != nil {
 				logger.Error(err, "UpdateArmorProfileStatus()")
 				break

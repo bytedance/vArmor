@@ -91,25 +91,32 @@ func CheckAgentToken(authnInterface authnclientv1.AuthenticationV1Interface, inC
 	}
 }
 
+func getBearerToken(c *gin.Context) (string, error) {
+	authHeader := c.GetHeader("Authorization")
+	if authHeader == "" {
+		return "", fmt.Errorf("authorization header missing")
+	}
+
+	const prefix = "Bearer "
+	if !strings.HasPrefix(authHeader, prefix) {
+		return "", fmt.Errorf("invalid authorization header format")
+	}
+
+	return strings.TrimPrefix(authHeader, prefix), nil
+}
+
 // CheckClientBearerToken verify the Kubernetes bearer token of the client.
 // Check if it has read access to the armorprofilemodels objects.
-func CheckClientBearerToken(authnInterface authnclientv1.AuthenticationV1Interface, authzInterface authzclientv1.AuthorizationV1Interface, inContainer bool) gin.HandlerFunc {
+func CheckClientBearerToken(authnInterface authnclientv1.AuthenticationV1Interface, authzInterface authzclientv1.AuthorizationV1Interface, verb string, inContainer bool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Authentication
-		authHeader := c.GetHeader("Authorization")
-		if authHeader == "" {
+		token, err := getBearerToken(c)
+		if err != nil {
 			c.String(http.StatusUnauthorized, "Unauthorized")
-			c.AbortWithError(http.StatusUnauthorized, fmt.Errorf("authentication failed: no bearer token found"))
+			c.AbortWithError(http.StatusUnauthorized, err)
 			return
 		}
 
-		if !strings.HasPrefix(authHeader, "Bearer ") {
-			c.String(http.StatusUnauthorized, "Unauthorized")
-			c.AbortWithError(http.StatusUnauthorized, fmt.Errorf("authentication failed: no bearer token found"))
-			return
-		}
-
-		token := strings.TrimPrefix(authHeader, "Bearer ")
 		tr := &authnv1.TokenReview{
 			Spec: authnv1.TokenReviewSpec{
 				Token: token,
@@ -132,7 +139,7 @@ func CheckClientBearerToken(authnInterface authnclientv1.AuthenticationV1Interfa
 			Spec: authzv1.SubjectAccessReviewSpec{
 				ResourceAttributes: &authzv1.ResourceAttributes{
 					Namespace: c.Param("namespace"),
-					Verb:      "get",
+					Verb:      verb,
 					Group:     "crd.varmor.org",
 					Resource:  "armorprofilemodels",
 					Name:      c.Param("name"),
@@ -147,11 +154,14 @@ func CheckClientBearerToken(authnInterface authnclientv1.AuthenticationV1Interfa
 			c.AbortWithError(http.StatusInternalServerError, err)
 			return
 		}
+
 		if !sarResult.Status.Allowed {
-			c.String(http.StatusUnauthorized,
-				"Unauthorized. The user '"+trResult.Status.User.Username+"' has no permission to access the ArmorProfileModel object.")
-			c.AbortWithError(http.StatusUnauthorized,
-				fmt.Errorf("Unauthorized. The user '"+trResult.Status.User.Username+"' has no permission to access the ArmorProfileModel object."))
+			msg := fmt.Sprintf("Unauthorized. The user '%s' cannot %s resource 'armorprofilemodels' in API group 'crd.varmor.org' in the namespace '%s'.",
+				trResult.Status.User.Username,
+				verb,
+				c.Param("namespace"))
+			c.String(http.StatusUnauthorized, msg)
+			c.AbortWithError(http.StatusUnauthorized, fmt.Errorf(msg))
 			return
 		}
 
@@ -204,8 +214,11 @@ func NewStatusService(
 	apiGroup := s.router.Group("/apis/crd.varmor.org/v1beta1")
 	{
 		apiGroup.GET(varmorconfig.ArmorProfileModelPath,
-			CheckClientBearerToken(authnInterface, authzInterface, inContainer),
+			CheckClientBearerToken(authnInterface, authzInterface, "get", inContainer),
 			modelmanager.ExportArmorProfileModelHandler(varmorInterface, log))
+		apiGroup.POST(varmorconfig.ArmorProfileModelPath,
+			CheckClientBearerToken(authnInterface, authzInterface, "create", inContainer),
+			modelmanager.ImportArmorProfileModelHandler(varmorInterface, log))
 	}
 
 	cert, err := tls.X509KeyPair(tlsPair.Certificate, tlsPair.PrivateKey)

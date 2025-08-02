@@ -16,7 +16,6 @@ package statusmanagerv1
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
@@ -40,24 +39,16 @@ const (
 func (m *StatusManager) Status(c *gin.Context) {
 	logger := m.log.WithName("Status()")
 
-	reqBody, err := getHTTPBody(c)
-	if err != nil {
-		logger.Error(err, "getHTTPBody()")
-		c.JSON(http.StatusBadRequest, nil)
-		return
-	}
-
 	var profileStatus varmortypes.ProfileStatus
-	err = json.Unmarshal(reqBody, &profileStatus)
-	if err != nil {
-		logger.Error(err, "json.Unmarshal()")
-		c.JSON(http.StatusBadRequest, nil)
+	if err := c.ShouldBindJSON(&profileStatus); err != nil {
+		logger.Error(err, "c.ShouldBindJSON() failed")
+		c.JSON(http.StatusBadRequest, err)
 		return
 	}
 
 	if profileStatus.Namespace == "" || profileStatus.ProfileName == "" ||
 		profileStatus.NodeName == "" || profileStatus.Status == "" {
-		err = fmt.Errorf("request is illegal")
+		err := fmt.Errorf("request is illegal")
 		logger.Error(err, "bad request body")
 		c.JSON(http.StatusBadRequest, nil)
 		return
@@ -69,6 +60,8 @@ func (m *StatusManager) Status(c *gin.Context) {
 	if m.metricsModule.Enabled {
 		go m.handleProfileStatusUpdate(profileStatus)
 	}
+
+	c.Status(http.StatusOK)
 }
 
 func (m *StatusManager) handleProfileStatusUpdate(status varmortypes.ProfileStatus) {
