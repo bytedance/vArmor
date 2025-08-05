@@ -258,8 +258,6 @@ vArmor 提供了实验功能 —— 行为建模模式。用户可以创建此�
 spec:
   policy:
     enforcer: AppArmorSeccomp
-    # Switching the mode from BehaviorModeling to others is prohibited, and vice versa.
-    # You need recraete the policy to switch the mode from BehaviorModeling to DefenseInDepth.
     mode: BehaviorModeling
     modelingOptions:
       # The duration in minutes to modeling

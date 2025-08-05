@@ -13,7 +13,7 @@ vArmor 支持在创建或删除 VarmorPolicy/VarmorClusterPolicy 对象时，对
 您还需要遵守以下限制和使用要求：
 * 防护目标必须具有 **`sandbox.varmor.org/enable="true"`** 标签，从而在创建、更新时被 webhook server 处理。若其满足某个 VarmorPolicy/VarmorClusterPolicy 对象的 `spec.target` 匹配条件，vArmor 将会对其开启沙箱防护。
 * 创建 VarmorPolicy/VarmorClusterPolicy 对象后，其 `spec.target` 不可更改。请通过新建策略来更改匹配目标。
-* 创建 VarmorPolicy/VarmorClusterPolicy 对象后，可通过更新 `spec.policy` 来动态新增 enforcer、切换防护模式、更新防护规则。但不支持动态移除 enforcer，以及不支持从 **BehaviorModeling 模式**切换为其他模式，反之亦然（注：切换防护模式、更新防护规则时，无需触发工作负载的滚动重启）。
+* 创建 VarmorPolicy/VarmorClusterPolicy 对象后，可通过更新 `spec.policy` 来动态新增 enforcer、切换防护模式、更新防护规则。详情请参考[策略模式](../guides/policies_and_rules/policy_modes/index.md)。
 
 ## 状态管理
 
