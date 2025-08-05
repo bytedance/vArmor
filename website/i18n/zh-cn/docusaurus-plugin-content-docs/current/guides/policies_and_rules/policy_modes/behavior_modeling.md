@@ -174,7 +174,7 @@ demo        varmor-cluster-demo-demo-4   CRDInternal    2         2           tr
 
 当行为数据过大时，manager 会将其持久化到本次磁盘，并将 `storageType` 字段设置为 `LocalDisk`。
 
-默认情况下，manager 使用存储空间为 **500Mi** 的 `emptyDir` 卷来存储建模结果。您可以通过 `--set manager.behaviorModeling.usePersistentVolume=true` 选项启用使用持久化卷存储建模结果。启用持久卷前，请确保 manager 所在命名空间中已创建了名为 varmor-manager-apmdata-pvc 的 PVC。
+默认情况下，manager 使用存储空间为 **500Mi** 的 `emptyDir` 卷来存储建模结果。您可以通过 `--set manager.behaviorModeling.usePersistentVolume=true` 选项启用使用持久化卷存储建模结果。启用持久卷前，请确保 manager 所在命名空间中已创建了名为 **varmor-manager-apmdata-pvc** 的 PVC。
 
 ### 数据导出与导入
 
