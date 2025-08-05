@@ -165,7 +165,7 @@ English | [简体中文](interface_specification.zh_CN.md)
 
 | Field | Description |
 |-------|-------------|
-|duration<br />*int*| Duration is the duration in minutes to modeling. |
+|duration<br />*int*| Duration is the duration in minutes for modeling. The modeling duration starts from the moment the policy is created and is only valid if the current time is earlier than the expected modeling completion time. This field supports dynamic adjustment, which can be used to end modeling early, extend the modeling duration, or restart modeling, and its value cannot be zero. |
 
 ## DefenseInDepth
 
