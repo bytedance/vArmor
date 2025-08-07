@@ -121,6 +121,12 @@ func (p *DataPreprocessor) addTargetMnt(id uint32) {
 }
 
 func (p *DataPreprocessor) gatherTargetPIDs() {
+	// We don't need to gather the target PIDs, if the policy only use the AppArmor enforcer.
+	// Because we can just use the profile name to identify the audit event of targets.
+	if p.enforcer == varmortypes.AppArmor {
+		return
+	}
+
 	file, err := os.Open(p.bpfRecordPath)
 	if err != nil {
 		p.log.Error(err, "os.Open() failed")
@@ -191,7 +197,7 @@ func (p *DataPreprocessor) processAuditRecords() error {
 				continue
 			}
 
-			if _, exists := p.targetPIDs[uint32(event.Pid)]; exists {
+			if event.Profile == p.profileName || strings.HasPrefix(event.Profile, p.profileName+"//") {
 				if p.debug {
 					p.debugFileWriter.WriteString("\n[+] ----------------------\n")
 					data, err := json.Marshal(event)
@@ -257,10 +263,6 @@ func (p *DataPreprocessor) Process() []byte {
 
 	// gather the pids in the target container
 	p.gatherTargetPIDs()
-	if len(p.targetPIDs) == 0 {
-		p.log.Info("targetPIDs is empty, nothing to preprocess", "profile name", p.profileName)
-		return []byte(defaultData)
-	}
 
 	var err error
 	if p.debug {
