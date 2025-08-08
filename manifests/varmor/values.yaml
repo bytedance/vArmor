@@ -107,16 +107,22 @@ manager:
     - --enableBpfEnforcer
 
   behaviorModeling:
+    # Set this to true to use a persistent volume for storing LocalDisk-type ArmorProfileModel objects.
+    # Different instances of the manager will share the same data to ensure compatibility of LocalDisk-type ArmorProfileModel objects.
+    # Note: You must first create a valid PVC named varmor-manager-apmdata-pvc in the same namespace as the manager pod.
+    usePersistentVolume: false
     args:
     - --enableBehaviorModeling
     # The volume saves the ArmorProfileModel objects in the manager pod
     volumeMounts:
     - mountPath: /var/log/varmor/apmdata
-      name: data-volume
-    volumes:
-    - emptyDir:
-        sizeLimit: 500Mi
-      name: data-volume
+      name: apmdata
+    emptyDirVolume:
+      sizeLimit: 500Mi
+      name: apmdata
+    persistentVolume:
+      claimName: varmor-manager-apmdata-pvc
+      name: apmdata
 
   podServiceEgressControl:
     args:
@@ -256,11 +262,11 @@ agent:
     # The volume caches the audit data in the agent pod during modeling
     volumeMounts:
     - mountPath: /var/log/varmor/auditdata
-      name: data-volume
+      name: auditdata
     volumes:
     - emptyDir:
         sizeLimit: 500Mi
-      name: data-volume
+      name: auditdata
     resources:
       limits:
         cpu: 2
