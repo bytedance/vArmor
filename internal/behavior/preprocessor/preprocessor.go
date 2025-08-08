@@ -121,6 +121,12 @@ func (p *DataPreprocessor) addTargetMnt(id uint32) {
 }
 
 func (p *DataPreprocessor) gatherTargetPIDs() {
+	// We don't need to gather the target PIDs, if the policy only use the AppArmor enforcer.
+	// Because we can just use the profile name to identify the audit event of targets.
+	if p.enforcer == varmortypes.AppArmor {
+		return
+	}
+
 	file, err := os.Open(p.bpfRecordPath)
 	if err != nil {
 		p.log.Error(err, "os.Open() failed")
@@ -138,22 +144,21 @@ func (p *DataPreprocessor) gatherTargetPIDs() {
 
 		switch event.Type {
 		case varmortypes.SchedProcessFork, varmortypes.SchedProcessExec:
-			if event.ParentTgid != event.ChildTgid &&
-				p.containTargetPID(event.ParentTgid) &&
-				!p.containTargetPID(event.ChildTgid) {
-				// Add child's tgid
-				p.addTargetPID(event.ChildTgid)
-				// Add child's mnt ns id if it's in a new mnt namespace
-				if !p.containTargetMnt(event.MntNsID) {
-					p.addTargetMnt(event.MntNsID)
+			if p.containTargetMnt(event.ChildMntNsID) {
+				if !p.containTargetPID(event.ChildTgid) {
+					// Add child's tgid
+					p.addTargetPID(event.ChildTgid)
+					continue
 				}
-				continue
-			}
-
-			if p.containTargetMnt(event.MntNsID) &&
-				!p.containTargetPID(event.ChildTgid) {
-				p.addTargetPID(event.ChildTgid)
-				continue
+			} else {
+				if p.containTargetMnt(event.ParentMntNsID) &&
+					!p.containTargetPID(event.ChildTgid) {
+					// Add child's tgid
+					p.addTargetPID(event.ChildTgid)
+					// Add child's mnt ns id if it's in a new mnt namespace
+					p.addTargetMnt(event.ChildMntNsID)
+					continue
+				}
 			}
 		}
 	}
@@ -191,7 +196,7 @@ func (p *DataPreprocessor) processAuditRecords() error {
 				continue
 			}
 
-			if _, exists := p.targetPIDs[uint32(event.Pid)]; exists {
+			if event.Profile == p.profileName || strings.HasPrefix(event.Profile, p.profileName+"//") {
 				if p.debug {
 					p.debugFileWriter.WriteString("\n[+] ----------------------\n")
 					data, err := json.Marshal(event)
@@ -225,7 +230,15 @@ func (p *DataPreprocessor) processAuditRecords() error {
 				continue
 			}
 
-			if _, exists := p.targetPIDs[uint32(event.PID)]; exists {
+			// Try to parse the AppArmor profile name from the event
+			// Note:
+			// Some systems will output the AppArmor security context of the task in the Subj
+			// field of the Seccomp audit event. So people might see the profile name in the
+			// Seccomp event if they use both AppArmor and Seccomp enforcer.
+			// We can utilize this feature to extract the profile name from the Seccomp event.
+			profileName := varmorauditor.ParseProfileName(event.Subj)
+			_, exists := p.targetPIDs[uint32(event.PID)]
+			if profileName == p.profileName || exists {
 				if p.debug {
 					p.debugFileWriter.WriteString("\n[+] ----------------------\n")
 					data, err := json.Marshal(event)
@@ -257,10 +270,6 @@ func (p *DataPreprocessor) Process() []byte {
 
 	// gather the pids in the target container
 	p.gatherTargetPIDs()
-	if len(p.targetPIDs) == 0 {
-		p.log.Info("targetPIDs is empty, nothing to preprocess", "profile name", p.profileName)
-		return []byte(defaultData)
-	}
 
 	var err error
 	if p.debug {
