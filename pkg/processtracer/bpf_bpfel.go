@@ -13,15 +13,16 @@ import (
 )
 
 type bpfProcessEvent struct {
-	Type       uint32
-	ParentPid  uint32
-	ParentTgid uint32
-	ChildPid   uint32
-	ChildTgid  uint32
-	MntNsId    uint32
-	ParentTask [16]uint8
-	ChildTask  [16]uint8
-	Filename   [64]uint8
+	Type          uint32
+	ParentPid     uint32
+	ParentTgid    uint32
+	ParentMntNsId uint32
+	ChildPid      uint32
+	ChildTgid     uint32
+	ChildMntNsId  uint32
+	ParentComm    [16]uint8
+	ChildComm     [16]uint8
+	Filename      [64]uint8
 }
 
 // loadBpf returns the embedded CollectionSpec for bpf.

@@ -1,13 +1,33 @@
+// Copyright 2025 vArmor Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package tracer
 
+const (
+	TaskCommLen    = 16
+	MaxFilenameLen = 64
+)
+
 type BpfProcessEvent struct {
-	Type       uint32
-	ParentPid  uint32
-	ParentTgid uint32
-	ChildPid   uint32
-	ChildTgid  uint32
-	MntNsID    uint32
-	ParentTask [16]uint8
-	ChildTask  [16]uint8
-	Filename   [64]uint8
+	Type          uint32
+	ParentPid     uint32
+	ParentTgid    uint32
+	ParentMntNsID uint32
+	ChildPid      uint32
+	ChildTgid     uint32
+	ChildMntNsID  uint32
+	ParentComm    [TaskCommLen]uint8
+	ChildComm     [TaskCommLen]uint8
+	Filename      [MaxFilenameLen]uint8
 }
