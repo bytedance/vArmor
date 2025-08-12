@@ -119,20 +119,20 @@ func (r *ProcessRecorder) eventHandler() {
 					eventType = "sched_process_exec"
 				}
 
-				len := indexOfZero(event.ParentTask[:])
-				parentTask := string(event.ParentTask[:len])
+				len := indexOfZero(event.ParentComm[:])
+				parentComm := string(event.ParentComm[:len])
 
-				len = indexOfZero(event.ChildTask[:])
-				childTask := string(event.ChildTask[:len])
+				len = indexOfZero(event.ChildComm[:])
+				childComm := string(event.ChildComm[:len])
 
 				len = indexOfZero(event.Filename[:])
 				fileName := string(event.Filename[:len])
 
-				output := fmt.Sprintf("%-24s |%-12d %-12d %-20s | %-12d %-12d %-20s | %-12d %s\n",
+				output := fmt.Sprintf("%-24s |%-12d %-12d %-20s %-12d | %-12d %-12d %-20s %-12d | %s\n",
 					eventType,
-					event.ParentPid, event.ParentTgid, parentTask,
-					event.ChildPid, event.ChildTgid, childTask,
-					event.MntNsID, fileName,
+					event.ParentPid, event.ParentTgid, parentComm, event.ParentMntNsID,
+					event.ChildPid, event.ChildTgid, childComm, event.ChildMntNsID,
+					fileName,
 				)
 				r.recordDebugFileWriter.WriteString(output)
 			}

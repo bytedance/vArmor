@@ -135,6 +135,7 @@ func NewAgent(
 	}
 
 	if inContainer {
+		// Initializes and rotates the token that is used for authenticating with the manager periodically.
 		varmorutils.InitAndStartTokenRotation(5*time.Minute, log)
 	}
 
@@ -425,49 +426,33 @@ func (agent *Agent) handleCreateOrUpdateArmorProfile(ap *varmor.ArmorProfile, ke
 
 	// [Experimental feature] For BehaviorModeling mode,
 	// only works with AppArmor/Seccomp/AppArmorSeccomp enforcer for now.
-	needLoadApparmor := true
-	if agent.enableBehaviorModeling &&
-		ap.Spec.BehaviorModeling.Enable &&
-		ap.Spec.BehaviorModeling.Duration != 0 {
-
+	if agent.enableBehaviorModeling {
 		createTime := ap.CreationTimestamp.Time
 		Duration := time.Duration(ap.Spec.BehaviorModeling.Duration) * time.Minute
 
-		if modeller, ok := agent.modellers[key]; ok {
-			needLoadApparmor = false
-			// Update a running modeller's duration.
+		modeller, exist := agent.modellers[key]
+		if exist && modeller.IsModeling() {
 			modeller.UpdateDuration(Duration)
-			if !modeller.IsModeling() {
-				// Sync data to manager immediately.
-				modeller.PreprocessAndSendBehaviorData()
-			}
 		} else {
-			// Create a new modeller and start modeling for the ArmorProfile object.
-			modeller := varmorbehavior.NewBehaviorModeller(
-				agent.auditor,
-				agent.ptracer,
-				agent.monitor,
-				agent.nodeName,
-				ap.Namespace,
-				ap.Name,
-				ap.Spec.Profile.Enforcer,
-				createTime,
-				Duration,
-				agent.stopCh,
-				agent.svcAddresses,
-				agent.debug,
-				agent.inContainer,
-				agent.log.WithName("BEHAVIOR-MODELLER"))
-			if modeller != nil {
+			if time.Now().Before(createTime.Add(Duration)) {
+				// Create a new modeller and start modeling for the ArmorProfile object.
+				modeller = varmorbehavior.NewBehaviorModeller(
+					agent.auditor,
+					agent.ptracer,
+					agent.monitor,
+					agent.nodeName,
+					ap.Namespace,
+					ap.Name,
+					ap.Spec.Profile.Enforcer,
+					createTime,
+					Duration,
+					agent.stopCh,
+					agent.svcAddresses,
+					agent.debug,
+					agent.inContainer,
+					agent.log.WithName("BEHAVIOR-MODELLER"))
 				agent.modellers[key] = modeller
-
-				if time.Now().Before(createTime.Add(Duration)) {
-					// Start modeling, sync data to manager when modeling completed.
-					modeller.Run()
-				} else {
-					// Sync data to manager immediately.
-					modeller.PreprocessAndSendBehaviorData()
-				}
+				modeller.Run()
 			}
 		}
 	}
@@ -477,30 +462,28 @@ func (agent *Agent) handleCreateOrUpdateArmorProfile(ap *varmor.ArmorProfile, ke
 	// AppArmor
 	if (enforcer & varmortypes.AppArmor) != 0 {
 		// Save and load AppArmor profile.
-		if needLoadApparmor {
-			logger.Info(fmt.Sprintf("saving the AppArmor profile '%s (%s)' to Node/%s", ap.Spec.Profile.Name, ap.Spec.Profile.Mode, agent.nodeName))
-			profilePath := filepath.Join(agent.appArmorProfileDir, ap.Spec.Profile.Name)
-			err := varmorapparmor.SaveAppArmorProfile(profilePath, ap.Spec.Profile.Content)
-			if err != nil {
-				logger.Error(err, "SaveAppArmorProfile()")
-				errorMessages = append(errorMessages, "SaveAppArmorProfile(): "+err.Error())
+		logger.Info(fmt.Sprintf("saving the AppArmor profile '%s (%s)' to Node/%s", ap.Spec.Profile.Name, ap.Spec.Profile.Mode, agent.nodeName))
+		profilePath := filepath.Join(agent.appArmorProfileDir, ap.Spec.Profile.Name)
+		err := varmorapparmor.SaveAppArmorProfile(profilePath, ap.Spec.Profile.Content)
+		if err != nil {
+			logger.Error(err, "SaveAppArmorProfile()")
+			errorMessages = append(errorMessages, "SaveAppArmorProfile(): "+err.Error())
+		} else {
+			if yes, _ := varmorapparmor.IsAppArmorProfileLoaded(ap.Spec.Profile.Name); !yes {
+				// Load a new AppArmor profile to kernel for ArmorProfile creation event.
+				logger.Info(fmt.Sprintf("loading '%s (%s)' to Node/%s's kernel", ap.Spec.Profile.Name, ap.Spec.Profile.Mode, agent.nodeName))
+				output, err := varmorapparmor.LoadAppArmorProfile(profilePath, string(ap.Spec.Profile.Mode))
+				if err != nil {
+					logger.Error(err, "LoadAppArmorProfile()", "output", output)
+					errorMessages = append(errorMessages, "LoadAppArmorProfile(): "+err.Error()+"  output: "+output)
+				}
 			} else {
-				if yes, _ := varmorapparmor.IsAppArmorProfileLoaded(ap.Spec.Profile.Name); !yes {
-					// Load a new AppArmor profile to kernel for ArmorProfile creation event.
-					logger.Info(fmt.Sprintf("loading '%s (%s)' to Node/%s's kernel", ap.Spec.Profile.Name, ap.Spec.Profile.Mode, agent.nodeName))
-					output, err := varmorapparmor.LoadAppArmorProfile(profilePath, string(ap.Spec.Profile.Mode))
-					if err != nil {
-						logger.Error(err, "LoadAppArmorProfile()", "output", output)
-						errorMessages = append(errorMessages, "LoadAppArmorProfile(): "+err.Error()+"  output: "+output)
-					}
-				} else {
-					// Update a existing AppArmor profile for ArmorProfile update event.
-					logger.Info(fmt.Sprintf("reloading '%s (%s)' to Node/%s's kernel", ap.Spec.Profile.Name, ap.Spec.Profile.Mode, agent.nodeName))
-					output, err := varmorapparmor.UpdateAppArmorProfile(profilePath, string(ap.Spec.Profile.Mode))
-					if err != nil {
-						logger.Error(err, "UpdateAppArmorProfile()", "output", output)
-						errorMessages = append(errorMessages, "UpdateAppArmorProfile(): "+err.Error()+"  output: "+output)
-					}
+				// Update a existing AppArmor profile for ArmorProfile update event.
+				logger.Info(fmt.Sprintf("reloading '%s (%s)' to Node/%s's kernel", ap.Spec.Profile.Name, ap.Spec.Profile.Mode, agent.nodeName))
+				output, err := varmorapparmor.UpdateAppArmorProfile(profilePath, string(ap.Spec.Profile.Mode))
+				if err != nil {
+					logger.Error(err, "UpdateAppArmorProfile()", "output", output)
+					errorMessages = append(errorMessages, "UpdateAppArmorProfile(): "+err.Error()+"  output: "+output)
 				}
 			}
 		}

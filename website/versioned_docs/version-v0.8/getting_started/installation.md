@@ -21,13 +21,13 @@ vArmor can be deployed via a Helm chart which is the recommended and preferred m
 In order to install vArmor with Helm, first fetch the chart.
 
 ```
-helm pull oci://elkeid-ap-southeast-1.cr.volces.com/varmor/varmor --version 0.8.1
+helm pull oci://elkeid-ap-southeast-1.cr.volces.com/varmor/varmor --version 0.8.2
 ```
 
 Then install it with helm optional [configurations](#configuration).
 
 ```
-helm install varmor varmor-0.8.1.tgz \
+helm install varmor varmor-0.8.2.tgz \
     --namespace varmor --create-namespace \
     --set image.registry="elkeid-ap-southeast-1.cr.volces.com"
 ```
@@ -164,7 +164,7 @@ You can use the following option to change this behavior. Default: disabled.
 You can use helm commands to upgrade, rollback, and perform other operations.
 
 ```bash
-helm upgrade varmor varmor-0.8.1.tgz \
+helm upgrade varmor varmor-0.8.2.tgz \
     --namespace varmor --create-namespace \
     --set image.registry="elkeid-ap-southeast-1.cr.volces.com" \
     --set bpfLsmEnforcer.enabled=true \

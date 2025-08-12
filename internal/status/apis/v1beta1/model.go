@@ -21,22 +21,78 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/go-logr/logr"
 
+	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
 	varmorapm "github.com/bytedance/vArmor/internal/apm"
+	statuscommon "github.com/bytedance/vArmor/internal/status/common"
 	varmorinterface "github.com/bytedance/vArmor/pkg/client/clientset/versioned/typed/varmor/v1beta1"
 )
 
 // ExportArmorProfileModelHandler is the API interface which exports the armorprofilemodel object with all behavior data.
 func ExportArmorProfileModelHandler(varmorInterface varmorinterface.CrdV1beta1Interface, logger logr.Logger) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		logger := logger.WithName("ExportArmorProfileModel()")
+		logger := logger.WithName("ExportArmorProfileModelHandler()")
 
 		logger.Info("Export ArmorProfileModel object", "namespace", c.Param("namespace"), "name", c.Param("name"))
 		apm, err := varmorapm.RetrieveArmorProfileModel(varmorInterface, c.Param("namespace"), c.Param("name"), false, logger)
 		if err != nil {
+			logger.Error(err, "varmorapm.RetrieveArmorProfileModel() failed")
 			c.String(http.StatusInternalServerError, err.Error())
-			c.AbortWithError(http.StatusInternalServerError, err)
 			return
 		}
+
 		c.JSON(http.StatusOK, apm)
+	}
+}
+
+// ImportArmorProfileModelHandler is the API interface which imports the armorprofilemodel object.
+func ImportArmorProfileModelHandler(varmorInterface varmorinterface.CrdV1beta1Interface, logger logr.Logger) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		logger := logger.WithName("ImportArmorProfileModelHandler()")
+
+		logger.Info("Import ArmorProfileModel object", "namespace", c.Param("namespace"), "name", c.Param("name"))
+
+		var newApm varmor.ArmorProfileModel
+		if err := c.ShouldBindJSON(&newApm); err != nil {
+			logger.Error(err, "c.ShouldBindJSON() failed")
+			c.String(http.StatusBadRequest, err.Error())
+			return
+		}
+
+		// Retrieve or create the ArmorProfileModel object
+		oldApm, err := varmorapm.RetrieveArmorProfileModel(varmorInterface, c.Param("namespace"), c.Param("name"), true, logger)
+		if err != nil {
+			logger.Error(err, "varmorapm.RetrieveArmorProfileModel() failed")
+			c.String(http.StatusInternalServerError, err.Error())
+			return
+		}
+
+		// Merge the behavior data
+		statuscommon.MergeAppArmorResult(oldApm, newApm.Data.DynamicResult.AppArmor)
+		statuscommon.MergeSeccompResult(oldApm, newApm.Data.DynamicResult.Seccomp)
+
+		// Overwrite the profiles
+		oldApm.Data.Profile.Name = c.Param("name")
+
+		if newApm.Data.Profile.Content != "" {
+			oldApm.Data.Profile.Content = newApm.Data.Profile.Content
+		}
+
+		if newApm.Data.Profile.SeccompContent != "" {
+			oldApm.Data.Profile.SeccompContent = newApm.Data.Profile.SeccompContent
+		}
+
+		if newApm.Data.Profile.BpfContent != nil {
+			oldApm.Data.Profile.BpfContent = newApm.Data.Profile.BpfContent
+		}
+
+		// Persist the ArmorProfileModel object
+		_, err = varmorapm.PersistArmorProfileModel(varmorInterface, oldApm, logger)
+		if err != nil {
+			logger.Error(err, "varmorapm.PersistArmorProfileModel() failed")
+			c.String(http.StatusInternalServerError, err.Error())
+			return
+		}
+
+		c.Status(http.StatusOK)
 	}
 }

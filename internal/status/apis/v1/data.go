@@ -15,7 +15,6 @@
 package statusmanagerv1
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"reflect"
@@ -28,6 +27,7 @@ import (
 	varmorapm "github.com/bytedance/vArmor/internal/apm"
 	apparmorprofile "github.com/bytedance/vArmor/internal/profile/apparmor"
 	seccompprofile "github.com/bytedance/vArmor/internal/profile/seccomp"
+	statuscommon "github.com/bytedance/vArmor/internal/status/common"
 	varmortypes "github.com/bytedance/vArmor/internal/types"
 )
 
@@ -36,23 +36,17 @@ import (
 func (m *StatusManager) Data(c *gin.Context) {
 	logger := m.log.WithName("Data()")
 
-	reqBody, err := getHTTPBody(c)
-	if err != nil {
-		logger.Error(err, "getHTTPBody()")
-		c.JSON(http.StatusBadRequest, nil)
-		return
-	}
-
 	var data varmortypes.BehaviorData
-	err = json.Unmarshal(reqBody, &data)
-	if err != nil {
-		logger.Error(err, "json.Unmarshal()")
-		c.JSON(http.StatusBadRequest, nil)
+	if err := c.ShouldBindJSON(&data); err != nil {
+		logger.Error(err, "c.ShouldBindJSON() failed")
+		c.JSON(http.StatusBadRequest, err)
 		return
 	}
 
 	logger.V(2).Info("enqueue dynamicResult from agent")
-	m.dataQueue.Add(string(reqBody))
+	m.dataQueue.Add(data)
+
+	c.Status(http.StatusOK)
 }
 
 // updateModelingStatus update StatusManager.modelingStatuses[statusKey] with behaviorData which comes from agent.
@@ -91,7 +85,7 @@ func (m *StatusManager) updateModelingStatus(statusKey string, behaviorData *var
 }
 
 // syncData processes the behavior data asynchronously.
-func (m *StatusManager) syncData(data string) error {
+func (m *StatusManager) syncData(behaviorData varmortypes.BehaviorData) error {
 	logger := m.log.WithName("syncData()")
 
 	startTime := time.Now()
@@ -100,14 +94,7 @@ func (m *StatusManager) syncData(data string) error {
 		logger.V(2).Info("finished syncing data", "processingTime", time.Since(startTime).String())
 	}()
 
-	// Unmarshal the behavior data comes from agent
-	var behaviorData varmortypes.BehaviorData
-	err := json.Unmarshal([]byte(data), &behaviorData)
-	if err != nil {
-		logger.Error(err, "json.Unmarshal() behaviorData failed")
-		return nil
-	}
-	logger.Info("1. receive behavior data from agent", "profile", behaviorData.ProfileName, "node", behaviorData.NodeName)
+	logger.Info("1. sync behavior data from agent", "profile", behaviorData.ProfileName, "node", behaviorData.NodeName)
 
 	// Merge the behavior data into the ArmorProfileModel objet
 	apm, err := varmorapm.RetrieveArmorProfileModel(m.varmorInterface, behaviorData.Namespace, behaviorData.ProfileName, true, logger)
@@ -116,12 +103,8 @@ func (m *StatusManager) syncData(data string) error {
 		return err
 	}
 	oldDynamicResult := apm.Data.DynamicResult.DeepCopy()
-	if behaviorData.DynamicResult.AppArmor != nil {
-		mergeAppArmorResult(apm, &behaviorData)
-	}
-	if behaviorData.DynamicResult.Seccomp != nil {
-		mergeSeccompResult(apm, &behaviorData)
-	}
+	statuscommon.MergeAppArmorResult(apm, behaviorData.DynamicResult.AppArmor)
+	statuscommon.MergeSeccompResult(apm, behaviorData.DynamicResult.Seccomp)
 	if reflect.DeepEqual(oldDynamicResult, &apm.Data.DynamicResult) {
 		logger.Info("2. no new behavior data to update to ArmorProfileModel", "profile", behaviorData.ProfileName, "node", behaviorData.NodeName)
 	} else {
@@ -191,7 +174,7 @@ func (m *StatusManager) syncData(data string) error {
 	logger.Info("4. update ArmorProfileModel/status", "namespace", behaviorData.Namespace, "name", behaviorData.ProfileName)
 	// Set the data to empty before updating the status in case the data exceeds the limit.
 	apm.Data = varmor.ArmorProfileModelData{}
-	err = UpdateArmorProfileModelStatus(m.varmorInterface, apm, &modelingStatus, m.desiredNumber, complete)
+	err = statuscommon.UpdateArmorProfileModelStatus(m.varmorInterface, apm, &modelingStatus, m.desiredNumber, complete)
 	if err != nil {
 		logger.Error(err, "UpdateArmorProfileModelStatus()")
 	}
@@ -224,7 +207,7 @@ func (m *StatusManager) processNextDataWorkItem() bool {
 	}
 	defer m.dataQueue.Done(data)
 
-	err := m.syncData(data.(string))
+	err := m.syncData(data.(varmortypes.BehaviorData))
 	m.handleDataErr(err, data)
 
 	return true

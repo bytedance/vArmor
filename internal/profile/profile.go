@@ -178,8 +178,14 @@ func GenerateProfile(
 		}
 		// Seccomp
 		if (e & varmortypes.Seccomp) != 0 {
-			profile.Mode = varmor.ProfileModeComplain
-			profile.SeccompContent = seccompprofile.GenerateBehaviorModelingProfile()
+			if complete {
+				// Create profile based on the AlwaysAllow template after the behvior modeling was completed.
+				profile.Mode = varmor.ProfileModeEnforce
+				profile.SeccompContent = seccompprofile.GenerateAlwaysAllowProfile()
+			} else {
+				profile.Mode = varmor.ProfileModeComplain
+				profile.SeccompContent = seccompprofile.GenerateBehaviorModelingProfile()
+			}
 		}
 
 	case varmor.DefenseInDepthMode:
@@ -313,8 +319,8 @@ func NewArmorProfile(
 		ap.Spec.UpdateExistingWorkloads = vcp.Spec.UpdateExistingWorkloads
 
 		if vcp.Spec.Policy.Mode == varmor.BehaviorModelingMode {
-			if vcp.Spec.Policy.ModelingOptions.Duration == 0 {
-				return nil, nil, fmt.Errorf("invalid parameter: .Spec.Policy.ModelingOptions.Duration == 0")
+			if vcp.Spec.Policy.ModelingOptions == nil || vcp.Spec.Policy.ModelingOptions.Duration == 0 {
+				return nil, nil, fmt.Errorf("invalid parameter: the Spec.Policy.ModelingOptions.Duration field cannot be empty or 0")
 			}
 			ap.Spec.BehaviorModeling.Enable = true
 			ap.Spec.BehaviorModeling.Duration = vcp.Spec.Policy.ModelingOptions.Duration
@@ -345,8 +351,8 @@ func NewArmorProfile(
 		ap.Spec.UpdateExistingWorkloads = vp.Spec.UpdateExistingWorkloads
 
 		if vp.Spec.Policy.Mode == varmor.BehaviorModelingMode {
-			if vp.Spec.Policy.ModelingOptions.Duration == 0 {
-				return nil, nil, fmt.Errorf("invalid parameter: .Spec.Policy.ModelingOptions.Duration == 0")
+			if vp.Spec.Policy.ModelingOptions == nil || vp.Spec.Policy.ModelingOptions.Duration == 0 {
+				return nil, nil, fmt.Errorf("invalid parameter: the Spec.Policy.ModelingOptions.Duration field cannot be empty or 0")
 			}
 			ap.Spec.BehaviorModeling.Enable = true
 			ap.Spec.BehaviorModeling.Duration = vp.Spec.Policy.ModelingOptions.Duration

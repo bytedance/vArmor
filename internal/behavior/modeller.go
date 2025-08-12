@@ -75,43 +75,29 @@ func NewBehaviorModeller(
 	log.Info("create a behavior modeller", "start time", startTime,
 		"duration", duration.String(), "profile name", name)
 
-	modeller := BehaviorModeller{
-		auditor:        auditor,
-		ptracer:        ptracer,
-		monitor:        monitor,
-		nodeName:       nodeName,
-		namespace:      namespace,
-		name:           name,
-		enforcer:       enforcer,
-		startTime:      startTime,
-		duration:       duration,
-		modeling:       false,
-		TaskStartCh:    make(chan varmortypes.ContainerInfo, 100),
-		targetPIDs:     make(map[uint32]struct{}, 500),
-		targetMnts:     make(map[uint32]struct{}, 30),
-		ModellerStopCh: make(chan bool, 1),
-		stopCh:         stopCh,
-		svcAddresses:   svcAddresses,
-		debug:          debug,
-		inContainer:    inContainer,
-		log:            log,
+	return &BehaviorModeller{
+		auditor:         auditor,
+		ptracer:         ptracer,
+		monitor:         monitor,
+		nodeName:        nodeName,
+		namespace:       namespace,
+		name:            name,
+		enforcer:        enforcer,
+		startTime:       startTime,
+		duration:        duration,
+		modeling:        false,
+		TaskStartCh:     make(chan varmortypes.ContainerInfo, 100),
+		targetPIDs:      make(map[uint32]struct{}, 500),
+		targetMnts:      make(map[uint32]struct{}, 30),
+		auditRecorder:   varmorrecorder.NewAuditRecorder(varmorconfig.AuditDataDirectory, name, stopCh, debug, log.WithName("AUDIT-RECORDER")),
+		processRecorder: varmorrecorder.NewProcessRecorder(varmorconfig.AuditDataDirectory, name, stopCh, debug, log.WithName("BPF-RECORDER")),
+		ModellerStopCh:  make(chan bool, 1),
+		stopCh:          stopCh,
+		svcAddresses:    svcAddresses,
+		debug:           debug,
+		inContainer:     inContainer,
+		log:             log,
 	}
-
-	auditRecorder := varmorrecorder.NewAuditRecorder(varmorconfig.AuditDataDirectory, name, stopCh, debug, log.WithName("AUDIT-RECORDER"))
-	if auditRecorder != nil {
-		modeller.auditRecorder = auditRecorder
-	} else {
-		return nil
-	}
-
-	ProcessRecorder := varmorrecorder.NewProcessRecorder(varmorconfig.AuditDataDirectory, name, stopCh, debug, log.WithName("BPF-RECORDER"))
-	if ProcessRecorder != nil {
-		modeller.processRecorder = ProcessRecorder
-	} else {
-		return nil
-	}
-
-	return &modeller
 }
 
 func (modeller *BehaviorModeller) PreprocessAndSendBehaviorData() {
@@ -176,6 +162,15 @@ func (modeller *BehaviorModeller) shouldCacheContainer(info varmortypes.Containe
 }
 
 func (modeller *BehaviorModeller) eventHandler() {
+	stopAndCleanup := func() {
+		modeller.stop()
+		modeller.auditRecorder.Close()
+		modeller.auditRecorder.CleanUp()
+		modeller.processRecorder.Close()
+		modeller.processRecorder.CleanUp()
+		modeller.log.Info("behavioral data collection is stopped", "profile name", modeller.name)
+	}
+
 	ticker := time.NewTicker(30 * time.Second)
 
 	for {
@@ -211,17 +206,11 @@ func (modeller *BehaviorModeller) eventHandler() {
 			}
 
 		case <-modeller.stopCh:
-			modeller.stop()
-			modeller.log.Info("behavioral data collection is stopped", "profile name", modeller.name)
+			stopAndCleanup()
 			return
 
 		case <-modeller.ModellerStopCh:
-			modeller.stop()
-			modeller.auditRecorder.Close()
-			modeller.auditRecorder.CleanUp()
-			modeller.processRecorder.Close()
-			modeller.processRecorder.CleanUp()
-			modeller.log.Info("behavioral data collection is stopped", "profile name", modeller.name)
+			stopAndCleanup()
 			return
 		}
 	}

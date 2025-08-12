@@ -30,6 +30,8 @@ var (
 	updateChan chan bool
 )
 
+// InitAndStartTokenRotation initializes and starts the token rotation.
+// The token is used for authenticating with the manager.
 func InitAndStartTokenRotation(interval time.Duration, logger logr.Logger) {
 	updateToken(BindTokenPath, logger)
 	updateChan = make(chan bool)

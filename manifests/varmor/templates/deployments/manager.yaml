@@ -127,9 +127,15 @@ spec:
           {{- toYaml .Values.manager.resources | nindent 10 }}
       {{- if .Values.behaviorModeling.enabled }}
       volumes:
-        {{- with .Values.manager.behaviorModeling.volumes }}
-          {{- toYaml . | nindent 6 }}
-        {{- end }}
+      {{- if .Values.manager.behaviorModeling.usePersistentVolume }} 
+      - persistentVolumeClaim:
+          claimName: {{ .Values.manager.behaviorModeling.persistentVolume.claimName }}
+        name: {{ .Values.manager.behaviorModeling.persistentVolume.name }}
+      {{- else }}
+      - emptyDir:
+          sizeLimit: {{ .Values.manager.behaviorModeling.emptyDirVolume.sizeLimit }}
+        name: {{ .Values.manager.behaviorModeling.emptyDirVolume.name }}
+      {{- end }}
       {{- end }}
       {{- with .Values.manager.nodeSelector }}
       nodeSelector:
