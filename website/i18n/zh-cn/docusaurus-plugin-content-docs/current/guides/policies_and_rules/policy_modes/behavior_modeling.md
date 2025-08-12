@@ -46,7 +46,6 @@ BehaviorModeling 模式的前置条件如下所示：
   ```
 :::
 
-
 ## 使用说明
 
 ### 基本用法
@@ -75,8 +74,6 @@ spec:
         app: demo-4
   policy:
     enforcer: AppArmorSeccomp
-    # Note: Switching the mode from BehaviorModeling to others is prohibited, and vice versa.
-    #       You need recraete the policy to switch the mode from BehaviorModeling to DefenseInDepth.
     # mode: DefenseInDepth
     mode: BehaviorModeling
     modelingOptions:
@@ -168,14 +165,22 @@ demo        varmor-cluster-demo-demo-4   CRDInternal    2         2           tr
 ### 注意事项
 
 * 目标工作负载需要拥有 `sandbox.varmor.org/enable="true"` 标签。您可以通过 [设置 Webhook 的匹配标签](../../../getting_started/installation.md#设置-webhook-的匹配标签) 配置选项关闭此特性。
-* 不支持将 BehaviorModeling 模式的策略切换为其他模式，反之亦然。您需要删除策略后重新创建策略才可切换。
-* 建模完成后，不支持修改策略的建模时长。您需要删除策略后重新创建策略才可以重新开始建模，但已有的行为数据会被保留。
+* 建模完成后，方可将 **BehaviorModeling** 切换为其他模式。
+* 从其他模式切换到 **BehaviorModeling** 或建模已经完成时，您需要更新建模时长并重启目标工作负载，以重新启动行为建模过程。
 
-### 数据导出
+### 数据持久化
 
-您可以将目标负载的行为数据和 Profiles 导出用于其他目的。例如：使用 [策略顾问](../../policy_advisor.md) 分析哪些内置规则能够被用于加固目标应用，基于行为数据指导用户对工作负载的安全上下文进行权限最小化等。
+建模结果会被 manager 保存到 ArmorProfileModel 对象中。
 
-不同存储类型的 ArmorProfileModel 对象导出方法不同：
+当行为数据过大时，manager 会将其持久化到本次磁盘，并将 `storageType` 字段设置为 `LocalDisk`。
+
+默认情况下，manager 使用存储空间为 **500Mi** 的 `emptyDir` 卷来存储建模结果。您可以通过 `--set manager.behaviorModeling.usePersistentVolume=true` 选项启用使用持久化卷存储建模结果。启用持久卷前，请确保 manager 所在命名空间中已创建了名为 **varmor-manager-apmdata-pvc** 的 PVC。
+
+### 数据导出与导入
+
+您可以将目标负载的行为数据和 Profiles 导出用于其他目的。例如：使用[策略顾问](../../policy_advisor.md)分析哪些内置规则能够被用于加固目标应用，基于行为数据指导用户对工作负载的安全上下文进行权限最小化等。您还可以将导出的数据导入到其他集群中进行使用。
+
+不同存储类型的 ArmorProfileModel 对象导出与导入方法不同：
 
   * **CRDInternal**
 
@@ -184,16 +189,22 @@ demo        varmor-cluster-demo-demo-4   CRDInternal    2         2           tr
       ```bash
       kubectl get ArmorProfileModel -n demo varmor-demo-demo-4 -o json > varmor-demo-demo-4.json
       ```
+    
+    - 直接使用 kubectl 导入
+
+      ```bash
+      kubectl apply -f varmor-demo-demo-4.json
+      ```
 
   * **LocalDisk**
 
-    - 将本地端口 8080 转发到集群 varmor-status-svc Service 的 8080 端口
+    - 将本地端口 8080 转发到集群 `varmor-status-svc` Service 的 8080 端口
 
       ```bash
       kubectl port-forward -n varmor service/varmor-status-svc 8080:8080
       ```
 
-    - 获取 varmor-manager 的 ServiceAccount token
+    - 获取具有 armorprofilemodels 资源读写权限的 ServiceAccount token。这里使用 varmor-manager 的 ServiceAccount token
 
       ```bash
       token=$(kubectl create token varmor-manager -n varmor)
@@ -203,8 +214,21 @@ demo        varmor-cluster-demo-demo-4   CRDInternal    2         2           tr
     
       ```bash
       curl -k -X GET \
-        -H 'Authorization: Bearer $token' \
+        -H "Authorization: Bearer $token" \
         https://localhost:8080/apis/crd.varmor.org/v1beta1/namespaces/demo/armorprofilemodels/varmor-demo-demo-4 > varmor-demo-demo-4.json
+      ```
+    
+    - 访问 `/apis/crd.varmor.org/v1beta1/namespaces/{namespace}/armorprofilemodels/{name}` 接口导入数据
+
+      如果集群的命名空间中已经有同名的 ArmorProfileModel 对象，那么行为数据会被合并，Profiles 会被覆盖。
+
+      ```bash
+      curl -k \
+          -X POST https://localhost:8080/apis/crd.varmor.org/v1beta1/namespaces/demo/armorprofilemodels/varmor-demo-demo-4 \
+          -H "Authorization: Bearer $token" \
+          -H "Accept: application/json" \
+          -H "Content-Type: application/json" \
+          -d @varmor-demo-demo-4.json
       ```
 
 ## 示例
@@ -313,8 +337,6 @@ spec:
         app: demo-4
   policy:
     enforcer: AppArmorSeccomp
-    # Switching the mode from BehaviorModeling to others is prohibited, and vice versa.
-    # You need recraete the policy to switch the mode from BehaviorModeling to DefenseInDepth.
     # mode: DefenseInDepth
     mode: BehaviorModeling
     modelingOptions:

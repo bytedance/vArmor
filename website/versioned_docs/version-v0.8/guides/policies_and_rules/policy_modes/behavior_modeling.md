@@ -75,8 +75,6 @@ spec:
         app: demo-4
   policy:
     enforcer: AppArmorSeccomp
-    # Note: Switching the mode from BehaviorModeling to others is prohibited, and vice versa.
-    #       You need recraete the policy to switch the mode from BehaviorModeling to DefenseInDepth.
     # mode: DefenseInDepth
     mode: BehaviorModeling
     modelingOptions:
@@ -168,14 +166,22 @@ demo        varmor-cluster-demo-demo-4   CRDInternal    2         2           tr
 ### Points to Note
 
 * The target workload needs to have a `sandbox.varmor.org/enable="true"` label. You can turn this off via the [Set matching tags for webhooks](../../../getting_started/installation.md#set-the-match-label-of-webhook) configuration option.
-* Switching policies in BehaviorModeling mode to others and vice versa is not supported. You need to delete the policy and recreate the policy to switch.
-* After the modeling is completed, it is not supported to modify the modeling duration of the policy. You must delete the policy and recreate it before restarting the modeling process. However, the existing behavioral data will be preserved.
+* The **BehaviorModeling** mode can only be switched to other modes after the modeling is completed.
+* When switching to **BehaviorModeling** mode from other modes or when the modeling has already been completed, you need to update the modeling duration and restart the target workload to restart the modeling process.
 
-### Data Export
+### Data Persistence
 
-You can export the behavior data and profiles of the target workloads for other purposes. For example, use [Policy Advisor](../../policy_advisor.md) to analyze which built-in rules can be used to enforce the target workloads, guide users to minimize permissions for the security context of the workload based on the behavior data, etc.
+The modeling results will be saved by the manager into the ArmorProfileModel object. 
 
-Different storage types have different methods for exporting ArmorProfileModel objects:
+When the behavior data is too large, the manager will persist it to the local disk and set the `storageType` field to `LocalDisk`.
+
+By default, the manager uses an `emptyDir` volume with a storage space of **500Mi** to persist the modeling results. You can enable the use of a persistent volume to store the modeling results by using the `--set manager.behaviorModeling.usePersistentVolume=true` option. Before enabling the persistent volume, please make sure that a PVC named **varmor-manager-apmdata-pvc** has been created in the namespace where the manager is located.
+
+### Data Export and Import
+
+You can export the behavior data and profiles of the target workload for other purposes. For example, use [Policy Advisor](../../policy_advisor.md) to analyze which built-in rules can be used to harden the target application, and guide users to minimize the permissions of the security context of the workload based on the behavior data. You can also import the exported data into other clusters for exported data into other clusters for use.
+
+The methods for exporting and importing ArmorProfileModel objects of different storage types are different:
 
   * **CRDInternal**
 
@@ -184,16 +190,22 @@ Different storage types have different methods for exporting ArmorProfileModel o
       ```bash
       kubectl get ArmorProfileModel -n demo varmor-demo-demo-4 -o json > varmor-demo-demo-4.json
       ```
+    
+    - Import directly using kubectl
+
+      ```bash
+      kubectl apply -f varmor-demo-demo-4.json
+      ```
 
   * **LocalDisk**
 
-    - Forward local port 8080 to port 8080 of the cluster varmor-state-svc Service
+    - Forward local port 8080 to port 8080 of the cluster `varmor-state-svc` Service
 
       ```bash
       kubectl port-forward -n varmor service/varmor-status-svc 8080:8080
       ```
 
-    - Request a ServiceAccount token of varmor-manager
+    - Obtain the ServiceAccount token with read and write permissions for the armorprofilemodels resource. Here, use the ServiceAccount token of varmor-manager
 
       ```bash
       token=$(kubectl create token varmor-manager -n varmor)
@@ -203,8 +215,21 @@ Different storage types have different methods for exporting ArmorProfileModel o
 
       ```bash
       curl -k -X GET \
-        -H 'Authorization: Bearer $token' \
+        -H "Authorization: Bearer $token" \
         https://localhost:8080/apis/crd.varmor.org/v1beta1/namespaces/demo/armorprofilemodels/varmor-demo-demo-4 > varmor-demo-demo-4.json
+      ```
+    
+    - Access the `/apis/crd.varmor.org/v1beta1/namespaces/{namespace}/armorprofilemodels/{name}` interface to import data
+
+      If there is already an ArmorProfileModel object with the same name in the namespace of the cluster, the behavior data will be merged and the profiles will be overwritten.
+
+      ```bash
+      curl -k \
+          -X POST https://localhost:8080/apis/crd.varmor.org/v1beta1/namespaces/demo/armorprofilemodels/varmor-demo-demo-4 \
+          -H "Authorization: Bearer $token" \
+          -H "Accept: application/json" \
+          -H "Content-Type: application/json" \
+          -d @varmor-demo-demo-4.json
       ```
 
 ## Use Case
@@ -313,8 +338,6 @@ spec:
         app: demo-4
   policy:
     enforcer: AppArmorSeccomp
-    # Switching the mode from BehaviorModeling to others is prohibited, and vice versa.
-    # You need recraete the policy to switch the mode from BehaviorModeling to DefenseInDepth.
     # mode: DefenseInDepth
     mode: BehaviorModeling
     modelingOptions:
