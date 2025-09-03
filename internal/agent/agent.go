@@ -472,7 +472,7 @@ func (agent *Agent) handleCreateOrUpdateArmorProfile(ap *varmor.ArmorProfile, ke
 			if yes, _ := varmorapparmor.IsAppArmorProfileLoaded(ap.Spec.Profile.Name); !yes {
 				// Load a new AppArmor profile to kernel for ArmorProfile creation event.
 				logger.Info(fmt.Sprintf("loading '%s (%s)' to Node/%s's kernel", ap.Spec.Profile.Name, ap.Spec.Profile.Mode, agent.nodeName))
-				output, err := varmorapparmor.LoadAppArmorProfile(profilePath, string(ap.Spec.Profile.Mode))
+				output, err := varmorapparmor.LoadAppArmorProfile(profilePath, ap.Spec.Profile.Mode)
 				if err != nil {
 					logger.Error(err, "LoadAppArmorProfile()", "output", output)
 					errorMessages = append(errorMessages, "LoadAppArmorProfile(): "+err.Error()+"  output: "+output)
@@ -480,7 +480,7 @@ func (agent *Agent) handleCreateOrUpdateArmorProfile(ap *varmor.ArmorProfile, ke
 			} else {
 				// Update a existing AppArmor profile for ArmorProfile update event.
 				logger.Info(fmt.Sprintf("reloading '%s (%s)' to Node/%s's kernel", ap.Spec.Profile.Name, ap.Spec.Profile.Mode, agent.nodeName))
-				output, err := varmorapparmor.UpdateAppArmorProfile(profilePath, string(ap.Spec.Profile.Mode))
+				output, err := varmorapparmor.UpdateAppArmorProfile(profilePath, ap.Spec.Profile.Mode)
 				if err != nil {
 					logger.Error(err, "UpdateAppArmorProfile()", "output", output)
 					errorMessages = append(errorMessages, "UpdateAppArmorProfile(): "+err.Error()+"  output: "+output)
@@ -493,7 +493,7 @@ func (agent *Agent) handleCreateOrUpdateArmorProfile(ap *varmor.ArmorProfile, ke
 	if (enforcer & varmortypes.BPF) != 0 {
 		// Save and apply BPF profile.
 		logger.Info(fmt.Sprintf("saving and applying the BPF profile '%s (%s)' to Node/%s", ap.Spec.Profile.Name, ap.Spec.Profile.Mode, agent.nodeName))
-		err := agent.bpfEnforcer.SaveAndApplyBpfProfile(ap.Spec.Profile.Name, *ap.Spec.Profile.BpfContent)
+		err := agent.bpfEnforcer.SaveAndApplyBpfProfile(ap.Spec.Profile.Name, ap.Spec.Profile.Mode, *ap.Spec.Profile.BpfContent)
 		if err != nil {
 			logger.Error(err, "SaveAndApplyBpfProfile()")
 			errorMessages = append(errorMessages, "SaveAndApplyBpfProfile(): "+err.Error())

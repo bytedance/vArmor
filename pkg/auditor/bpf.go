@@ -288,8 +288,8 @@ func (auditor *Auditor) readFromAuditEventRingBuf() {
 				"FileSystem Type:", unix.ByteSliceToString(event.Type[:]), "Flags:", event.Flags)
 		}
 
-		switch eventHeader.Mode {
-		case bpfenforcer.EnforceMode | bpfenforcer.AuditMode:
+		switch eventHeader.Action {
+		case bpfenforcer.DeniedAction:
 			// Write the violation event that is denied by vArmor into the log file
 			auditor.violationLogger.Warn().
 				Interface("metadata", auditor.auditEventMetadata).
@@ -308,8 +308,8 @@ func (auditor *Auditor) readFromAuditEventRingBuf() {
 				Str("profileName", auditor.containerCache[eventHeader.MntNs].ProfileName).
 				Interface("event", e).Msg("violation event")
 
-		case bpfenforcer.AuditMode:
-			// Write the violation event into log the file
+		case bpfenforcer.AuditAction:
+			// Write the violation event into the log file
 			auditor.violationLogger.Debug().
 				Interface("metadata", auditor.auditEventMetadata).
 				Str("nodeName", auditor.nodeName).
@@ -323,11 +323,11 @@ func (auditor *Auditor) readFromAuditEventRingBuf() {
 				Uint32("mntNsID", eventHeader.MntNs).
 				Uint64("eventTimestamp", eventHeader.Ktime/uint64(time.Second)+auditor.bootTimestamp).
 				Str("eventType", "BPF").
-				Str("action", "ALLOWED").
+				Str("action", "AUDIT").
 				Str("profileName", auditor.containerCache[eventHeader.MntNs].ProfileName).
 				Interface("event", e).Msg("violation event")
 
-		case bpfenforcer.ComplainMode:
+		case bpfenforcer.AllowedAction:
 			// Send behavior event to subscribers
 			for _, ch := range auditor.bpfEventChs {
 				ch <- bpfenforcer.BpfEvent{

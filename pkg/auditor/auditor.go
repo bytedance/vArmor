@@ -50,7 +50,7 @@ type Auditor struct {
 	TaskDeleteSyncCh       chan bool
 	mntNsIDCache           map[uint32]uint32                      // key: The init PID of contaienr, value: The mnt ns id
 	containerCache         map[uint32]varmortypes.ContainerInfo   // key: The mnt ns id of container, value: The container information
-	auditEventChs          map[string]chan<- string               // auditEventChs used for sending apparmor & seccomp behavior event to subscribers
+	auditEventChs          map[string]chan<- string               // auditEventChs used for sending apparmor & seccomp behavior event to subscribers, key: profile name, value: audit event channel
 	bpfEventChs            map[string]chan<- bpfenforcer.BpfEvent // bpfEventChs used for sending bpf behavior event to subscribers
 	auditLogPath           string
 	auditLogTail           *tail.Tail
@@ -183,6 +183,8 @@ func (auditor *Auditor) eventHandler(stopCh <-chan struct{}) {
 	}
 }
 
+// AddBehaviorEventNotifyChs add the audit event channel and bpf event channel for the subscriber
+// The subscriber parameter is the name of profile
 func (auditor *Auditor) AddBehaviorEventNotifyChs(subscriber string, auditEventCh *chan string, bpfEventCh *chan bpfenforcer.BpfEvent) {
 	if bpfEventCh != nil {
 		auditor.bpfEventChs[subscriber] = *bpfEventCh
@@ -199,6 +201,8 @@ func (auditor *Auditor) AddBehaviorEventNotifyChs(subscriber string, auditEventC
 	}
 }
 
+// DeleteBehaviorEventNotifyCh delete the audit event channel and bpf event channel for the subscriber
+// The subscriber parameter is the name of profile
 func (auditor *Auditor) DeleteBehaviorEventNotifyCh(subscriber string) {
 	delete(auditor.bpfEventChs, subscriber)
 	delete(auditor.auditEventChs, subscriber)

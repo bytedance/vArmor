@@ -59,11 +59,11 @@ type BpfEvent struct {
 }
 
 type BpfEventHeader struct {
-	Mode  uint32
-	Type  EventType
-	MntNs uint32
-	Tgid  uint32
-	Ktime uint64
+	Action uint32
+	Type   EventType
+	MntNs  uint32
+	Tgid   uint32
+	Ktime  uint64
 }
 
 type BpfCapabilityEvent struct {

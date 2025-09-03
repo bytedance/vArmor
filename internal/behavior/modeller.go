@@ -37,8 +37,8 @@ type BehaviorModeller struct {
 	ptracer         *varmorptracer.ProcessTracer
 	monitor         *varmormonitor.RuntimeMonitor
 	nodeName        string
-	namespace       string
-	name            string
+	namespace       string // namespace of the ArmorProfile
+	name            string // name of the ArmorProfile (profile name)
 	enforcer        string
 	startTime       time.Time
 	duration        time.Duration

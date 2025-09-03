@@ -39,6 +39,7 @@ type enforceID struct {
 }
 
 type bpfProfile struct {
+	mode           varmor.ProfileMode
 	bpfContent     varmor.BpfContent
 	containerCache map[string]enforceID // local cache <containerID: enforceID>
 }
@@ -365,7 +366,7 @@ func (enforcer *BpfEnforcer) eventHandler(stopCh <-chan struct{}) {
 				}
 
 				// apply the BPF profile for the target container
-				err = enforcer.applyProfile(enforceID.mntNsID, profile.bpfContent)
+				err = enforcer.applyProfile(enforceID.mntNsID, profile.mode, profile.bpfContent)
 				if err != nil {
 					logger.Error(err, "applyProfile() failed")
 					break
@@ -494,22 +495,25 @@ func (enforcer *BpfEnforcer) pretreatment(bpfContent *varmor.BpfContent) {
 }
 
 // SaveAndApplyBpfProfile save the BPF profile to the cache, and update it to the kernel for the existing BPF profile
-func (enforcer *BpfEnforcer) SaveAndApplyBpfProfile(profileName string, bpfContent varmor.BpfContent) error {
+func (enforcer *BpfEnforcer) SaveAndApplyBpfProfile(profileName string, mode varmor.ProfileMode, bpfContent varmor.BpfContent) error {
 	enforcer.pretreatment(&bpfContent)
 
 	// save/update the BPF profile to the cache
 	if profile, ok := enforcer.bpfProfileCache[profileName]; ok {
-		if reflect.DeepEqual(bpfContent, profile.bpfContent) {
+		if mode == profile.mode && reflect.DeepEqual(bpfContent, profile.bpfContent) {
 			// nothing need to update
-			enforcer.log.V(2).Info("the BPF profile is not changed, nothing need to update", "profile", profileName, "old", profile.bpfContent)
+			enforcer.log.V(2).Info("the BPF profile is not changed, nothing need to update",
+				"profile name", profileName, "mode", mode, "profile", profile.bpfContent)
 			return nil
 		}
-		enforcer.log.V(2).Info("update the BPF profile", "profile", profileName, "new", bpfContent)
+		enforcer.log.V(2).Info("update the BPF profile", "profile name", profileName, "mode", mode, "profile", bpfContent)
+		profile.mode = mode
 		profile.bpfContent = bpfContent
 		enforcer.bpfProfileCache[profileName] = profile
 	} else {
-		enforcer.log.V(2).Info("save the BPF profile", "profile", profileName, "new", bpfContent)
+		enforcer.log.V(2).Info("save the BPF profile", "profile name", profileName, "mode", mode, "profile", bpfContent)
 		profile := bpfProfile{
+			mode:           mode,
 			bpfContent:     bpfContent,
 			containerCache: make(map[string]enforceID),
 		}
@@ -519,8 +523,8 @@ func (enforcer *BpfEnforcer) SaveAndApplyBpfProfile(profileName string, bpfConte
 	// apply the BPF profile to the kernel for the existing containers
 	profile := enforcer.bpfProfileCache[profileName]
 	for _, enforceID := range profile.containerCache {
-		enforcer.log.V(2).Info("apply the BPF profile", "profile", profileName, "new", profile.bpfContent)
-		err := enforcer.applyProfile(enforceID.mntNsID, profile.bpfContent)
+		enforcer.log.V(2).Info("apply the BPF profile", "profile name", profileName, "profile", profile.bpfContent)
+		err := enforcer.applyProfile(enforceID.mntNsID, profile.mode, profile.bpfContent)
 		if err != nil {
 			return err
 		}

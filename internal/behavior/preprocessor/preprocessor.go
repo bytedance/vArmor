@@ -191,7 +191,7 @@ func (p *DataPreprocessor) processAuditRecords() error {
 			if err != nil {
 				p.log.Error(err, "p.parseAppArmorEvent() failed", "event", line)
 				if p.debug {
-					p.debugFileWriter.WriteString(fmt.Sprintf("[!] p.parseAppArmorEvent() failed: %s [%s]\n", err.Error(), line))
+					p.debugFileWriter.WriteString(fmt.Sprintf("\n[!] p.parseAppArmorEvent() failed: %s [%s]\n", err.Error(), line))
 				}
 				continue
 			}
@@ -202,7 +202,7 @@ func (p *DataPreprocessor) processAuditRecords() error {
 					data, err := json.Marshal(event)
 					if err != nil {
 						p.log.Error(err, "json.Marshal() failed", "event", event)
-						p.debugFileWriter.WriteString("[!] json.Marshal() failed.\n")
+						p.debugFileWriter.WriteString("\n[!] json.Marshal() failed.\n")
 					} else {
 						p.debugFileWriter.WriteString(string(data))
 					}
@@ -212,7 +212,7 @@ func (p *DataPreprocessor) processAuditRecords() error {
 				if err != nil {
 					p.log.Error(err, "p.parseAppArmorEventForTree() failed", "event", event)
 					if p.debug {
-						p.debugFileWriter.WriteString(fmt.Sprintf("[!] p.parseAppArmorEventForTree() failed: %v\n", err))
+						p.debugFileWriter.WriteString(fmt.Sprintf("\n[!] p.parseAppArmorEventForTree() failed: %v\n", err))
 					}
 				}
 			}
@@ -225,7 +225,7 @@ func (p *DataPreprocessor) processAuditRecords() error {
 			if err != nil {
 				p.log.Error(err, "varmorauditor.ParseSeccompAuditEvent() failed", "event", line)
 				if p.debug {
-					p.debugFileWriter.WriteString(fmt.Sprintf("[!] varmorauditor.ParseSeccompAuditEvent() failed: %s [%s]\n", err.Error(), line))
+					p.debugFileWriter.WriteString(fmt.Sprintf("\n[!] varmorauditor.ParseSeccompAuditEvent() failed: %v [%s]\n", err, line))
 				}
 				continue
 			}
@@ -244,7 +244,7 @@ func (p *DataPreprocessor) processAuditRecords() error {
 					data, err := json.Marshal(event)
 					if err != nil {
 						p.log.Error(err, "json.Marshal() failed", "event", event)
-						p.debugFileWriter.WriteString("[!] json.Marshal() failed.\n")
+						p.debugFileWriter.WriteString("\n[!] json.Marshal() failed.\n")
 					} else {
 						p.debugFileWriter.WriteString(string(data))
 					}
@@ -254,7 +254,7 @@ func (p *DataPreprocessor) processAuditRecords() error {
 				if err != nil {
 					p.log.Error(err, "p.parseSeccompEventForTree() failed", "event", event)
 					if p.debug {
-						p.debugFileWriter.WriteString(fmt.Sprintf("[!] p.parseSeccompEventForTree() failed: %v\n", err))
+						p.debugFileWriter.WriteString(fmt.Sprintf("\n[!] p.parseSeccompEventForTree() failed: %v\n", err))
 					}
 				}
 			}
@@ -307,7 +307,7 @@ func (p *DataPreprocessor) Process() []byte {
 		data, err := json.Marshal(p.behaviorData.DynamicResult)
 		if err != nil {
 			p.log.Error(err, "json.Marshal() failed")
-			p.debugFileWriter.WriteString(fmt.Sprintf("[!] json.Marshal() failed: %v.\n", err))
+			p.debugFileWriter.WriteString(fmt.Sprintf("\n[!] json.Marshal() failed: %v.\n", err))
 			return nil
 		} else {
 			p.debugFileWriter.WriteString(string(data))

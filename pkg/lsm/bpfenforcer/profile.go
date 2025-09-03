@@ -40,6 +40,10 @@ func (enforcer *BpfEnforcer) newEnforceID(pid uint32, ips []string) (enforceID, 
 	return id, nil
 }
 
+func (enforcer *BpfEnforcer) SetProfileMode(mntNsID uint32, profileMode uint32) error {
+	return enforcer.objs.V_profileMode.Put(&mntNsID, profileMode)
+}
+
 func (enforcer *BpfEnforcer) applyCapabilityRule(nsID uint32, capabilities *varmor.CapabilitiesContent) error {
 	if capabilities != nil {
 		rule := bpfCapabilityRule{
@@ -310,7 +314,21 @@ func (enforcer *BpfEnforcer) applyMountRules(nsID uint32, mounts []varmor.MountC
 	return nil
 }
 
-func (enforcer *BpfEnforcer) applyProfile(nsID uint32, bpfContent varmor.BpfContent) (err error) {
+func (enforcer *BpfEnforcer) applyProfile(nsID uint32, mode varmor.ProfileMode, bpfContent varmor.BpfContent) (err error) {
+
+	switch mode {
+	case varmor.ProfileModeEnforce:
+		err = enforcer.SetProfileMode(nsID, EnforceMode)
+		if err != nil {
+			return err
+		}
+	case varmor.ProfileModeComplain:
+		err = enforcer.SetProfileMode(nsID, ComplainMode)
+		if err != nil {
+			return err
+		}
+	}
+
 	err = enforcer.applyCapabilityRule(nsID, bpfContent.Capabilities)
 	if err != nil {
 		return err
@@ -345,8 +363,14 @@ func (enforcer *BpfEnforcer) applyProfile(nsID uint32, bpfContent varmor.BpfCont
 }
 
 func (enforcer *BpfEnforcer) deleteProfile(nsID uint32) {
+	// profile mode
+	err := enforcer.objs.V_profileMode.Delete(&nsID)
+	if err != nil && !errors.Is(err, ebpf.ErrKeyNotExist) {
+		enforcer.log.Error(err, "V_profileMode.Delete()")
+	}
+
 	// capability rule
-	err := enforcer.objs.V_capable.Delete(&nsID)
+	err = enforcer.objs.V_capable.Delete(&nsID)
 	if err != nil && !errors.Is(err, ebpf.ErrKeyNotExist) {
 		enforcer.log.Error(err, "V_capable.Delete()")
 	}

@@ -21,27 +21,29 @@ import (
 	varmorutils "github.com/bytedance/vArmor/pkg/utils"
 )
 
+const (
+	DeniedAction  = 0x00000001
+	AuditAction   = 0x00000002
+	AllowedAction = 0x00000004
+)
+
 func (auditor *Auditor) processAuditEvent(event string) {
-	// AppArmor audit event
-	if strings.Contains(event, "type=1400") || strings.Contains(event, "type=AVC") {
-		auditor.log.V(2).Info("receive an AppArmor audit event", "event", strings.TrimSpace(event))
+	if strings.Contains(event, "type=1400") || strings.Contains(event, "type=AVC") { // AppArmor audit event
+		auditor.log.V(2).Info("received an AppArmor audit event", "event", strings.TrimSpace(event))
 
-		// Events of AppArmor profile in the enforce mode
-		deniedEvent := strings.Contains(event, "apparmor=\"DENIED\"")
-		auditEvent := strings.Contains(event, "apparmor=\"AUDIT\"")
-		// Events of AppArmor profile in the complain mode
-		allowedEvent := strings.Contains(event, "apparmor=\"ALLOWED\"")
-
-		action := ""
-		if deniedEvent {
-			action = "DENIED"
-		} else if auditEvent || allowedEvent {
-			action = "ALLOWED"
-		} else {
-			return
+		var action int
+		if strings.Contains(event, "apparmor=\"DENIED\"") {
+			// Events of AppArmor profile in the enforce mode
+			action = DeniedAction
+		} else if strings.Contains(event, "apparmor=\"AUDIT\"") {
+			// Events of AppArmor profile in the enforce mode
+			action = AuditAction
+		} else if strings.Contains(event, "apparmor=\"ALLOWED\"") {
+			// Events of AppArmor profile in the complain mode
+			action = AllowedAction
 		}
 
-		// Write the violation event into the log file
+		// Convert the AppArmor audit event to the AppArmor AVC event format
 		index := strings.Index(event, "type=1400 audit")
 		if index != -1 {
 			event = strings.Replace(event[index:], "type=1400 audit", "type=AVC msg=audit", 1)
@@ -78,7 +80,8 @@ func (auditor *Auditor) processAuditEvent(event string) {
 		// Try to parse the AppArmor profile name from the event
 		profileName := ParseProfileName(e.Profile)
 
-		if deniedEvent {
+		switch action {
+		case DeniedAction:
 			auditor.violationLogger.Warn().
 				Interface("metadata", auditor.auditEventMetadata).
 				Str("nodeName", auditor.nodeName).
@@ -92,14 +95,10 @@ func (auditor *Auditor) processAuditEvent(event string) {
 				Uint32("mntNsID", mntNsID).
 				Uint64("eventTimestamp", uint64(e.Epoch)).
 				Str("eventType", "AppArmor").
-				Str("action", action).
+				Str("action", "DENIED").
 				Str("profileName", profileName).
 				Interface("event", e).Msg("violation event")
-		}
-
-		// Only record the allowed event when there is no policy in the BehaviorModeling mode.
-		// This can reduce the noise in the violation log.
-		if auditEvent || (allowedEvent && len(auditor.auditEventChs) == 0) {
+		case AuditAction:
 			auditor.violationLogger.Debug().
 				Interface("metadata", auditor.auditEventMetadata).
 				Str("nodeName", auditor.nodeName).
@@ -113,65 +112,88 @@ func (auditor *Auditor) processAuditEvent(event string) {
 				Uint32("mntNsID", mntNsID).
 				Uint64("eventTimestamp", uint64(e.Epoch)).
 				Str("eventType", "AppArmor").
-				Str("action", action).
+				Str("action", "AUDIT").
 				Str("profileName", profileName).
 				Interface("event", e).Msg("violation event")
+		case AllowedAction:
+			if ch, ok := auditor.auditEventChs[profileName]; ok {
+				// Send behavior event to subscribers
+				ch <- event
+			} else {
+				// Only record the allowed event when the policy is in the DefenseInDepth mode.
+				// This can reduce the noise in the violation log.
+				auditor.violationLogger.Debug().
+					Interface("metadata", auditor.auditEventMetadata).
+					Str("nodeName", auditor.nodeName).
+					Str("podUID", info.PodUID).
+					Str("podName", info.PodName).
+					Str("podNamespace", info.PodNamespace).
+					Str("containerID", info.ContainerID).
+					Str("containerName", info.ContainerName).
+					Str("image", info.Image).
+					Uint32("pid", uint32(e.PID)).
+					Uint32("mntNsID", mntNsID).
+					Uint64("eventTimestamp", uint64(e.Epoch)).
+					Str("eventType", "AppArmor").
+					Str("action", "ALLOWED").
+					Str("profileName", profileName).
+					Interface("event", e).Msg("violation event")
+			}
 		}
-
-		// Send behavior event to subscribers
-		for _, ch := range auditor.auditEventChs {
-			ch <- event
-		}
-	}
-
-	// Seccomp audit event
-	if strings.Contains(event, "type=1326") || strings.Contains(event, "type=SECCOMP") {
+	} else if strings.Contains(event, "type=1326") || strings.Contains(event, "type=SECCOMP") { // Seccomp audit event
 		auditor.log.V(2).Info("receive a Seccomp audit event", "event", strings.TrimSpace(event))
 
-		action := "ALLOWED"
+		// Parse the event
+		e, err := ParseSeccompAuditEvent(event)
+		if err != nil {
+			auditor.log.Error(err, "ParseSeccompAuditEvent() failed", "event", event)
+			return
+		}
 
-		// Only record the allowed event when there is no policy in the BehaviorModeling mode.
-		// This can reduce the noise in the violation log.
+		// Try to read the process' mnt ns id from the proc filesystem.
+		// Note:
+		//   This might fail if the process has already been destroyed.
+		//   If so, we can't associate container information for violations.
+		var mntNsID uint32
+		var ok bool
+		if mntNsID, ok = auditor.mntNsIDCache[uint32(e.PID)]; !ok {
+			mntNsID, _ = varmorutils.ReadMntNsID(uint32(e.PID))
+		}
+
+		info := auditor.containerCache[mntNsID]
+		auditor.log.V(2).Info("audit event",
+			"pod uid", info.PodUID,
+			"pod name", info.PodName,
+			"pod namespace", info.PodNamespace,
+			"container id", info.ContainerID,
+			"container name", info.ContainerName,
+			"image", info.Image,
+			"pid", e.PID, "time", e.Epoch, "event", strings.TrimSpace(event))
+
+		// Try to parse the AppArmor profile name from the event
+		// Note:
+		// Some systems will output the AppArmor security context of the task in the Subj
+		// field of the Seccomp audit event. So people might see the profile name in the
+		// Seccomp event if they use both AppArmor and Seccomp enforcer.
+		// We can utilize this feature to extract the profile name from the Seccomp event.
+		profileName := ParseProfileName(e.Subj)
+		if profileName == "" {
+			// If the profile name is not found in the event, we can also try to get it from
+			// the container cache.
+			profileName = info.ProfileName
+		}
+
+		ch, ok := auditor.auditEventChs[profileName]
+		if ok {
+			// Send the behavior event to the corresponding subscriber
+			ch <- event
+			return
+		}
+
 		if len(auditor.auditEventChs) == 0 {
-			e, err := ParseSeccompAuditEvent(event)
-			if err != nil {
-				auditor.log.Error(err, "ParseSeccompAuditEvent() failed", "event", event)
-				return
-			}
-
-			// Try to read the process' mnt ns id from the proc filesystem.
-			// Note:
-			//   This might fail if the process has already been destroyed.
-			//   If so, we can't associate container information for violations.
-			var mntNsID uint32
-			var ok bool
-			if mntNsID, ok = auditor.mntNsIDCache[uint32(e.PID)]; !ok {
-				mntNsID, _ = varmorutils.ReadMntNsID(uint32(e.PID))
-			}
-
-			info := auditor.containerCache[mntNsID]
-			auditor.log.V(2).Info("audit event",
-				"pod uid", info.PodUID,
-				"pod name", info.PodName,
-				"pod namespace", info.PodNamespace,
-				"container id", info.ContainerID,
-				"container name", info.ContainerName,
-				"image", info.Image,
-				"pid", e.PID, "time", e.Epoch, "event", strings.TrimSpace(event))
-
-			// Try to parse the AppArmor profile name from the event
-			// Note:
-			// Some systems will output the AppArmor security context of the task in the Subj
-			// field of the Seccomp audit event. So people might see the profile name in the
-			// Seccomp event if they use both AppArmor and Seccomp enforcer.
-			// We can utilize this feature to extract the profile name from the Seccomp event.
-			profileName := ParseProfileName(e.Subj)
-			if profileName == "" {
-				// If the profile name is not found in the event, we can also try to get it from
-				// the container cache.
-				profileName = info.ProfileName
-			}
-
+			// Only record the allowed event when there is no policy in the BehaviorModeling mode.
+			// This can reduce the noise in the violation log.
+			// Therefore, the audit events of the DefenseInDepth mode will only be recorded when no policy is modeling.
 			auditor.violationLogger.Debug().
 				Interface("metadata", auditor.auditEventMetadata).
 				Str("nodeName", auditor.nodeName).
@@ -185,14 +207,14 @@ func (auditor *Auditor) processAuditEvent(event string) {
 				Uint32("mntNsID", mntNsID).
 				Uint64("eventTimestamp", e.Epoch).
 				Str("eventType", "Seccomp").
-				Str("action", action).
+				Str("action", "ALLOWED").
 				Str("profileName", profileName).
 				Interface("event", e).Msg("violation event")
-		}
-
-		// Send behavior event to subscribers
-		for _, ch := range auditor.auditEventChs {
-			ch <- event
+		} else {
+			// Send the behavior event to all subscribers
+			for _, ch := range auditor.auditEventChs {
+				ch <- event
+			}
 		}
 	}
 }

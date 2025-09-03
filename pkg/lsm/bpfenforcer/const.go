@@ -67,12 +67,15 @@ const (
 	// AuditRingBufPinPath is the path we pin the audit ringbuf
 	AuditRingBufPinPath = "/sys/fs/bpf/varmor/v_audit_rb"
 
-	// BPF enforcer running mode.
+	// Profile Mode
 	EnforceMode  = 0x00000001
-	AuditMode    = 0x00000002
-	ComplainMode = 0x00000004
+	ComplainMode = 0x00000002
 
-	// Matching Flags
+	// Rule Mode
+	DenyMode  = 0x00000001
+	AuditMode = 0x00000002
+
+	// Matching Flag
 	PreciseMatch = 0x00000001
 	GreedyMatch  = 0x00000002
 	PrefixMatch  = 0x00000004
@@ -88,11 +91,14 @@ const (
 	PortsMatch     = 0x00000800
 	PodSelfIPMatch = 0x00001000
 
-	// Matching Permissions
+	// Matching Permission
 	AaMayExec     = 0x00000001
 	AaMayWrite    = 0x00000002
 	AaMayRead     = 0x00000004
 	AaMayAppend   = 0x00000008
+	AaMayCreate   = 0x00000010
+	AaMayRename   = 0x00000080
+	AaMayLink     = 0x00040000
 	AaPtraceTrace = 0x00000002
 	AaPtraceRead  = 0x00000004
 	AaMayBeTraced = 0x00000008
@@ -101,6 +107,11 @@ const (
 
 	// EventHeaderSize is the size of bpf audit event header
 	EventHeaderSize = 24
+
+	// Enforcement action
+	DeniedAction  = 0x00000001
+	AuditAction   = 0x00000002
+	AllowedAction = 0x00000004
 
 	// Event type
 	CapabilityType EventType = 0x00000001
