@@ -1,0 +1,132 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: varmor-manager
+rules:
+- apiGroups:
+  - crd.varmor.org
+  resources:
+  - armorprofiles
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - delete
+  - patch
+  - update
+- apiGroups:
+  - crd.varmor.org
+  resources:
+  - armorprofiles/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - ""
+  resources:
+  - namespaces
+  - nodes
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  - "discovery.k8s.io"
+  resources:
+  - pods
+  - services
+  - endpointslices
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - crd.varmor.org
+  resources:
+  - varmorpolicies
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - crd.varmor.org
+  resources:
+  - varmorpolicies/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - crd.varmor.org
+  resources:
+  - varmorclusterpolicies
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - crd.varmor.org
+  resources:
+  - varmorclusterpolicies/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - apps
+  resources:
+  - daemonsets
+  - deployments
+  - statefulsets
+  verbs:
+  - get
+  - list
+  - update
+- apiGroups:
+  - crd.varmor.org
+  resources:
+  - armorprofilemodels
+  verbs:
+  - get
+  - create
+  - update
+- apiGroups:
+  - crd.varmor.org
+  resources:
+  - armorprofilemodels/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - admissionregistration.k8s.io
+  resources:
+  - mutatingwebhookconfigurations
+  verbs:
+  - create
+  - list
+  - watch
+- apiGroups:
+  - admissionregistration.k8s.io
+  resources:
+  - mutatingwebhookconfigurations
+  verbs:
+  - delete
+  resourceNames:
+  - varmor-resource-mutating-webhook-cfg
+  - varmor-resource-mutating-webhook-cfg-debug
+- apiGroups:
+  - authentication.k8s.io
+  resources:
+  - tokenreviews
+  verbs:
+  - create
+- apiGroups:
+  - authorization.k8s.io
+  resources:
+  - subjectaccessreviews
+  verbs:
+  - create
