@@ -161,7 +161,7 @@ func CheckClientBearerToken(authnInterface authnclientv1.AuthenticationV1Interfa
 				verb,
 				c.Param("namespace"))
 			c.String(http.StatusUnauthorized, msg)
-			c.AbortWithError(http.StatusUnauthorized, fmt.Errorf(msg))
+			c.AbortWithError(http.StatusUnauthorized, fmt.Errorf("%s", msg))
 			return
 		}
 
