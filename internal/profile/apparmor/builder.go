@@ -90,16 +90,16 @@ func buildCapabilityRules(appArmor *varmor.AppArmor) string {
 func buildNetworkRules(appArmor *varmor.AppArmor, debug bool) string {
 	ruleSet := "\n  # ---- NETWORK ----\n"
 
-	if debug && len(appArmor.Networks) > 0 {
-		rules := make([]string, 0, len(appArmor.Networks))
-		for _, net := range appArmor.Networks {
+	if debug && appArmor.Network != nil && len(appArmor.Network.Sockets) > 0 {
+		rules := make([]string, 0, len(appArmor.Network.Sockets))
+		for _, net := range appArmor.Network.Sockets {
 			var rule string
-			if net.SockType != "" {
-				rule = fmt.Sprintf("  network %s %s,\n", net.Family, net.SockType)
+			if net.Type != "" {
+				rule = fmt.Sprintf("  network %s %s,\n", net.Domain, net.Type)
 			} else if net.Protocol != "" {
-				rule = fmt.Sprintf("  network %s %s,\n", net.Family, net.Protocol)
+				rule = fmt.Sprintf("  network %s %s,\n", net.Domain, net.Protocol)
 			} else {
-				rule = fmt.Sprintf("  network %s,\n", net.Family)
+				rule = fmt.Sprintf("  network %s,\n", net.Domain)
 			}
 			rules = append(rules, rule)
 		}

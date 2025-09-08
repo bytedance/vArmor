@@ -389,10 +389,6 @@ func (agent *Agent) selectEnforcer(ap *varmor.ArmorProfile) (varmortypes.Enforce
 		return e, fmt.Errorf("the Seccomp enforcer needs Kubernetes v1.19 and above")
 	}
 
-	if (e&varmortypes.BPF != 0) && ap.Spec.BehaviorModeling.Enable {
-		return e, fmt.Errorf("the BPF enforcer does not support the BehaviorModeling mode")
-	}
-
 	if e&varmortypes.Unknown != 0 {
 		return e, fmt.Errorf("unknown enforcer")
 	}

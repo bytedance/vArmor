@@ -163,7 +163,15 @@ func GenerateProfile(
 
 		// BPF
 		if (e & varmortypes.BPF) != 0 {
-			return nil, nil, fmt.Errorf("not supported by the BPF enforcer for now")
+			var bpfContent varmor.BpfContent
+			if complete {
+				// Create profile based on the AlwaysAllow template after the behvior modeling was completed.
+				profile.Mode = varmor.ProfileModeEnforce
+				profile.BpfContent = &bpfContent
+			} else {
+				profile.Mode = varmor.ProfileModeComplain
+				profile.BpfContent = &bpfContent
+			}
 		}
 		// AppArmor
 		if (e & varmortypes.AppArmor) != 0 {

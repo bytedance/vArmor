@@ -12,6 +12,7 @@ import (
 
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
 	varmortypes "github.com/bytedance/vArmor/internal/types"
+	varmorutils "github.com/bytedance/vArmor/internal/utils"
 	varmorinterface "github.com/bytedance/vArmor/pkg/client/clientset/versioned/typed/varmor/v1beta1"
 )
 
@@ -306,52 +307,35 @@ func MergeAppArmorResult(apm *varmor.ArmorProfileModel, appArmor *varmor.AppArmo
 	}
 
 	for _, newProfile := range appArmor.Profiles {
-		find := false
-		for _, profile := range apm.Data.DynamicResult.AppArmor.Profiles {
-			if newProfile == profile {
-				find = true
-				break
-			}
-		}
-		if !find {
+		if !varmorutils.InStringArray(newProfile, apm.Data.DynamicResult.AppArmor.Profiles) {
 			apm.Data.DynamicResult.AppArmor.Profiles = append(apm.Data.DynamicResult.AppArmor.Profiles, newProfile)
 		}
 	}
 
 	for _, newExe := range appArmor.Executions {
-		find := false
-		for _, execution := range apm.Data.DynamicResult.AppArmor.Executions {
-			if newExe == execution {
-				find = true
-				break
-			}
-		}
-		if !find {
+		if !varmorutils.InStringArray(newExe, apm.Data.DynamicResult.AppArmor.Executions) {
 			apm.Data.DynamicResult.AppArmor.Executions = append(apm.Data.DynamicResult.AppArmor.Executions, newExe)
 		}
 	}
 
 	for _, newFile := range appArmor.Files {
 		findFile := false
-		for index, file := range apm.Data.DynamicResult.AppArmor.Files {
-			if newFile.Path == file.Path && newFile.Owner == file.Owner {
+		for i, file := range apm.Data.DynamicResult.AppArmor.Files {
+			if newFile.Path == file.Path {
 				findFile = true
 
 				for _, newPerm := range newFile.Permissions {
-					findPerm := false
-					for _, perm := range file.Permissions {
-						if newPerm == perm {
-							findPerm = true
-							break
-						}
-					}
-					if !findPerm {
-						apm.Data.DynamicResult.AppArmor.Files[index].Permissions = append(apm.Data.DynamicResult.AppArmor.Files[index].Permissions, newPerm)
+					if !varmorutils.InStringArray(newPerm, file.Permissions) {
+						apm.Data.DynamicResult.AppArmor.Files[i].Permissions = append(apm.Data.DynamicResult.AppArmor.Files[i].Permissions, newPerm)
 					}
 				}
 
+				// disable owner priority
+				apm.Data.DynamicResult.AppArmor.Files[i].Owner = file.Owner && newFile.Owner
+
+				// save oldPath if not exist
 				if file.OldPath == "" && newFile.OldPath != "" {
-					apm.Data.DynamicResult.AppArmor.Files[index].OldPath = newFile.OldPath
+					apm.Data.DynamicResult.AppArmor.Files[i].OldPath = newFile.OldPath
 				}
 				break
 			}
@@ -362,50 +346,42 @@ func MergeAppArmorResult(apm *varmor.ArmorProfileModel, appArmor *varmor.AppArmo
 	}
 
 	for _, newCap := range appArmor.Capabilities {
-		find := false
-		for _, cap := range apm.Data.DynamicResult.AppArmor.Capabilities {
-			if newCap == cap {
-				find = true
-				break
-			}
-		}
-		if !find {
+		if !varmorutils.InStringArray(newCap, apm.Data.DynamicResult.AppArmor.Capabilities) {
 			apm.Data.DynamicResult.AppArmor.Capabilities = append(apm.Data.DynamicResult.AppArmor.Capabilities, newCap)
 		}
 	}
 
-	for _, newNet := range appArmor.Networks {
-		find := false
-		for _, net := range apm.Data.DynamicResult.AppArmor.Networks {
-			if reflect.DeepEqual(newNet, net) {
-				find = true
-				break
+	if appArmor.Network != nil {
+		for _, newSocket := range appArmor.Network.Sockets {
+			find := false
+			if apm.Data.DynamicResult.AppArmor.Network != nil {
+				for _, socket := range apm.Data.DynamicResult.AppArmor.Network.Sockets {
+					if reflect.DeepEqual(newSocket, socket) {
+						find = true
+						break
+					}
+				}
 			}
-		}
-		if !find {
-			apm.Data.DynamicResult.AppArmor.Networks = append(apm.Data.DynamicResult.AppArmor.Networks, newNet)
+
+			if !find {
+				if apm.Data.DynamicResult.AppArmor.Network == nil {
+					apm.Data.DynamicResult.AppArmor.Network = &varmor.Network{}
+				}
+				apm.Data.DynamicResult.AppArmor.Network.Sockets = append(apm.Data.DynamicResult.AppArmor.Network.Sockets, newSocket)
+			}
 		}
 	}
 
 	for _, newPtrace := range appArmor.Ptraces {
 		find := false
-		for index, ptrace := range apm.Data.DynamicResult.AppArmor.Ptraces {
+		for i, ptrace := range apm.Data.DynamicResult.AppArmor.Ptraces {
 			if newPtrace.Peer == ptrace.Peer {
 				find = true
-
 				for _, newPerm := range newPtrace.Permissions {
-					findPerm := false
-					for _, perm := range ptrace.Permissions {
-						if newPerm == perm {
-							findPerm = true
-							break
-						}
-					}
-					if !findPerm {
-						apm.Data.DynamicResult.AppArmor.Ptraces[index].Permissions = append(apm.Data.DynamicResult.AppArmor.Ptraces[index].Permissions, newPerm)
+					if !varmorutils.InStringArray(newPerm, ptrace.Permissions) {
+						apm.Data.DynamicResult.AppArmor.Ptraces[i].Permissions = append(apm.Data.DynamicResult.AppArmor.Ptraces[i].Permissions, newPerm)
 					}
 				}
-
 				break
 			}
 		}
@@ -416,33 +392,19 @@ func MergeAppArmorResult(apm *varmor.ArmorProfileModel, appArmor *varmor.AppArmo
 
 	for _, newSignal := range appArmor.Signals {
 		find := false
-		for index, signal := range apm.Data.DynamicResult.AppArmor.Signals {
+		for i, signal := range apm.Data.DynamicResult.AppArmor.Signals {
 			if newSignal.Peer == signal.Peer {
 				find = true
 
 				for _, newPerm := range newSignal.Permissions {
-					findPerm := false
-					for _, perm := range signal.Permissions {
-						if newPerm == perm {
-							findPerm = true
-							break
-						}
-					}
-					if !findPerm {
-						apm.Data.DynamicResult.AppArmor.Signals[index].Permissions = append(apm.Data.DynamicResult.AppArmor.Signals[index].Permissions, newPerm)
+					if !varmorutils.InStringArray(newPerm, signal.Permissions) {
+						apm.Data.DynamicResult.AppArmor.Signals[i].Permissions = append(apm.Data.DynamicResult.AppArmor.Signals[i].Permissions, newPerm)
 					}
 				}
 
 				for _, newSig := range newSignal.Signals {
-					findSig := false
-					for _, sig := range signal.Signals {
-						if newSig == sig {
-							findSig = true
-							break
-						}
-					}
-					if !findSig {
-						apm.Data.DynamicResult.AppArmor.Signals[index].Signals = append(apm.Data.DynamicResult.AppArmor.Signals[index].Signals, newSig)
+					if !varmorutils.InStringArray(newSig, signal.Signals) {
+						apm.Data.DynamicResult.AppArmor.Signals[i].Signals = append(apm.Data.DynamicResult.AppArmor.Signals[i].Signals, newSig)
 					}
 				}
 
@@ -455,15 +417,131 @@ func MergeAppArmorResult(apm *varmor.ArmorProfileModel, appArmor *varmor.AppArmo
 	}
 
 	for _, newUnhandled := range appArmor.Unhandled {
+		if !varmorutils.InStringArray(newUnhandled, apm.Data.DynamicResult.AppArmor.Unhandled) {
+			apm.Data.DynamicResult.AppArmor.Unhandled = append(apm.Data.DynamicResult.AppArmor.Unhandled, newUnhandled)
+		}
+	}
+}
+
+func MergeBpfResult(apm *varmor.ArmorProfileModel, bpf *varmor.BPF) {
+	if bpf == nil {
+		return
+	}
+
+	if apm.Data.DynamicResult.BPF == nil {
+		apm.Data.DynamicResult.BPF = &varmor.BPF{}
+	}
+
+	for _, newExec := range bpf.Executions {
+		if !varmorutils.InStringArray(newExec, apm.Data.DynamicResult.BPF.Executions) {
+			apm.Data.DynamicResult.BPF.Executions = append(apm.Data.DynamicResult.BPF.Executions, newExec)
+		}
+	}
+
+	for _, newFile := range bpf.Files {
 		find := false
-		for _, unhandled := range apm.Data.DynamicResult.AppArmor.Unhandled {
-			if newUnhandled == unhandled {
+		for i, file := range apm.Data.DynamicResult.BPF.Files {
+			if newFile.Path == file.Path {
 				find = true
+
+				for _, newPerm := range newFile.Permissions {
+					if !varmorutils.InStringArray(newPerm, file.Permissions) {
+						apm.Data.DynamicResult.BPF.Files[i].Permissions = append(apm.Data.DynamicResult.BPF.Files[i].Permissions, newPerm)
+					}
+				}
+
+				if file.OldPath == "" && newFile.OldPath != "" {
+					apm.Data.DynamicResult.BPF.Files[i].OldPath = newFile.OldPath
+				}
 				break
 			}
 		}
 		if !find {
-			apm.Data.DynamicResult.AppArmor.Unhandled = append(apm.Data.DynamicResult.AppArmor.Unhandled, newUnhandled)
+			apm.Data.DynamicResult.BPF.Files = append(apm.Data.DynamicResult.BPF.Files, newFile)
+		}
+	}
+
+	for _, newCap := range bpf.Capabilities {
+		if !varmorutils.InStringArray(newCap, apm.Data.DynamicResult.BPF.Capabilities) {
+			apm.Data.DynamicResult.BPF.Capabilities = append(apm.Data.DynamicResult.BPF.Capabilities, newCap)
+		}
+	}
+
+	if bpf.Network != nil {
+		for _, newSocket := range bpf.Network.Sockets {
+			find := false
+			if apm.Data.DynamicResult.BPF.Network != nil {
+				for _, socket := range apm.Data.DynamicResult.BPF.Network.Sockets {
+					if reflect.DeepEqual(newSocket, socket) {
+						find = true
+						break
+					}
+				}
+			}
+			if !find {
+				if apm.Data.DynamicResult.BPF.Network == nil {
+					apm.Data.DynamicResult.BPF.Network = &varmor.Network{}
+				}
+				apm.Data.DynamicResult.BPF.Network.Sockets = append(apm.Data.DynamicResult.BPF.Network.Sockets, newSocket)
+			}
+		}
+
+		for _, newEgress := range bpf.Network.Egresses {
+			find := false
+			if apm.Data.DynamicResult.BPF.Network != nil {
+				for i, egress := range apm.Data.DynamicResult.BPF.Network.Egresses {
+					if egress.IP == newEgress.IP {
+						find = true
+						for _, newPort := range newEgress.Ports {
+							if !varmorutils.InUint16Array(newPort, egress.Ports) {
+								apm.Data.DynamicResult.BPF.Network.Egresses[i].Ports = append(apm.Data.DynamicResult.BPF.Network.Egresses[i].Ports, newPort)
+							}
+						}
+					}
+				}
+				if !find {
+					if apm.Data.DynamicResult.BPF.Network == nil {
+						apm.Data.DynamicResult.BPF.Network = &varmor.Network{}
+					}
+					apm.Data.DynamicResult.BPF.Network.Egresses = append(apm.Data.DynamicResult.BPF.Network.Egresses, newEgress)
+				}
+			}
+		}
+	}
+
+	for _, newPtrace := range bpf.Ptraces {
+		find := false
+		for i, ptrace := range apm.Data.DynamicResult.BPF.Ptraces {
+			if newPtrace.External == ptrace.External {
+				find = true
+				for _, newPerm := range newPtrace.Permissions {
+					if !varmorutils.InStringArray(newPerm, ptrace.Permissions) {
+						apm.Data.DynamicResult.BPF.Ptraces[i].Permissions = append(apm.Data.DynamicResult.BPF.Ptraces[i].Permissions, newPerm)
+					}
+				}
+				break
+			}
+		}
+		if !find {
+			apm.Data.DynamicResult.BPF.Ptraces = append(apm.Data.DynamicResult.BPF.Ptraces, newPtrace)
+		}
+	}
+
+	for _, newMount := range bpf.Mounts {
+		find := false
+		for i, mount := range apm.Data.DynamicResult.BPF.Mounts {
+			if newMount.Path == mount.Path && newMount.Type == mount.Type {
+				find = true
+				for _, newFlag := range newMount.Flags {
+					if !varmorutils.InStringArray(newFlag, mount.Flags) {
+						apm.Data.DynamicResult.BPF.Mounts[i].Flags = append(apm.Data.DynamicResult.BPF.Mounts[i].Flags, newFlag)
+					}
+				}
+				break
+			}
+		}
+		if !find {
+			apm.Data.DynamicResult.BPF.Mounts = append(apm.Data.DynamicResult.BPF.Mounts, newMount)
 		}
 	}
 }

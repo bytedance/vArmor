@@ -104,6 +104,7 @@ func (m *StatusManager) syncData(behaviorData varmortypes.BehaviorData) error {
 	}
 	oldDynamicResult := apm.Data.DynamicResult.DeepCopy()
 	statuscommon.MergeAppArmorResult(apm, behaviorData.DynamicResult.AppArmor)
+	statuscommon.MergeBpfResult(apm, behaviorData.DynamicResult.BPF)
 	statuscommon.MergeSeccompResult(apm, behaviorData.DynamicResult.Seccomp)
 	if reflect.DeepEqual(oldDynamicResult, &apm.Data.DynamicResult) {
 		logger.Info("2. no new behavior data to update to ArmorProfileModel", "profile", behaviorData.ProfileName, "node", behaviorData.NodeName)

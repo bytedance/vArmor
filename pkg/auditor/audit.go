@@ -117,7 +117,7 @@ func (auditor *Auditor) processAuditEvent(event string) {
 				Interface("event", e).Msg("violation event")
 		case AllowedAction:
 			if ch, ok := auditor.auditEventChs[profileName]; ok {
-				// Send behavior event to subscribers
+				// Send behavior event to the corresponding subscriber
 				ch <- event
 			} else {
 				// Only record the allowed event when the policy is in the DefenseInDepth mode.

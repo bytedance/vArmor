@@ -96,12 +96,12 @@ type BpfNetworkEvent struct {
 }
 
 type BpfPtraceEvent struct {
-	Permissions uint32
-	External    bool
+	Permission uint32
+	External   bool
 }
 
 type BpfMountEvent struct {
-	DevName [4096]byte
-	Type    [16]byte
-	Flags   uint32
+	Path  [4096]byte
+	Type  [16]byte
+	Flags uint32
 }

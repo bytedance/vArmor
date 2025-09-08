@@ -14,6 +14,19 @@
 
 package audit
 
+type BpfEvent struct {
+	Header BpfEventHeader `json:"header"`
+	Body   interface{}    `json:"body"`
+}
+
+type BpfEventHeader struct {
+	Action string `json:"action"`
+	Type   string `json:"type"`
+	MntNs  uint32 `json:"mntNs"`
+	Tgid   uint32 `json:"tgid"`
+	Ktime  uint64 `json:"ktime"`
+}
+
 type BpfPathEvent struct {
 	Permissions []string `json:"permissions"`
 	Path        string   `json:"path"`
@@ -23,26 +36,32 @@ type BpfCapabilityEvent struct {
 	Capability string `json:"capability"`
 }
 
-type BpfNetworkCreateEvent struct {
-	Domain   uint32 `json:"domain"`
-	Type     uint32 `json:"type"`
-	Protocol uint32 `json:"protocol"`
+type BpfNetworkSocket struct {
+	Domain   string `json:"domain"`
+	Type     string `json:"type"`
+	Protocol string `json:"protocol"`
 }
 
-type BpfNetworkConnectEvent struct {
+type BpfNetworkSockAddr struct {
 	IP   string `json:"ip"`
-	Port int    `json:"port"`
+	Port uint16 `json:"port"`
+}
+
+type BpfNetworkEvent struct {
+	Type   uint32             `json:"type"`
+	Socket BpfNetworkSocket   `json:"socket"`
+	Addr   BpfNetworkSockAddr `json:"addr"`
 }
 
 type BpfPtraceEvent struct {
-	Permissions []string `json:"permissions"`
-	External    bool     `json:"external"`
+	Permission string `json:"permission"`
+	External   bool   `json:"external"`
 }
 
 type BpfMountEvent struct {
-	DevName string   `json:"devName"`
-	Type    string   `json:"type"`
-	Flags   []string `json:"flags"`
+	Path  string   `json:"path"`
+	Type  string   `json:"type"`
+	Flags []string `json:"flags"`
 }
 
 type AppArmorEvent struct {

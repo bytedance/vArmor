@@ -24,6 +24,7 @@ import (
 	"github.com/go-logr/logr"
 )
 
+// AuditRecorder saves security audit events of an AppArmor & Seccomp profile into a local file.
 type AuditRecorder struct {
 	profileName           string
 	stopCh                <-chan struct{}
@@ -52,13 +53,12 @@ func NewAuditRecorder(directory string, profileName string, stopCh <-chan struct
 	return &r
 }
 
-// Init create the record file to save AppArmor audit event
+// Init creates the record file to save the AppArmor and Seccomp audit event from the auditor
 func (r *AuditRecorder) Init() error {
 	var err error
 
 	r.recordFile, err = os.Create(r.recordPath)
 	if err != nil {
-		r.log.Error(err, "os.Create() failed")
 		return err
 	}
 	r.recordFileWriter = bufio.NewWriter(r.recordFile)
@@ -66,7 +66,6 @@ func (r *AuditRecorder) Init() error {
 	if r.debug {
 		r.recordDebugFile, err = os.Create(r.recordDebugPath)
 		if err != nil {
-			r.log.Error(err, "os.Create() failed")
 			return err
 		}
 		r.recordDebugFileWriter = bufio.NewWriter(r.recordDebugFile)

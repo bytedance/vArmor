@@ -26,20 +26,31 @@ import (
 
 type File struct {
 	Path        string   `json:"path"`
-	Owner       bool     `json:"owner"`
+	Owner       bool     `json:"owner,omitempty"`
 	Permissions []string `json:"permissions"`
-	OldPath     string   `json:"oldPath"`
+	OldPath     string   `json:"oldPath,omitempty"`
+}
+
+type Socket struct {
+	Domain   string `json:"domain,omitempty"`
+	Type     string `json:"type,omitempty"`
+	Protocol string `json:"protocol,omitempty"`
+}
+
+type Address struct {
+	IP    string   `json:"ip"`
+	Ports []uint16 `json:"ports"`
 }
 
 type Network struct {
-	Family   string `json:"family"`
-	SockType string `json:"sockType"`
-	Protocol string `json:"protocol"`
+	Sockets  []Socket  `json:"sockets,omitempty"`
+	Egresses []Address `json:"egresses,omitempty"`
 }
 
 type Ptrace struct {
-	Peer        string   `json:"peer"`
+	Peer        string   `json:"peer,omitempty"`
 	Permissions []string `json:"permissions"`
+	External    bool     `json:"external,omitempty"`
 }
 
 type Signal struct {
@@ -49,14 +60,29 @@ type Signal struct {
 }
 
 type AppArmor struct {
-	Profiles     []string  `json:"profiles,omitempty"`
-	Executions   []string  `json:"executions,omitempty"`
-	Files        []File    `json:"files,omitempty"`
-	Capabilities []string  `json:"capabilities,omitempty"`
-	Networks     []Network `json:"networks,omitempty"`
-	Ptraces      []Ptrace  `json:"ptraces,omitempty"`
-	Signals      []Signal  `json:"signals,omitempty"`
-	Unhandled    []string  `json:"unhandled,omitempty"`
+	Profiles     []string `json:"profiles,omitempty"`
+	Executions   []string `json:"executions,omitempty"`
+	Files        []File   `json:"files,omitempty"`
+	Capabilities []string `json:"capabilities,omitempty"`
+	Network      *Network `json:"networks,omitempty"`
+	Ptraces      []Ptrace `json:"ptraces,omitempty"`
+	Signals      []Signal `json:"signals,omitempty"`
+	Unhandled    []string `json:"unhandled,omitempty"`
+}
+
+type Mount struct {
+	Path  string   `json:"path"`
+	Type  string   `json:"type,omitempty"`
+	Flags []string `json:"flags,omitempty"`
+}
+
+type BPF struct {
+	Executions   []string `json:"executions,omitempty"`
+	Files        []File   `json:"files,omitempty"`
+	Capabilities []string `json:"capabilities,omitempty"`
+	Network      *Network `json:"network,omitempty"`
+	Ptraces      []Ptrace `json:"ptraces,omitempty"`
+	Mounts       []Mount  `json:"mounts,omitempty"`
 }
 
 type Seccomp struct {
@@ -66,6 +92,8 @@ type Seccomp struct {
 type DynamicResult struct {
 	// AppArmor contains the AppArmor behavior data collected.
 	AppArmor *AppArmor `json:"apparmor,omitempty"`
+	// BPF contains the BPF behavior data collected.
+	BPF *BPF `json:"bpf,omitempty"`
 	// Seccomp contains the syscalls collected.
 	Seccomp *Seccomp `json:"seccomp,omitempty"`
 }
