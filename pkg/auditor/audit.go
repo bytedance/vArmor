@@ -94,7 +94,7 @@ func (auditor *Auditor) processAuditEvent(event string) {
 				Uint32("pid", uint32(e.PID)).
 				Uint32("mntNsID", mntNsID).
 				Uint64("eventTimestamp", uint64(e.Epoch)).
-				Str("eventType", "AppArmor").
+				Str("enforcer", "AppArmor").
 				Str("action", "DENIED").
 				Str("profileName", profileName).
 				Interface("event", e).Msg("violation event")
@@ -111,7 +111,7 @@ func (auditor *Auditor) processAuditEvent(event string) {
 				Uint32("pid", uint32(e.PID)).
 				Uint32("mntNsID", mntNsID).
 				Uint64("eventTimestamp", uint64(e.Epoch)).
-				Str("eventType", "AppArmor").
+				Str("enforcer", "AppArmor").
 				Str("action", "AUDIT").
 				Str("profileName", profileName).
 				Interface("event", e).Msg("violation event")
@@ -134,7 +134,7 @@ func (auditor *Auditor) processAuditEvent(event string) {
 					Uint32("pid", uint32(e.PID)).
 					Uint32("mntNsID", mntNsID).
 					Uint64("eventTimestamp", uint64(e.Epoch)).
-					Str("eventType", "AppArmor").
+					Str("enforcer", "AppArmor").
 					Str("action", "ALLOWED").
 					Str("profileName", profileName).
 					Interface("event", e).Msg("violation event")
@@ -206,7 +206,7 @@ func (auditor *Auditor) processAuditEvent(event string) {
 				Uint32("pid", uint32(e.PID)).
 				Uint32("mntNsID", mntNsID).
 				Uint64("eventTimestamp", e.Epoch).
-				Str("eventType", "Seccomp").
+				Str("enforcer", "Seccomp").
 				Str("action", "ALLOWED").
 				Str("profileName", profileName).
 				Interface("event", e).Msg("violation event")
