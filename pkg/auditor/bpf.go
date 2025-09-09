@@ -40,6 +40,7 @@ func (auditor *Auditor) convertBpfEvent(t bpfenforcer.EventType, e interface{}) 
 		}
 
 		return &BpfCapabilityEvent{
+			Operation:  bpfenforcer.EventTypeMap[t],
 			Capability: capability,
 		}
 	case bpfenforcer.FileType:
@@ -53,12 +54,14 @@ func (auditor *Auditor) convertBpfEvent(t bpfenforcer.EventType, e interface{}) 
 		}
 
 		return &BpfPathEvent{
+			Operation:   bpfenforcer.EventTypeMap[t],
 			Path:        unix.ByteSliceToString(event.Path[:]),
 			Permissions: permissions,
 		}
 	case bpfenforcer.BprmType:
 		event := e.(*bpfenforcer.BpfPathEvent)
 		return &BpfPathEvent{
+			Operation:   bpfenforcer.EventTypeMap[t],
 			Path:        unix.ByteSliceToString(event.Path[:]),
 			Permissions: []string{bpfenforcer.PathPermissionMap[event.Permissions]},
 		}
@@ -68,7 +71,8 @@ func (auditor *Auditor) convertBpfEvent(t bpfenforcer.EventType, e interface{}) 
 		switch event.Type {
 		case bpfenforcer.SocketType:
 			return &BpfNetworkEvent{
-				Type: bpfenforcer.SocketType,
+				Operation: bpfenforcer.EventTypeMap[t],
+				Type:      bpfenforcer.NetworkEventTypeMap[event.Type],
 				Socket: BpfNetworkSocket{
 					Domain:   bpfenforcer.SocketDomainMap[event.Socket.Domain],
 					Type:     bpfenforcer.SocketTypeMap[event.Socket.Type],
@@ -84,8 +88,9 @@ func (auditor *Auditor) convertBpfEvent(t bpfenforcer.EventType, e interface{}) 
 			}
 
 			return &BpfNetworkEvent{
-				Type: bpfenforcer.ConnectType,
-				Addr: BpfNetworkSockAddr{
+				Operation: bpfenforcer.EventTypeMap[t],
+				Type:      bpfenforcer.NetworkEventTypeMap[event.Type],
+				Address: BpfNetworkSockAddr{
 					IP:   ip,
 					Port: event.Addr.Port,
 				},
@@ -97,6 +102,7 @@ func (auditor *Auditor) convertBpfEvent(t bpfenforcer.EventType, e interface{}) 
 		event := e.(*bpfenforcer.BpfPtraceEvent)
 
 		return &BpfPtraceEvent{
+			Operation:  bpfenforcer.EventTypeMap[t],
 			Permission: bpfenforcer.PtracePermissionMap[event.Permission],
 			External:   event.External,
 		}
@@ -119,9 +125,10 @@ func (auditor *Auditor) convertBpfEvent(t bpfenforcer.EventType, e interface{}) 
 		}
 
 		return &BpfMountEvent{
-			Path:  unix.ByteSliceToString(event.Path[:]),
-			Type:  unix.ByteSliceToString(event.Type[:]),
-			Flags: flags,
+			Operation: bpfenforcer.EventTypeMap[t],
+			Path:      unix.ByteSliceToString(event.Path[:]),
+			Type:      unix.ByteSliceToString(event.Type[:]),
+			Flags:     flags,
 		}
 	}
 	return nil
@@ -254,7 +261,7 @@ func (auditor *Auditor) readFromAuditEventRingBuf() {
 					"container name", auditor.containerCache[eventHeader.MntNs].ContainerName,
 					"image", auditor.containerCache[eventHeader.MntNs].Image,
 					"pid", eventHeader.Tgid, "ktime", eventHeader.Ktime, "mnt ns", eventHeader.MntNs,
-					"dest ip", e.(*BpfNetworkEvent).Addr.IP, "dest port", e.(*BpfNetworkEvent).Addr.Port)
+					"dest ip", e.(*BpfNetworkEvent).Address.IP, "dest port", e.(*BpfNetworkEvent).Address.Port)
 			}
 
 		case bpfenforcer.PtraceType:
@@ -317,7 +324,7 @@ func (auditor *Auditor) readFromAuditEventRingBuf() {
 				Uint32("pid", eventHeader.Tgid).
 				Uint32("mntNsID", eventHeader.MntNs).
 				Uint64("eventTimestamp", eventHeader.Ktime/uint64(time.Second)+auditor.bootTimestamp).
-				Str("eventType", "BPF").
+				Str("enforcer", "BPF").
 				Str("action", "DENIED").
 				Str("profileName", auditor.containerCache[eventHeader.MntNs].ProfileName).
 				Interface("event", e).Msg("violation event")
@@ -336,7 +343,7 @@ func (auditor *Auditor) readFromAuditEventRingBuf() {
 				Uint32("pid", eventHeader.Tgid).
 				Uint32("mntNsID", eventHeader.MntNs).
 				Uint64("eventTimestamp", eventHeader.Ktime/uint64(time.Second)+auditor.bootTimestamp).
-				Str("eventType", "BPF").
+				Str("enforcer", "BPF").
 				Str("action", "AUDIT").
 				Str("profileName", auditor.containerCache[eventHeader.MntNs].ProfileName).
 				Interface("event", e).Msg("violation event")

@@ -144,6 +144,11 @@ var (
 		MountType:      "Mount",
 	}
 
+	NetworkEventTypeMap = map[uint32]string{
+		ConnectType: "connect",
+		SocketType:  "socket",
+	}
+
 	CapabilityMap = map[uint32]string{
 		unix.CAP_CHOWN:              "chown",
 		unix.CAP_DAC_OVERRIDE:       "dac_override",

@@ -28,40 +28,47 @@ type BpfEventHeader struct {
 }
 
 type BpfPathEvent struct {
+	Operation   string   `json:"operation"`
 	Permissions []string `json:"permissions"`
 	Path        string   `json:"path"`
 }
 
 type BpfCapabilityEvent struct {
+	Operation  string `json:"operation"`
 	Capability string `json:"capability"`
 }
 
 type BpfNetworkSocket struct {
-	Domain   string `json:"domain"`
-	Type     string `json:"type"`
-	Protocol string `json:"protocol"`
+	Operation string `json:"operation"`
+	Domain    string `json:"domain"`
+	Type      string `json:"type"`
+	Protocol  string `json:"protocol"`
 }
 
 type BpfNetworkSockAddr struct {
-	IP   string `json:"ip"`
-	Port uint16 `json:"port"`
+	Operation string `json:"operation"`
+	IP        string `json:"ip"`
+	Port      uint16 `json:"port"`
 }
 
 type BpfNetworkEvent struct {
-	Type   uint32             `json:"type"`
-	Socket BpfNetworkSocket   `json:"socket"`
-	Addr   BpfNetworkSockAddr `json:"addr"`
+	Operation string             `json:"operation"`
+	Type      string             `json:"type"`
+	Socket    BpfNetworkSocket   `json:"socket"`
+	Address   BpfNetworkSockAddr `json:"address"`
 }
 
 type BpfPtraceEvent struct {
+	Operation  string `json:"operation"`
 	Permission string `json:"permission"`
 	External   bool   `json:"external"`
 }
 
 type BpfMountEvent struct {
-	Path  string   `json:"path"`
-	Type  string   `json:"type"`
-	Flags []string `json:"flags"`
+	Operation string   `json:"operation"`
+	Path      string   `json:"path"`
+	Type      string   `json:"type"`
+	Flags     []string `json:"flags"`
 }
 
 type AppArmorEvent struct {

@@ -18,7 +18,6 @@ import (
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
 	varmorutils "github.com/bytedance/vArmor/internal/utils"
 	varmorauditor "github.com/bytedance/vArmor/pkg/auditor"
-	"github.com/bytedance/vArmor/pkg/lsm/bpfenforcer"
 )
 
 func (p *DataPreprocessor) parseBpfEventForTree(event *varmorauditor.BpfEvent) error {
@@ -85,7 +84,7 @@ func (p *DataPreprocessor) parseBpfEventForTree(event *varmorauditor.BpfEvent) e
 		}
 
 		switch e.Type {
-		case bpfenforcer.SocketType:
+		case "socket":
 			for _, socket := range p.behaviorData.DynamicResult.BPF.Network.Sockets {
 				if socket.Domain == e.Socket.Domain && socket.Type == e.Socket.Type && socket.Protocol == e.Socket.Protocol {
 					return nil
@@ -96,18 +95,18 @@ func (p *DataPreprocessor) parseBpfEventForTree(event *varmorauditor.BpfEvent) e
 				Type:     e.Socket.Type,
 				Protocol: e.Socket.Protocol,
 			})
-		case bpfenforcer.ConnectType:
+		case "connect":
 			for i, egress := range p.behaviorData.DynamicResult.BPF.Network.Egresses {
-				if egress.IP == e.Addr.IP {
-					if !varmorutils.InUint16Array(e.Addr.Port, egress.Ports) {
-						p.behaviorData.DynamicResult.BPF.Network.Egresses[i].Ports = append(p.behaviorData.DynamicResult.BPF.Network.Egresses[i].Ports, e.Addr.Port)
+				if egress.IP == e.Address.IP {
+					if !varmorutils.InUint16Array(e.Address.Port, egress.Ports) {
+						p.behaviorData.DynamicResult.BPF.Network.Egresses[i].Ports = append(p.behaviorData.DynamicResult.BPF.Network.Egresses[i].Ports, e.Address.Port)
 					}
 					return nil
 				}
 			}
 			p.behaviorData.DynamicResult.BPF.Network.Egresses = append(p.behaviorData.DynamicResult.BPF.Network.Egresses, varmor.Address{
-				IP:    e.Addr.IP,
-				Ports: []uint16{e.Addr.Port},
+				IP:    e.Address.IP,
+				Ports: []uint16{e.Address.Port},
 			})
 		}
 	case "Ptrace":
