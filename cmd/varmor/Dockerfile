@@ -38,7 +38,7 @@ RUN make build-ebpf
 
 
 ## Building vArmor
-FROM golang:1.23-bookworm AS varmor-builder
+FROM golang:1.24-bookworm AS varmor-builder
 
 LABEL maintainer="vArmor authors"
 
