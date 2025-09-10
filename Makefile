@@ -182,11 +182,11 @@ docker-build-dev-ci: docker-build-varmor-amd64-dev docker-build-classifier-amd64
 
 docker-build-varmor-amd64:
 	@echo "[+] Build varmor-amd64 image for release version"
-	@docker buildx build --file $(PWD)/$(VARMOR_PATH)/Dockerfile --tag $(VARMOR_IMAGE_AP)-amd64 --platform linux/amd64 --build-arg TARGETPLATFORM="linux/amd64" --build-arg GITVERSION=$(GIT_VERSION) --build-arg GITCOMMIT=$(GIT_COMMIT) --build-arg BUILDDATE=$(BUILD_DATE) --load .
+	@docker buildx build --file $(PWD)/$(VARMOR_PATH)/Dockerfile --tag $(VARMOR_IMAGE_AP)-amd64 --platform linux/amd64 --build-arg GITVERSION=$(GIT_VERSION) --build-arg GITCOMMIT=$(GIT_COMMIT) --build-arg BUILDDATE=$(BUILD_DATE) --load .
 
 docker-build-varmor-arm64:
 	@echo "[+] Build varmor-arm64 image for the release version"
-	@docker buildx build --file $(PWD)/$(VARMOR_PATH)/Dockerfile --tag $(VARMOR_IMAGE_AP)-arm64 --platform linux/arm64 --build-arg TARGETPLATFORM="linux/arm64" --build-arg GITVERSION=$(GIT_VERSION) --build-arg GITCOMMIT=$(GIT_COMMIT) --build-arg BUILDDATE=$(BUILD_DATE) --load .
+	@docker buildx build --file $(PWD)/$(VARMOR_PATH)/Dockerfile --tag $(VARMOR_IMAGE_AP)-arm64 --platform linux/arm64 --build-arg GITVERSION=$(GIT_VERSION) --build-arg GITCOMMIT=$(GIT_COMMIT) --build-arg BUILDDATE=$(BUILD_DATE) --load .
 
 docker-build-classifier-amd64:
 	@echo "[+] Build classifier-amd64 image for the release version"
@@ -198,11 +198,11 @@ docker-build-classifier-arm64:
 
 docker-build-varmor-amd64-dev:
 	@echo "[+] Build varmor-amd64 image for the development version"
-	@docker buildx build --file $(PWD)/$(VARMOR_PATH)/Dockerfile --tag $(VARMOR_IMAGE_DEV)-amd64 --platform linux/amd64 --build-arg TARGETPLATFORM="linux/amd64" --build-arg GITVERSION=$(GIT_VERSION) --build-arg GITCOMMIT=$(GIT_COMMIT) --build-arg BUILDDATE=$(BUILD_DATE) --load .
+	@docker buildx build --file $(PWD)/$(VARMOR_PATH)/Dockerfile --tag $(VARMOR_IMAGE_DEV)-amd64 --platform linux/amd64 --build-arg GITVERSION=$(GIT_VERSION) --build-arg GITCOMMIT=$(GIT_COMMIT) --build-arg BUILDDATE=$(BUILD_DATE) --load .
 
 docker-build-varmor-arm64-dev:
 	@echo "[+] Build varmor-arm64 image for the development version"
-	@docker buildx build --file $(PWD)/$(VARMOR_PATH)/Dockerfile --tag $(VARMOR_IMAGE_DEV)-arm64 --platform linux/arm64 --build-arg TARGETPLATFORM="linux/arm64" --build-arg GITVERSION=$(GIT_VERSION) --build-arg GITCOMMIT=$(GIT_COMMIT) --build-arg BUILDDATE=$(BUILD_DATE) --load .
+	@docker buildx build --file $(PWD)/$(VARMOR_PATH)/Dockerfile --tag $(VARMOR_IMAGE_DEV)-arm64 --platform linux/arm64 --build-arg GITVERSION=$(GIT_VERSION) --build-arg GITCOMMIT=$(GIT_COMMIT) --build-arg BUILDDATE=$(BUILD_DATE) --load .
 
 docker-build-classifier-amd64-dev:
 	@echo "[+] Build classifier-amd64 image for the development version"
