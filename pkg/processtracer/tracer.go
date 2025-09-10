@@ -33,6 +33,7 @@ type ProcessTracer struct {
 	forkLink        link.Link
 	reader          *perf.Reader
 	processEventChs map[string]chan<- BpfProcessEvent
+	tracing         bool
 	log             logr.Logger
 }
 
@@ -72,22 +73,26 @@ func (tracer *ProcessTracer) Close() {
 	tracer.bpfObjs.Close()
 }
 
-func (tracer *ProcessTracer) AddProcessEventNotifyCh(subscriber string, processEventCh chan BpfProcessEvent) {
-	tracer.processEventChs[subscriber] = processEventCh
+func (tracer *ProcessTracer) AddProcessEventNotifyCh(subscriber string, processEventCh *chan BpfProcessEvent) {
+	if processEventCh != nil {
+		tracer.processEventChs[subscriber] = *processEventCh
+	}
 
 	if len(tracer.processEventChs) == 1 {
 		err := tracer.startTracing()
 		if err != nil {
 			tracer.log.Error(err, "failed to enable tracing")
 		}
+		tracer.tracing = true
 	}
 }
 
 func (tracer *ProcessTracer) DeleteProcessEventNotifyCh(subscriber string) {
 	delete(tracer.processEventChs, subscriber)
 
-	if len(tracer.processEventChs) == 0 {
+	if len(tracer.processEventChs) == 0 && tracer.tracing {
 		tracer.stopTracing()
+		tracer.tracing = false
 	}
 }
 
@@ -104,17 +109,16 @@ func (tracer *ProcessTracer) startTracing() error {
 	// Handle bpf process events.
 	go tracer.handleBpfEvents()
 
-	tracer.log.Info("start tracing")
+	tracer.log.Info("start tracing processes")
 
 	return nil
 }
 
 func (tracer *ProcessTracer) stopTracing() error {
-	tracer.log.Info("stop tracing")
-
 	tracer.closeBpfEventsReader()
 	tracer.unattachBpfToTracepoint()
 
+	tracer.log.Info("stop tracing processes")
 	return nil
 }
 

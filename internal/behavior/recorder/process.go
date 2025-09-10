@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package recorder records the events of AppArmor and Seccomp, and the events from processtracer
+// Package recorder records the events of AppArmor, BPF and Seccomp from the auditor, and the events from processtracer
 package recorder
 
 import (
@@ -28,6 +28,7 @@ import (
 	varmortracer "github.com/bytedance/vArmor/pkg/processtracer"
 )
 
+// ProcessRecorder caches process creation events into a local file from the processtracer
 type ProcessRecorder struct {
 	profileName           string
 	stopCh                <-chan struct{}
@@ -56,13 +57,12 @@ func NewProcessRecorder(directory string, profileName string, stopCh <-chan stru
 	return &r
 }
 
-// Init create the record file to save the process creation events
+// Init creates the record file to save the process creation events for the Seccomp enforcer
 func (r *ProcessRecorder) Init() error {
 	var err error
 
 	r.recordFile, err = os.Create(r.recordPath)
 	if err != nil {
-		r.log.Error(err, "os.Create() failed")
 		return err
 	}
 	r.recordFileEncoder = gob.NewEncoder(r.recordFile)
@@ -70,7 +70,6 @@ func (r *ProcessRecorder) Init() error {
 	if r.debug {
 		r.recordDebugFile, err = os.Create(r.recordDebugPath)
 		if err != nil {
-			r.log.Error(err, "os.Create() failed")
 			return err
 		}
 		r.recordDebugFileWriter = bufio.NewWriter(r.recordDebugFile)
@@ -109,7 +108,11 @@ func (r *ProcessRecorder) eventHandler() {
 	for {
 		select {
 		case event := <-r.ProcessEventCh:
-			r.recordFileEncoder.Encode(event)
+			err := r.recordFileEncoder.Encode(event)
+			if err != nil {
+				r.log.Error(err, "encode process event failed")
+				continue
+			}
 
 			if r.debug {
 				eventType := ""

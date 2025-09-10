@@ -96,7 +96,7 @@ type Destination struct {
 	Ports []Port `json:"ports,omitempty"`
 }
 
-// Egress describes the network egress rules to match traffic for connect(2) operations.
+// NetworkEgressRule describes the network egress rules to match traffic for connect(2) operations.
 // Notes:
 // - The ToDestinations, ToEntities, ToServices, and ToPods fields are in a logical OR relationship.
 // - Within the same field, multiple rules are also in a logical OR relationship.

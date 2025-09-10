@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: varmor-classifier
+  namespace: varmor
+spec:
+  progressDeadlineSeconds: 600
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: varmor-classifier
+      app.kubernetes.io/name: varmor
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: varmor-classifier
+        app.kubernetes.io/name: varmor
+    spec:
+      hostNetwork: true
+      containers:
+      - env:
+        - name: CLASSIFIER_SERVICE_PORT
+          value: "5000"
+        image: elkeid-cn-beijing.cr.volces.com/varmor-test/classifier:v0.8.2
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /healthz
+            port: 5000
+            scheme: HTTP
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 1
+        name: classifier
+        ports:
+        - containerPort: 5000
+          name: class
+          protocol: TCP
+        resources: {}
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - MKNOD
+            - NET_RAW
+      dnsPolicy: ClusterFirstWithHostNet
+      securityContext:
+        runAsNonRoot: true
+

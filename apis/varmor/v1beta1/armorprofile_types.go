@@ -24,11 +24,11 @@ import (
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
-type profileMode string
+type ProfileMode string
 
 const (
-	ProfileModeEnforce  profileMode = "enforce"
-	ProfileModeComplain profileMode = "complain"
+	ProfileModeEnforce  ProfileMode = "enforce"
+	ProfileModeComplain ProfileMode = "complain"
 )
 
 type CapabilitiesContent struct {
@@ -95,7 +95,7 @@ type BpfContent struct {
 type Profile struct {
 	Name           string      `json:"name"`
 	Enforcer       string      `json:"enforcer"`
-	Mode           profileMode `json:"mode"`
+	Mode           ProfileMode `json:"mode"`
 	Content        string      `json:"content,omitempty"`
 	BpfContent     *BpfContent `json:"bpfContent,omitempty"`
 	SeccompContent string      `json:"seccompContent,omitempty"`

@@ -15,28 +15,18 @@
 # limitations under the License.
 
 if [[ "$1" == "deploy" ]]; then
-    kubectl delete -f config/k8s-resource/services 2>/dev/null
     kubectl delete -f config/k8s-resource/rbac 2>/dev/null
-    kubectl delete -f config/k8s-resource 2>/dev/null
     kubectl delete -f config/crds 2>/dev/null
     kubectl create -f config/crds
-    kubectl create -f config/k8s-resource
     kubectl create -f config/k8s-resource/rbac
-    kubectl create -f config/k8s-resource/services
 elif [[ "$1" == "test" ]]; then
-    kubectl delete -f config/k8s-resource/services 2>/dev/null
     kubectl delete -f config/k8s-resource/rbac 2>/dev/null
-    kubectl delete -f config/k8s-resource 2>/dev/null
     kubectl delete -f config/crds 2>/dev/null
     kubectl create -f config/crds
-    kubectl create -f config/k8s-resource
     kubectl create -f config/k8s-resource/rbac
-    kubectl create -f config/k8s-resource/services
     ./scripts/create-manager-kubeconfig-from-token.sh > varmor-manager.kubeconfig
     ./scripts/create-agent-kubeconfig-from-token.sh > varmor-agent.kubeconfig
 elif [[ "$1" == "uninstall" ]]; then
-    kubectl delete -f config/k8s-resource/services 2>/dev/null
     kubectl delete -f config/k8s-resource/rbac 2>/dev/null
-    kubectl delete -f config/k8s-resource 2>/dev/null
     kubectl delete -f config/crds 2>/dev/null
 fi

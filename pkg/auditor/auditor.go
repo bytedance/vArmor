@@ -48,18 +48,14 @@ type Auditor struct {
 	TaskStartCh            chan varmortypes.ContainerInfo
 	TaskDeleteCh           chan varmortypes.ContainerInfo
 	TaskDeleteSyncCh       chan bool
-	mntNsIDCache           map[uint32]uint32                      // key: The init PID of contaienr, value: The mnt ns id
-	containerCache         map[uint32]varmortypes.ContainerInfo   // key: The mnt ns id of container, value: The container information
-	auditEventChs          map[string]chan<- string               // auditEventChs used for sending apparmor & seccomp behavior event to subscribers
-	bpfEventChs            map[string]chan<- bpfenforcer.BpfEvent // bpfEventChs used for sending bpf behavior event to subscribers
+	mntNsIDCache           map[uint32]uint32                    // key: The init PID of contaienr, value: The mnt ns id
+	containerCache         map[uint32]varmortypes.ContainerInfo // key: The mnt ns id of container, value: The container information
+	auditEventChs          map[string]chan<- string             // auditEventChs used for sending apparmor & seccomp behavior event to subscribers, key: profile name, value: audit event channel
+	bpfEventChs            map[string]chan<- BpfEvent           // bpfEventChs used for sending bpf behavior event to subscribers, key: profile name, value: bpf event channel
 	auditLogPath           string
 	auditLogTail           *tail.Tail
 	savedRateLimit         uint64
 	auditRbMap             *ebpf.Map
-	capabilityMap          map[uint32]string
-	filePermissionMap      map[uint32]string
-	ptracePermissionMap    map[uint32]string
-	mountFlagMap           map[uint32]string
 	auditEventMetadata     map[string]interface{} // auditEventMetadata used for storing additional information of the violation event
 	violationLogger        zerolog.Logger
 	log                    logr.Logger
@@ -78,12 +74,8 @@ func NewAuditor(nodeName string, appArmorSupported, bpfLsmSupported, enableBehav
 		mntNsIDCache:           make(map[uint32]uint32, 100),
 		containerCache:         make(map[uint32]varmortypes.ContainerInfo, 100),
 		auditEventChs:          make(map[string]chan<- string),
-		bpfEventChs:            make(map[string]chan<- bpfenforcer.BpfEvent),
+		bpfEventChs:            make(map[string]chan<- BpfEvent),
 		savedRateLimit:         0,
-		capabilityMap:          initCapabilityMap(),
-		filePermissionMap:      initFilePermissionMap(),
-		ptracePermissionMap:    initPtracePermissionMap(),
-		mountFlagMap:           initMountFlagMap(),
 		auditEventMetadata:     auditEventMetadata,
 		log:                    log,
 	}
@@ -183,7 +175,9 @@ func (auditor *Auditor) eventHandler(stopCh <-chan struct{}) {
 	}
 }
 
-func (auditor *Auditor) AddBehaviorEventNotifyChs(subscriber string, auditEventCh *chan string, bpfEventCh *chan bpfenforcer.BpfEvent) {
+// AddBehaviorEventNotifyChs add the audit event channel and bpf event channel for the subscriber
+// The subscriber parameter is the name of profile
+func (auditor *Auditor) AddBehaviorEventNotifyChs(subscriber string, auditEventCh *chan string, bpfEventCh *chan BpfEvent) {
 	if bpfEventCh != nil {
 		auditor.bpfEventChs[subscriber] = *bpfEventCh
 	}
@@ -199,6 +193,8 @@ func (auditor *Auditor) AddBehaviorEventNotifyChs(subscriber string, auditEventC
 	}
 }
 
+// DeleteBehaviorEventNotifyCh delete the audit event channel and bpf event channel for the subscriber
+// The subscriber parameter is the name of profile
 func (auditor *Auditor) DeleteBehaviorEventNotifyCh(subscriber string) {
 	delete(auditor.bpfEventChs, subscriber)
 	delete(auditor.auditEventChs, subscriber)

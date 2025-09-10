@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
 	lsmutils "github.com/bytedance/vArmor/pkg/lsm/utils"
 )
 
@@ -80,22 +81,22 @@ func aaParser(args ...string) (string, error) {
 	return string(out), nil
 }
 
-func LoadAppArmorProfile(path string, mode string) (string, error) {
+func LoadAppArmorProfile(path string, mode varmor.ProfileMode) (string, error) {
 	switch mode {
-	case "enforce":
+	case varmor.ProfileModeEnforce:
 		return aaParser("-Ka", path)
-	case "complain":
+	case varmor.ProfileModeComplain:
 		return aaParser("-KaC", path)
 	default:
 		return "", fmt.Errorf("vArmor doesn't support '%s' mode", mode)
 	}
 }
 
-func UpdateAppArmorProfile(path string, mode string) (string, error) {
+func UpdateAppArmorProfile(path string, mode varmor.ProfileMode) (string, error) {
 	switch mode {
-	case "enforce":
+	case varmor.ProfileModeEnforce:
 		return aaParser("-Kr", path)
-	case "complain":
+	case varmor.ProfileModeComplain:
 		return aaParser("-KrC", path)
 	default:
 		return "", fmt.Errorf("vArmor doesn't support '%s' mode", mode)

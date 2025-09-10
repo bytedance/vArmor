@@ -645,27 +645,27 @@ func generateRawMountRule(bpfContent *varmor.BpfContent, mode uint32, rule varmo
 		case "rbind", "R":
 			mountFlags |= unix.MS_BIND
 			mountFlags |= unix.MS_REC
-		case "make-unbindable":
+		case "make-unbindable", "unbindable":
 			mountFlags |= unix.MS_UNBINDABLE
-		case "make-private":
+		case "make-private", "private":
 			mountFlags |= unix.MS_PRIVATE
-		case "make-slave":
+		case "make-slave", "slave":
 			mountFlags |= unix.MS_SLAVE
-		case "make-shared":
+		case "make-shared", "shared":
 			mountFlags |= unix.MS_SHARED
-		case "make-runbindable":
+		case "make-runbindable", "runbindable":
 			mountFlags |= unix.MS_BIND
 			mountFlags |= unix.MS_REC
 			mountFlags |= unix.MS_UNBINDABLE
-		case "make-rprivate":
+		case "make-rprivate", "rprivate":
 			mountFlags |= unix.MS_BIND
 			mountFlags |= unix.MS_REC
 			mountFlags |= unix.MS_PRIVATE
-		case "make-rslave":
+		case "make-rslave", "rslave":
 			mountFlags |= unix.MS_BIND
 			mountFlags |= unix.MS_REC
 			mountFlags |= unix.MS_SLAVE
-		case "make-rshared":
+		case "make-rshared", "rshared":
 			mountFlags |= unix.MS_BIND
 			mountFlags |= unix.MS_REC
 			mountFlags |= unix.MS_SHARED

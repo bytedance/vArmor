@@ -78,27 +78,38 @@ spec:
                                 type: string
                               type: array
                           required:
-                          - oldPath
-                          - owner
                           - path
                           - permissions
                           type: object
                         type: array
                       networks:
-                        items:
-                          properties:
-                            family:
-                              type: string
-                            protocol:
-                              type: string
-                            sockType:
-                              type: string
-                          required:
-                          - family
-                          - protocol
-                          - sockType
-                          type: object
-                        type: array
+                        properties:
+                          egresses:
+                            items:
+                              properties:
+                                ip:
+                                  type: string
+                                ports:
+                                  items:
+                                    type: integer
+                                  type: array
+                              required:
+                              - ip
+                              - ports
+                              type: object
+                            type: array
+                          sockets:
+                            items:
+                              properties:
+                                domain:
+                                  type: string
+                                protocol:
+                                  type: string
+                                type:
+                                  type: string
+                              type: object
+                            type: array
+                        type: object
                       profiles:
                         items:
                           type: string
@@ -106,6 +117,8 @@ spec:
                       ptraces:
                         items:
                           properties:
+                            external:
+                              type: boolean
                             peer:
                               type: string
                             permissions:
@@ -113,7 +126,6 @@ spec:
                                 type: string
                               type: array
                           required:
-                          - peer
                           - permissions
                           type: object
                         type: array
@@ -139,6 +151,94 @@ spec:
                       unhandled:
                         items:
                           type: string
+                        type: array
+                    type: object
+                  bpf:
+                    description: BPF contains the BPF behavior data collected.
+                    properties:
+                      capabilities:
+                        items:
+                          type: string
+                        type: array
+                      executions:
+                        items:
+                          type: string
+                        type: array
+                      files:
+                        items:
+                          properties:
+                            oldPath:
+                              type: string
+                            owner:
+                              type: boolean
+                            path:
+                              type: string
+                            permissions:
+                              items:
+                                type: string
+                              type: array
+                          required:
+                          - path
+                          - permissions
+                          type: object
+                        type: array
+                      mounts:
+                        items:
+                          properties:
+                            flags:
+                              items:
+                                type: string
+                              type: array
+                            path:
+                              type: string
+                            type:
+                              type: string
+                          required:
+                          - path
+                          type: object
+                        type: array
+                      network:
+                        properties:
+                          egresses:
+                            items:
+                              properties:
+                                ip:
+                                  type: string
+                                ports:
+                                  items:
+                                    type: integer
+                                  type: array
+                              required:
+                              - ip
+                              - ports
+                              type: object
+                            type: array
+                          sockets:
+                            items:
+                              properties:
+                                domain:
+                                  type: string
+                                protocol:
+                                  type: string
+                                type:
+                                  type: string
+                              type: object
+                            type: array
+                        type: object
+                      ptraces:
+                        items:
+                          properties:
+                            external:
+                              type: boolean
+                            peer:
+                              type: string
+                            permissions:
+                              items:
+                                type: string
+                              type: array
+                          required:
+                          - permissions
+                          type: object
                         type: array
                     type: object
                   seccomp:
