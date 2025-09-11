@@ -18,8 +18,8 @@ const hasCommonItem = (arr1 = [], arr2 = []) => {
 // the exact JSON structure.
 const retrieveCapabilitiesFromModel = (model = {}) => {
   const caps = [];
-  if (model.data && model.data.dynamicResult && model.data.dynamicResult.apparmor && model.data.dynamicResult.apparmor.capabilities) {
-    caps.push(...model.data.dynamicResult.apparmor.capabilities);
+  if (model.data && model.data.dynamicResult && model.data.dynamicResult.appArmor && model.data.dynamicResult.appArmor.capabilities) {
+    caps.push(...model.data.dynamicResult.appArmor.capabilities);
   }
   return caps;
 };
@@ -33,8 +33,8 @@ const retrieveSyscallsFromModel = (model = {}) => {
 
 const retrieveExecutionsFromModel = (model = {}) => {
   const executions = [];
-  if (model.data && model.data.dynamicResult && model.data.dynamicResult.apparmor && model.data.dynamicResult.apparmor.executions) {
-    for (const execution of model.data.dynamicResult.apparmor.executions) {
+  if (model.data && model.data.dynamicResult && model.data.dynamicResult.appArmor && model.data.dynamicResult.appArmor.executions) {
+    for (const execution of model.data.dynamicResult.appArmor.executions) {
       executions.push(execution.split('/').pop());
     }
   }
@@ -43,8 +43,8 @@ const retrieveExecutionsFromModel = (model = {}) => {
 
 const retrieveFilesFromModel = (model = {}) => {
   const files = [];
-  if (model.data && model.data.dynamicResult && model.data.dynamicResult.apparmor && model.data.dynamicResult.apparmor.files) {
-    files.push(...model.data.dynamicResult.apparmor.files);
+  if (model.data && model.data.dynamicResult && model.data.dynamicResult.appArmor && model.data.dynamicResult.appArmor.files) {
+    files.push(...model.data.dynamicResult.appArmor.files);
   }
   return files;
 };
