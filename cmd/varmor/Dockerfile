@@ -42,6 +42,8 @@ FROM golang:1.24-bookworm AS varmor-builder
 
 LABEL maintainer="vArmor authors"
 
+ARG TARGETOS
+ARG TARGETARCH
 ARG GITVERSION
 ARG GITCOMMIT
 ARG BUILDDATE
@@ -77,6 +79,8 @@ RUN GOOS=${TARGETOS} && \
 FROM debian:bookworm
 
 LABEL maintainer="vArmor authors"
+
+ARG TARGETARCH
 
 # Copy the varmor executable to the image
 COPY --from=varmor-builder /output/ /varmor
