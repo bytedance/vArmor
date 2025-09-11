@@ -27,7 +27,7 @@ clean() {
 }
 
 ### main
-pull=0
+pull=false
 while [[ "$1" =~ ^- && ! "$1" == "--" ]]; do
     case "$1" in
         -s | --source_region )
@@ -47,7 +47,7 @@ while [[ "$1" =~ ^- && ! "$1" == "--" ]]; do
             shift
             ;;
         -p | --pull )
-            pull=1
+            pull=true
             ;;
         -c | --clean )
             clean
@@ -84,7 +84,7 @@ esac
 SOURCE_DOMAIN="elkeid-$SOURCE_REGION.cr.volces.com"
 TARGET_DOMAIN="elkeid-$TARGET_REGION.cr.volces.com"
 
-if [[ $pull == 1 ]]; then
+if [[ $pull == true ]]; then
     docker pull $SOURCE_DOMAIN/$NAMESPACE/varmor:$VERSION-arm64
     if [ $? -ne 0 ]; then
         exit 1
