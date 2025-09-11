@@ -74,7 +74,9 @@ spec:
                 type: object
               profile:
                 properties:
-                  bpfContent:
+                  appArmor:
+                    type: string
+                  bpf:
                     properties:
                       capabilities:
                         properties:
@@ -225,15 +227,13 @@ spec:
                             type: integer
                         type: object
                     type: object
-                  content:
-                    type: string
                   enforcer:
                     type: string
                   mode:
                     type: string
                   name:
                     type: string
-                  seccompContent:
+                  seccomp:
                     type: string
                 required:
                 - enforcer

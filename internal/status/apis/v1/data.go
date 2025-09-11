@@ -104,7 +104,7 @@ func (m *StatusManager) syncData(behaviorData varmortypes.BehaviorData) error {
 	}
 	oldDynamicResult := apm.Data.DynamicResult.DeepCopy()
 	statuscommon.MergeAppArmorResult(apm, behaviorData.DynamicResult.AppArmor)
-	statuscommon.MergeBpfResult(apm, behaviorData.DynamicResult.BPF)
+	statuscommon.MergeBpfResult(apm, behaviorData.DynamicResult.Bpf)
 	statuscommon.MergeSeccompResult(apm, behaviorData.DynamicResult.Seccomp)
 	if reflect.DeepEqual(oldDynamicResult, &apm.Data.DynamicResult) {
 		logger.Info("2. no new behavior data to update to ArmorProfileModel", "profile", behaviorData.ProfileName, "node", behaviorData.NodeName)
@@ -142,11 +142,11 @@ func (m *StatusManager) syncData(behaviorData varmortypes.BehaviorData) error {
 		// Build the final AppArmor Profile
 		if apm.Data.DynamicResult.AppArmor != nil {
 			logger.Info("3.1.1. build AppArmor profile with behavior model")
-			apparmorProfile, err := apparmorprofile.GenerateProfileWithBehaviorModel(apm.Data.DynamicResult.AppArmor, m.debug)
+			appArmorProfile, err := apparmorprofile.GenerateProfileWithBehaviorModel(apm.Data.DynamicResult.AppArmor, m.debug)
 			if err != nil {
 				logger.Info("apparmorprofile.GenerateProfileWithBehaviorModel() failed", "info", err)
 			}
-			apm.Data.Profile.Content = apparmorProfile
+			apm.Data.Profile.AppArmor = appArmorProfile
 		}
 
 		if apm.Data.DynamicResult.Seccomp != nil {
@@ -156,7 +156,7 @@ func (m *StatusManager) syncData(behaviorData varmortypes.BehaviorData) error {
 			if err != nil {
 				logger.Info("seccompprofile.GenerateProfileWithBehaviorModel() failed", "info", err)
 			}
-			apm.Data.Profile.SeccompContent = seccompProfile
+			apm.Data.Profile.Seccomp = seccompProfile
 		}
 
 		// Update ArmorProfileModel object

@@ -53,7 +53,7 @@ spec:
                 description: DynamicResult stores the behavior data that has been
                   collected with the BehaviorModeling mode.
                 properties:
-                  apparmor:
+                  appArmor:
                     description: AppArmor contains the AppArmor behavior data collected.
                     properties:
                       capabilities:
@@ -254,7 +254,9 @@ spec:
                 description: Profile stores profiles that are generate from the DynamicResult
                   and StaticResult.
                 properties:
-                  bpfContent:
+                  appArmor:
+                    type: string
+                  bpf:
                     properties:
                       capabilities:
                         properties:
@@ -405,15 +407,13 @@ spec:
                             type: integer
                         type: object
                     type: object
-                  content:
-                    type: string
                   enforcer:
                     type: string
                   mode:
                     type: string
                   name:
                     type: string
-                  seccompContent:
+                  seccomp:
                     type: string
                 required:
                 - enforcer

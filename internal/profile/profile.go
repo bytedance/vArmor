@@ -84,16 +84,16 @@ func GenerateProfile(
 
 		// AppArmor
 		if (e & varmortypes.AppArmor) != 0 {
-			profile.Content = apparmorprofile.GenerateAlwaysAllowProfile(name)
+			profile.AppArmor = apparmorprofile.GenerateAlwaysAllowProfile(name)
 		}
 		// BPF
 		if (e & varmortypes.BPF) != 0 {
 			var bpfContent varmor.BpfContent
-			profile.BpfContent = &bpfContent
+			profile.Bpf = &bpfContent
 		}
 		// Seccomp
 		if (e & varmortypes.Seccomp) != 0 {
-			profile.SeccompContent = seccompprofile.GenerateAlwaysAllowProfile()
+			profile.Seccomp = seccompprofile.GenerateAlwaysAllowProfile()
 		}
 
 	case varmor.RuntimeDefaultMode:
@@ -105,7 +105,7 @@ func GenerateProfile(
 
 		// AppArmor
 		if (e & varmortypes.AppArmor) != 0 {
-			profile.Content = apparmorprofile.GenerateRuntimeDefaultProfile(name)
+			profile.AppArmor = apparmorprofile.GenerateRuntimeDefaultProfile(name)
 		}
 		// BPF
 		if (e & varmortypes.BPF) != 0 {
@@ -114,14 +114,14 @@ func GenerateProfile(
 			if err != nil {
 				return nil, nil, err
 			}
-			profile.BpfContent = &bpfContent
+			profile.Bpf = &bpfContent
 		}
 		// Seccomp
 		// We need to mock an AlwaysAllow profile when switching a policy to RuntimeDefault mode
 		// in case the containers in existing Pods can normally restart, because we can't update
 		// the Seccomp settings of the existing Pods.
 		if (e & varmortypes.Seccomp) != 0 {
-			profile.SeccompContent = seccompprofile.GenerateAlwaysAllowProfile()
+			profile.Seccomp = seccompprofile.GenerateAlwaysAllowProfile()
 		}
 
 	case varmor.EnhanceProtectMode:
@@ -137,7 +137,7 @@ func GenerateProfile(
 
 		// AppArmor
 		if (e & varmortypes.AppArmor) != 0 {
-			profile.Content = apparmorprofile.GenerateEnhanceProtectProfile(policy.EnhanceProtect, name)
+			profile.AppArmor = apparmorprofile.GenerateEnhanceProtectProfile(policy.EnhanceProtect, name)
 		}
 		// BPF
 		if (e & varmortypes.BPF) != 0 {
@@ -146,11 +146,11 @@ func GenerateProfile(
 			if err != nil {
 				return nil, nil, err
 			}
-			profile.BpfContent = &bpfContent
+			profile.Bpf = &bpfContent
 		}
 		// Seccomp
 		if (e & varmortypes.Seccomp) != 0 {
-			profile.SeccompContent, err = seccompprofile.GenerateEnhanceProtectProfile(policy.EnhanceProtect, name)
+			profile.Seccomp, err = seccompprofile.GenerateEnhanceProtectProfile(policy.EnhanceProtect, name)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -167,10 +167,10 @@ func GenerateProfile(
 			if complete {
 				// Create profile based on the AlwaysAllow template after the behvior modeling was completed.
 				profile.Mode = varmor.ProfileModeEnforce
-				profile.BpfContent = &bpfContent
+				profile.Bpf = &bpfContent
 			} else {
 				profile.Mode = varmor.ProfileModeComplain
-				profile.BpfContent = &bpfContent
+				profile.Bpf = &bpfContent
 			}
 		}
 		// AppArmor
@@ -178,10 +178,10 @@ func GenerateProfile(
 			if complete {
 				// Create profile based on the AlwaysAllow template after the behvior modeling was completed.
 				profile.Mode = varmor.ProfileModeEnforce
-				profile.Content = apparmorprofile.GenerateAlwaysAllowProfile(name)
+				profile.AppArmor = apparmorprofile.GenerateAlwaysAllowProfile(name)
 			} else {
 				profile.Mode = varmor.ProfileModeComplain
-				profile.Content = apparmorprofile.GenerateBehaviorModelingProfile(name)
+				profile.AppArmor = apparmorprofile.GenerateBehaviorModelingProfile(name)
 			}
 		}
 		// Seccomp
@@ -189,10 +189,10 @@ func GenerateProfile(
 			if complete {
 				// Create profile based on the AlwaysAllow template after the behvior modeling was completed.
 				profile.Mode = varmor.ProfileModeEnforce
-				profile.SeccompContent = seccompprofile.GenerateAlwaysAllowProfile()
+				profile.Seccomp = seccompprofile.GenerateAlwaysAllowProfile()
 			} else {
 				profile.Mode = varmor.ProfileModeComplain
-				profile.SeccompContent = seccompprofile.GenerateBehaviorModelingProfile()
+				profile.Seccomp = seccompprofile.GenerateBehaviorModelingProfile()
 			}
 		}
 
@@ -224,13 +224,13 @@ func GenerateProfile(
 			switch policy.DefenseInDepth.AppArmor.ProfileType {
 			case varmor.ProfileTypeBehaviorModel:
 				apm, err := varmorapm.RetrieveArmorProfileModel(varmorInterface, namespace, name, false, logger)
-				if err != nil || apm.Data.Profile.Content == "" {
+				if err != nil || apm.Data.Profile.AppArmor == "" {
 					return nil, nil, fmt.Errorf("failed to retrieve the AppArmor profile from the ArmorProfileModel object (%s/%s)", namespace, name)
 				}
 
-				profile.Content = apparmorprofile.GenerateDefenseInDepthProfile(
+				profile.AppArmor = apparmorprofile.GenerateDefenseInDepthProfile(
 					policy.DefenseInDepth.AppArmor.AppArmorRawRules,
-					apm.Data.Profile.Content,
+					apm.Data.Profile.AppArmor,
 					name)
 
 			case varmor.ProfileTypeCustom:
@@ -238,7 +238,7 @@ func GenerateProfile(
 					return nil, nil, fmt.Errorf("the policy.defenseInDepth.appArmor.customProfile field cannot be empty")
 				}
 
-				profile.Content = apparmorprofile.GenerateDefenseInDepthProfile(
+				profile.AppArmor = apparmorprofile.GenerateDefenseInDepthProfile(
 					policy.DefenseInDepth.AppArmor.AppArmorRawRules,
 					policy.DefenseInDepth.AppArmor.CustomProfile,
 					name)
@@ -259,10 +259,10 @@ func GenerateProfile(
 			switch policy.DefenseInDepth.Seccomp.ProfileType {
 			case varmor.ProfileTypeBehaviorModel:
 				apm, err := varmorapm.RetrieveArmorProfileModel(varmorInterface, namespace, name, false, logger)
-				if err != nil || apm.Data.Profile.SeccompContent == "" {
+				if err != nil || apm.Data.Profile.Seccomp == "" {
 					return nil, nil, fmt.Errorf("failed to retrieve Seccomp profile from the ArmorProfileModel object (%s/%s). error: %w", namespace, name, err)
 				}
-				profile.SeccompContent, err = seccompprofile.GenerateDefenseInDepthProfile(policy.DefenseInDepth, apm.Data.Profile.SeccompContent)
+				profile.Seccomp, err = seccompprofile.GenerateDefenseInDepthProfile(policy.DefenseInDepth, apm.Data.Profile.Seccomp)
 				if err != nil {
 					return nil, nil, fmt.Errorf("failed to parse the Seccomp profile from the ArmorProfileModel object (%s/%s). error: %w", namespace, name, err)
 				}
@@ -270,7 +270,7 @@ func GenerateProfile(
 				if policy.DefenseInDepth.Seccomp.CustomProfile == "" {
 					return nil, nil, fmt.Errorf("the policy.defenseInDepth.seccomp.customProfile field cannot be empty")
 				}
-				profile.SeccompContent, err = seccompprofile.GenerateDefenseInDepthProfile(
+				profile.Seccomp, err = seccompprofile.GenerateDefenseInDepthProfile(
 					policy.DefenseInDepth,
 					policy.DefenseInDepth.Seccomp.CustomProfile)
 				if err != nil {

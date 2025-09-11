@@ -45,15 +45,15 @@ func (i *IPWatcher) updateArmorProfile(policyKey string, mode uint32, addedIPs [
 				return err
 			}
 
-			if len(addedIPs) != 0 && ap.Spec.Profile.BpfContent == nil {
-				ap.Spec.Profile.BpfContent = &varmor.BpfContent{}
-			} else if len(deletedIPs) != 0 && (ap.Spec.Profile.BpfContent == nil || ap.Spec.Profile.BpfContent.Networks == nil) {
+			if len(addedIPs) != 0 && ap.Spec.Profile.Bpf == nil {
+				ap.Spec.Profile.Bpf = &varmor.BpfContent{}
+			} else if len(deletedIPs) != 0 && (ap.Spec.Profile.Bpf == nil || ap.Spec.Profile.Bpf.Networks == nil) {
 				return nil
 			}
 
 			// Remove rules from the ArmorProfile object
 			var newNetworks []varmor.NetworkContent
-			for _, network := range ap.Spec.Profile.BpfContent.Networks {
+			for _, network := range ap.Spec.Profile.Bpf.Networks {
 				if network.Address == nil {
 					newNetworks = append(newNetworks, network)
 					continue
@@ -70,12 +70,12 @@ func (i *IPWatcher) updateArmorProfile(policyKey string, mode uint32, addedIPs [
 					newNetworks = append(newNetworks, network)
 				}
 			}
-			ap.Spec.Profile.BpfContent.Networks = newNetworks
+			ap.Spec.Profile.Bpf.Networks = newNetworks
 
 			// Add rules to the ArmorProfile object
 			for _, IP := range addedIPs {
 				found := false
-				for _, network := range ap.Spec.Profile.BpfContent.Networks {
+				for _, network := range ap.Spec.Profile.Bpf.Networks {
 					if network.Address != nil && network.Address.IP == IP {
 						found = true
 						break
@@ -88,13 +88,13 @@ func (i *IPWatcher) updateArmorProfile(policyKey string, mode uint32, addedIPs [
 					if err != nil {
 						continue
 					}
-					ap.Spec.Profile.BpfContent.Networks = append(ap.Spec.Profile.BpfContent.Networks, b.Networks...)
+					ap.Spec.Profile.Bpf.Networks = append(ap.Spec.Profile.Bpf.Networks, b.Networks...)
 				}
 			}
 
-			if len(ap.Spec.Profile.BpfContent.Networks) > bpfenforcer.MaxBpfNetworkRuleCount {
+			if len(ap.Spec.Profile.Bpf.Networks) > bpfenforcer.MaxBpfNetworkRuleCount {
 				return fmt.Errorf("the maximum number of BPF network rules exceeded (max: %d, expected: %d)",
-					bpfenforcer.MaxBpfNetworkRuleCount, len(ap.Spec.Profile.BpfContent.Networks))
+					bpfenforcer.MaxBpfNetworkRuleCount, len(ap.Spec.Profile.Bpf.Networks))
 			}
 
 			_, err = i.varmorInterface.ArmorProfiles(ap.Namespace).Update(context.Background(), ap, metav1.UpdateOptions{})

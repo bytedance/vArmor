@@ -73,16 +73,16 @@ func ImportArmorProfileModelHandler(varmorInterface varmorinterface.CrdV1beta1In
 		// Overwrite the profiles
 		oldApm.Data.Profile.Name = c.Param("name")
 
-		if newApm.Data.Profile.Content != "" {
-			oldApm.Data.Profile.Content = newApm.Data.Profile.Content
+		if newApm.Data.Profile.AppArmor != "" {
+			oldApm.Data.Profile.AppArmor = newApm.Data.Profile.AppArmor
 		}
 
-		if newApm.Data.Profile.SeccompContent != "" {
-			oldApm.Data.Profile.SeccompContent = newApm.Data.Profile.SeccompContent
+		if newApm.Data.Profile.Seccomp != "" {
+			oldApm.Data.Profile.Seccomp = newApm.Data.Profile.Seccomp
 		}
 
-		if newApm.Data.Profile.BpfContent != nil {
-			oldApm.Data.Profile.BpfContent = newApm.Data.Profile.BpfContent
+		if newApm.Data.Profile.Bpf != nil {
+			oldApm.Data.Profile.Bpf = newApm.Data.Profile.Bpf
 		}
 
 		// Persist the ArmorProfileModel object

@@ -460,7 +460,7 @@ func (agent *Agent) handleCreateOrUpdateArmorProfile(ap *varmor.ArmorProfile, ke
 		// Save and load AppArmor profile.
 		logger.Info(fmt.Sprintf("saving the AppArmor profile '%s (%s)' to Node/%s", ap.Spec.Profile.Name, ap.Spec.Profile.Mode, agent.nodeName))
 		profilePath := filepath.Join(agent.appArmorProfileDir, ap.Spec.Profile.Name)
-		err := varmorapparmor.SaveAppArmorProfile(profilePath, ap.Spec.Profile.Content)
+		err := varmorapparmor.SaveAppArmorProfile(profilePath, ap.Spec.Profile.AppArmor)
 		if err != nil {
 			logger.Error(err, "SaveAppArmorProfile()")
 			errorMessages = append(errorMessages, "SaveAppArmorProfile(): "+err.Error())
@@ -489,7 +489,7 @@ func (agent *Agent) handleCreateOrUpdateArmorProfile(ap *varmor.ArmorProfile, ke
 	if (enforcer & varmortypes.BPF) != 0 {
 		// Save and apply BPF profile.
 		logger.Info(fmt.Sprintf("saving and applying the BPF profile '%s (%s)' to Node/%s", ap.Spec.Profile.Name, ap.Spec.Profile.Mode, agent.nodeName))
-		err := agent.bpfEnforcer.SaveAndApplyBpfProfile(ap.Spec.Profile.Name, ap.Spec.Profile.Mode, *ap.Spec.Profile.BpfContent)
+		err := agent.bpfEnforcer.SaveAndApplyBpfProfile(ap.Spec.Profile.Name, ap.Spec.Profile.Mode, *ap.Spec.Profile.Bpf)
 		if err != nil {
 			logger.Error(err, "SaveAndApplyBpfProfile()")
 			errorMessages = append(errorMessages, "SaveAndApplyBpfProfile(): "+err.Error())
@@ -509,7 +509,7 @@ func (agent *Agent) handleCreateOrUpdateArmorProfile(ap *varmor.ArmorProfile, ke
 		// Save Seccomp profile.
 		logger.Info(fmt.Sprintf("saving the Seccomp profile '%s (%s)' to Node/%s", ap.Spec.Profile.Name, ap.Spec.Profile.Mode, agent.nodeName))
 		profilePath := filepath.Join(agent.seccompProfileDir, ap.Spec.Profile.Name)
-		err := varmorseccomp.SaveSeccompProfile(profilePath, ap.Spec.Profile.SeccompContent)
+		err := varmorseccomp.SaveSeccompProfile(profilePath, ap.Spec.Profile.Seccomp)
 		if err != nil {
 			logger.Error(err, "SaveSeccompProfile()")
 			errorMessages = append(errorMessages, "SaveSeccompProfile(): "+err.Error())
