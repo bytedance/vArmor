@@ -191,9 +191,10 @@ func (auditor *Auditor) processAuditEvent(event string) {
 		}
 
 		if len(auditor.auditEventChs) == 0 {
-			// Only record the allowed event when there is no policy in the BehaviorModeling mode.
+			// Only record the event when there is no policy in the BehaviorModeling mode.
 			// This can reduce the noise in the violation log.
-			// Therefore, the audit events of the DefenseInDepth mode will only be recorded when no policy is modeling.
+			// The events of the policy in the DefenseInDepth or EnhanceProtect mode will
+			// be recorded when no policy is being modeling.
 			auditor.violationLogger.Debug().
 				Interface("metadata", auditor.auditEventMetadata).
 				Str("nodeName", auditor.nodeName).
@@ -207,7 +208,7 @@ func (auditor *Auditor) processAuditEvent(event string) {
 				Uint32("mntNsID", mntNsID).
 				Uint64("eventTimestamp", e.Epoch).
 				Str("enforcer", "Seccomp").
-				Str("action", "ALLOWED").
+				Str("action", "AUDIT|ALLOWED").
 				Str("profileName", profileName).
 				Interface("event", e).Msg("violation event")
 		} else {
