@@ -175,6 +175,9 @@ func (auditor *Auditor) readFromAuditEventRingBuf() {
 			}
 
 			e = auditor.convertBpfEvent(bpfenforcer.CapabilityType, &event)
+			if e == nil {
+				continue
+			}
 
 			auditor.log.V(2).Info("audit event",
 				"pod uid", auditor.containerCache[eventHeader.MntNs].PodUID,
@@ -196,6 +199,9 @@ func (auditor *Auditor) readFromAuditEventRingBuf() {
 			}
 
 			e = auditor.convertBpfEvent(bpfenforcer.FileType, &event)
+			if e == nil {
+				continue
+			}
 
 			auditor.log.V(2).Info("audit event",
 				"pod uid", auditor.containerCache[eventHeader.MntNs].PodUID,
@@ -217,6 +223,9 @@ func (auditor *Auditor) readFromAuditEventRingBuf() {
 			}
 
 			e = auditor.convertBpfEvent(bpfenforcer.BprmType, &event)
+			if e == nil {
+				continue
+			}
 
 			auditor.log.V(2).Info("audit event",
 				"pod uid", auditor.containerCache[eventHeader.MntNs].PodUID,
@@ -238,6 +247,9 @@ func (auditor *Auditor) readFromAuditEventRingBuf() {
 			}
 
 			e = auditor.convertBpfEvent(bpfenforcer.NetworkType, &event)
+			if e == nil {
+				continue
+			}
 
 			switch event.Type {
 			case bpfenforcer.SocketType:
@@ -274,6 +286,9 @@ func (auditor *Auditor) readFromAuditEventRingBuf() {
 			}
 
 			e = auditor.convertBpfEvent(bpfenforcer.PtraceType, &event)
+			if e == nil {
+				continue
+			}
 
 			auditor.log.V(2).Info("audit event",
 				"pod uid", auditor.containerCache[eventHeader.MntNs].PodUID,
@@ -295,6 +310,9 @@ func (auditor *Auditor) readFromAuditEventRingBuf() {
 			}
 
 			e = auditor.convertBpfEvent(bpfenforcer.MountType, &event)
+			if e == nil {
+				continue
+			}
 
 			auditor.log.V(2).Info("audit event",
 				"pod uid", auditor.containerCache[eventHeader.MntNs].PodUID,
