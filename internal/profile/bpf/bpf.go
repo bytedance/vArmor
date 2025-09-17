@@ -671,7 +671,7 @@ func GenerateEnhanceProtectProfile(
 	}
 
 	if !enhanceProtect.AllowViolations {
-		mode |= bpfenforcer.EnforceMode
+		mode |= bpfenforcer.DenyMode
 	}
 
 	// Add default rules for unprivileged containers (securityContext.privileged:true) based on the rules of the RuntimeDefault mode

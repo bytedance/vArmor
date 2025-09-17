@@ -110,7 +110,7 @@ func GenerateProfile(
 		// BPF
 		if (e & varmortypes.BPF) != 0 {
 			var bpfContent varmor.BpfContent
-			err = bpfprofile.GenerateRuntimeDefaultProfile(&bpfContent, bpfenforcer.EnforceMode)
+			err = bpfprofile.GenerateRuntimeDefaultProfile(&bpfContent, bpfenforcer.DenyMode)
 			if err != nil {
 				return nil, nil, err
 			}
