@@ -91,9 +91,9 @@ type Seccomp struct {
 
 type DynamicResult struct {
 	// AppArmor contains the AppArmor behavior data collected.
-	AppArmor *AppArmor `json:"apparmor,omitempty"`
+	AppArmor *AppArmor `json:"appArmor,omitempty"`
 	// BPF contains the BPF behavior data collected.
-	BPF *BPF `json:"bpf,omitempty"`
+	Bpf *BPF `json:"bpf,omitempty"`
 	// Seccomp contains the syscalls collected.
 	Seccomp *Seccomp `json:"seccomp,omitempty"`
 }

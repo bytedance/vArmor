@@ -32,9 +32,9 @@ def retrieve_capabilities_from_model(armor_profile_model):
   caps = []
   if "data" in armor_profile_model and \
     "dynamicResult" in armor_profile_model["data"] and \
-    "apparmor" in armor_profile_model["data"]["dynamicResult"] and \
-    "capabilities" in armor_profile_model["data"]["dynamicResult"]["apparmor"]:
-    caps.extend(armor_profile_model["data"]["dynamicResult"]["apparmor"]["capabilities"])
+    "appArmor" in armor_profile_model["data"]["dynamicResult"] and \
+    "capabilities" in armor_profile_model["data"]["dynamicResult"]["appArmor"]:
+    caps.extend(armor_profile_model["data"]["dynamicResult"]["appArmor"]["capabilities"])
   return caps
 
 
@@ -51,10 +51,10 @@ def retrieve_executions_from_model(armor_profile_model):
   executions = []
   if "data" in armor_profile_model and \
     "dynamicResult" in armor_profile_model["data"] and \
-    "apparmor" in armor_profile_model["data"]["dynamicResult"] and \
-    "executions" in armor_profile_model["data"]["dynamicResult"]["apparmor"]:
+    "appArmor" in armor_profile_model["data"]["dynamicResult"] and \
+    "executions" in armor_profile_model["data"]["dynamicResult"]["appArmor"]:
 
-    for execution in armor_profile_model["data"]["dynamicResult"]["apparmor"]["executions"]:
+    for execution in armor_profile_model["data"]["dynamicResult"]["appArmor"]["executions"]:
       executions.append(os.path.basename(execution))
 
   return executions
@@ -64,9 +64,9 @@ def retrieve_files_from_model(armor_profile_model):
   files = []
   if "data" in armor_profile_model and \
     "dynamicResult" in armor_profile_model["data"] and \
-    "apparmor" in armor_profile_model["data"]["dynamicResult"] and \
-    "files" in armor_profile_model["data"]["dynamicResult"]["apparmor"]:
+    "appArmor" in armor_profile_model["data"]["dynamicResult"] and \
+    "files" in armor_profile_model["data"]["dynamicResult"]["appArmor"]:
 
-    files.extend(armor_profile_model["data"]["dynamicResult"]["apparmor"]["files"])
+    files.extend(armor_profile_model["data"]["dynamicResult"]["appArmor"]["files"])
 
   return files

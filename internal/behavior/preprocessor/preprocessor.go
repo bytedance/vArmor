@@ -92,7 +92,7 @@ func NewDataPreprocessor(
 		p.behaviorData.DynamicResult.AppArmor = &varmor.AppArmor{}
 	}
 	if p.enforcer&varmortypes.BPF != 0 {
-		p.behaviorData.DynamicResult.BPF = &varmor.BPF{}
+		p.behaviorData.DynamicResult.Bpf = &varmor.BPF{}
 	}
 	if p.enforcer&varmortypes.Seccomp != 0 {
 		p.behaviorData.DynamicResult.Seccomp = &varmor.Seccomp{}
@@ -445,7 +445,7 @@ func (p *DataPreprocessor) Process() []byte {
 			"apparmor profile num", len(p.behaviorData.DynamicResult.AppArmor.Profiles))
 	}
 
-	if p.behaviorData.DynamicResult.BPF != nil {
+	if p.behaviorData.DynamicResult.Bpf != nil {
 		p.log.Info("bpf data preprocess completed")
 	}
 

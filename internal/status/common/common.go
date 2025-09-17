@@ -428,50 +428,50 @@ func MergeBpfResult(apm *varmor.ArmorProfileModel, bpf *varmor.BPF) {
 		return
 	}
 
-	if apm.Data.DynamicResult.BPF == nil {
-		apm.Data.DynamicResult.BPF = &varmor.BPF{}
+	if apm.Data.DynamicResult.Bpf == nil {
+		apm.Data.DynamicResult.Bpf = &varmor.BPF{}
 	}
 
 	for _, newExec := range bpf.Executions {
-		if !varmorutils.InStringArray(newExec, apm.Data.DynamicResult.BPF.Executions) {
-			apm.Data.DynamicResult.BPF.Executions = append(apm.Data.DynamicResult.BPF.Executions, newExec)
+		if !varmorutils.InStringArray(newExec, apm.Data.DynamicResult.Bpf.Executions) {
+			apm.Data.DynamicResult.Bpf.Executions = append(apm.Data.DynamicResult.Bpf.Executions, newExec)
 		}
 	}
 
 	for _, newFile := range bpf.Files {
 		find := false
-		for i, file := range apm.Data.DynamicResult.BPF.Files {
+		for i, file := range apm.Data.DynamicResult.Bpf.Files {
 			if newFile.Path == file.Path {
 				find = true
 
 				for _, newPerm := range newFile.Permissions {
 					if !varmorutils.InStringArray(newPerm, file.Permissions) {
-						apm.Data.DynamicResult.BPF.Files[i].Permissions = append(apm.Data.DynamicResult.BPF.Files[i].Permissions, newPerm)
+						apm.Data.DynamicResult.Bpf.Files[i].Permissions = append(apm.Data.DynamicResult.Bpf.Files[i].Permissions, newPerm)
 					}
 				}
 
 				if file.OldPath == "" && newFile.OldPath != "" {
-					apm.Data.DynamicResult.BPF.Files[i].OldPath = newFile.OldPath
+					apm.Data.DynamicResult.Bpf.Files[i].OldPath = newFile.OldPath
 				}
 				break
 			}
 		}
 		if !find {
-			apm.Data.DynamicResult.BPF.Files = append(apm.Data.DynamicResult.BPF.Files, newFile)
+			apm.Data.DynamicResult.Bpf.Files = append(apm.Data.DynamicResult.Bpf.Files, newFile)
 		}
 	}
 
 	for _, newCap := range bpf.Capabilities {
-		if !varmorutils.InStringArray(newCap, apm.Data.DynamicResult.BPF.Capabilities) {
-			apm.Data.DynamicResult.BPF.Capabilities = append(apm.Data.DynamicResult.BPF.Capabilities, newCap)
+		if !varmorutils.InStringArray(newCap, apm.Data.DynamicResult.Bpf.Capabilities) {
+			apm.Data.DynamicResult.Bpf.Capabilities = append(apm.Data.DynamicResult.Bpf.Capabilities, newCap)
 		}
 	}
 
 	if bpf.Network != nil {
 		for _, newSocket := range bpf.Network.Sockets {
 			find := false
-			if apm.Data.DynamicResult.BPF.Network != nil {
-				for _, socket := range apm.Data.DynamicResult.BPF.Network.Sockets {
+			if apm.Data.DynamicResult.Bpf.Network != nil {
+				for _, socket := range apm.Data.DynamicResult.Bpf.Network.Sockets {
 					if reflect.DeepEqual(newSocket, socket) {
 						find = true
 						break
@@ -479,31 +479,31 @@ func MergeBpfResult(apm *varmor.ArmorProfileModel, bpf *varmor.BPF) {
 				}
 			}
 			if !find {
-				if apm.Data.DynamicResult.BPF.Network == nil {
-					apm.Data.DynamicResult.BPF.Network = &varmor.Network{}
+				if apm.Data.DynamicResult.Bpf.Network == nil {
+					apm.Data.DynamicResult.Bpf.Network = &varmor.Network{}
 				}
-				apm.Data.DynamicResult.BPF.Network.Sockets = append(apm.Data.DynamicResult.BPF.Network.Sockets, newSocket)
+				apm.Data.DynamicResult.Bpf.Network.Sockets = append(apm.Data.DynamicResult.Bpf.Network.Sockets, newSocket)
 			}
 		}
 
 		for _, newEgress := range bpf.Network.Egresses {
 			find := false
-			if apm.Data.DynamicResult.BPF.Network != nil {
-				for i, egress := range apm.Data.DynamicResult.BPF.Network.Egresses {
+			if apm.Data.DynamicResult.Bpf.Network != nil {
+				for i, egress := range apm.Data.DynamicResult.Bpf.Network.Egresses {
 					if egress.IP == newEgress.IP {
 						find = true
 						for _, newPort := range newEgress.Ports {
 							if !varmorutils.InUint16Array(newPort, egress.Ports) {
-								apm.Data.DynamicResult.BPF.Network.Egresses[i].Ports = append(apm.Data.DynamicResult.BPF.Network.Egresses[i].Ports, newPort)
+								apm.Data.DynamicResult.Bpf.Network.Egresses[i].Ports = append(apm.Data.DynamicResult.Bpf.Network.Egresses[i].Ports, newPort)
 							}
 						}
 					}
 				}
 				if !find {
-					if apm.Data.DynamicResult.BPF.Network == nil {
-						apm.Data.DynamicResult.BPF.Network = &varmor.Network{}
+					if apm.Data.DynamicResult.Bpf.Network == nil {
+						apm.Data.DynamicResult.Bpf.Network = &varmor.Network{}
 					}
-					apm.Data.DynamicResult.BPF.Network.Egresses = append(apm.Data.DynamicResult.BPF.Network.Egresses, newEgress)
+					apm.Data.DynamicResult.Bpf.Network.Egresses = append(apm.Data.DynamicResult.Bpf.Network.Egresses, newEgress)
 				}
 			}
 		}
@@ -511,37 +511,37 @@ func MergeBpfResult(apm *varmor.ArmorProfileModel, bpf *varmor.BPF) {
 
 	for _, newPtrace := range bpf.Ptraces {
 		find := false
-		for i, ptrace := range apm.Data.DynamicResult.BPF.Ptraces {
+		for i, ptrace := range apm.Data.DynamicResult.Bpf.Ptraces {
 			if newPtrace.External == ptrace.External {
 				find = true
 				for _, newPerm := range newPtrace.Permissions {
 					if !varmorutils.InStringArray(newPerm, ptrace.Permissions) {
-						apm.Data.DynamicResult.BPF.Ptraces[i].Permissions = append(apm.Data.DynamicResult.BPF.Ptraces[i].Permissions, newPerm)
+						apm.Data.DynamicResult.Bpf.Ptraces[i].Permissions = append(apm.Data.DynamicResult.Bpf.Ptraces[i].Permissions, newPerm)
 					}
 				}
 				break
 			}
 		}
 		if !find {
-			apm.Data.DynamicResult.BPF.Ptraces = append(apm.Data.DynamicResult.BPF.Ptraces, newPtrace)
+			apm.Data.DynamicResult.Bpf.Ptraces = append(apm.Data.DynamicResult.Bpf.Ptraces, newPtrace)
 		}
 	}
 
 	for _, newMount := range bpf.Mounts {
 		find := false
-		for i, mount := range apm.Data.DynamicResult.BPF.Mounts {
+		for i, mount := range apm.Data.DynamicResult.Bpf.Mounts {
 			if newMount.Path == mount.Path && newMount.Type == mount.Type {
 				find = true
 				for _, newFlag := range newMount.Flags {
 					if !varmorutils.InStringArray(newFlag, mount.Flags) {
-						apm.Data.DynamicResult.BPF.Mounts[i].Flags = append(apm.Data.DynamicResult.BPF.Mounts[i].Flags, newFlag)
+						apm.Data.DynamicResult.Bpf.Mounts[i].Flags = append(apm.Data.DynamicResult.Bpf.Mounts[i].Flags, newFlag)
 					}
 				}
 				break
 			}
 		}
 		if !find {
-			apm.Data.DynamicResult.BPF.Mounts = append(apm.Data.DynamicResult.BPF.Mounts, newMount)
+			apm.Data.DynamicResult.Bpf.Mounts = append(apm.Data.DynamicResult.Bpf.Mounts, newMount)
 		}
 	}
 }
