@@ -298,6 +298,14 @@ spec:
                                   items:
                                     type: string
                                   type: array
+                                qualifiers:
+                                  description: |-
+                                    qualifiers determine the behavior of the rule.
+
+                                    Available values: deny, audit.
+                                  items:
+                                    type: string
+                                  type: array
                               required:
                               - pattern
                               - permissions
@@ -330,6 +338,14 @@ spec:
                                     of filesystem (maximum length 16 bytes) to enforce.
                                     It can be '*' to match any type.
                                   type: string
+                                qualifiers:
+                                  description: |-
+                                    qualifiers determine the behavior of the rule.
+
+                                    Available values: deny, audit.
+                                  items:
+                                    type: string
+                                  type: array
                                 sourcePattern:
                                   description: |-
                                     sourcePattern can be any string (maximum length 128 bytes) that conforms to the policy syntax, used for matching the
@@ -393,6 +409,14 @@ spec:
                                             required:
                                             - port
                                             type: object
+                                          type: array
+                                        qualifiers:
+                                          description: |-
+                                            qualifiers determine the behavior of the rule.
+
+                                            Available values: deny, audit.
+                                          items:
+                                            type: string
                                           type: array
                                       type: object
                                     type: array
@@ -480,6 +504,14 @@ spec:
                                             - port
                                             type: object
                                           type: array
+                                        qualifiers:
+                                          description: |-
+                                            qualifiers determine the behavior of the rule.
+
+                                            Available values: deny, audit.
+                                          items:
+                                            type: string
+                                          type: array
                                       required:
                                       - podSelector
                                       type: object
@@ -498,6 +530,14 @@ spec:
                                           description: namespace specifies in which
                                             namespace to select services.
                                           type: string
+                                        qualifiers:
+                                          description: |-
+                                            qualifiers determine the behavior of the rule.
+
+                                            Available values: deny, audit.
+                                          items:
+                                            type: string
+                                          type: array
                                         serviceSelector:
                                           description: |-
                                             serviceSelector is a label selector which selects services. This field follows standard label selector
@@ -582,6 +622,14 @@ spec:
                                       items:
                                         type: string
                                       type: array
+                                    qualifiers:
+                                      description: |-
+                                        qualifiers determine the behavior of the rule.
+
+                                        Available values: deny, audit.
+                                      items:
+                                        type: string
+                                      type: array
                                     types:
                                       description: |-
                                         types specifies the communication semantics of socket.
@@ -611,6 +659,14 @@ spec:
                                   items:
                                     type: string
                                   type: array
+                                qualifiers:
+                                  description: |-
+                                    qualifiers determine the behavior of the rule.
+
+                                    Available values: deny, audit.
+                                  items:
+                                    type: string
+                                  type: array
                               required:
                               - pattern
                               - permissions
@@ -636,6 +692,14 @@ spec:
                                    The read, readby permissions for "read" operations or other operations that are less dangerous, such as:
                                    get_robust_list(2); kcmp(2); reading /proc/pid/auxv, /proc/pid/environ, or /proc/pid/stat; or readlink(2)
                                    of a /proc/pid/ns/* file.
+                                items:
+                                  type: string
+                                type: array
+                              qualifiers:
+                                description: |-
+                                  qualifiers determine the behavior of the rule.
+
+                                  Available values: deny, audit.
                                 items:
                                   type: string
                                 type: array

@@ -34,28 +34,27 @@ func generateCustomRules(
 	kubeClient *kubernetes.Clientset,
 	enhanceProtect *varmor.EnhanceProtect,
 	bpfContent *varmor.BpfContent,
-	mode uint32,
 	enablePodServiceEgressControl bool,
 	egressInfo *varmortypes.EgressInfo) (err error) {
 	for _, rule := range enhanceProtect.BpfRawRules.Files {
-		err = generateRawFileRule(bpfContent, mode, rule)
+		err = generateRawFileRule(bpfContent, rule)
 		if err != nil {
 			return err
 		}
 
-		err = generateRawProcessRule(bpfContent, mode, rule)
+		err = generateRawProcessRule(bpfContent, rule)
 		if err != nil {
 			return err
 		}
 	}
 
 	for _, rule := range enhanceProtect.BpfRawRules.Processes {
-		err = generateRawFileRule(bpfContent, mode, rule)
+		err = generateRawFileRule(bpfContent, rule)
 		if err != nil {
 			return err
 		}
 
-		err = generateRawProcessRule(bpfContent, mode, rule)
+		err = generateRawProcessRule(bpfContent, rule)
 		if err != nil {
 			return err
 		}
@@ -63,13 +62,13 @@ func generateCustomRules(
 
 	if enhanceProtect.BpfRawRules.Network != nil {
 		for _, socketRule := range enhanceProtect.BpfRawRules.Network.Sockets {
-			err = generateRawNetworkSocketRule(bpfContent, mode, socketRule)
+			err = generateRawNetworkSocketRule(bpfContent, socketRule)
 			if err != nil {
 				return err
 			}
 		}
 		if enhanceProtect.BpfRawRules.Network.Egress != nil {
-			err = generateRawNetworkEgressRule(kubeClient, bpfContent, mode, enhanceProtect.BpfRawRules.Network.Egress, enablePodServiceEgressControl, egressInfo)
+			err = generateRawNetworkEgressRule(kubeClient, bpfContent, enhanceProtect.BpfRawRules.Network.Egress, enablePodServiceEgressControl, egressInfo)
 			if err != nil {
 				return err
 			}
@@ -77,7 +76,7 @@ func generateCustomRules(
 	}
 
 	if enhanceProtect.BpfRawRules.Ptrace != nil {
-		err = generateRawPtraceRule(bpfContent, mode, enhanceProtect.BpfRawRules.Ptrace)
+		err = generateRawPtraceRule(bpfContent, enhanceProtect.BpfRawRules.Ptrace)
 		if err != nil {
 			return err
 		}
@@ -85,7 +84,7 @@ func generateCustomRules(
 
 	if enhanceProtect.Privileged {
 		for _, rule := range enhanceProtect.BpfRawRules.Mounts {
-			err = generateRawMountRule(bpfContent, mode, rule)
+			err = generateRawMountRule(bpfContent, rule)
 			if err != nil {
 				return err
 			}
@@ -94,7 +93,19 @@ func generateCustomRules(
 	return nil
 }
 
-func generateRawFileRule(bpfContent *varmor.BpfContent, mode uint32, rule varmor.FileRule) error {
+func qualifiersToMode(qualifiers []string) (mode uint32) {
+	for _, q := range qualifiers {
+		switch q {
+		case "deny":
+			mode |= bpfenforcer.DenyMode
+		case "audit":
+			mode |= bpfenforcer.AuditMode
+		}
+	}
+	return mode
+}
+
+func generateRawFileRule(bpfContent *varmor.BpfContent, rule varmor.FileRule) error {
 	var permissions uint32
 
 	for _, permission := range rule.Permissions {
@@ -115,6 +126,7 @@ func generateRawFileRule(bpfContent *varmor.BpfContent, mode uint32, rule varmor
 		return nil
 	}
 
+	mode := qualifiersToMode(rule.Qualifiers)
 	fileContent, err := newBpfPathRule(mode, rule.Pattern, permissions)
 	if err != nil {
 		return err
@@ -124,7 +136,7 @@ func generateRawFileRule(bpfContent *varmor.BpfContent, mode uint32, rule varmor
 	return nil
 }
 
-func generateRawProcessRule(bpfContent *varmor.BpfContent, mode uint32, rule varmor.FileRule) error {
+func generateRawProcessRule(bpfContent *varmor.BpfContent, rule varmor.FileRule) error {
 	var permissions uint32
 
 	for _, permission := range rule.Permissions {
@@ -140,6 +152,7 @@ func generateRawProcessRule(bpfContent *varmor.BpfContent, mode uint32, rule var
 		return nil
 	}
 
+	mode := qualifiersToMode(rule.Qualifiers)
 	fileContent, err := newBpfPathRule(mode, rule.Pattern, permissions)
 	if err != nil {
 		return err
@@ -149,7 +162,7 @@ func generateRawProcessRule(bpfContent *varmor.BpfContent, mode uint32, rule var
 	return nil
 }
 
-func generateRawNetworkSocketRule(bpfContent *varmor.BpfContent, mode uint32, rule varmor.NetworkSocketRule) error {
+func generateRawNetworkSocketRule(bpfContent *varmor.BpfContent, rule varmor.NetworkSocketRule) error {
 	var domains, types, protocols uint64
 
 	for _, domain := range rule.Domains {
@@ -298,6 +311,7 @@ func generateRawNetworkSocketRule(bpfContent *varmor.BpfContent, mode uint32, ru
 		}
 	}
 
+	mode := qualifiersToMode(rule.Qualifiers)
 	networkContent, err := newBpfNetworkCreateRule(mode, domains, types, protocols)
 	if err != nil {
 		return err
@@ -384,8 +398,9 @@ func GenerateRawNetworkEgressRuleWithIPCidrPorts(bpfContent *varmor.BpfContent, 
 	return nil
 }
 
-func generateRawNetworkEgressRuleForDestinations(bpfContent *varmor.BpfContent, mode uint32, destinations []varmor.Destination) error {
+func generateRawNetworkEgressRuleForDestinations(bpfContent *varmor.BpfContent, destinations []varmor.Destination) error {
 	for _, destination := range destinations {
+		mode := qualifiersToMode(destination.Qualifiers)
 		if destination.IP == varmor.LocalhostIP {
 			err := GenerateRawNetworkEgressRuleWithIPCidrPorts(bpfContent, mode, destination.CIDR, "127.0.0.1", destination.Ports)
 			if err != nil {
@@ -408,9 +423,9 @@ func generateRawNetworkEgressRuleForDestinations(bpfContent *varmor.BpfContent, 
 func generateRawNetworkEgressRuleForPods(
 	kubeClient *kubernetes.Clientset,
 	bpfContent *varmor.BpfContent,
-	mode uint32,
 	toPod varmor.Pod) (pod *varmortypes.Pod, err error) {
 
+	mode := qualifiersToMode(toPod.Qualifiers)
 	p := varmortypes.Pod{
 		Mode:        mode,
 		Namespace:   toPod.Namespace,
@@ -452,7 +467,6 @@ func generateRawNetworkEgressRuleForPods(
 func generateRawNetworkEgressRuleForServices(
 	kubeClient *kubernetes.Clientset,
 	bpfContent *varmor.BpfContent,
-	mode uint32,
 	toService varmor.Service) (*varmortypes.Service, error) {
 
 	if toService.ServiceSelector != nil && toService.Name != "" {
@@ -463,6 +477,7 @@ func generateRawNetworkEgressRuleForServices(
 		return nil, fmt.Errorf("please set both the name and namespace fields to select a service")
 	}
 
+	mode := qualifiersToMode(toService.Qualifiers)
 	s := varmortypes.Service{
 		Mode:            mode,
 		Namespace:       toService.Namespace,
@@ -556,12 +571,11 @@ func generateRawNetworkEgressRuleForServices(
 func generateRawNetworkEgressRule(
 	kubeClient *kubernetes.Clientset,
 	bpfContent *varmor.BpfContent,
-	mode uint32,
 	rule *varmor.NetworkEgressRule,
 	enablePodServiceEgressControl bool,
 	egressInfo *varmortypes.EgressInfo) error {
 
-	err := generateRawNetworkEgressRuleForDestinations(bpfContent, mode, rule.ToDestinations)
+	err := generateRawNetworkEgressRuleForDestinations(bpfContent, rule.ToDestinations)
 	if err != nil {
 		return fmt.Errorf("failed to generate network egress rule for bolocking access destinations. error: %w", err)
 	}
@@ -575,7 +589,7 @@ func generateRawNetworkEgressRule(
 	}
 
 	for _, toPod := range rule.ToPods {
-		pod, err := generateRawNetworkEgressRuleForPods(kubeClient, bpfContent, mode, toPod)
+		pod, err := generateRawNetworkEgressRuleForPods(kubeClient, bpfContent, toPod)
 		if err != nil {
 			return fmt.Errorf("failed to generate network egress rule for blocking access k8s pods. error: %w", err)
 		}
@@ -585,7 +599,7 @@ func generateRawNetworkEgressRule(
 	}
 
 	for _, toService := range rule.ToServices {
-		service, err := generateRawNetworkEgressRuleForServices(kubeClient, bpfContent, mode, toService)
+		service, err := generateRawNetworkEgressRuleForServices(kubeClient, bpfContent, toService)
 		if err != nil {
 			return fmt.Errorf("failed to generate network egress rule for blocking access k8s services. error: %w", err)
 		}
@@ -597,7 +611,7 @@ func generateRawNetworkEgressRule(
 	return nil
 }
 
-func generateRawPtraceRule(bpfContent *varmor.BpfContent, mode uint32, rule *varmor.PtraceRule) error {
+func generateRawPtraceRule(bpfContent *varmor.BpfContent, rule *varmor.PtraceRule) error {
 	var permissions uint32
 
 	for _, permission := range rule.Permissions {
@@ -615,6 +629,7 @@ func generateRawPtraceRule(bpfContent *varmor.BpfContent, mode uint32, rule *var
 		}
 	}
 
+	mode := qualifiersToMode(rule.Qualifiers)
 	if permissions != 0 {
 		if rule.StrictMode {
 			setBpfPtraceRule(bpfContent, mode, permissions, bpfenforcer.GreedyMatch)
@@ -626,7 +641,7 @@ func generateRawPtraceRule(bpfContent *varmor.BpfContent, mode uint32, rule *var
 	return nil
 }
 
-func generateRawMountRule(bpfContent *varmor.BpfContent, mode uint32, rule varmor.MountRule) error {
+func generateRawMountRule(bpfContent *varmor.BpfContent, rule varmor.MountRule) error {
 	var mountFlags, reverseMountFlags uint32
 
 	for _, flag := range rule.Flags {
@@ -726,6 +741,7 @@ func generateRawMountRule(bpfContent *varmor.BpfContent, mode uint32, rule varmo
 		}
 	}
 
+	mode := qualifiersToMode(rule.Qualifiers)
 	mountContent, err := newBpfMountRule(mode, rule.SourcePattern, rule.Fstype, mountFlags, reverseMountFlags)
 	if err != nil {
 		return err

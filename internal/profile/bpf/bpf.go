@@ -83,6 +83,17 @@ func GenerateRuntimeDefaultProfile(bpfContent *varmor.BpfContent, mode uint32) e
 	return nil
 }
 
+func modeToQualifiers(mode uint32) []string {
+	var qualifiers []string
+	if mode&bpfenforcer.AuditMode != 0 {
+		qualifiers = append(qualifiers, "audit")
+	}
+	if mode&bpfenforcer.DenyMode != 0 {
+		qualifiers = append(qualifiers, "deny")
+	}
+	return qualifiers
+}
+
 func generateHardeningRules(content *varmor.BpfContent, mode uint32, privileged bool, rule string) error {
 	rule = strings.ToLower(rule)
 	rule = strings.ReplaceAll(rule, "_", "-")
@@ -398,9 +409,10 @@ func generateVulMitigationRules(
 		content.Files = append(content.Files, *fileContent)
 	case "ingress-nightmare-mitigation":
 		if enablePodServiceEgressControl {
-			service, err := generateRawNetworkEgressRuleForServices(kubeClient, content, mode, varmor.Service{
-				Namespace: "ingress-nginx",
-				Name:      "ingress-nginx-controller-admission",
+			service, err := generateRawNetworkEgressRuleForServices(kubeClient, content, varmor.Service{
+				Qualifiers: modeToQualifiers(mode),
+				Namespace:  "ingress-nginx",
+				Name:       "ingress-nginx-controller-admission",
 			})
 			if err != nil {
 				return fmt.Errorf("failed to generate network egress rule for blocking access to the ingress-nginx/ingress-nginx-controller-admission service. error: %w", err)
@@ -408,9 +420,10 @@ func generateVulMitigationRules(
 			if service != nil {
 				egressInfo.ToServices = append(egressInfo.ToServices, *service)
 			}
-			service, err = generateRawNetworkEgressRuleForServices(kubeClient, content, mode, varmor.Service{
-				Namespace: "kube-system",
-				Name:      "ingress-nginx-controller-admission",
+			service, err = generateRawNetworkEgressRuleForServices(kubeClient, content, varmor.Service{
+				Qualifiers: modeToQualifiers(mode),
+				Namespace:  "kube-system",
+				Name:       "ingress-nginx-controller-admission",
 			})
 			if err != nil {
 				return fmt.Errorf("failed to generate network egress rule for blocking access to the kube-system/ingress-nginx-controller-admission service. error: %w", err)
@@ -623,9 +636,10 @@ func generateAttackProtectionRules(
 		content.Networks = append(content.Networks, *networkContent)
 	case "block-access-to-kube-apiserver":
 		if enablePodServiceEgressControl {
-			service, err := generateRawNetworkEgressRuleForServices(kubeClient, content, mode, varmor.Service{
-				Namespace: "default",
-				Name:      "kubernetes",
+			service, err := generateRawNetworkEgressRuleForServices(kubeClient, content, varmor.Service{
+				Qualifiers: modeToQualifiers(mode),
+				Namespace:  "default",
+				Name:       "kubernetes",
 			})
 			if err != nil {
 				return fmt.Errorf("failed to generate network egress rule for blocking access to the kube-apiserver. error: %w", err)
@@ -712,7 +726,7 @@ func GenerateEnhanceProtectProfile(
 
 	// Custom
 	if enhanceProtect.BpfRawRules != nil {
-		err = generateCustomRules(kubeClient, enhanceProtect, bpfContent, mode, enablePodServiceEgressControl, egressInfo)
+		err = generateCustomRules(kubeClient, enhanceProtect, bpfContent, enablePodServiceEgressControl, egressInfo)
 		if err != nil {
 			return err
 		}

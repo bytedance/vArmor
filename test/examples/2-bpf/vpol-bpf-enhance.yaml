@@ -42,35 +42,52 @@ spec:
       - ingress-nightmare-mitigation
       bpfRawRules:
         processes:
-        - pattern: "**ping"
+        - qualifiers:
+          - audit
+          - deny
+          pattern: "**ping"
           permissions:
           - exec
         network:
           sockets:
-          - protocols:
+          - qualifiers:
+            - audit
+            protocols:
             - "udp"
           egress:
             toDestinations:
-            - ip: fdbd:dc01:ff:307:9329:268d:3a27:2ca7
-            - cidr: 192.168.1.1/24 # 192.168.1.0 to 192.168.1.255
+            - qualifiers:
+              - audit
+              ip: fdbd:dc01:ff:307:9329:268d:3a27:2ca7
+            - qualifiers:
+              - audit
+              cidr: 192.168.1.1/24 # 192.168.1.0 to 192.168.1.255
               ports:
               - port: 80
                 endPort: 8080
-            - ip: 10.12.34.56
+            - qualifiers:
+              - audit
+              ip: 10.12.34.56
               ports:
               - port: 8070
               - port: 9980
               - port: 10250
                 endPort: 10255
-            - ip: pod-self
+            - qualifiers:
+              - audit
+              ip: pod-self
               ports:
               - port: 80
                 endPort: 8080
             toPods:
-            - podSelector:
+            - qualifiers:
+              - audit
+              podSelector:
                 matchLabels:
                   app: demo-3
             toServices:
-            - serviceSelector:
+            - qualifiers:
+              - audit
+              serviceSelector:
                 matchLabels:
                   app: nginx

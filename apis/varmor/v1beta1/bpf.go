@@ -21,6 +21,11 @@ import (
 )
 
 type FileRule struct {
+	// qualifiers determine the behavior of the rule.
+	//
+	// Available values: deny, audit.
+	// +optional
+	Qualifiers []string `json:"qualifiers"`
 	// pattern can be any string (maximum length 128 bytes) that conforms to the policy syntax,
 	// used for matching file paths and filenames.
 	Pattern string `json:"pattern"`
@@ -31,6 +36,11 @@ type FileRule struct {
 }
 
 type Service struct {
+	// qualifiers determine the behavior of the rule.
+	//
+	// Available values: deny, audit.
+	// +optional
+	Qualifiers []string `json:"qualifiers"`
 	// namespace specifies in which namespace to select services.
 	// +optional
 	Namespace string `json:"namespace,omitempty"`
@@ -56,6 +66,11 @@ type Port struct {
 }
 
 type Pod struct {
+	// qualifiers determine the behavior of the rule.
+	//
+	// Available values: deny, audit.
+	// +optional
+	Qualifiers []string `json:"qualifiers"`
 	// namespace specifies in which namespace to select pods.
 	// +optional
 	Namespace string `json:"namespace,omitempty"`
@@ -82,6 +97,11 @@ const (
 )
 
 type Destination struct {
+	// qualifiers determine the behavior of the rule.
+	//
+	// Available values: deny, audit.
+	// +optional
+	Qualifiers []string `json:"qualifiers"`
 	// ip defines this rule on a particular IP. Please use a valid textual representation of an IP, or special
 	// entities like "pod-self", "unspecified" or "localhost". Note that the ip field and cidr field are mutually exclusive.
 	// +optional
@@ -120,6 +140,11 @@ type NetworkEgressRule struct {
 
 // NetworkSocketRule describes a network socket rule to match traffic for socket(2) operations.
 type NetworkSocketRule struct {
+	// qualifiers determine the behavior of the rule.
+	//
+	// Available values: deny, audit.
+	// +optional
+	Qualifiers []string `json:"qualifiers"`
 	// domains specifies the communication domains of socket.
 	//
 	// Available values:
@@ -160,6 +185,11 @@ type NetworkRule struct {
 }
 
 type PtraceRule struct {
+	// qualifiers determine the behavior of the rule.
+	//
+	// Available values: deny, audit.
+	// +optional
+	Qualifiers []string `json:"qualifiers"`
 	// strictMode is used to indicate whether to restrict ptrace operations for all source and destination processes.
 	// Default is false.
 	// If set to false, it allows a process to perform trace and read operations on other processes within the same container,
@@ -185,6 +215,11 @@ type PtraceRule struct {
 }
 
 type MountRule struct {
+	// qualifiers determine the behavior of the rule.
+	//
+	// Available values: deny, audit.
+	// +optional
+	Qualifiers []string `json:"qualifiers"`
 	// sourcePattern can be any string (maximum length 128 bytes) that conforms to the policy syntax, used for matching the
 	// source paramater of mount(2), the target paramater of umount(2), and the from_pathname paramater of move_mount(2).
 	SourcePattern string `json:"sourcePattern"`

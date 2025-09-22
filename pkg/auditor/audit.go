@@ -141,7 +141,7 @@ func (auditor *Auditor) processAuditEvent(event string) {
 			}
 		}
 	} else if strings.Contains(event, "type=1326") || strings.Contains(event, "type=SECCOMP") { // Seccomp audit event
-		auditor.log.V(2).Info("receive a Seccomp audit event", "event", strings.TrimSpace(event))
+		auditor.log.V(2).Info("received a Seccomp audit event", "event", strings.TrimSpace(event))
 
 		// Parse the event
 		e, err := ParseSeccompAuditEvent(event)
