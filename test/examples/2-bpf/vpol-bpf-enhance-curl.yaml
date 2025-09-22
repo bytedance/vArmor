@@ -40,15 +40,27 @@ spec:
         - disable-curl
       bpfRawRules:
         processes:
-        - pattern: "**ping"
+        - qualifiers:
+          - audit
+          - deny
+          pattern: "**ping"
           permissions:
           - exec
         network:
           egress:
             toDestinations:
-            - ip: fdbd:dc01:ff:307:9329:268d:3a27:2ca7
-            - ipBlock: 192.168.1.1/24 # 192.168.1.0 to 192.168.1.255
+            - qualifiers:
+              - audit
+              - deny
+              ip: fdbd:dc01:ff:307:9329:268d:3a27:2ca7
+            - qualifiers:
+              - audit
+              - deny
+              ipBlock: 192.168.1.1/24 # 192.168.1.0 to 192.168.1.255
               port: 80
           sockets:
-          - protocols:
+          - qualifiers:
+            - audit
+            - deny
+            protocols:
             - "udp"
