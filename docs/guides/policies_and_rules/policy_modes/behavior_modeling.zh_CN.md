@@ -8,11 +8,9 @@ BehaviorModeling 模式是一个实验功能。您可以利用 BehaviorModeling 
 
 行为模型可以被用于分析哪些内置规则能够被用于加固目标应用，或者指导用户对工作负载的安全上下文进行权限最小化。
 
-当前只有 AppArmor 和 Seccomp enforcer 支持 BehaviorModeling 模式。
-
 ## 前置条件
 
-vArmor 当前利用一个内置的 BPF tracer 和 Linux 审计系统来捕获目标应用的行为。
+vArmor 利用 BPF 技术和 Linux 审计系统来捕获目标应用的行为。
 
 BehaviorModeling 模式的前置条件如下所示：
 
@@ -155,6 +153,7 @@ demo        varmor-cluster-demo-demo-4   CRDInternal    2         2           tr
 * 目标工作负载需要拥有 `sandbox.varmor.org/enable="true"` 标签。您可以通过 [设置 Webhook 的匹配标签](../../../getting_started/installation.zh_CN.md#设置-webhook-的匹配标签) 配置选项关闭此特性。
 * 不支持将 BehaviorModeling 模式的策略切换为其他模式，反之亦然。您需要删除策略后重新创建策略才可切换。
 * 建模完成后，不支持修改策略的建模时长。您需要删除策略后重新创建策略才可以重新开始建模，但已有的行为数据会被保留。
+* 使用 **BPF enforcer** 进行行为建模期间，尽量不要使用 `kubectl exec` 在容器中执行交互式命令，否则会采集到额外的行为数据。
 
 ### 数据持久化
 
