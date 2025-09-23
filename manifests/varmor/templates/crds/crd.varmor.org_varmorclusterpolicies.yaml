@@ -82,10 +82,10 @@ spec:
                       allowViolations:
                         description: |-
                           allowViolations determines whether to allow the actions that are against mandatory access control rules.
-                          If this field is set, any detected violation will be allowed rather than blocked, and an `ALLOWED` audit
-                          event will be generated and logged. This can be used to gather violations for improving Deny-by-Default
-                          protection profiles. If this field is not set, any detected violation will be blocked, and a `DENIED`
-                          audit event will be generated and logged.
+                          If this field is set, any detected violation will be allowed rather than blocked, and an audit event with
+                          the `ALLOWED` action will be generated and logged. This can be used to gather violations for improving
+                          Deny-by-Default protection profiles. If this field is not set, any detected violation will be blocked,
+                          and an audit event with the `DENIED` action will be generated and logged.
 
                           Default is false.
                         type: boolean
@@ -220,8 +220,7 @@ spec:
                       allowViolations:
                         description: |-
                           allowViolations determines whether to allow the actions that are against mandatory access control rules.
-                          If this field is set, any detected violation will be allowed rather than blocked, and an `ALLOWED` audit
-                          event will be generated and logged.
+                          If this field is set, any detected violation will be allowed rather than blocked.
 
                           Default is false.
                         type: boolean
@@ -271,9 +270,10 @@ spec:
                         type: array
                       auditViolations:
                         description: |-
-                          auditViolations determines whether to audit the actions that violate the mandatory access control rules.
+                          auditViolations determines whether to log the actions that violate the mandatory access control rules.
                           If this field is set, any detected violation will be logged to `/var/log/varmor/violations.log` file in
-                          the host. Please note that the Seccomp enforcer does not support auditing violations when the
+                          the host. The action of the event will be `AUDIT` if allowViolations is set to `true`, otherwise it will
+                          be `DENIED`. Please note that the Seccomp enforcer does not support auditing violations when the
                           allowViolations field is set to `false`.
 
                           Default is false.
@@ -298,9 +298,18 @@ spec:
                                   items:
                                     type: string
                                   type: array
+                                qualifiers:
+                                  description: |-
+                                    qualifiers determine the behavior of the rule via combinations of values.
+
+                                    Available values: deny, audit.
+                                  items:
+                                    type: string
+                                  type: array
                               required:
                               - pattern
                               - permissions
+                              - qualifiers
                               type: object
                             type: array
                           mounts:
@@ -330,6 +339,14 @@ spec:
                                     of filesystem (maximum length 16 bytes) to enforce.
                                     It can be '*' to match any type.
                                   type: string
+                                qualifiers:
+                                  description: |-
+                                    qualifiers determine the behavior of the rule via combinations of values.
+
+                                    Available values: deny, audit.
+                                  items:
+                                    type: string
+                                  type: array
                                 sourcePattern:
                                   description: |-
                                     sourcePattern can be any string (maximum length 128 bytes) that conforms to the policy syntax, used for matching the
@@ -338,6 +355,7 @@ spec:
                               required:
                               - flags
                               - fstype
+                              - qualifiers
                               - sourcePattern
                               type: object
                             type: array
@@ -394,6 +412,16 @@ spec:
                                             - port
                                             type: object
                                           type: array
+                                        qualifiers:
+                                          description: |-
+                                            qualifiers determine the behavior of the rule via combinations of values.
+
+                                            Available values: deny, audit.
+                                          items:
+                                            type: string
+                                          type: array
+                                      required:
+                                      - qualifiers
                                       type: object
                                     type: array
                                   toPods:
@@ -480,8 +508,17 @@ spec:
                                             - port
                                             type: object
                                           type: array
+                                        qualifiers:
+                                          description: |-
+                                            qualifiers determine the behavior of the rule via combinations of values.
+
+                                            Available values: deny, audit.
+                                          items:
+                                            type: string
+                                          type: array
                                       required:
                                       - podSelector
+                                      - qualifiers
                                       type: object
                                     type: array
                                   toServices:
@@ -498,6 +535,14 @@ spec:
                                           description: namespace specifies in which
                                             namespace to select services.
                                           type: string
+                                        qualifiers:
+                                          description: |-
+                                            qualifiers determine the behavior of the rule via combinations of values.
+
+                                            Available values: deny, audit.
+                                          items:
+                                            type: string
+                                          type: array
                                         serviceSelector:
                                           description: |-
                                             serviceSelector is a label selector which selects services. This field follows standard label selector
@@ -550,6 +595,8 @@ spec:
                                               type: object
                                           type: object
                                           x-kubernetes-map-type: atomic
+                                      required:
+                                      - qualifiers
                                       type: object
                                     type: array
                                 type: object
@@ -582,6 +629,14 @@ spec:
                                       items:
                                         type: string
                                       type: array
+                                    qualifiers:
+                                      description: |-
+                                        qualifiers determine the behavior of the rule via combinations of values.
+
+                                        Available values: deny, audit.
+                                      items:
+                                        type: string
+                                      type: array
                                     types:
                                       description: |-
                                         types specifies the communication semantics of socket.
@@ -590,6 +645,8 @@ spec:
                                       items:
                                         type: string
                                       type: array
+                                  required:
+                                  - qualifiers
                                   type: object
                                 type: array
                             type: object
@@ -611,9 +668,18 @@ spec:
                                   items:
                                     type: string
                                   type: array
+                                qualifiers:
+                                  description: |-
+                                    qualifiers determine the behavior of the rule via combinations of values.
+
+                                    Available values: deny, audit.
+                                  items:
+                                    type: string
+                                  type: array
                               required:
                               - pattern
                               - permissions
+                              - qualifiers
                               type: object
                             type: array
                           ptrace:
@@ -639,6 +705,14 @@ spec:
                                 items:
                                   type: string
                                 type: array
+                              qualifiers:
+                                description: |-
+                                  qualifiers determine the behavior of the rule via combinations of values.
+
+                                  Available values: deny, audit.
+                                items:
+                                  type: string
+                                type: array
                               strictMode:
                                 description: |-
                                   strictMode is used to indicate whether to restrict ptrace operations for all source and destination processes.
@@ -649,6 +723,7 @@ spec:
                                 type: boolean
                             required:
                             - permissions
+                            - qualifiers
                             type: object
                         type: object
                       hardeningRules:
