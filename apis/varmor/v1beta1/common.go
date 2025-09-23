@@ -105,17 +105,17 @@ type EnhanceProtect struct {
 	// If set to `true`, vArmor will not build Seccomp profile for the target workloads.
 	// +optional
 	Privileged bool `json:"privileged,omitempty"`
-	// auditViolations determines whether to audit the actions that violate the mandatory access control rules.
+	// auditViolations determines whether to log the actions that violate the mandatory access control rules.
 	// If this field is set, any detected violation will be logged to `/var/log/varmor/violations.log` file in
-	// the host. Please note that the Seccomp enforcer does not support auditing violations when the
+	// the host. The action of the event will be `AUDIT` if allowViolations is set to `true`, otherwise it will
+	// be `DENIED`. Please note that the Seccomp enforcer does not support auditing violations when the
 	// allowViolations field is set to `false`.
 	//
 	// Default is false.
 	// +optional
 	AuditViolations bool `json:"auditViolations,omitempty"`
 	// allowViolations determines whether to allow the actions that are against mandatory access control rules.
-	// If this field is set, any detected violation will be allowed rather than blocked, and an `ALLOWED` audit
-	// event will be generated and logged.
+	// If this field is set, any detected violation will be allowed rather than blocked.
 	//
 	// Default is false.
 	// +optional
@@ -148,10 +148,10 @@ type DefenseInDepth struct {
 	// +optional
 	Seccomp *SeccompProfile `json:"seccomp,omitempty"`
 	// allowViolations determines whether to allow the actions that are against mandatory access control rules.
-	// If this field is set, any detected violation will be allowed rather than blocked, and an `ALLOWED` audit
-	// event will be generated and logged. This can be used to gather violations for improving Deny-by-Default
-	// protection profiles. If this field is not set, any detected violation will be blocked, and a `DENIED`
-	// audit event will be generated and logged.
+	// If this field is set, any detected violation will be allowed rather than blocked, and an audit event with
+	// the `ALLOWED` action will be generated and logged. This can be used to gather violations for improving
+	// Deny-by-Default protection profiles. If this field is not set, any detected violation will be blocked,
+	// and an audit event with the `DENIED` action will be generated and logged.
 	//
 	// Default is false.
 	// +optional
