@@ -10,9 +10,7 @@ BehaviorModeling 模式是一个实验功能。您可以利用 BehaviorModeling 
 
 ## 前置条件
 
-vArmor 利用 BPF 技术和 Linux 审计系统来捕获目标应用的行为。
-
-BehaviorModeling 模式的前置条件如下所示：
+vArmor 利用 BPF 技术和 Linux 审计系统来捕获目标应用的行为。前置条件如下所示：
 
 1. containerd v1.6.0 及以上版本
 
