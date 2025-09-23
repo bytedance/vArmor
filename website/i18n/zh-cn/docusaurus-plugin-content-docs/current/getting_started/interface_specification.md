@@ -53,8 +53,8 @@ description: vArmor 的接口规范。
 |bpfRawRules<br />*[BpfRawRules](#bpfrawrules) array*|可选字段。BpfRawRules 用于设置自定义的 BPF 规则。|
 |syscallRawRules<br />*[LinuxSyscall](https://pkg.go.dev/github.com/opencontainers/runtime-spec@v1.1.0/specs-go#LinuxSyscall) array*|可选字段。SyscallRawRules 用于设置自定义的 Seccomp 规则。请参考 https://github.com/opencontainers/runtime-spec/blob/main/config-linux.md#seccomp。|
 |privileged<br />*bool*|可选字段。Privileged 用于确定该策略是否适用于特权容器。如果设置为 false，**EnhanceProtect** 模式将在 **RuntimeDefault** 模式之上构建 AppArmor 或 BPF 配置文件。否则，它将在 **AlwaysAllow** 模式之上构建 AppArmor 或 BPF 配置文件。（默认值：false）<br /><br />请注意，如果设置为 true，vArmor 将不会为目标工作负载构建 Seccomp 配置文件。|
-|auditViolations<br />*bool*|可选字段。AuditViolations 用于决定是否对违反强制访问控制规则的操作进行审计。如果设置了此字段，任何检测到的违规行为都将记录到主机中的 `/var/log/varmor/violations.log` 文件中。<br />请注意，当 allowViolations 字段设置为 false 时，Seccomp 强制访问控制器不支持对违规行为进行审计。（默认值：false）|
-|allowViolations<br />*bool*|可选字段。AllowViolations 用于决定是否允许违反强制访问控制规则的操作。如果设置了此字段，任何检测到的违规行为都将被允许而不是被阻止，与此同时将生成并记录一个 “ALLOWED” 类型的审计事件。（默认值：false）|
+|auditViolations<br />*bool*|可选字段。AuditViolations 用于决定是否对违反强制访问控制规则的操作进行审计。如果设置了此字段，任何检测到的违规行为都将记录到主机中的 `/var/log/varmor/violations.log` 文件中。若 allowViolations 设为 true，事件动作会被标记为 `AUDIT`。否则，事件动作会被标记为 `DENIED`。<br /><br />请注意，当 allowViolations 字段设置为 false 时，Seccomp 强制访问控制器不支持对违规行为进行审计。（默认值：false）|
+|allowViolations<br />*bool*|可选字段。AllowViolations 用于决定是否允许违反强制访问控制规则的操作。如果设置了此字段，任何检测到的违规行为都将被允许而不是被阻止。（默认值：false）|
 
 ### AttackProtectionRules
 
@@ -176,7 +176,7 @@ description: vArmor 的接口规范。
 |-----|------|
 |appArmor<br />*[AppArmorProfile](#apparmorprofile)*|可选字段。AppArmor 为默认拒绝访问控制指定 AppArmor 配置文件和其他自定义规则。|
 |seccomp<br />*[SeccompProfile](#seccompprofile)*|可选字段。Seccomp 为默认拒绝访问控制指定 Seccomp 配置文件和其他自定义规则。|
-|allowViolations<br />*bool*|可选字段。AllowViolations 用于确定是否允许违反强制访问控制规则的操作。如果设置了此字段，任何检测到的违规行为将被允许而非阻止，与此同时会生成并记录一个 “ALLOWED” 审计事件。这可用于收集违规情况，以改进默认拒绝访问控制的配置文件。如果未设置此字段，任何检测到的违规行为将被阻止，并生成和记录一个 “DENIED” 审计事件。(默认值：false)
+|allowViolations<br />*bool*|可选字段。AllowViolations 用于确定是否允许违反强制访问控制规则的操作。如果设置了此字段，任何检测到的违规行为将被允许而非阻止，与此同时会生成并记录一个 `ALLOWED` 动作的审计事件。这可用于收集违规情况，以改进默认拒绝访问控制的配置文件。如果未设置此字段，任何检测到的违规行为将被阻止，并生成和记录一个 `DENIED` 动作的审计事件。(默认值：false)
 
 ### AppArmorProfile
 
