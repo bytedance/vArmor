@@ -7,7 +7,7 @@
         "files": [
           {
             "path_regex": "\/proc\/sys\/kernel\/core_pattern",
-            "permissions": ["w", "a"]
+            "permissions": ["w", "a", "write", "append"]
           }
         ]
       },
@@ -43,7 +43,7 @@
         "files": [
           {
             "path_regex": "\/sys\/fs\/cgroup\/.*\/release_agent",
-            "permissions": ["w", "a"]
+            "permissions": ["w", "a", "write", "append"]
           }
         ]
       },
@@ -143,7 +143,7 @@
         "files": [
           {
             "path_regex": "\/proc\/kallsyms",
-            "permissions": ["r"]
+            "permissions": ["r", "read"]
           }
         ]
       },
@@ -541,7 +541,7 @@
         "files": [
           {
             "path_regex": "\/run\/secrets\/kubernetes.io\/serviceaccount\/",
-            "permissions": ["r"]
+            "permissions": ["r", "read"]
           }
         ]
       }
@@ -553,7 +553,7 @@
         "files": [
           {
             "path_regex": "\/proc\/partitions|\/proc\/.*\/mountinfo",
-            "permissions": ["r"]
+            "permissions": ["r", "read"]
           }
         ]
       }
@@ -565,7 +565,7 @@
         "files": [
           {
             "path_regex": "\/proc\/mounts|\/proc\/.*\/mounts|\/proc\/.*\/mountinfo",
-            "permissions": ["r"]
+            "permissions": ["r", "read"]
           }
         ]
       }
@@ -577,7 +577,7 @@
         "files": [
           {
             "path_regex": "\/proc\/net\/arp|\/proc\/.*\/net\/arp",
-            "permissions": ["r"]
+            "permissions": ["r", "read"]
           }
         ]
       }
@@ -595,7 +595,7 @@
         "files": [
           {
             "path_regex": "^\/etc$|^\/etc\/|\/containerd\/.*\/fs\/root\/etc$|\/containerd\/.*\/fs\/root\/etc\/",
-            "permissions": ["w", "a"]
+            "permissions": ["w", "a", "write", "append"]
           }
         ]
       }
@@ -664,7 +664,7 @@
         "files": [
           {
             "path_regex": "\/run\/secrets\/kubernetes.io\/serviceaccount\/",
-            "permissions": ["r"]
+            "permissions": ["r", "read"]
           }
         ]
       }
@@ -677,7 +677,7 @@
         "files": [
           {
             "path_regex": "\/containerd.sock|\/docker.sock|\/crio.sock",
-            "permissions": ["r", "w", "a"]
+            "permissions": ["r", "w", "a", "read", "write", "append"]
           }
         ]
       }
@@ -691,7 +691,7 @@
         "files": [
           {
             "path_regex": "\/release_agent$|\/devices\/devices.allow$|\/devices\/.*\/devices.allow$|\/devices\/cgroup.procs$|\/devices\/.*\/cgroup.procs$|\/devices\/tasks$|\/devices\/.*\/tasks$",
-            "permissions": ["w", "a"]
+            "permissions": ["w", "a", "write", "append"]
           }
         ]
       }
@@ -703,7 +703,7 @@
         "files": [
           {
             "path_regex": "\/runc$",
-            "permissions": ["w", "a"]
+            "permissions": ["w", "a", "write", "append"]
           }
         ]
       }
