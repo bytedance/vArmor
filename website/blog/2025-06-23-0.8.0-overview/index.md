@@ -114,7 +114,7 @@ vArmor's EnhanceProtect mode supports "alarm-only mode (observation mode)" and "
       "pid": 2798766,
       "mntNsID": 4026533660,
       "eventTimestamp": 1749047303,
-      "eventType": "BPF",
+      "enforcer": "BPF",
       "action": "DENIED",
       "profileName": "varmor-demo-demo-2",
       "event": {
@@ -146,8 +146,8 @@ vArmor's EnhanceProtect mode supports "alarm-only mode (observation mode)" and "
       "pid": 1448697,
       "mntNsID": 4026533364,
       "eventTimestamp": 1740621808,
-      "eventType": "Seccomp",
-      "action": "ALLOWED",
+      "enforcer": "Seccomp",
+      "action": "AUDIT|ALLOWED",
       // highlight-start
       "profileName": "varmor-demo-demo-5",
       // highlight-end
@@ -166,7 +166,7 @@ vArmor's EnhanceProtect mode supports "alarm-only mode (observation mode)" and "
       "pid": 887808,
       "mntNsID": 4026532637,
       "eventTimestamp": 1740381264,
-      "eventType": "BPF",
+      "enforcer": "BPF",
       "action": "DENIED",
       // highlight-start
       "profileName": "varmor-demo-demo-2",
@@ -186,7 +186,7 @@ vArmor's EnhanceProtect mode supports "alarm-only mode (observation mode)" and "
       "pid": 3811300,
       "mntNsID": 4026532725,
       "eventTimestamp": 1740366282,
-      "eventType": "AppArmor",
+      "enforcer": "AppArmor",
       "action": "DENIED",
       // highlight-start
       "profileName": "varmor-demo-demo-1",

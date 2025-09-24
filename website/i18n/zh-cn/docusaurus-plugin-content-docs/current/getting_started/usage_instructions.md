@@ -33,11 +33,14 @@ vArmor 支持将策略对象配置为仅告警不拦截（观察模式）、拦�
 
 * 当前仅 AppArmor 和 BPF enforcer 支持拦截并告警模式。
 * 受限于 Seccomp 的原理和性能影响，您只能组合使用 `auditViolations=true` 和 `allowViolations=true`，在没有策略处于 BehaviorModeling 模式时，为 Seccomp enforcer 实现仅告警不拦截模式（观察模式）。
-* 受限于 AppArmor LSM 和 Seccomp 的原理，使用 AppArmor 或 Seccomp enforcer 时，在某些情况下无法匹配出对应的容器和 Pod 信息。
+* 受限于 AppArmor LSM 和 Seccomp 的原理，使用 AppArmor 或 Seccomp enforcer 时，可能无法关联短进程的容器和 Pod 信息。
 
 ```json
 {
   "level": "warn",
+  "metadata": {
+    "varmorNamespace": "varmor"
+  },
   "nodeName": "192.168.0.24",
   "containerID": "fd808d9394a76680bd9f4de84413e6521cfc4e4c5097e0c6904b0f58e5f564cc",
   "containerName": "c1",
@@ -47,10 +50,11 @@ vArmor 支持将策略对象配置为仅告警不拦截（观察模式）、拦�
   "pid": 887808,
   "mntNsID": 4026532637,
   "eventTimestamp": 1740381264,
-  "eventType": "BPF",
+  "enforcer": "BPF",
   "action": "DENIED",
   "profileName": "varmor-demo-demo-2",
   "event": {
+    "operation": "File",
     "permissions": [
       "read"
     ],
@@ -64,6 +68,9 @@ vArmor 支持将策略对象配置为仅告警不拦截（观察模式）、拦�
 ```json
 {
   "level": "warn",
+  "metadata": {
+    "varmorNamespace": "varmor"
+  },
   "nodeName": "192.168.0.8",
   "containerID": "5b24d520534b9ad2b618cd9f014a7cca045e5d217718852af6d12d587ef2b6c6",
   "containerName": "c1",
@@ -73,8 +80,8 @@ vArmor 支持将策略对象配置为仅告警不拦截（观察模式）、拦�
   "pid": 3811300,
   "mntNsID": 4026532725,
   "eventTimestamp": 1740366282,
-  "eventType": "AppArmor",
-  "action": "DENIED",
+  "enforcer": "AppArmor",
+  "action": "AUDIT",
   "profileName": "varmor-demo-demo-1",
   "event": {
     "version": 1,
@@ -95,31 +102,7 @@ vArmor 支持将策略对象配置为仅告警不拦截（观察模式）、拦�
     "profile": "varmor-demo-demo-1//child_0",
     "peerProfile": "",
     "comm": "bash",
-    "name": "/etc/5",
-    "name2": "",
-    "namespace": "",
-    "attribute": "",
-    "parent": 0,
-    "info": "",
-    "peerInfo": "",
-    "errorCode": 0,
-    "activeHat": "",
-    "netFamily": "",
-    "netProtocol": "",
-    "netSockType": "",
-    "netLocalAddr": "",
-    "netLocalPort": 0,
-    "netForeignAddr": "",
-    "netForeignPort": 0,
-    "dbusBus": "",
-    "dbusPath": "",
-    "dbusInterface": "",
-    "dbusMember": "",
-    "signal": "",
-    "peer": "",
-    "fsType": "",
-    "flags": "",
-    "srcName": ""
+    "name": "/etc/5"
   },
   "time": "2025-02-24T03:04:42Z",
   "message": "violation event"
@@ -129,6 +112,9 @@ vArmor 支持将策略对象配置为仅告警不拦截（观察模式）、拦�
 ```json
 {
   "level": "debug",
+  "metadata": {
+    "varmorNamespace": "varmor"
+  },
   "nodeName": "192.168.0.8",
   "containerID": "8c1058d1159d3ed20960c0c9f53fc26968a1c75cd3b390a503e060ffd8c972da",
   "containerName": "c0",
@@ -138,8 +124,8 @@ vArmor 支持将策略对象配置为仅告警不拦截（观察模式）、拦�
   "pid": 1448697,
   "mntNsID": 4026533364,
   "eventTimestamp": 1740621808,
-  "eventType": "Seccomp",
-  "action": "ALLOWED",
+  "enforcer": "Seccomp",
+  "action": "AUDIT|ALLOWED",
   "profileName": "varmor-demo-demo-5",
   "event": {
     "auditID": "1740621808.346:683",

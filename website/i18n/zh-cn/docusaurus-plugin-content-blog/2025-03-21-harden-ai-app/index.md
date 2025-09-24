@@ -125,7 +125,8 @@ spec:
   "pid": 683162,
   "mntNsID": 4026534445,
   "eventTimestamp": 1742462286,
-  "eventType": "BPF",
+  "enforcer": "BPF",
+  "action": "DENIED",
   "event": {
     "permissions": [
       "read"
@@ -146,7 +147,8 @@ spec:
   "pid": 683291,
   "mntNsID": 4026534445,
   "eventTimestamp": 1742462291,
-  "eventType": "BPF",
+  "enforcer": "BPF",
+  "action": "DENIED",
   "event": {
     "permissions": [
       "read"
