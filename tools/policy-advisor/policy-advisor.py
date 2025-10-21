@@ -32,8 +32,8 @@ def skip_the_rule_with_behavior_data(rule, enforcers, behavior_data):
 
   if "conflicts" in rule:
     if "capabilities" in rule["conflicts"]:
-      model_caps = retrieve_capabilities_from_behavior_data(behavior_data)
-      return has_common_item(rule["conflicts"]["capabilities"], model_caps)
+      caps = retrieve_capabilities_from_behavior_data(behavior_data)
+      return has_common_item(rule["conflicts"]["capabilities"], caps)
 
     if "syscalls" in rule["conflicts"]:
       syscalls = retrieve_syscalls_from_behavior_data(behavior_data)
@@ -69,7 +69,7 @@ def generate_policy_template(policy, built_in_rules, enforcers, app_features, ap
     if skip_the_rule_with_context(rule, enforcers, app_features, app_capabilities):
       continue
 
-    # Filter out the rule with behavior model data
+    # Filter out the rule with behavior data
     if skip_the_rule_with_behavior_data(rule, enforcers, behavior_data):
       continue
 
@@ -85,7 +85,7 @@ def generate_policy_template(policy, built_in_rules, enforcers, app_features, ap
       if skip_the_rule_with_context(rule, enforcers, app_features, app_capabilities):
         continue
 
-      # Filter out the rule with behavior model data
+      # Filter out the rule with behavior data
       if skip_the_rule_with_behavior_data(rule, enforcers, behavior_data):
         continue
 
@@ -101,7 +101,7 @@ def generate_policy_template(policy, built_in_rules, enforcers, app_features, ap
         if skip_the_rule_with_context(rule, enforcers, app_features, app_capabilities):
           continue
 
-        # Filter out the rule with behavior model data
+        # Filter out the rule with behavior data
         if skip_the_rule_with_behavior_data(rule, enforcers, behavior_data):
           continue
 
@@ -115,7 +115,7 @@ def generate_policy_template(policy, built_in_rules, enforcers, app_features, ap
     if skip_the_rule_with_context(rule, enforcers, app_features, app_capabilities):
       continue
 
-    # Filter out the rule with behavior model data
+    # Filter out the rule with behavior data
     if skip_the_rule_with_behavior_data(rule, enforcers, behavior_data):
       continue
 
@@ -129,7 +129,7 @@ def generate_policy_template(policy, built_in_rules, enforcers, app_features, ap
     if skip_the_rule_with_context(rule, enforcers, app_features, app_capabilities):
       continue
 
-    # Filter out the rule with behavior model data
+    # Filter out the rule with behavior data
     if skip_the_rule_with_behavior_data(rule, enforcers, behavior_data):
       continue
 
@@ -140,14 +140,14 @@ def generate_policy_template(policy, built_in_rules, enforcers, app_features, ap
   # ========= Attack Protection - Disable Sensitive Operations =========
   # Note: 
   #   We use the built-in rules of the sensitive operation category 
-  #   only if the behavior model is provided.
+  #   only if the behavior data is provided.
   if behavior_data:
     for rule in built_in_rules["sensitive_operations"]:
       # Filter out the rule with context
       if skip_the_rule_with_context(rule, enforcers, app_features, app_capabilities):
         continue
 
-      # Filter out the rule with behavior model data
+      # Filter out the rule with behavior data
       if skip_the_rule_with_behavior_data(rule, enforcers, behavior_data):
         continue
 
@@ -161,7 +161,7 @@ def generate_policy_template(policy, built_in_rules, enforcers, app_features, ap
     if skip_the_rule_with_context(rule, enforcers, app_features, app_capabilities):
       continue
 
-    # Filter out the rule with behavior model data
+    # Filter out the rule with behavior data
     if skip_the_rule_with_behavior_data(rule, enforcers, behavior_data):
       continue
 
@@ -210,15 +210,15 @@ You may modify the template accordingly based on the specific requirements of yo
 
 if __name__ == "__main__":
   parser = argparse.ArgumentParser(formatter_class=RawTextHelpFormatter,
-    description='''This program can help users generate a `.spec.policy` template with built-in rules or the behavior model data. 
+    description='''This program can help users generate a `.spec.policy` template with built-in rules or the behavior data. 
 The template can be a good start to craft the final policy. Please use the -f and -c command-line arguments to specify the context.
 
 use cases: 
 1). Generate a policy template that runs in EnhanceProtect mode with built-in rules supported by AppArmor and BPF enforcers.
     policy-advisor.py AppArmor,BPF -f share-containers-pid-ns -c sys_admin,net_admin,kill
 
-2). Filter out the conflicted built-in rules with behavior model data to make the policy template more precise.
-    policy-advisor.py AppArmor,BPF -f share-containers-pid-ns -c sys_admin,net_admin,kill -m model_data.json
+2). Filter out the conflicted built-in rules with behavior data to make the policy template more precise.
+    policy-advisor.py AppArmor,BPF -f share-containers-pid-ns -c sys_admin,net_admin,kill -m data.json
 ''')
 
   parser.add_argument("enforcers", type=str,
@@ -255,7 +255,7 @@ For Example: "sys_admin,net_admin,sys_module"\n\n''')
   parser.add_argument("-m", dest="behavior_data", type=str, default="",
     help='''The behavior data is a JSON file that includes an ArmorProfileModel object.
 You can export the behavior data with kubectl command, such as: 
-kubectl get ArmorProfileModel -n {NAMESPACE} {NAME} -o json > model.json\n\n''')
+kubectl get ArmorProfileModel -n {NAMESPACE} {NAME} -o json > data.json\n\n''')
 
   parser.add_argument("-d", dest="debug", action="store_true", default=False, help="Print debug information.")
 
