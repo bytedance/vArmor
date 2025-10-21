@@ -26,25 +26,25 @@ def skip_the_rule_with_context(rule, enforcers, app_features, app_capabilities):
   return False
 
 
-def skip_the_rule_with_model_data(rule, enforcers, armor_profile_model):
+def skip_the_rule_with_behavior_data(rule, enforcers, behavior_data):
   if not has_common_item(enforcers, rule["enforcers"]):
     return True
 
   if "conflicts" in rule:
     if "capabilities" in rule["conflicts"]:
-      model_caps = retrieve_capabilities_from_model(armor_profile_model)
+      model_caps = retrieve_capabilities_from_behavior_data(behavior_data)
       return has_common_item(rule["conflicts"]["capabilities"], model_caps)
 
     if "syscalls" in rule["conflicts"]:
-      syscalls = retrieve_syscalls_from_model(armor_profile_model)
+      syscalls = retrieve_syscalls_from_behavior_data(behavior_data)
       return has_common_item(rule["conflicts"]["syscalls"], syscalls)
 
     if "executions" in rule["conflicts"]:
-      executions = retrieve_executions_from_model(armor_profile_model)
+      executions = retrieve_executions_from_behavior_data(behavior_data)
       return has_common_item(rule["conflicts"]["executions"], executions)
 
     if "files" in rule["conflicts"]:
-      files = retrieve_files_from_model(armor_profile_model)
+      files = retrieve_files_from_behavior_data(behavior_data)
       return files_conflict_with_rule(rule["conflicts"]["files"], files)
 
   return False
@@ -59,7 +59,7 @@ def set_enforcer(policy, enforcers):
     policy["enforcer"] += "Seccomp"
 
 
-def generate_policy_template(policy, built_in_rules, enforcers, app_features, app_capabilities, armor_profile_model, debug):
+def generate_policy_template(policy, built_in_rules, enforcers, app_features, app_capabilities, behavior_data, debug):
   if "privileged-container" in app_features:
     policy["enhanceProtect"]["privileged"] = True
 
@@ -70,7 +70,7 @@ def generate_policy_template(policy, built_in_rules, enforcers, app_features, ap
       continue
 
     # Filter out the rule with behavior model data
-    if skip_the_rule_with_model_data(rule, enforcers, armor_profile_model):
+    if skip_the_rule_with_behavior_data(rule, enforcers, behavior_data):
       continue
 
     set_enforcer(policy, enforcers)
@@ -86,7 +86,7 @@ def generate_policy_template(policy, built_in_rules, enforcers, app_features, ap
         continue
 
       # Filter out the rule with behavior model data
-      if skip_the_rule_with_model_data(rule, enforcers, armor_profile_model):
+      if skip_the_rule_with_behavior_data(rule, enforcers, behavior_data):
         continue
 
       set_enforcer(policy, enforcers)
@@ -102,7 +102,7 @@ def generate_policy_template(policy, built_in_rules, enforcers, app_features, ap
           continue
 
         # Filter out the rule with behavior model data
-        if skip_the_rule_with_model_data(rule, enforcers, armor_profile_model):
+        if skip_the_rule_with_behavior_data(rule, enforcers, behavior_data):
           continue
 
         set_enforcer(policy, enforcers)
@@ -116,7 +116,7 @@ def generate_policy_template(policy, built_in_rules, enforcers, app_features, ap
       continue
 
     # Filter out the rule with behavior model data
-    if skip_the_rule_with_model_data(rule, enforcers, armor_profile_model):
+    if skip_the_rule_with_behavior_data(rule, enforcers, behavior_data):
       continue
 
     set_enforcer(policy, enforcers)
@@ -130,7 +130,7 @@ def generate_policy_template(policy, built_in_rules, enforcers, app_features, ap
       continue
 
     # Filter out the rule with behavior model data
-    if skip_the_rule_with_model_data(rule, enforcers, armor_profile_model):
+    if skip_the_rule_with_behavior_data(rule, enforcers, behavior_data):
       continue
 
     set_enforcer(policy, enforcers)
@@ -141,14 +141,14 @@ def generate_policy_template(policy, built_in_rules, enforcers, app_features, ap
   # Note: 
   #   We use the built-in rules of the sensitive operation category 
   #   only if the behavior model is provided.
-  if armor_profile_model:
+  if behavior_data:
     for rule in built_in_rules["sensitive_operations"]:
       # Filter out the rule with context
       if skip_the_rule_with_context(rule, enforcers, app_features, app_capabilities):
         continue
 
       # Filter out the rule with behavior model data
-      if skip_the_rule_with_model_data(rule, enforcers, armor_profile_model):
+      if skip_the_rule_with_behavior_data(rule, enforcers, behavior_data):
         continue
 
       set_enforcer(policy, enforcers)
@@ -162,7 +162,7 @@ def generate_policy_template(policy, built_in_rules, enforcers, app_features, ap
       continue
 
     # Filter out the rule with behavior model data
-    if skip_the_rule_with_model_data(rule, enforcers, armor_profile_model):
+    if skip_the_rule_with_behavior_data(rule, enforcers, behavior_data):
       continue
 
     set_enforcer(policy, enforcers)
@@ -170,12 +170,14 @@ def generate_policy_template(policy, built_in_rules, enforcers, app_features, ap
     debug_print(rule, debug)
 
 
-def built_in_rules_advisor(built_in_rules, enforcers, app_features=[], app_capabilities=[], armor_profile_model={}, debug=False):
+def built_in_rules_advisor(built_in_rules, enforcers, app_features=[], app_capabilities=[], behavior_data={}, debug=False):
   policy = {
     "enforcer": "",
     "mode": "EnhanceProtect",
     "enhanceProtect": {
       "privileged": False,
+      "auditViolations": True,
+      "allowViolations": False,
       "hardeningRules": [],
       "attackProtectionRules": [
         {
@@ -187,7 +189,7 @@ def built_in_rules_advisor(built_in_rules, enforcers, app_features=[], app_capab
     }
   }
 
-  generate_policy_template(policy, built_in_rules, enforcers, app_features, app_capabilities, armor_profile_model, debug)
+  generate_policy_template(policy, built_in_rules, enforcers, app_features, app_capabilities, behavior_data, debug)
 
   print('''
 Please take note of the following tips about the template:
@@ -250,9 +252,9 @@ programs, please add both sys_admin and bpf, that is "sys_admin,bpf". See CAPABI
 Available Values: CAPABILITIES(7) without 'CAP_' prefix (they should be combined with commas).
 For Example: "sys_admin,net_admin,sys_module"\n\n''')
 
-  parser.add_argument("-m", dest="behavior_model", type=str, default="",
-    help='''The behavior model data is an ArmorProfileModel object that is generated by vArmor. 
-The input file must be in JSON format. You can export the data with kubectl command, such as: 
+  parser.add_argument("-m", dest="behavior_data", type=str, default="",
+    help='''The behavior data is a JSON file that includes an ArmorProfileModel object.
+You can export the behavior data with kubectl command, such as: 
 kubectl get ArmorProfileModel -n {NAMESPACE} {NAME} -o json > model.json\n\n''')
 
   parser.add_argument("-d", dest="debug", action="store_true", default=False, help="Print debug information.")
@@ -266,16 +268,16 @@ kubectl get ArmorProfileModel -n {NAMESPACE} {NAME} -o json > model.json\n\n''')
   if len(capabilities) == 1 and '' in capabilities:
     capabilities = []
 
-  if args.behavior_model and not os.path.exists(args.behavior_model):
-    print("[!] The model file isn't exist.")
+  if args.behavior_data and not os.path.exists(args.behavior_data):
+    print("[!] The behavior data file isn't exist.")
     sys.exit(1)
 
   with open(os.path.join(current_dir, "./built-in-rules.json"), "r") as f:
     built_in_rules = json.load(f)
 
-    if args.behavior_model:
-      with open(args.behavior_model, "r") as model_f:
-        armor_profile_model = json.load(model_f)
-        built_in_rules_advisor(built_in_rules, enforcers, features, capabilities, armor_profile_model, args.debug)
+    if args.behavior_data:
+      with open(args.behavior_data, "r") as model_f:
+        behavior_data = json.load(model_f)
+        built_in_rules_advisor(built_in_rules, enforcers, features, capabilities, behavior_data, args.debug)
     else:
       built_in_rules_advisor(built_in_rules, enforcers, features, capabilities, {}, args.debug)

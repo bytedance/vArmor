@@ -7,7 +7,7 @@ class TestFunctions(unittest.TestCase):
       "disable-write-etc": {
         "rules": [
             {
-              "path_regex": "^\/etc$|^\/etc\/|\/containerd\/.*\/fs\/root\/etc$|\/containerd\/.*\/fs\/root\/etc\/",
+              "path_regex": r"^\/etc$|^\/etc\/|\/containerd\/.*\/fs\/root\/etc$|\/containerd\/.*\/fs\/root\/etc\/",
               "permissions": [
                 "w",
                 "a"
@@ -89,7 +89,7 @@ class TestFunctions(unittest.TestCase):
       "mitigate-sa-leak": {
         "rules": [
           {
-            "path_regex": "\/run\/secrets\/kubernetes.io\/serviceaccount\/",
+            "path_regex": r"\/run\/secrets\/kubernetes.io\/serviceaccount\/",
             "permissions": [
               "r"
             ]
@@ -140,7 +140,7 @@ class TestFunctions(unittest.TestCase):
       "mitigate-disk-device-number-leak": {
         "rules": [
             {
-              "path_regex": "\/proc\/partitions|\/proc\/.*\/mountinfo",
+              "path_regex": r"\/proc\/partitions|\/proc\/.*\/mountinfo",
               "permissions": [
                 "r"
               ]
@@ -238,7 +238,7 @@ class TestFunctions(unittest.TestCase):
       "mitigate-overlayfs-leak": {
         "rules": [
             {
-              "path_regex": "\/proc\/mounts|\/proc\/.*\/mounts|\/proc\/.*\/mountinfo",
+              "path_regex": r"\/proc\/mounts|\/proc\/.*\/mounts|\/proc\/.*\/mountinfo",
               "permissions": [
                 "r"
               ]
@@ -289,7 +289,7 @@ class TestFunctions(unittest.TestCase):
       "mitigate-host-ip-leak": {
         "rules": [
           {
-            "path_regex": "\/proc\/net\/arp|\/proc\/.*\/net\/arp",
+            "path_regex": r"\/proc\/net\/arp|\/proc\/.*\/net\/arp",
             "permissions": [
               "r"
             ]
@@ -379,7 +379,7 @@ class TestFunctions(unittest.TestCase):
       "cgroups-lxcfs-escape-mitigation": {
         "rules": [
           {
-            "path_regex": "\/release_agent$|\/devices\/devices.allow$|\/devices\/.*\/devices.allow$|\/devices\/cgroup.procs$|\/devices\/.*\/cgroup.procs$|\/devices\/tasks$|\/devices\/.*\/tasks$",
+            "path_regex": r"\/release_agent$|\/devices\/devices.allow$|\/devices\/.*\/devices.allow$|\/devices\/cgroup.procs$|\/devices\/.*\/cgroup.procs$|\/devices\/tasks$|\/devices\/.*\/tasks$",
             "permissions": [
               "w",
               "a"
