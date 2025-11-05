@@ -21,6 +21,9 @@ const retrieveCapabilitiesFromModel = (model = {}) => {
   if (model.data && model.data.dynamicResult && model.data.dynamicResult.appArmor && model.data.dynamicResult.appArmor.capabilities) {
     caps.push(...model.data.dynamicResult.appArmor.capabilities);
   }
+  if (model.data && model.data.dynamicResult && model.data.dynamicResult.bpf && model.data.dynamicResult.bpf.capabilities) {
+    caps.push(...model.data.dynamicResult.bpf.capabilities);
+  }
   return caps;
 };
 
@@ -38,6 +41,11 @@ const retrieveExecutionsFromModel = (model = {}) => {
       executions.push(execution.split('/').pop());
     }
   }
+  if (model.data && model.data.dynamicResult && model.data.dynamicResult.bpf && model.data.dynamicResult.bpf.executions) {
+    for (const execution of model.data.dynamicResult.bpf.executions) {
+      executions.push(execution.split('/').pop());
+    }
+  }
   return executions;
 };
 
@@ -46,8 +54,12 @@ const retrieveFilesFromModel = (model = {}) => {
   if (model.data && model.data.dynamicResult && model.data.dynamicResult.appArmor && model.data.dynamicResult.appArmor.files) {
     files.push(...model.data.dynamicResult.appArmor.files);
   }
+  if (model.data && model.data.dynamicResult && model.data.dynamicResult.bpf && model.data.dynamicResult.bpf.files) {
+    files.push(...model.data.dynamicResult.bpf.files);
+  }
   return files;
 };
+
 const filesConflictWithRule = (ruleFiles = [], modelFiles = []) => {
   for (const file of modelFiles) {
     for (const rule of ruleFiles) {

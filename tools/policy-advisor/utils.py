@@ -28,45 +28,28 @@ def files_conflict_with_rule(file_rules, files):
   return False
 
 
-def retrieve_capabilities_from_model(armor_profile_model):
+def retrieve_capabilities_from_behavior_data(behavior_data):
   caps = []
-  if "data" in armor_profile_model and \
-    "dynamicResult" in armor_profile_model["data"] and \
-    "appArmor" in armor_profile_model["data"]["dynamicResult"] and \
-    "capabilities" in armor_profile_model["data"]["dynamicResult"]["appArmor"]:
-    caps.extend(armor_profile_model["data"]["dynamicResult"]["appArmor"]["capabilities"])
+  caps.extend(behavior_data.get("data", {}).get("dynamicResult", {}).get("appArmor", {}).get("capabilities", []))
+  caps.extend(behavior_data.get("data", {}).get("dynamicResult", {}).get("bpf", {}).get("syscalls", []))
   return caps
 
 
-def retrieve_syscalls_from_model(armor_profile_model):
-  if "data" in armor_profile_model and \
-    "dynamicResult" in armor_profile_model["data"] and \
-    "seccomp" in armor_profile_model["data"]["dynamicResult"] and \
-    "syscalls" in armor_profile_model["data"]["dynamicResult"]["seccomp"]:
-    return armor_profile_model["data"]["dynamicResult"]["seccomp"]["syscalls"]
-  return []
+def retrieve_syscalls_from_behavior_data(behavior_data):
+  return behavior_data.get("data", {}).get("dynamicResult", {}).get("seccomp", {}).get("syscalls", [])
 
 
-def retrieve_executions_from_model(armor_profile_model):
+def retrieve_executions_from_behavior_data(behavior_data):
   executions = []
-  if "data" in armor_profile_model and \
-    "dynamicResult" in armor_profile_model["data"] and \
-    "appArmor" in armor_profile_model["data"]["dynamicResult"] and \
-    "executions" in armor_profile_model["data"]["dynamicResult"]["appArmor"]:
-
-    for execution in armor_profile_model["data"]["dynamicResult"]["appArmor"]["executions"]:
-      executions.append(os.path.basename(execution))
-
+  for execution in behavior_data.get("data", {}).get("dynamicResult", {}).get("appArmor", {}).get("executions", []):
+    executions.append(os.path.basename(execution))
+  for execution in behavior_data.get("data", {}).get("dynamicResult", {}).get("bpf", {}).get("executions", []):
+    executions.append(os.path.basename(execution))
   return executions
 
 
-def retrieve_files_from_model(armor_profile_model):
+def retrieve_files_from_behavior_data(behavior_data):
   files = []
-  if "data" in armor_profile_model and \
-    "dynamicResult" in armor_profile_model["data"] and \
-    "appArmor" in armor_profile_model["data"]["dynamicResult"] and \
-    "files" in armor_profile_model["data"]["dynamicResult"]["appArmor"]:
-
-    files.extend(armor_profile_model["data"]["dynamicResult"]["appArmor"]["files"])
-
+  files.extend(behavior_data.get("data", {}).get("dynamicResult", {}).get("appArmor", {}).get("files", []))
+  files.extend(behavior_data.get("data", {}).get("dynamicResult", {}).get("bpf", {}).get("files", []))
   return files
