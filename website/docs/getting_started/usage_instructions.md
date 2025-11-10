@@ -27,7 +27,7 @@ The Manager and Agent components log through standard output. By default, the lo
 ### Audit Logs
 vArmor supports configuring policy objects in alarm-only mode (observation mode) and alarm-interception mode. You can achieve this through the `auditViolations` and `allowViolations` fields of the policy object. For common usage, please refer to [this document](../practices/index.md#common-usage-methods). All violation events will be logged in JSON format to the /var/log/varmor/violations.log file on the host machine (the maximum file size is 10MB, and up to 3 old files will be retained).
 
-The format of violation events is as follows. Behaviors that are intercepted and alarmed will generate `warn` level events, and behaviors that are alarmed only without interception will generate `debug` level events.
+The format of violation events is as follows. Behaviors that are intercepted and alarmed will generate events with the `DENIED` action. Behaviors that are alarmed only without interception will generate events with the `AUDIT`, `ALLOWED`, or `AUDIT|ALLOWED` action, depending on the policy mode and the enforcer.
 
 * Currently, only the AppArmor and BPF enforcers support the alarm-interception mode.
 * Limited by the principle and performance impact of Seccomp, you can only use `auditViolations=true` and `allowViolations=true` in combination to implement the alarm-only mode (observation mode) for the Seccomp enforcer when there is no policy in the BehaviorModeling mode.
@@ -109,7 +109,7 @@ The format of violation events is as follows. Behaviors that are intercepted and
 
 ```json
 {
-  "level": "debug",
+  "level": "warn",
   "metadata": {
     "varmorNamespace": "varmor"
   },

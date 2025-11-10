@@ -29,7 +29,7 @@ Manager 和 Agent 组件会通过标准输出记录日志。默认为 TEXT 格�
 ### 审计日志
 vArmor 支持将策略对象配置为仅告警不拦截（观察模式）、拦截并告警模式。您可以通过策略对象的 `auditViolations` 和 `allowViolations` 字段来实现此功能，常见用法请参考[此文档](../practices/index.md#常见用法)。所有违规事件都将以 JSON 格式记录到宿主机的 `/var/log/varmor/violations.log` 文件中（文件大小上限为 10MB，并最多保留 3 个旧文件）。
 
-违规事件格式如下所示，其中被拦截并告警的行为将生成 `warn` 级别的事件，仅告警不拦截的行为将生成 `debug` 级别的事件。
+违规事件的格式如下所示。其中被拦截并告警的行为将生成 action 为 `DENIED` 的事件。仅告警而未被拦截的行为将根据策略模式和 enforcer 生成 action 为 `AUDIT`、`ALLOWED` 或 `AUDIT|ALLOWED` 的事件。
 
 * 当前仅 AppArmor 和 BPF enforcer 支持拦截并告警模式。
 * 受限于 Seccomp 的原理和性能影响，您只能组合使用 `auditViolations=true` 和 `allowViolations=true`，在没有策略处于 BehaviorModeling 模式时，为 Seccomp enforcer 实现仅告警不拦截模式（观察模式）。
@@ -111,7 +111,7 @@ vArmor 支持将策略对象配置为仅告警不拦截（观察模式）、拦�
 
 ```json
 {
-  "level": "debug",
+  "level": "warn",
   "metadata": {
     "varmorNamespace": "varmor"
   },
