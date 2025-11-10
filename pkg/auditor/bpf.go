@@ -349,7 +349,7 @@ func (auditor *Auditor) readFromAuditEventRingBuf() {
 
 		case bpfenforcer.AuditAction:
 			// Write the violation event into the log file
-			auditor.violationLogger.Debug().
+			auditor.violationLogger.Warn().
 				Interface("metadata", auditor.auditEventMetadata).
 				Str("nodeName", auditor.nodeName).
 				Str("podUID", auditor.containerCache[eventHeader.MntNs].PodUID).

@@ -99,7 +99,7 @@ func (auditor *Auditor) processAuditEvent(event string) {
 				Str("profileName", profileName).
 				Interface("event", e).Msg("violation event")
 		case AuditAction:
-			auditor.violationLogger.Debug().
+			auditor.violationLogger.Warn().
 				Interface("metadata", auditor.auditEventMetadata).
 				Str("nodeName", auditor.nodeName).
 				Str("podUID", info.PodUID).
@@ -122,7 +122,7 @@ func (auditor *Auditor) processAuditEvent(event string) {
 			} else {
 				// Only record the allowed event when the policy is in the DefenseInDepth mode.
 				// This can reduce the noise in the violation log.
-				auditor.violationLogger.Debug().
+				auditor.violationLogger.Warn().
 					Interface("metadata", auditor.auditEventMetadata).
 					Str("nodeName", auditor.nodeName).
 					Str("podUID", info.PodUID).
@@ -195,7 +195,7 @@ func (auditor *Auditor) processAuditEvent(event string) {
 			// This can reduce the noise in the violation log.
 			// The events of the policy in the DefenseInDepth or EnhanceProtect mode will
 			// be recorded when no policy is being modeling.
-			auditor.violationLogger.Debug().
+			auditor.violationLogger.Warn().
 				Interface("metadata", auditor.auditEventMetadata).
 				Str("nodeName", auditor.nodeName).
 				Str("podUID", info.PodUID).
