@@ -183,7 +183,8 @@ ptrace (trace,read) peer=%s,
 
 %s
 profile %s flags=(attach_disconnected,mediate_deleted) {
-  %s
+
+%s
   #include <abstractions/base>
 
   network,
