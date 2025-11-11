@@ -163,14 +163,27 @@ spec:
         - pattern: "**ping"
           permissions:
           - exec
+          qualifiers:
+          - audit
+          - deny
         network:
           egresses:
-          - ip: fdbd:dc01:ff:307:9329:268d:3a27:2ca7
-          - ipBlock: 192.168.1.1/24
-            port: 80
+            toDestinations:
+            - ip: fdbd:dc01:ff:307:9329:268d:3a27:2ca7
+              qualifiers:
+              - audit
+              - deny
+            - cidr: 192.168.1.1/24
+              port: 80
+              qualifiers:
+              - audit
+              - deny
           sockets:
           - protocols:
             - "udp"
+            qualifiers:
+            - audit
+            - deny
       # The custom Seccomp rules:
       syscallRawRules:
       - names:
