@@ -486,7 +486,7 @@ func generateEnhanceProtectRulesForTargets(enhanceProtect *varmor.EnhanceProtect
 
 		targetsRix := ""
 		for _, target := range aarule.Targets {
-			targetsRix += fmt.Sprintf("%s rix,\n", target)
+			targetsRix += fmt.Sprintf("  %s rix,\n", target)
 		}
 
 		// Generate the final child profile for targets
