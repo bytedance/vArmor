@@ -44,7 +44,8 @@ const alwaysAllowChildTemplate = `
 
 %s
 profile %s flags=(attach_disconnected,mediate_deleted) {
-  %s
+
+%s
   #include <abstractions/base>
 
   file,
@@ -263,7 +264,8 @@ ptrace (trace,read) peer=%s,
 
 %s
 profile %s flags=(attach_disconnected,mediate_deleted) {
-  %s
+
+%s
   #include <abstractions/base>
 
   # processes with child profile may receive signals from processes with parent profile.
