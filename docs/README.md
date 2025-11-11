@@ -30,11 +30,8 @@ vArmor was created by the **Elkeid Team** of the endpoint security department at
 ### Architecture
 vArmor primarily consists of two components: the Manager and the Agent. The Manager is responsible for responding to and managing policy objects, while the Agent handles the management of enforcers and profiles on Nodes.
 
-<div>
-    <picture>
-        <source media="(prefers-color-scheme: light)" srcset="img/architecture.svg" width="600">
-        <img src="img/architecture-dark.svg" width="600">
-    </picture>
+<div style="text-align: center;">
+  <img src="img/architecture.svg" width="600">
 </div>
 
 ### Principle
@@ -42,10 +39,10 @@ vArmor primarily consists of two components: the Manager and the Agent. The Mana
 * With VarmorPolicy or VarmorClusterPolicy objects, users can harden specific workloads and decide which enforcers and rules to use.
 * The ArmorProfile CR acts as an internal interface used for profile management.
 
-<div>
+<div style="text-align: center;">
     <picture>
-        <source media="(prefers-color-scheme: light)" srcset="img/principle.svg" width="600">
-        <img src="img/principle-dark.svg" width="600">
+        <source media="(prefers-color-scheme: light)" srcset="img/principle.svg">
+        <img src="img/principle-dark.svg">
     </picture>
 </div>
 

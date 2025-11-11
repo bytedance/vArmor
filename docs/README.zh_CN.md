@@ -33,12 +33,8 @@ vArmor 项目由字节跳动终端安全团队的 **Elkeid Team** 创建，目�
 ### 架构
 vArmor 主要由 Manager 和 Agent 两个组件构成。Manager 用于响应和管理安全策略，而 Agent 则在集群节点上管理 enforcer（强制访问控制器）和 profile（安全配置文件）。
 
-
-<div>
-    <picture>
-        <source media="(prefers-color-scheme: light)" srcset="img/architecture.svg" width="600">
-        <img src="img/architecture-dark.svg" width="600">
-    </picture>
+<div style="text-align: center;">
+  <img src="img/architecture.svg" width="600">
 </div>
 
 ### 原理
@@ -46,10 +42,10 @@ vArmor 主要由 Manager 和 Agent 两个组件构成。Manager 用于响应和�
 * 您可以通过管理 VarmorPolicy 或 VarmorClusterPolicy CR 策略对象，使用不同的强制访问控制器及其规则来加固容器。
 * ArmorProfile CR 作为内部接口，用于安全配置文件的管理。
 
-<div>
+<div style="text-align: center;">
     <picture>
-        <source media="(prefers-color-scheme: light)" srcset="img/principle.svg" width="600">
-        <img src="img/principle-dark.svg" width="600">
+        <source media="(prefers-color-scheme: light)" srcset="img/principle.svg">
+        <img src="img/principle-dark.svg">
     </picture>
 </div>
 

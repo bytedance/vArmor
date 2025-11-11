@@ -34,6 +34,10 @@ vArmor is a cloud-native container sandbox system. It leverages Linux's [AppArmo
 
 vArmor was created by the **Elkeid Team** of the endpoint security department at ByteDance. And the project is still in active development.
 
+## Architecture
+<div style="text-align: center;">
+  <img src="docs/img/architecture.svg" width="600">
+</div>
 
 ## Documentation
 vArmor reference documents are available at [varmor.org](https://varmor.org).
