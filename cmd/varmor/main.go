@@ -97,7 +97,6 @@ func setLogger() {
 	var logrLogger logr.Logger
 	switch logFormat {
 	case "json":
-		zerolog.TimeFieldFormat = zerolog.TimeFormatUnixMicro
 		zerologger := zerolog.New(os.Stdout).With().Timestamp().Caller().Logger()
 		zerologr.SetMaxV(verbosity)
 		logrLogger = zerologr.New(&zerologger)
