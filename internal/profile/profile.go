@@ -205,6 +205,12 @@ func GenerateProfile(
 			return nil, nil, fmt.Errorf("the policy.defenseInDepth field cannot be nil")
 		}
 
+		if policy.DefenseInDepth.AllowViolations {
+			profile.Mode = varmor.ProfileModeComplain
+		} else {
+			profile.Mode = varmor.ProfileModeEnforce
+		}
+
 		// BPF
 		if (e & varmortypes.BPF) != 0 {
 			return nil, nil, fmt.Errorf("not supported by the BPF enforcer for now")
@@ -215,19 +221,12 @@ func GenerateProfile(
 				return nil, nil, fmt.Errorf("the policy.defenseInDepth.appArmor field cannot be nil")
 			}
 
-			if policy.DefenseInDepth.AllowViolations {
-				profile.Mode = varmor.ProfileModeComplain
-			} else {
-				profile.Mode = varmor.ProfileModeEnforce
-			}
-
 			switch policy.DefenseInDepth.AppArmor.ProfileType {
 			case varmor.ProfileTypeBehaviorModel:
 				apm, err := varmorapm.RetrieveArmorProfileModel(varmorInterface, namespace, name, false, logger)
 				if err != nil || apm.Data.Profile.AppArmor == "" {
 					return nil, nil, fmt.Errorf("failed to retrieve the AppArmor profile from the ArmorProfileModel object (%s/%s)", namespace, name)
 				}
-
 				profile.AppArmor = apparmorprofile.GenerateDefenseInDepthProfile(
 					policy.DefenseInDepth.AppArmor.AppArmorRawRules,
 					apm.Data.Profile.AppArmor,
@@ -237,7 +236,6 @@ func GenerateProfile(
 				if policy.DefenseInDepth.AppArmor.CustomProfile == "" {
 					return nil, nil, fmt.Errorf("the policy.defenseInDepth.appArmor.customProfile field cannot be empty")
 				}
-
 				profile.AppArmor = apparmorprofile.GenerateDefenseInDepthProfile(
 					policy.DefenseInDepth.AppArmor.AppArmorRawRules,
 					policy.DefenseInDepth.AppArmor.CustomProfile,
@@ -248,12 +246,6 @@ func GenerateProfile(
 		if (e & varmortypes.Seccomp) != 0 {
 			if policy.DefenseInDepth.Seccomp == nil {
 				return nil, nil, fmt.Errorf("the policy.defenseInDepth.seccomp field cannot be nil")
-			}
-
-			if policy.DefenseInDepth.AllowViolations {
-				profile.Mode = varmor.ProfileModeComplain
-			} else {
-				profile.Mode = varmor.ProfileModeEnforce
 			}
 
 			switch policy.DefenseInDepth.Seccomp.ProfileType {
