@@ -175,7 +175,7 @@ date: 2025-04-07T00:00
 #### 安装 vArmor
 
 ```bash
-helm install varmor varmor-0.7.0.tgz  \
+helm install varmor varmor-x.y.z.tgz  \
     --namespace varmor --create-namespace \
     --set image.registry="elkeid-cn-beijing.cr.volces.com" \
     --set image.namespace="varmor" \
@@ -279,9 +279,9 @@ kubectl get pods -A -o json | jq -r '
 5. 分别导出行为数据和  AppArmor Profile
 
     ```bash
-    $ kubectl get ArmorProfileModel -n kube-system $name -o jsonpath='{.data.dynamicResult.apparmor}' | jq > behavior_data.json
+    $ kubectl get ArmorProfileModel -n kube-system $name -o jsonpath='{.data.dynamicResult.appArmor}' | jq > behavior_data.json
 
-    $ kubectl get ArmorProfileModel -n kube-system $name -o jsonpath='{.data.profile.content}' > apparmor_profile.txt
+    $ kubectl get ArmorProfileModel -n kube-system $name -o jsonpath='{.data.profile.appArmor}' > apparmor_profile.txt
     ```
 
     注意：当 STORAGE-TYPE 为 LocalDisk 时，请参考[此方法](https://varmor.org/zh-cn/docs/main/guides/policies_and_rules/policy_modes/behavior_modeling/#%E6%95%B0%E6%8D%AE%E5%AF%BC%E5%87%BA)导出数据。

@@ -8,6 +8,8 @@
 
 DefenseInDepth 模式是 vArmor 的一个实验功能，它力图结合多种技术（行为建模、违规审计、大语言模型辅助分析与处理等），为您提供一种低门槛、高易用的微服务强制访问控制配置文件生成与管理解决方案。
 
+当前只有 AppArmor 和 Seccomp enforcer 支持 DefenseInDepth 模式。
+
 ## 核心能力
 
 当前，DefenseInDepth 模式支持使用两种类型的配置文件来防护目标。

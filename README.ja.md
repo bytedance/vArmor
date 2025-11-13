@@ -33,7 +33,9 @@ vArmorは、ByteDanceのエンドポイントセキュリティ部門の**Elkeid
 *注意: 厳格な隔離要件を満たすためには、計算隔離のためにハードウェア仮想化コンテナ（例：Kata Containers）を優先的に使用し、CNIのNetworkPolicyによるネットワーク隔離と組み合わせることをお勧めします。*
 
 ## アーキテクチャ
-<img src="docs/img/architecture.png" width="600">
+<div style="text-align: center;">
+  <img src="docs/img/architecture.svg" width="600">
+</div>
 
 ## 前提条件
 ポリシーオブジェクト（[VarmorPolicy](docs/usage_instructions.md#varmorpolicy)/[VarmorClusterPolicy](docs/usage_instructions.md#varmorclusterpolicy)）の`spec.policy.enforcer`フィールドを使用してエンフォーサーを指定できます。さらに、異なるエンフォーサーを個別または組み合わせて使用することもできます。例：AppArmorBPF、AppArmorSeccomp、AppArmorBPFSeccompなど。
@@ -58,13 +60,13 @@ vArmorポリシーは、**AlwaysAllow、RuntimeDefault、EnhanceProtect、Behavi
 
 ### ステップ1. チャートの取得
 ```
-helm pull oci://elkeid-ap-southeast-1.cr.volces.com/varmor/varmor --version 0.8.2
+helm pull oci://elkeid-ap-southeast-1.cr.volces.com/varmor/varmor --version 0.9.0
 ```
 
 ### ステップ2. インストール
 *中国地域内では、ドメイン`elkeid-cn-beijing.cr.volces.com`を使用できます。*
 ```
-helm install varmor varmor-0.8.2.tgz \
+helm install varmor varmor-0.9.0.tgz \
     --namespace varmor --create-namespace \
     --set image.registry="elkeid-ap-southeast-1.cr.volces.com"
 ```

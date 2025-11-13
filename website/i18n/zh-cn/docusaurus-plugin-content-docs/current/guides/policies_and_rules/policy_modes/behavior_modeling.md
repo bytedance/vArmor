@@ -11,13 +11,9 @@ BehaviorModeling 模式是一个实验功能。您可以利用 BehaviorModeling 
 
 行为模型可以被用于分析哪些内置规则能够被用于加固目标应用，或者指导用户对工作负载的安全上下文进行权限最小化。
 
-当前只有 AppArmor 和 Seccomp enforcer 支持 BehaviorModeling 模式。
-
 ## 前置条件
 
-vArmor 当前利用一个内置的 BPF tracer 和 Linux 审计系统来捕获目标应用的行为。
-
-BehaviorModeling 模式的前置条件如下所示：
+vArmor 利用 BPF 技术和 Linux 审计系统来捕获目标应用的行为。前置条件如下所示：
 
 1. containerd v1.6.0 及以上版本
 
@@ -152,7 +148,7 @@ demo-4   AppArmorSeccomp   BehaviorModeling   Deployment                  {"matc
 
 建模完成后，agent 会对在节点上采集到的（目标工作负载的）行为数据进行预处理，然后将其发送到 manager。而 manager 将对所有节点采集的数据进行分析，并将其保存在对应命名空间的 [ArmorProfileModel](https://github.com/bytedance/vArmor/blob/main/apis/varmor/v1beta1/armorprofilemodel_types.go) 对象的 `.data.dynamicResult` 字段中。
   
-manager 处理完所有节点的行为数据后，它会以白名单方式（Deny-by-Default）为目标工作负载生成 AppArmor 或 Seccomp Profile，并保存在 ArmorProfileModel 对象的 `.data.profile.content` 和 `.data.profile.seccompContent` 字段中。
+manager 处理完所有节点的行为数据后，它会以白名单方式（Deny-by-Default）为目标工作负载生成 AppArmor 或 Seccomp Profile，并保存在 ArmorProfileModel 对象的 `.data.profile.appArmor` 和 `.data.profile.seccomp` 字段中。
   
 当数据量过大导致无法保存在 CRD 对象中时，manager 会将其保存在本地。您可以通过 ArmorProfileModel 对象的 `.storageType` 字段判断行为数据和 Profile 的存储形式。
 
@@ -167,6 +163,7 @@ demo        varmor-cluster-demo-demo-4   CRDInternal    2         2           tr
 * 目标工作负载需要拥有 `sandbox.varmor.org/enable="true"` 标签。您可以通过 [设置 Webhook 的匹配标签](../../../getting_started/installation.md#设置-webhook-的匹配标签) 配置选项关闭此特性。
 * 建模完成后，方可将 **BehaviorModeling** 切换为其他模式。
 * 从其他模式切换到 **BehaviorModeling** 或建模已经完成时，您需要更新建模时长并重启目标工作负载，以重新启动行为建模过程。
+* 使用 **BPF enforcer** 进行行为建模期间，尽量不要使用 `kubectl exec` 在容器中执行交互式命令，否则会采集到额外的行为数据。
 
 ### 数据持久化
 
@@ -417,7 +414,7 @@ vArmor 还会基于行为数据生成默认拦截的 AppArmor 和 Seccomp profil
 您可以使用下面的命令输出 AppArmor profile。
 
 ```bash
-$ kubectl get ArmorProfileModel -n varmor varmor-cluster-varmor-demo-4 -o jsonpath='{.data.profile.content}'
+$ kubectl get ArmorProfileModel -n varmor varmor-cluster-varmor-demo-4 -o jsonpath='{.data.profile.appArmor}'
 
 ## == Managed by vArmor == ##
 
@@ -474,7 +471,7 @@ profile varmor-cluster-varmor-demo-4 flags=(attach_disconnected,mediate_deleted)
 您可以使用下面的命令输出 Seccomp profile。
 
 ```bash
-$ kubectl get ArmorProfileModel -n varmor varmor-cluster-varmor-demo-4 -o jsonpath='{.data.profile.seccompContent}' | jq
+$ kubectl get ArmorProfileModel -n varmor varmor-cluster-varmor-demo-4 -o jsonpath='{.data.profile.seccomp}' | jq
 {
   "defaultAction": "SCMP_ACT_ERRNO",
   "syscalls": [

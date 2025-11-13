@@ -33,12 +33,8 @@ vArmor 项目由字节跳动终端安全团队的 **Elkeid Team** 创建，目�
 ### 架构
 vArmor 主要由 Manager 和 Agent 两个组件构成。Manager 用于响应和管理安全策略，而 Agent 则在集群节点上管理 enforcer（强制访问控制器）和 profile（安全配置文件）。
 
-
-<div>
-    <picture>
-        <source media="(prefers-color-scheme: light)" srcset="img/architecture.svg" width="600">
-        <img src="img/architecture-dark.svg" width="600">
-    </picture>
+<div style="text-align: center;">
+  <img src="img/architecture.svg" width="600">
 </div>
 
 ### 原理
@@ -46,10 +42,10 @@ vArmor 主要由 Manager 和 Agent 两个组件构成。Manager 用于响应和�
 * 您可以通过管理 VarmorPolicy 或 VarmorClusterPolicy CR 策略对象，使用不同的强制访问控制器及其规则来加固容器。
 * ArmorProfile CR 作为内部接口，用于安全配置文件的管理。
 
-<div>
+<div style="text-align: center;">
     <picture>
-        <source media="(prefers-color-scheme: light)" srcset="img/principle.svg" width="600">
-        <img src="img/principle-dark.svg" width="600">
+        <source media="(prefers-color-scheme: light)" srcset="img/principle.svg">
+        <img src="img/principle-dark.svg">
     </picture>
 </div>
 
@@ -77,8 +73,8 @@ vArmor 的策略可以运行在五种模式中：*AlwaysAllow, RuntimeDefault, E
 
 |强制访问控制器|要求|推荐|
 |------------|--------------------------------------------|--------|
-|AppArmor    |1. Linux Kernel 4.15 及以上版本<br />2. 系统需开启 AppArmor LSM|GKE with Container-Optimized OS<br />AKS with Ubuntu 22.04 LTS<br />[VKE](https://www.volcengine.com/product/vke) with veLinux 1.0<br />Debian 10 及以上版本<br />Ubuntu 18.04.0 LTS 及以上版本<br />[veLinux 1.0](https://www.volcengine.com/docs/6396/74967) 等
-|BPF         |1. Linux Kernel 5.10 及以上版本 (x86_64)<br />2. containerd v1.6.0 及以上版本<br />3. 系统需开启 BPF LSM|EKS with Amazon Linux 2<br />GKE with Container-Optimized OS<br />[VKE](https://www.volcengine.com/product/vke) with veLinux 1.0 (with 5.10 kernel)<br />AKS with Ubuntu 22.04 LTS <sup>\*</sup><br />ACK with Alibaba Cloud Linux 3 <sup>\*</sup><br />OpenSUSE 15.4  <sup>\*</sup><br />Debian 11 <sup>\*</sup><br />Fedora 37<br />[veLinux 1.0 with 5.10 kernel](https://www.volcengine.com/docs/6396/74967) 等<br /><br />* *需手动启用节点的 BPF LSM*
+|AppArmor    |1. Linux Kernel 4.15 及以上版本<br />2. 系统需开启 AppArmor LSM|GKE with Container-Optimized OS<br />AKS with Ubuntu<br />[VKE](https://www.volcengine.com/product/vke) with veLinux<br />Debian 10 及以上版本<br />Ubuntu 18.04.0 LTS 及以上版本<br />[veLinux](https://www.volcengine.com/docs/6396/74967) 等
+|BPF         |1. Linux Kernel 5.10 及以上版本 (x86_64)<br />2. containerd v1.6.0 及以上版本<br />3. 系统需开启 BPF LSM|EKS with Amazon Linux 2<br />GKE with Container-Optimized OS<br />[VKE](https://www.volcengine.com/product/vke) with veLinux (with 5.10 kernel)<br />AKS with Ubuntu 22.04 LTS <sup>\*</sup><br />ACK with Alibaba Cloud Linux 3 <sup>\*</sup><br />OpenSUSE 15.4  <sup>\*</sup><br />Debian 11 <sup>\*</sup><br />Fedora 37<br />[veLinux (with 5.10 kernel)](https://www.volcengine.com/docs/6396/74967) 等<br /><br />* *需手动启用节点的 BPF LSM*
 |Seccomp     |1. Kubernetes v1.19 及以上版本|所有 Linux 发行版
 
 
@@ -86,14 +82,14 @@ vArmor 的策略可以运行在五种模式中：*AlwaysAllow, RuntimeDefault, E
 ### 步骤 1. 拉取 chart 包
 
 ```bash
-helm pull oci://elkeid-ap-southeast-1.cr.volces.com/varmor/varmor --version 0.8.2
+helm pull oci://elkeid-ap-southeast-1.cr.volces.com/varmor/varmor --version 0.9.0
 ```
 
 ### 步骤 2. 安装
 vArmor 默认支持 AppArmor 和 Seccomp enforcer。请参照 [配置选项](getting_started/installation.zh_CN.md#配置选项) 查看更多信息。
 
 ```bash
-helm install varmor varmor-0.8.2.tgz \
+helm install varmor varmor-0.9.0.tgz \
     --namespace varmor --create-namespace \
     --set image.registry="elkeid-cn-beijing-1.cr.volces.com"
 ```

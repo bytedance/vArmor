@@ -10,6 +10,8 @@ The Mandatory Access Control (MAC) policy based on the **Deny-by-Default** secur
 
 The DefenseInDepth mode is an experimental feature of vArmor. It aims to combine various technologies (behavior modeling, violation auditing, LLM-assisted analysis and processing, etc.) to provide you with a low-threshold and highly user-friendly solution for generating and managing profiles for microservices.
 
+Currently, only AppArmor and Seccomp enforcers support the DefenseInDepth mode.
+
 ## Core Capabilities
 
 Currently, the DefenseInDepth mode supports the use of two types of profiles to protect target workloads.
