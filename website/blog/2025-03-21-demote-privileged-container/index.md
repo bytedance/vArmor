@@ -181,7 +181,7 @@ Note that all examples are self-tested by the author of this article. They may b
 #### Install vArmor
 
 ```bash
-helm install varmor varmor-0.7.0.tgz  \
+helm install varmor varmor-x.y.z.tgz  \
     --namespace varmor --create-namespace \
     --set image.registry="elkeid-cn-beijing.cr.volces.com" \
     --set image.namespace="varmor" \

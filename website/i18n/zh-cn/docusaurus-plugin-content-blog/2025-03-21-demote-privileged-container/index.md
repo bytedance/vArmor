@@ -175,7 +175,7 @@ date: 2025-04-07T00:00
 #### 安装 vArmor
 
 ```bash
-helm install varmor varmor-0.7.0.tgz  \
+helm install varmor varmor-x.y.z.tgz  \
     --namespace varmor --create-namespace \
     --set image.registry="elkeid-cn-beijing.cr.volces.com" \
     --set image.namespace="varmor" \
