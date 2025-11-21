@@ -114,6 +114,18 @@ var (
 	// MutatingWebhookServicePath is the path for mutation webhook
 	MutatingWebhookServicePath = "/mutate"
 
+	// ValidatingWebhookConfigurationName default policy validating webhook configuration name
+	ValidatingWebhookConfigurationName = "varmor-policy-validating-webhook-cfg"
+
+	// ValidatingWebhookConfigurationNameDebug default policy validating webhook configuration name for debug mode
+	ValidatingWebhookConfigurationDebugName = "varmor-policy-validating-webhook-cfg-debug"
+
+	// ValidatingWorkloadWebhookName is the name of policy validating webhook
+	ValidatingPolicyWebhookName = "validatepolicy.varmor.org"
+
+	// ValidatingWebhookServicePath is the path for validation webhook
+	ValidatingWebhookServicePath = "/validate"
+
 	// WebhookTimeout specifies the timeout seconds for the mutation webhook
 	WebhookTimeout = 10
 

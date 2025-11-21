@@ -310,22 +310,24 @@ func main() {
 		)
 		secretFactory.Start(stopCh)
 
-		mwcFactory := kubeinformers.NewSharedInformerFactoryWithOptions(kubeClient, secretResyncPeriod)
+		wcFactory := kubeinformers.NewSharedInformerFactoryWithOptions(kubeClient, secretResyncPeriod)
 		webhookRegister := webhookconfig.NewRegister(
 			clientConfig,
 			kubeClient.AdmissionregistrationV1().MutatingWebhookConfigurations(),
+			kubeClient.AdmissionregistrationV1().ValidatingWebhookConfigurations(),
 			kubeClient.CoreV1().Secrets(config.Namespace),
 			kubeClient.AppsV1().Deployments(config.Namespace),
 			kubeClient.CoordinationV1().Leases(config.Namespace),
 			varmorClient.CrdV1beta1(),
-			mwcFactory.Admissionregistration().V1().MutatingWebhookConfigurations(),
+			wcFactory.Admissionregistration().V1().MutatingWebhookConfigurations(),
+			wcFactory.Admissionregistration().V1().ValidatingWebhookConfigurations(),
 			managerIP,
 			int32(webhookTimeout),
 			inContainer,
 			stopCh,
 			logger.WithName("WEBHOOK-CONFIG"),
 		)
-		mwcFactory.Start(stopCh)
+		wcFactory.Start(stopCh)
 
 		// Elect a leader to register the admission webhook configurations.
 		registerWebhookConfigurations := func(ctx context.Context) {
@@ -368,6 +370,7 @@ func main() {
 			tlsPair,
 			managerIP,
 			config.WebhookServicePort,
+			enableBehaviorModeling,
 			bpfExclusiveMode,
 			metricsModule,
 			logger.WithName("WEBHOOK-SERVER"))
