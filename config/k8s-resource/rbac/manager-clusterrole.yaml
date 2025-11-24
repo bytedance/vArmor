@@ -105,6 +105,7 @@ rules:
   - admissionregistration.k8s.io
   resources:
   - mutatingwebhookconfigurations
+  - validatingwebhookconfigurations
   verbs:
   - create
   - list
@@ -113,11 +114,14 @@ rules:
   - admissionregistration.k8s.io
   resources:
   - mutatingwebhookconfigurations
+  - validatingwebhookconfigurations
   verbs:
   - delete
   resourceNames:
   - varmor-resource-mutating-webhook-cfg
   - varmor-resource-mutating-webhook-cfg-debug
+  - varmor-policy-validating-webhook-cfg
+  - varmor-policy-validating-webhook-cfg-debug
 - apiGroups:
   - authentication.k8s.io
   resources:
