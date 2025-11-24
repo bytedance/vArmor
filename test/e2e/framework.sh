@@ -221,6 +221,9 @@ run_testcase() {
     for policy_file in ${ENHANCED_POLICY_FILES}; do
         apply_policy "${policy_file}"
     done
+
+    # Wait for the policy to take effect
+    sleep 5
     
     # Execute verification command and verify result
     execute_command "${POD_NAME}" "${CONTAINER_NAME}" "${VERIFY_COMMAND}" "${VERIFY_EXPECTED_STATUS}"
