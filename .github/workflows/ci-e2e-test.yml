@@ -115,9 +115,11 @@ jobs:
               --set manager.image.pullPolicy="Never" \
               --set agent.image.pullPolicy="Never" \
               --set classifier.image.pullPolicy="Never"
-          sleep 60
-          kubectl get pods -n varmor
-      
+          echo "Waiting for vArmor to be ready..."
+          k3s kubectl wait --for=condition=available deployment/varmor-manager -n varmor --timeout=60s
+          k3s kubectl wait --for=condition=ready pod -l app.kubernetes.io/component=varmor-agent -n varmor --timeout=60s
+          echo "vArmor components are ready!"
+        
       - name: Run E2E Tests
         run: |
           chmod +x ./test/e2e/framework.sh
