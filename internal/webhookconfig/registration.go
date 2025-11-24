@@ -393,9 +393,9 @@ func (wrc *Register) removeWebhookConfigurations() {
 		if !k8errors.IsNotFound(err) {
 			logger.Error(err, "failed to delete MutatingWebhookConfiguration", "name", configName)
 		}
-		return
+	} else {
+		logger.Info("MutatingWebhookConfiguration deleted")
 	}
-	logger.Info("MutatingWebhookConfiguration deleted")
 
 	configName = getPolicyValidatingWebhookConfigName(wrc.inContainer)
 	err = wrc.validateInterface.Delete(context.Background(), configName, metav1.DeleteOptions{})
@@ -403,9 +403,9 @@ func (wrc *Register) removeWebhookConfigurations() {
 		if !k8errors.IsNotFound(err) {
 			logger.Error(err, "failed to delete ValidatingWebhookConfiguration", "name", configName)
 		}
-		return
+	} else {
+		logger.Info("ValidatingWebhookConfiguration deleted")
 	}
-	logger.Info("ValidatingWebhookConfiguration deleted")
 }
 
 func (wrc *Register) removeSecrets() {

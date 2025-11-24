@@ -212,6 +212,9 @@ func (ws *WebhookServer) resourceMutation(request *admissionv1.AdmissionRequest)
 	return successResponse(request.UID, nil)
 }
 
+// policyValidation validates VarmorPolicy and VarmorClusterPolicy objects during CREATE and UPDATE operations.
+// The validation ensures that policy specifications are correct and consistent. When validation fails,
+// the operation is rejected to prevent invalid policies from being applied to the cluster.
 func (ws *WebhookServer) policyValidation(request *admissionv1.AdmissionRequest) *admissionv1.AdmissionResponse {
 	logger := ws.log.WithName("policyValidation()")
 	logger.Info("validating policy", "kind", request.Kind.Kind, "namespace", request.Namespace, "name", request.Name, "operation", request.Operation)
