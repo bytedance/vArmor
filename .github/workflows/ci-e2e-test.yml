@@ -219,7 +219,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: e2e-test-results-with-ubuntu-runner
+          name: e2e-test-results-with-ubuntu-runner-${{ matrix.k8s_version }}
           path: test-results/
 
       - name: Cleanup
