@@ -115,7 +115,7 @@ apply_policy() {
     # Wait for policy to take effect
     log_info "Waiting for the policy to be ready..."
 
-    ${KUBECTL_CMD} wait --for=jsonpath='{.status.phase}'=Protecting VarmorPolicy -n ${NAMESPACE} ${POLICY_NAME} --timeout=30s
+    ${KUBECTL_CMD} wait --for=condition=Ready VarmorPolicy -n ${NAMESPACE} ${POLICY_NAME} --timeout=30s
     if [ $? -ne 0 ]; then
         log_error "The policy ${NAMESPACE}/${POLICY_NAME} is not ready after 30s."
         return 1
@@ -221,9 +221,6 @@ run_testcase() {
     for policy_file in ${ENHANCED_POLICY_FILES}; do
         apply_policy "${policy_file}"
     done
-
-    # Wait for the policy to take effect
-    sleep 5
     
     # Execute verification command and verify result
     execute_command "${POD_NAME}" "${CONTAINER_NAME}" "${VERIFY_COMMAND}" "${VERIFY_EXPECTED_STATUS}"
