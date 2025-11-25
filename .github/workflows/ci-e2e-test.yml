@@ -65,7 +65,7 @@ jobs:
       - id: SetVersion
         run: echo "version=$(git describe --tags --match "v[0-9]*" | sed 's/^v//')">> "$GITHUB_OUTPUT"
 
-  e2e-test-in-self-hosted-runner:
+  e2e-test-with-self-hosted-runner:
     needs: build
     strategy:
       fail-fast: false
@@ -116,10 +116,10 @@ jobs:
               --set manager.image.pullPolicy="Never" \
               --set agent.image.pullPolicy="Never" \
               --set classifier.image.pullPolicy="Never"
-          echo "Waiting for vArmor to be ready..."
           k3s kubectl patch ds -n varmor varmor-agent --type='json' -p='[{"op": "replace", "path": "/spec/template/spec/volumes/2/hostPath/path", "value":"/run/k3s/containerd"}]'
-          k3s kubectl wait --for=condition=available deployment/varmor-manager -n varmor --timeout=-1s
-          k3s kubectl wait --for=condition=ready pod -l app.kubernetes.io/component=varmor-agent -n varmor --timeout=-1s
+          echo "Waiting for vArmor to be ready..."
+          k3s kubectl wait --for=condition=available deployment/varmor-manager -n varmor --timeout=-1s -o yaml
+          k3s kubectl wait --for=condition=ready pod -l app.kubernetes.io/component=varmor-agent -n varmor --timeout=-1s -o yaml
           echo "vArmor components are ready!"
         
       - name: Run E2E Tests
@@ -138,14 +138,14 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: e2e-test-in-self-hosted-runner-results
+          name: e2e-test-results-with-self-hosted-runner
           path: test-results/
 
       - name: Cleanup
         if: always()
         run: ./.github/scripts/kill-and-clean-all.sh
 
-  e2e-test-in-ubuntu-runner:
+  e2e-test-with-ubuntu-runner:
     needs: build
     strategy:
       fail-fast: false
@@ -197,10 +197,10 @@ jobs:
               --set manager.image.pullPolicy="Never" \
               --set agent.image.pullPolicy="Never" \
               --set classifier.image.pullPolicy="Never"
-          echo "Waiting for vArmor to be ready..."
           k3s kubectl patch ds -n varmor varmor-agent --type='json' -p='[{"op": "replace", "path": "/spec/template/spec/volumes/2/hostPath/path", "value":"/run/k3s/containerd"}]'
-          k3s kubectl wait --for=condition=available deployment/varmor-manager -n varmor --timeout=-1s
-          k3s kubectl wait --for=condition=ready pod -l app.kubernetes.io/component=varmor-agent -n varmor --timeout=-1s
+          echo "Waiting for vArmor to be ready..."
+          k3s kubectl wait --for=condition=available deployment/varmor-manager -n varmor --timeout=-1s -o yaml
+          k3s kubectl wait --for=condition=ready pod -l app.kubernetes.io/component=varmor-agent -n varmor --timeout=-1s -o yaml
           echo "vArmor components are ready!"
         
       - name: Run E2E Tests
@@ -219,7 +219,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: e2e-test-in-ubuntu-runner-results
+          name: e2e-test-results-with-ubuntu-runner
           path: test-results/
 
       - name: Cleanup
