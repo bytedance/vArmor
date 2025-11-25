@@ -61,7 +61,7 @@ wait_for_varmor_ready() {
         return 1
     fi
 
-    ${KUBECTL_CMD} wait --for=jsonpath='{.status.numberAvailable}'=1 ds -n varmor varmor-agent --timeout=120s
+    ${KUBECTL_CMD} wait --for=jsonpath='{.status.numberReady}'=1 ds -n varmor varmor-agent --timeout=120s
     if [ $? -ne 0 ]; then
         ${KUBECTL_CMD} get pods -n varmor -l app.kubernetes.io/component=varmor-agent
         log_info "---------" 
