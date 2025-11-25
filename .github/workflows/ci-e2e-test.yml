@@ -70,7 +70,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        k8s_version: [ "1.26.15" ] # 可以根据需要添加更多版本
+        k8s_version: [ "1.28.13" ] # 可以根据需要添加更多版本
     runs-on:  self-hosted
     env:
       KUBE_VER: ${{ matrix.k8s_version }}
