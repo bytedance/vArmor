@@ -9,7 +9,7 @@ K8S_VERSION=$1
 
 # Install K3s with the specified version
 echo "Installing K3s version $K8S_VERSION..."
-curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="v$K8S_VERSION+k3s1" K3S_KUBECONFIG_MODE="644" INSTALL_K3S_EXEC="--disable=traefik" sh -
+curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="v$K8S_VERSION+k3s1" K3S_KUBECONFIG_MODE="644" HTTP_PROXY="100.68.175.43:3128" HTTPS_PROXY="100.68.175.43:3128" INSTALL_K3S_EXEC="--disable=traefik" sh -
 
 # Check if K3s is installed successfully
 if [ $? -eq 0 ]; then
