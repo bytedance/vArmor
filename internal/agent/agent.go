@@ -104,7 +104,6 @@ func NewAgent(
 	svcAddresses map[string]string,
 	debug bool,
 	inContainer bool,
-	runtimeEndpoint string,
 	auditLogPaths string,
 	stopCh <-chan struct{},
 	metricsModule *varmormetrics.MetricsModule,
@@ -191,7 +190,7 @@ func NewAgent(
 
 	// Initialize the runtime monitor
 	log.Info("initialize the RuntimeMonitor")
-	agent.monitor, err = varmorruntime.NewRuntimeMonitor(runtimeEndpoint, log.WithName("RUNTIME-MONITOR"))
+	agent.monitor, err = varmorruntime.NewRuntimeMonitor(log.WithName("RUNTIME-MONITOR"))
 	if err != nil {
 		return nil, err
 	}

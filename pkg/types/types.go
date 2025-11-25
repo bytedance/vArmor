@@ -23,6 +23,9 @@ const (
 	// K8sCriNamespace is the CRI namespace of Kubernetes
 	K8sCriNamespace string = "k8s.io"
 
+	// RuntimeEndpoint is the socket address of the containerd
+	RuntimeEndpoint string = "/run/containerd/containerd.sock"
+
 	// RuntimeTimeout is the timeout period when accessing the containerd server
 	// to retrieve container and pod information
 	RuntimeTimeout time.Duration = time.Second * 5
