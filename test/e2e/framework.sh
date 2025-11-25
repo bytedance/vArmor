@@ -61,12 +61,14 @@ wait_for_varmor_ready() {
         return 1
     fi
 
-    ${KUBECTL_CMD} wait --for=condition=ready pod -l app.kubernetes.io/component=varmor-agent -n varmor --timeout=120s
+    ${KUBECTL_CMD} wait --for=jsonpath='{.status.numberAvailable}'=1 ds -n varmor varmor-agent --timeout=120s
     if [ $? -ne 0 ]; then
-        name=$(${KUBECTL_CMD} get pods -n varmor -l app.kubernetes.io/component=varmor-agent -n varmor -o jsonpath='{.items[0].metadata.name}')
-        ${KUBECTL_CMD} describe pod ${name} -n varmor
+        ${KUBECTL_CMD} get pods -n varmor -l app.kubernetes.io/component=varmor-agent
         log_info "---------" 
-        ${KUBECTL_CMD} logs ${name} -n varmor
+        name=$(${KUBECTL_CMD} get pods -n varmor -l app.kubernetes.io/component=varmor-agent -o jsonpath='{.items[0].metadata.name}')
+        ${KUBECTL_CMD} describe pod -n varmor ${name}
+        log_info "---------" 
+        ${KUBECTL_CMD} logs -n varmor ${name}
         log_error "varmor-agent pods are not ready"
         return 1
     fi
