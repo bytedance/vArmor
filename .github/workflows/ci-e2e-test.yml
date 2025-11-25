@@ -107,6 +107,7 @@ jobs:
       
       - name: Install vArmor
         run: |
+          export KUBECONFIG=~/.kube/config
           helm install varmor varmor-*.tgz \
               --namespace varmor --create-namespace \
               --set image.registry="elkeid-ap-southeast-1.cr.volces.com" \
