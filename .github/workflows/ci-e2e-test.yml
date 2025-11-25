@@ -115,9 +115,9 @@ jobs:
               --set image.namespace="varmor-test" \
               --set manager.image.pullPolicy="Never" \
               --set agent.image.pullPolicy="Never" \
-              --set "agent.args={--runtimeEndpoint=/run/k3s/containerd/containerd.sock}" \
               --set classifier.image.pullPolicy="Never"
           echo "Waiting for vArmor to be ready..."
+          kubectl patch ds -n varmor varmor-agent --type='json' -p='[{"op": "replace", "path": "/spec/template/spec/volumes/2/hostPath/path", "value":"/run/k3s/containerd"}]'
           k3s kubectl wait --for=condition=available deployment/varmor-manager -n varmor --timeout=-1s
           k3s kubectl wait --for=condition=ready pod -l app.kubernetes.io/component=varmor-agent -n varmor
           echo "vArmor components are ready!"
