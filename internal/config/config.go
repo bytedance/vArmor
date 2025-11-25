@@ -155,6 +155,9 @@ var (
 
 	// AuditEventMetadata caches the cluster metadata that can be injected into the logs
 	AuditEventMetadata = loadAuditEventMetadata()
+
+	// RuntimeEndpoint is the socket address of the containerd
+	RuntimeEndpoint string = "/run/containerd/containerd.sock"
 )
 
 // CreateClientConfig creates client config and applies rate limit QPS and burst

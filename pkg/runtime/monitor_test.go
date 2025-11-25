@@ -32,7 +32,7 @@ func Test_createRuntimeMonitor(t *testing.T) {
 
 	c := textlogger.NewConfig()
 	log.SetLogger(textlogger.NewLogger(c))
-	monitor, err := NewRuntimeMonitor(log.Log.WithName("TEST"))
+	monitor, err := NewRuntimeMonitor("/run/containerd/containerd.sock", log.Log.WithName("TEST"))
 	if err != nil {
 		return
 	}
@@ -48,7 +48,7 @@ func Test_watchContainerdEvents(t *testing.T) {
 
 	c := textlogger.NewConfig()
 	log.SetLogger(textlogger.NewLogger(c))
-	monitor, err := NewRuntimeMonitor(log.Log.WithName("TEST_RUNTIME_MONITOR"))
+	monitor, err := NewRuntimeMonitor("/run/containerd/containerd.sock", log.Log.WithName("TEST_RUNTIME_MONITOR"))
 	if err != nil {
 		return
 	}
@@ -88,7 +88,7 @@ func Test_CollectExistingTargetContainers(t *testing.T) {
 
 	c := textlogger.NewConfig()
 	log.SetLogger(textlogger.NewLogger(c))
-	monitor, err := NewRuntimeMonitor(log.Log.WithName("TEST"))
+	monitor, err := NewRuntimeMonitor("/run/containerd/containerd.sock", log.Log.WithName("TEST"))
 	if err != nil {
 		return
 	}

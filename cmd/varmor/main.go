@@ -79,6 +79,7 @@ var (
 	logFormat                     string
 	verbosity                     int
 	managerIP                     string
+	runtimeEndpoint               string
 	kubeconfig                    string
 	versionFlag                   bool
 	debugFlag                     bool
@@ -143,6 +144,7 @@ func main() {
 	flag.IntVar(&verbosity, "v", 0, "Log verbosity level (higher value means more verbose).")
 	flag.IntVar(&verbosity, "verbosity", 0, "Log verbosity level (higher value means more verbose).")
 	flag.StringVar(&managerIP, "managerIP", "0.0.0.0", "Configure the IP address of manager.")
+	flag.StringVar(&runtimeEndpoint, "runtimeEndpoint", config.RuntimeEndpoint, "Configure the socket address of the containerd runtime.")
 	flag.StringVar(&kubeconfig, "kubeconfig", "", "Path to a kubeconfig. Only required if out-of-cluster.")
 	flag.BoolVar(&versionFlag, "version", false, "Print the version information.")
 	flag.BoolVar(&debugFlag, "debug", false, "Enable debug mode.")
@@ -244,6 +246,7 @@ func main() {
 			svcAddresses,
 			debugFlag,
 			inContainer,
+			runtimeEndpoint,
 			auditLogPaths,
 			stopCh,
 			metricsModule,

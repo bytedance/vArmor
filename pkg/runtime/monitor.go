@@ -47,7 +47,7 @@ type RuntimeMonitor struct {
 	log               logr.Logger
 }
 
-func NewRuntimeMonitor(log logr.Logger) (*RuntimeMonitor, error) {
+func NewRuntimeMonitor(runtimeEndpoint string, log logr.Logger) (*RuntimeMonitor, error) {
 	var err error
 
 	monitor := RuntimeMonitor{
@@ -57,12 +57,12 @@ func NewRuntimeMonitor(log logr.Logger) (*RuntimeMonitor, error) {
 		log:               log,
 	}
 
-	monitor.containerdClient, err = newContainerdClient(varmortypes.RuntimeEndpoint, varmortypes.RuntimeTimeout)
+	monitor.containerdClient, err = newContainerdClient(runtimeEndpoint, varmortypes.RuntimeTimeout)
 	if err != nil {
 		return nil, err
 	}
 
-	monitor.runtimeClient, monitor.runtimeConn, err = newRuntimeServiceClient(varmortypes.RuntimeEndpoint, varmortypes.RuntimeTimeout)
+	monitor.runtimeClient, monitor.runtimeConn, err = newRuntimeServiceClient(runtimeEndpoint, varmortypes.RuntimeTimeout)
 	if err != nil {
 		return nil, err
 	}
