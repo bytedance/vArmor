@@ -191,18 +191,47 @@ func main() {
 	// vArmor CRD INFORMER, used to watch CRD resources: ArmorProfile & VarmorPolicy
 	varmorFactory := varmorinformer.NewSharedInformerFactoryWithOptions(varmorClient, varmorResyncPeriod)
 
-	// Gather APIServer version
-	config.ServerVersion, err = kubeClient.ServerVersion()
-	if err != nil {
-		logger.WithName("SETUP").Error(err, "kubeClient.ServerVersion()")
-		os.Exit(1)
+	// Gather APIServer version initially and periodically every 10 minutes
+	// The cluster may experience changes in the APIServer version due to upgrades,
+	// so regular collection is required.
+	updateAPIServerVersion := func() {
+		serverVersion, err := kubeClient.ServerVersion()
+		if err != nil {
+			logger.WithName("SETUP").Error(err, "Failed to get APIServer version")
+			return
+		}
+
+		// Only update if version string has changed
+		if config.ServerVersion == nil || serverVersion.String() != config.ServerVersion.String() {
+			appArmorGA, err := varmorutils.IsAppArmorGA(serverVersion)
+			if err != nil {
+				logger.WithName("SETUP").Error(err, "Failed to check AppArmor GA status")
+				return
+			}
+
+			config.ServerVersion = serverVersion
+			config.AppArmorGA = appArmorGA
+			logger.WithName("SETUP").Info("APIServer version updated", "version", serverVersion.String(), "AppArmorGA", appArmorGA)
+		}
 	}
 
-	config.AppArmorGA, err = varmorutils.IsAppArmorGA(config.ServerVersion)
-	if err != nil {
-		logger.WithName("SETUP").Error(err, "varmorutils.IsAppArmorGA()")
-		os.Exit(1)
-	}
+	// Initial collection
+	updateAPIServerVersion()
+
+	// Start periodic collection every 10 minutes
+	go func() {
+		ticker := time.NewTicker(10 * time.Minute)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-stopCh:
+				return
+			case <-ticker.C:
+				updateAPIServerVersion()
+			}
+		}
+	}()
 
 	if debugFlag {
 		gin.SetMode(gin.DebugMode)
