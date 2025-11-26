@@ -14,40 +14,46 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Seccomp测试用例配置
+# Seccomp enforcement test case configuration
 
-# 测试名称
-TEST_NAME="seccomp-syscall-protection"
+# Test name
+TEST_NAME="seccomp-mount-syscall-protection"
 
-# 测试描述
-TEST_DESCRIPTION="测试Seccomp策略对系统调用的限制"
+# Test description
+TEST_DESCRIPTION="Testing Seccomp enforcer for denying access to mount system calls"
 
-# 初始策略文件
-POLICY_FILES="../examples/5-seccomp/vpol-seccomp-alwaysallow.yaml"
+# Namespace
+NAMESPACE="demo"
 
-# 增强策略文件
-ENHANCED_POLICY_FILES="../examples/5-seccomp/vpol-seccomp-enhance.yaml"
+# Policy name
+POLICY_NAME="demo-4"
 
-# 工作负载文件
-WORKLOAD_FILES="../examples/5-seccomp/deploy-in-demo-ns.yaml"
+# Initial policy file
+POLICY_FILES="../examples/4-seccomp/vpol-seccomp-alwaysallow.yaml"
 
-# Pod选择器
-POD_SELECTOR="app=demo-5"
+# Enhanced policy file
+ENHANCED_POLICY_FILES="../examples/4-seccomp/vpol-seccomp-enhance.yaml"
 
-# 容器名称
+# Workload file
+WORKLOAD_FILES="../examples/4-seccomp/deploy-in-demo-ns.yaml"
+
+# Pod selector
+POD_SELECTOR="app=demo-4"
+
+# Container name
 CONTAINER_NAME="c0"
 
-# 初始命令 - 在AlwaysAllow模式下应该可以执行mount系统调用
+# Initial command - Should be able to execute mount system call in AlwaysAllow mode
 INITIAL_COMMAND="unshare -m echo 'Testing mount syscall'"
 
-# 初始命令预期状态码 (0表示成功)
+# Initial command expected status code (0 means success)
 INITIAL_EXPECTED_STATUS=0
 
-# 验证命令 - 在EnhanceProtect模式下应该无法执行mount系统调用
+# Verification command - In EnhanceProtect mode, the mount system call should not be executable.
 VERIFY_COMMAND="unshare -m echo 'Testing mount syscall'"
 
-# 验证命令预期状态码 (非0表示失败，预期被策略阻止)
+# Verification command expected status code (non-0 means failure, expected to be blocked by policy)
 VERIFY_EXPECTED_STATUS=1
 
-# 测试后是否清理资源
+# Clean up resources after test
 CLEANUP_AFTER_TEST=true
