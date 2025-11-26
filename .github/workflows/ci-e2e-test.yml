@@ -148,7 +148,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        k8s_version: [ "1.20.15", "1.26.15", "1.30.6" ]
+        k8s_version: [ "1.24.17", "1.26.15", "1.28.15", "1.30.6", "1.32.10" ]
         os: ["ubuntu-latest" ]
     runs-on:  ${{ matrix.os }}
     env:
