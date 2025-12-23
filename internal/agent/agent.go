@@ -270,16 +270,18 @@ func NewAgent(
 }
 
 func (agent *Agent) WaitForManagerReady() {
-	client := &http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: true,
-			},
-		},
-	}
-
 	url := fmt.Sprintf("https://%s%s", agent.svcAddresses[varmorconfig.StatusServiceName], "/healthz")
 	for {
+		client := &http.Client{
+			Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{
+					InsecureSkipVerify: true,
+				},
+				DisableKeepAlives: true,
+			},
+			Timeout: 3 * time.Second,
+		}
+
 		resp, err := client.Get(url)
 		if err == nil && resp.StatusCode == http.StatusOK {
 			resp.Body.Close()
