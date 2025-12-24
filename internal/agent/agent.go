@@ -283,9 +283,11 @@ func (agent *Agent) WaitForManagerReady() {
 		}
 
 		resp, err := client.Get(url)
-		if err == nil && resp.StatusCode == http.StatusOK {
-			resp.Body.Close()
-			return
+		if err == nil {
+			defer resp.Body.Close()
+			if resp.StatusCode == http.StatusOK {
+				return
+			}
 		}
 		time.Sleep(2 * time.Second)
 	}
