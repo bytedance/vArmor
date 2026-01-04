@@ -122,7 +122,7 @@ The feature extends network access control to restrict container access to speci
 The feature is currently only supported by the BPF enforcer and requires Kubernetes v1.21 or higher.
 
 #### Run Agent in HostNetwork Mode
-The agent runs in its own network namespace and exposes the readinessProbe on port `6080` by default. If you want to run it in the host's network namespace, you can use following options.
+The agent runs in its own network namespace and exposes the readinessProbe on port `9580` by default. If you want to run it in the host's network namespace, you can use following options.
 
 ```bash
 --set agent.network.hostNetwork=true \

@@ -122,7 +122,7 @@ vArmor 只会对包含此 label 的 Workloads 开启沙箱防护。你可以使�
 当前仅 BPF enforcer 支持此功能，并且需要 Kubernetes v1.21 及以上版本。
 
 #### 在宿主机网络命名空间中运行 Agent
-vArmor 的 Agent 默认运行在独立的网络命名空间中，并在端口 `6080` 暴露就绪探针。如果您想将其部署在宿主网络命名空间中，那么可以使用下面的选项进行配置。
+vArmor 的 Agent 默认运行在独立的网络命名空间中，并在端口 `9580` 暴露就绪探针。如果您想将其部署在宿主网络命名空间中，那么可以使用下面的选项进行配置。
 
 ```bash
 --set agent.network.hostNetwork=true \

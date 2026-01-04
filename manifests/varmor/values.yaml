@@ -210,7 +210,7 @@ agent:
   network:
     hostNetwork: false
     dnsPolicy: ClusterFirstWithHostNet
-    readinessPort: 6080
+    readinessPort: 9580
 
   args: []
 
