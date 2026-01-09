@@ -173,10 +173,7 @@ func (ws *WebhookServer) handlerFunc(handler func(request *admissionv1.Admission
 
 		if ws.webhookLatency != nil {
 			keyValues := []attribute.KeyValue{
-				attribute.String("request_uid", string(request.UID)),
 				attribute.String("request_kind", request.Kind.String()),
-				attribute.String("request_namespace", request.Namespace),
-				attribute.String("request_name", request.Name),
 				attribute.String("request_operation", string(request.Operation)),
 				attribute.String("request_mutated", fmt.Sprintf("%t", mutated)),
 			}
