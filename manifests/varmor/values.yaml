@@ -11,8 +11,6 @@ fullnameOverride: ""
 
 metrics:
   enabled: false
-  serviceMonitorEnabled: false
-#  syncMetricsSecond: 10
 
 restartExistWorkloads:
   enabled: true
