@@ -73,11 +73,7 @@ You can enable metrics to monitor the operation of vArmor. All metrics are expos
 --set metrics.enabled=true
 ```
 
-You can use the following command to create a `ServiceMonitor` object in the namespace where vArmor is installed. Default: disabled.
-
-```bash
---set metrics.serviceMonitorEnabled=true
-```
+If the `monitoring.coreos.com/v1` API is available in the cluster, vArmor will automatically create a `ServiceMonitor` object during deployment for integration with Prometheus.
 
 #### Set the Log Output Format to JSON
 The default format of agent and manager is TEXT. You can use the following command to set it to JSON.

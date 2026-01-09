@@ -75,11 +75,7 @@ vArmor 顺序检查系统的审计日志是否存在，并通过监控第一个�
 --set metrics.enabled=true
 ```
 
-您可以使用下面的选项在 vArmor 所在命名空间中创建 `ServiceMonitor` 对象，用于与 Prometheus 集成。默认值：关闭。
-
-```bash
---set metrics.serviceMonitorEnabled=true
-```
+如果您的集群支持 `monitoring.coreos.com/v1` API，vArmor 会在部署时自动创建一个 `ServiceMonitor` 对象，用于与 Prometheus 集成。
 
 #### 设置日志格式为 JSON
 Agent 和 Manager 的日志格式默认为文本格式，您可以使用下面的选项将其设置为 JSON 格式。
