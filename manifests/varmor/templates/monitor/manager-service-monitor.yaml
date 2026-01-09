@@ -1,4 +1,5 @@
-{{- if and .Values.metrics.enabled .Values.metrics.serviceMonitorEnabled }}
+{{- if .Values.metrics.enabled }}
+{{- if .Capabilities.APIVersions.Has "monitoring.coreos.com/v1" -}}
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
@@ -18,4 +19,11 @@ spec:
     path: /metrics
     interval: 15s
     scrapeTimeout: 14s
+    metricRelabelings:
+    - action: keep
+      regex: 'varmor_.*'
+      sourceLabels: [__name__]
+    - action: labeldrop
+      regex: instance|service|container|endpoint
+{{- end }}
 {{- end }}

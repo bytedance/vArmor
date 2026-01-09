@@ -218,7 +218,7 @@ func getAgentReadinessPort() int {
 			return port
 		}
 	}
-	return 6080
+	return 9580
 }
 
 func getClassifierServicePort() int {
