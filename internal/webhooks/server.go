@@ -132,12 +132,8 @@ func NewWebhookServer(
 
 func (ws *WebhookServer) handlerFunc(handler func(request *admissionv1.AdmissionRequest) *admissionv1.AdmissionResponse) http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
-		ctx := context.Background()
 		startTime := time.Now()
 
-		if ws.admissionRequests != nil {
-			ws.admissionRequests.Add(ctx, 1)
-		}
 		admissionReview := bodyToAdmissionReview(r, rw, ws.log)
 		if admissionReview == nil {
 			ws.log.Error(fmt.Errorf("failed to parse admission review request"), "request", r)
@@ -158,27 +154,37 @@ func (ws *WebhookServer) handlerFunc(handler func(request *admissionv1.Admission
 			"operation", request.Operation)
 
 		admissionReview.Response = handler(request)
-		mutated := false
-		if len(admissionReview.Response.Patch) > 0 {
-			mutated = true
-			if ws.mutatedRequests != nil {
-				ws.mutatedRequests.Add(ctx, 1)
-			}
-		} else {
-			if ws.nonMutatedRequests != nil {
-				ws.nonMutatedRequests.Add(ctx, 1)
-			}
-		}
 		writeResponse(rw, admissionReview)
 
-		if ws.webhookLatency != nil {
-			keyValues := []attribute.KeyValue{
-				attribute.String("request_kind", request.Kind.String()),
-				attribute.String("request_operation", string(request.Operation)),
-				attribute.String("request_mutated", fmt.Sprintf("%t", mutated)),
+		// Record metrics for non-vArmor resources
+		if admissionReview.Request.Kind.Group != varmor.GroupVersion.Group {
+			ctx := context.Background()
+
+			if ws.admissionRequests != nil {
+				ws.admissionRequests.Add(ctx, 1)
 			}
-			attrSet := attribute.NewSet(keyValues...)
-			ws.webhookLatency.Record(ctx, time.Since(startTime).Seconds(), metric.WithAttributeSet(attrSet))
+
+			mutated := false
+			if len(admissionReview.Response.Patch) > 0 {
+				mutated = true
+				if ws.mutatedRequests != nil {
+					ws.mutatedRequests.Add(ctx, 1)
+				}
+			} else {
+				if ws.nonMutatedRequests != nil {
+					ws.nonMutatedRequests.Add(ctx, 1)
+				}
+			}
+
+			if ws.webhookLatency != nil {
+				keyValues := []attribute.KeyValue{
+					attribute.String("request_kind", request.Kind.String()),
+					attribute.String("request_operation", string(request.Operation)),
+					attribute.String("request_mutated", fmt.Sprintf("%t", mutated)),
+				}
+				attrSet := attribute.NewSet(keyValues...)
+				ws.webhookLatency.Record(ctx, time.Since(startTime).Seconds(), metric.WithAttributeSet(attrSet))
+			}
 		}
 		logger.V(2).Info("AdmissionRequest processed", "time", time.Since(startTime).String())
 	}
