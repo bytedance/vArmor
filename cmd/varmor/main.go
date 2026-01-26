@@ -62,6 +62,7 @@ const (
 
 var (
 	agent                         bool
+	preDelete                     bool
 	enableMetrics                 bool
 	enableBpfEnforcer             bool
 	enableBehaviorModeling        bool
@@ -123,8 +124,41 @@ func setLogger() {
 	logger = logger.WithValues("podNamespace", config.Namespace)
 }
 
+func setWebhookMatchLabel(webhookMatchLabel string, logger logr.Logger) {
+	if webhookMatchLabel != "" {
+		labelKvs := strings.Split(webhookMatchLabel, "=")
+		if len(labelKvs) != 2 {
+			logger.WithName("SETUP").Error(fmt.Errorf("format error"), "failed to parse the --webhookMatchLabel argument, the valid format is key=value or nil")
+			os.Exit(1)
+		}
+		config.WebhookSelectorLabel[labelKvs[0]] = labelKvs[1]
+	}
+}
+
+func updateAPIServerVersion(kubeClient *kubernetes.Clientset) {
+	serverVersion, err := kubeClient.ServerVersion()
+	if err != nil {
+		logger.WithName("SETUP").Error(err, "Failed to get APIServer version")
+		return
+	}
+
+	// Only update if version string has changed
+	if config.ServerVersion == nil || serverVersion.String() != config.ServerVersion.String() {
+		appArmorGA, err := varmorutils.IsAppArmorGA(serverVersion)
+		if err != nil {
+			logger.WithName("SETUP").Error(err, "Failed to check AppArmor GA status")
+			return
+		}
+
+		config.ServerVersion = serverVersion
+		config.AppArmorGA = appArmorGA
+		logger.WithName("SETUP").Info("APIServer version updated", "version", serverVersion.String(), "AppArmorGA", appArmorGA)
+	}
+}
+
 func main() {
 	flag.BoolVar(&agent, "agent", false, "Set this flag to run vArmor agent.")
+	flag.BoolVar(&preDelete, "preDelete", false, "Set this flag to run pre-delete hook before uninstalling vArmor.")
 	flag.BoolVar(&enableMetrics, "enableMetrics", false, "Set this flag to enable metrics.")
 	flag.BoolVar(&enableBpfEnforcer, "enableBpfEnforcer", false, "Set this flag to enable BPF enforcer.")
 	flag.BoolVar(&enableBehaviorModeling, "enableBehaviorModeling", false, "Set this flag to enable BehaviorModeling feature (Note: this is an experimental feature, please do not enable it in production environment).")
@@ -157,18 +191,22 @@ func main() {
 	setLogger()
 
 	// Set the webhook matchLabels configuration.
-	if webhookMatchLabel != "" {
-		labelKvs := strings.Split(webhookMatchLabel, "=")
-		if len(labelKvs) != 2 {
-			logger.WithName("SETUP").Error(fmt.Errorf("format error"), "failed to parse the --webhookMatchLabel argument, the valid format is key=value or nil")
-			os.Exit(1)
-		}
-		config.WebhookSelectorLabel[labelKvs[0]] = labelKvs[1]
+	setWebhookMatchLabel(webhookMatchLabel, logger)
+
+	// Set gin mode
+	if debugFlag {
+		gin.SetMode(gin.DebugMode)
+	} else {
+		gin.SetMode(gin.ReleaseMode)
 	}
 
+	// Check if running in-cluster
 	inContainer := kubeconfig == ""
+
+	// Set up signal handler
 	stopCh := signal.SetupSignalHandler()
 
+	// Create a k8s client
 	clientConfig, err := config.CreateClientConfig(kubeconfig, clientRateLimitQPS, clientRateLimitBurst, logger)
 	if err != nil {
 		logger.WithName("SETUP").Error(err, "config.CreateClientConfig()")
@@ -194,31 +232,7 @@ func main() {
 	// Gather APIServer version initially and periodically every 10 minutes
 	// The cluster may experience changes in the APIServer version due to upgrades,
 	// so regular collection is required.
-	updateAPIServerVersion := func() {
-		serverVersion, err := kubeClient.ServerVersion()
-		if err != nil {
-			logger.WithName("SETUP").Error(err, "Failed to get APIServer version")
-			return
-		}
-
-		// Only update if version string has changed
-		if config.ServerVersion == nil || serverVersion.String() != config.ServerVersion.String() {
-			appArmorGA, err := varmorutils.IsAppArmorGA(serverVersion)
-			if err != nil {
-				logger.WithName("SETUP").Error(err, "Failed to check AppArmor GA status")
-				return
-			}
-
-			config.ServerVersion = serverVersion
-			config.AppArmorGA = appArmorGA
-			logger.WithName("SETUP").Info("APIServer version updated", "version", serverVersion.String(), "AppArmorGA", appArmorGA)
-		}
-	}
-
-	// Initial collection
-	updateAPIServerVersion()
-
-	// Start periodic collection every 10 minutes
+	updateAPIServerVersion(kubeClient)
 	go func() {
 		ticker := time.NewTicker(10 * time.Minute)
 		defer ticker.Stop()
@@ -228,15 +242,18 @@ func main() {
 			case <-stopCh:
 				return
 			case <-ticker.C:
-				updateAPIServerVersion()
+				updateAPIServerVersion(kubeClient)
 			}
 		}
 	}()
 
-	if debugFlag {
-		gin.SetMode(gin.DebugMode)
-	} else {
-		gin.SetMode(gin.ReleaseMode)
+	// Pre-delete hook cleanup all policies before uninstalling vArmor
+	if preDelete {
+		err = preDeleteHook(kubeClient, varmorClient, logger)
+		if err != nil {
+			os.Exit(1)
+		}
+		return
 	}
 
 	// init a metrics

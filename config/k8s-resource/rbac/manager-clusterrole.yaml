@@ -51,6 +51,7 @@ rules:
   - get
   - list
   - watch
+  - deletecollection
 - apiGroups:
   - crd.varmor.org
   resources:
@@ -67,6 +68,7 @@ rules:
   - get
   - list
   - watch
+  - deletecollection
 - apiGroups:
   - crd.varmor.org
   resources:
