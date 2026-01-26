@@ -13,7 +13,7 @@ on:
       - ".gitmodules"
       - "manifests/**"
       - "vArmor-ebpf/**"
-  workflow_dispatch: # 允许手动触发
+  workflow_dispatch: # Allow manual trigger
 permissions: read-all
 jobs:
   build:
@@ -65,12 +65,12 @@ jobs:
       - id: SetVersion
         run: echo "version=$(git describe --tags --match "v[0-9]*" | sed 's/^v//')">> "$GITHUB_OUTPUT"
 
-  e2e-test:
+  e2e-test-with-self-hosted-runner:
     needs: build
     strategy:
       fail-fast: false
       matrix:
-        k8s_version: [ "1.26.15" ] # 可以根据需要添加更多版本
+        k8s_version: [ "1.28.13" ]
     runs-on:  self-hosted
     env:
       KUBE_VER: ${{ matrix.k8s_version }}
@@ -107,6 +107,7 @@ jobs:
       
       - name: Install vArmor
         run: |
+          export KUBECONFIG=~/.kube/config
           helm install varmor varmor-*.tgz \
               --namespace varmor --create-namespace \
               --set image.registry="elkeid-ap-southeast-1.cr.volces.com" \
@@ -115,9 +116,10 @@ jobs:
               --set manager.image.pullPolicy="Never" \
               --set agent.image.pullPolicy="Never" \
               --set classifier.image.pullPolicy="Never"
-          sleep 60
-          kubectl get pods -n varmor
-      
+          k3s kubectl patch ds -n varmor varmor-agent --type='json' -p='[{"op": "replace", "path": "/spec/template/spec/volumes/2/hostPath/path", "value":"/run/k3s/containerd"}]'
+          k3s kubectl get deploy -n varmor varmor-manager -o yaml
+          k3s kubectl get ds -n varmor varmor-agent -o yaml
+        
       - name: Run E2E Tests
         run: |
           chmod +x ./test/e2e/framework.sh
@@ -134,7 +136,86 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: e2e-test-results
+          name: e2e-test-results-with-self-hosted-runner
+          path: test-results/
+
+      - name: Cleanup
+        if: always()
+        run: ./.github/scripts/kill-and-clean-all.sh
+
+  e2e-test-with-ubuntu-runner:
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        k8s_version: [ "1.24.17", "1.26.15", "1.28.15", "1.30.6", "1.32.10" ]
+        os: ["ubuntu-latest" ]
+    runs-on:  ${{ matrix.os }}
+    env:
+      KUBE_VER: ${{ matrix.k8s_version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      
+      - name: Setup a Kubernetes environment
+        run: ./.github/scripts/create-k3s-cluster.sh ${{ matrix.k8s_version }}
+      
+      - name: Download Helm Chart Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: helm-chart
+      
+      - name: Download Docker images
+        uses: actions/download-artifact@v4
+        with:
+          name: docker-images
+      
+      - name: Load Docker images
+        run: |
+          sudo ctr images import varmor-amd64.tar
+          sudo ctr images import classifier-amd64.tar
+          docker load -i varmor-amd64.tar
+          docker load -i classifier-amd64.tar
+          sudo k3s ctr images import varmor-amd64.tar
+          sudo k3s ctr images import classifier-amd64.tar
+      
+      - name: Checkout submodules
+        run: git submodule update --init --recursive
+      
+      - name: Install vArmor
+        run: |
+          export KUBECONFIG=~/.kube/config
+          helm install varmor varmor-*.tgz \
+              --namespace varmor --create-namespace \
+              --set image.registry="elkeid-ap-southeast-1.cr.volces.com" \
+              --set bpfLsmEnforcer.enabled=false \
+              --set image.namespace="varmor-test" \
+              --set manager.image.pullPolicy="Never" \
+              --set agent.image.pullPolicy="Never" \
+              --set classifier.image.pullPolicy="Never"
+          k3s kubectl patch ds -n varmor varmor-agent --type='json' -p='[{"op": "replace", "path": "/spec/template/spec/volumes/2/hostPath/path", "value":"/run/k3s/containerd"}]'
+          k3s kubectl get deploy -n varmor varmor-manager -o yaml
+          k3s kubectl get ds -n varmor varmor-agent -o yaml
+        
+      - name: Run E2E Tests
+        run: |
+          chmod +x ./test/e2e/framework.sh
+          cd ./test/e2e/
+          ./framework.sh --cleanup ./testcases/apparmor.sh
+        
+      - name: Collect test results
+        if: always()
+        run: |
+          mkdir -p test-results
+          cp -r ./test/e2e/results/* test-results/ || true
+          
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-test-results-with-ubuntu-runner-${{ matrix.k8s_version }}
           path: test-results/
 
       - name: Cleanup

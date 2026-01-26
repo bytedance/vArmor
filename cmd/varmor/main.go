@@ -62,6 +62,7 @@ const (
 
 var (
 	agent                         bool
+	preDelete                     bool
 	enableMetrics                 bool
 	enableBpfEnforcer             bool
 	enableBehaviorModeling        bool
@@ -123,8 +124,41 @@ func setLogger() {
 	logger = logger.WithValues("podNamespace", config.Namespace)
 }
 
+func setWebhookMatchLabel(webhookMatchLabel string, logger logr.Logger) {
+	if webhookMatchLabel != "" {
+		labelKvs := strings.Split(webhookMatchLabel, "=")
+		if len(labelKvs) != 2 {
+			logger.WithName("SETUP").Error(fmt.Errorf("format error"), "failed to parse the --webhookMatchLabel argument, the valid format is key=value or nil")
+			os.Exit(1)
+		}
+		config.WebhookSelectorLabel[labelKvs[0]] = labelKvs[1]
+	}
+}
+
+func updateAPIServerVersion(kubeClient *kubernetes.Clientset) {
+	serverVersion, err := kubeClient.ServerVersion()
+	if err != nil {
+		logger.WithName("SETUP").Error(err, "Failed to get APIServer version")
+		return
+	}
+
+	// Only update if version string has changed
+	if config.ServerVersion == nil || serverVersion.String() != config.ServerVersion.String() {
+		appArmorGA, err := varmorutils.IsAppArmorGA(serverVersion)
+		if err != nil {
+			logger.WithName("SETUP").Error(err, "Failed to check AppArmor GA status")
+			return
+		}
+
+		config.ServerVersion = serverVersion
+		config.AppArmorGA = appArmorGA
+		logger.WithName("SETUP").Info("APIServer version updated", "version", serverVersion.String(), "AppArmorGA", appArmorGA)
+	}
+}
+
 func main() {
 	flag.BoolVar(&agent, "agent", false, "Set this flag to run vArmor agent.")
+	flag.BoolVar(&preDelete, "preDelete", false, "Set this flag to run pre-delete hook before uninstalling vArmor.")
 	flag.BoolVar(&enableMetrics, "enableMetrics", false, "Set this flag to enable metrics.")
 	flag.BoolVar(&enableBpfEnforcer, "enableBpfEnforcer", false, "Set this flag to enable BPF enforcer.")
 	flag.BoolVar(&enableBehaviorModeling, "enableBehaviorModeling", false, "Set this flag to enable BehaviorModeling feature (Note: this is an experimental feature, please do not enable it in production environment).")
@@ -157,18 +191,22 @@ func main() {
 	setLogger()
 
 	// Set the webhook matchLabels configuration.
-	if webhookMatchLabel != "" {
-		labelKvs := strings.Split(webhookMatchLabel, "=")
-		if len(labelKvs) != 2 {
-			logger.WithName("SETUP").Error(fmt.Errorf("format error"), "failed to parse the --webhookMatchLabel argument, the valid format is key=value or nil")
-			os.Exit(1)
-		}
-		config.WebhookSelectorLabel[labelKvs[0]] = labelKvs[1]
+	setWebhookMatchLabel(webhookMatchLabel, logger)
+
+	// Set gin mode
+	if debugFlag {
+		gin.SetMode(gin.DebugMode)
+	} else {
+		gin.SetMode(gin.ReleaseMode)
 	}
 
+	// Check if running in-cluster
 	inContainer := kubeconfig == ""
+
+	// Set up signal handler
 	stopCh := signal.SetupSignalHandler()
 
+	// Create a k8s client
 	clientConfig, err := config.CreateClientConfig(kubeconfig, clientRateLimitQPS, clientRateLimitBurst, logger)
 	if err != nil {
 		logger.WithName("SETUP").Error(err, "config.CreateClientConfig()")
@@ -191,23 +229,31 @@ func main() {
 	// vArmor CRD INFORMER, used to watch CRD resources: ArmorProfile & VarmorPolicy
 	varmorFactory := varmorinformer.NewSharedInformerFactoryWithOptions(varmorClient, varmorResyncPeriod)
 
-	// Gather APIServer version
-	config.ServerVersion, err = kubeClient.ServerVersion()
-	if err != nil {
-		logger.WithName("SETUP").Error(err, "kubeClient.ServerVersion()")
-		os.Exit(1)
-	}
+	// Gather APIServer version initially and periodically every 10 minutes
+	// The cluster may experience changes in the APIServer version due to upgrades,
+	// so regular collection is required.
+	updateAPIServerVersion(kubeClient)
+	go func() {
+		ticker := time.NewTicker(10 * time.Minute)
+		defer ticker.Stop()
 
-	config.AppArmorGA, err = varmorutils.IsAppArmorGA(config.ServerVersion)
-	if err != nil {
-		logger.WithName("SETUP").Error(err, "varmorutils.IsAppArmorGA()")
-		os.Exit(1)
-	}
+		for {
+			select {
+			case <-stopCh:
+				return
+			case <-ticker.C:
+				updateAPIServerVersion(kubeClient)
+			}
+		}
+	}()
 
-	if debugFlag {
-		gin.SetMode(gin.DebugMode)
-	} else {
-		gin.SetMode(gin.ReleaseMode)
+	// Pre-delete hook cleanup all policies before uninstalling vArmor
+	if preDelete {
+		err = preDeleteHook(kubeClient, varmorClient, logger)
+		if err != nil {
+			os.Exit(1)
+		}
+		return
 	}
 
 	// init a metrics
@@ -310,22 +356,24 @@ func main() {
 		)
 		secretFactory.Start(stopCh)
 
-		mwcFactory := kubeinformers.NewSharedInformerFactoryWithOptions(kubeClient, secretResyncPeriod)
+		wcFactory := kubeinformers.NewSharedInformerFactoryWithOptions(kubeClient, secretResyncPeriod)
 		webhookRegister := webhookconfig.NewRegister(
 			clientConfig,
 			kubeClient.AdmissionregistrationV1().MutatingWebhookConfigurations(),
+			kubeClient.AdmissionregistrationV1().ValidatingWebhookConfigurations(),
 			kubeClient.CoreV1().Secrets(config.Namespace),
 			kubeClient.AppsV1().Deployments(config.Namespace),
 			kubeClient.CoordinationV1().Leases(config.Namespace),
 			varmorClient.CrdV1beta1(),
-			mwcFactory.Admissionregistration().V1().MutatingWebhookConfigurations(),
+			wcFactory.Admissionregistration().V1().MutatingWebhookConfigurations(),
+			wcFactory.Admissionregistration().V1().ValidatingWebhookConfigurations(),
 			managerIP,
 			int32(webhookTimeout),
 			inContainer,
 			stopCh,
 			logger.WithName("WEBHOOK-CONFIG"),
 		)
-		mwcFactory.Start(stopCh)
+		wcFactory.Start(stopCh)
 
 		// Elect a leader to register the admission webhook configurations.
 		registerWebhookConfigurations := func(ctx context.Context) {
@@ -368,6 +416,7 @@ func main() {
 			tlsPair,
 			managerIP,
 			config.WebhookServicePort,
+			enableBehaviorModeling,
 			bpfExclusiveMode,
 			metricsModule,
 			logger.WithName("WEBHOOK-SERVER"))

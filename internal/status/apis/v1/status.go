@@ -68,8 +68,6 @@ func (m *StatusManager) handleProfileStatusUpdate(status varmortypes.ProfileStat
 	ctx := context.Background()
 	// label info
 	labels := []attribute.KeyValue{
-		attribute.String("namespace", status.Namespace),
-		attribute.String("profile_name", status.ProfileName),
 		attribute.String("node_name", status.NodeName),
 	}
 	attrSet := attribute.NewSet(labels...)

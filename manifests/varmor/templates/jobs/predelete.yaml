@@ -1,0 +1,38 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Release.Name }}-pre-delete-cleanup
+  namespace: {{ include "varmor.namespace" . }}
+  annotations:
+    "helm.sh/hook": "pre-delete"
+    "helm.sh/hook-delete-policy": "hook-succeeded,hook-failed"
+spec:
+  activeDeadlineSeconds: 60
+  backoffLimit: 1
+  template:
+    spec:
+      {{- if .Values.image.password }}
+      imagePullSecrets:
+        {{- with .Values.imagePullSecrets }}
+          {{- toYaml . | nindent 6 }}
+        {{- end }}
+      {{- end }}
+      serviceAccountName: {{ include "varmor.manager.serviceAccountName" . }}
+      containers:
+      - name: pre-delete-cleanup-container
+        {{- if .Values.image.registry }}
+        image: "{{ .Values.image.registry }}/{{ .Values.image.namespace }}/{{ .Values.manager.image.name }}:{{ .Values.manager.image.tag | default .Chart.AppVersion }}"
+        {{- else }}
+        image: "{{ .Values.publicConfig.registry }}/{{ .Values.manager.image.name }}:{{ .Values.manager.image.tag | default .Chart.AppVersion }}"
+        {{- end }}
+        imagePullPolicy: {{ .Values.manager.image.pullPolicy }}
+        command: ["/varmor/vArmor"]
+        args: ["--preDelete"]
+        resources:
+          limits:
+            cpu: "100m"
+            memory: "128Mi"
+          requests:
+            cpu: "50m"
+            memory: "64Mi"
+      restartPolicy: Never
