@@ -18,9 +18,7 @@ vArmor 目前支持可观测性指标，本文档描述了可用的指标、配�
 
 2. 安装启用了指标系统的 vArmor
    ```bash
-   helm install varmor varmor/varmor \
-     --set metrics.enable=true \
-     --set metrics.serviceMonitorEnabled=true
+   helm install varmor varmor/varmor --set metrics.enable=true
    ```
 
 3. 导入 Grafana 仪表板：
@@ -30,19 +28,10 @@ vArmor 目前支持可观测性指标，本文档描述了可用的指标、配�
     - 选择合适的 Prometheus 数据源
     - 点击导入完成
 
-## 启用指标系统
-要启用指标系统，需要：
-1. 在配置文件中将 `metrics.enable` 设置为 `true`
-2. 如需创建 Prometheus ServiceMonitor，将 `metrics.serviceMonitorEnabled` 设置为 `true`
-
-启用后，指标将在 Manager 的 8081 端口的 `/metric` 端点上暴露。
-
 ## 可用指标
 
 ### 配置文件处理指标
 这些指标用于跟踪由 Agent 处理的 ArmorProfile 对象的状态和性能。所有配置文件处理指标包含以下标签：
-- `namespace`：配置文件所在的命名空间
-- `profile_name`：配置文件名称
 - `node_name`：节点名称
 
 | 指标名称 | 类型 | 描述 |
@@ -64,11 +53,9 @@ vArmor 目前支持可观测性指标，本文档描述了可用的指标、配�
 #### Webhook 延迟指标
 `varmor_webhook_latency` 指标是一个直方图，用于测量 webhook 处理延迟，包含 0.1、0.5、1、2 和 5 秒的区间。
 此指标包含以下标签：
-- `request_uid`：请求 UID
 - `request_kind`：工作负载类型
-- `request_namespace`：工作负载的命名空间
-- `request_name`：工作负载的名称
-- `request_operation`：工作负载是否被 Manager 变更
+- `request_operation`：请求操作类型
+- `request_mutated`：工作负载是否被 Manager 变更
 
 ## Grafana 仪表板
 代码库中提供了一个预配置的 Grafana 仪表板，用于可视化这些指标。该仪表板提供了配置文件处理和 webhook 性能指标的全面视图。
