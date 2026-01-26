@@ -154,13 +154,13 @@ function QuickStart() {
           <div className={styles.quickStartStep}>
             <h3>1. Fetch chart</h3>
             <CodeBlock language="bash">
-              helm pull oci://elkeid-ap-southeast-1.cr.volces.com/varmor/varmor --version 0.9.0
+              helm pull oci://elkeid-ap-southeast-1.cr.volces.com/varmor/varmor --version 0.9.1
             </CodeBlock>
           </div>
           <div className={styles.quickStartStep}>
             <h3>2. Install</h3>
             <CodeBlock language="bash">
-              helm install varmor varmor-0.9.0.tgz --namespace varmor --create-namespace --set image.registry="elkeid-ap-southeast-1.cr.volces.com"
+              helm install varmor varmor-0.9.1.tgz --namespace varmor --create-namespace --set image.registry="elkeid-ap-southeast-1.cr.volces.com"
             </CodeBlock>
           </div>
           <div className={styles.quickStartStep}>
