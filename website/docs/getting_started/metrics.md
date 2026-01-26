@@ -19,8 +19,7 @@ vArmor now includes a comprehensive metrics system. This document describes the 
 2. Install vArmor with metrics enabled:
    ```bash
    helm install varmor varmor/varmor \
-     --set metrics.enable=true \
-     --set metrics.serviceMonitorEnabled=true
+     --set metrics.enable=true
    ```
 
 3. Import Grafana dashboard:
@@ -30,20 +29,11 @@ vArmor now includes a comprehensive metrics system. This document describes the 
     - Select the appropriate Prometheus data source
     - Click Import to finish
 
-## Enabling Metrics
-To enable the metrics system:
-1. Set `metrics.enable` to `true` in your values configuration
-2. To create a Prometheus ServiceMonitor, set `metrics.serviceMonitorEnabled` to `true`
-
-Once enabled, metrics are exposed at the `/metric` endpoint on port 8081 of the manager.
-
 ## Available Metrics
 
 ### Profile Processing Metrics
 These metrics track the status and performance of the ArmorProfile object processed by the Agent.
 All profile processing metrics include the following labels:
-- `namespace`: The namespace of the profile
-- `profile_name`: Name of the profile
 - `node_name`: Name of the node
 
 | Metric Name | Type | Description |
@@ -65,11 +55,9 @@ These metrics provide insights into admission webhook operations of the Manager.
 #### Webhook Latency Metric
 The `varmor_webhook_latency` metric is a histogram that measures webhook processing latency with buckets at 0.1, 0.5, 1, 2, and 5 seconds.
 This metric includes the following labels:
-- `request_uid`: Request UID
 - `request_kind`: The type of workload be submitted
-- `request_namespace`: The namespace of workload be submitted
-- `request_name`: The name of workload be submitted
-- `request_operation`: Whether the workload be mutated by Manager or not
+- `request_operation`: The operation type of the request
+- `request_mutated`: Whether the workload be mutated by Manager or not
 
 ## Grafana Dashboard
 A pre-configured Grafana dashboard is available in the codebase for visualizing these metrics. The dashboard provides comprehensive views of both profile processing and webhook performance metrics.

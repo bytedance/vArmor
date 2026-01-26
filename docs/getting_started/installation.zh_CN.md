@@ -72,11 +72,7 @@ vArmor 顺序检查系统的审计日志是否存在，并通过监控第一个�
 --set metrics.enabled=true
 ```
 
-您可以使用下面的选项在 vArmor 所在命名空间中创建 `ServiceMonitor` 对象，用于与 Prometheus 集成。默认值：关闭。
-
-```bash
---set metrics.serviceMonitorEnabled=true
-```
+如果您的集群支持 `monitoring.coreos.com/v1` API，vArmor 会在部署时自动创建一个 `ServiceMonitor` 对象，用于与 Prometheus 集成。
 
 #### 设置日志格式为 JSON
 Agent 和 Manager 的日志格式默认为文本格式，您可以使用下面的选项将其设置为 JSON 格式。
@@ -122,7 +118,7 @@ vArmor 只会对包含此 label 的 Workloads 开启沙箱防护。你可以使�
 当前仅 BPF enforcer 支持此功能，并且需要 Kubernetes v1.21 及以上版本。
 
 #### 在宿主机网络命名空间中运行 Agent
-vArmor 的 Agent 默认运行在独立的网络命名空间中，并在端口 `6080` 暴露就绪探针。如果您想将其部署在宿主网络命名空间中，那么可以使用下面的选项进行配置。
+vArmor 的 Agent 默认运行在独立的网络命名空间中，并在端口 `9580` 暴露就绪探针。如果您想将其部署在宿主网络命名空间中，那么可以使用下面的选项进行配置。
 
 ```bash
 --set agent.network.hostNetwork=true \
