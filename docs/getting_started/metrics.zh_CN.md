@@ -14,8 +14,7 @@ vArmor 目前支持可观测性指标，本文档描述了可用的指标、配�
 
 2. 安装启用了指标系统的 vArmor
    ```bash
-   helm install varmor varmor/varmor \
-     --set metrics.enable=true
+   helm install varmor varmor/varmor --set metrics.enable=true
    ```
 
 3. 导入 Grafana 仪表板：

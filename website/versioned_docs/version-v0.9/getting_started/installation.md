@@ -77,11 +77,7 @@ You can enable metrics to monitor the operation of vArmor. All metrics are expos
 --set metrics.enabled=true
 ```
 
-You can use the following command to create a `ServiceMonitor` object in the namespace where vArmor is installed. Default: disabled.
-
-```bash
---set metrics.serviceMonitorEnabled=true
-```
+If the `monitoring.coreos.com/v1` API is available in the cluster, vArmor will automatically create a `ServiceMonitor` object during deployment for integration with Prometheus.
 
 #### Set the Log Output Format to JSON
 The default format of agent and manager is TEXT. You can use the following command to set it to JSON.
@@ -127,7 +123,7 @@ The feature extends network access control to restrict container access to speci
 The feature is currently only supported by the BPF enforcer and requires Kubernetes v1.21 or higher.
 
 #### Run Agent in HostNetwork Mode
-The agent runs in its own network namespace and exposes the readinessProbe on port `6080` by default. If you want to run it in the host's network namespace, you can use following options.
+The agent runs in its own network namespace and exposes the readinessProbe on port `9580` by default. If you want to run it in the host's network namespace, you can use following options.
 
 ```bash
 --set agent.network.hostNetwork=true \

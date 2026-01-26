@@ -14,8 +14,7 @@ vArmor now includes a comprehensive metrics system. This document describes the 
 
 2. Install vArmor with metrics enabled:
    ```bash
-   helm install varmor varmor/varmor \
-     --set metrics.enable=true
+   helm install varmor varmor/varmor --set metrics.enable=true
    ```
 
 3. Import Grafana dashboard:
