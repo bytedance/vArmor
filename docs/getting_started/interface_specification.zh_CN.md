@@ -50,8 +50,8 @@
 |bpfRawRules<br />*[BpfRawRules](#bpfrawrules) array*|可选字段。BpfRawRules 用于设置自定义的 BPF 规则。|
 |syscallRawRules<br />*[LinuxSyscall](https://pkg.go.dev/github.com/opencontainers/runtime-spec@v1.1.0/specs-go#LinuxSyscall) array*|可选字段。SyscallRawRules 用于设置自定义的 Seccomp 规则。请参考 https://github.com/opencontainers/runtime-spec/blob/main/config-linux.md#seccomp。|
 |privileged<br />*bool*|可选字段。Privileged 用于确定该策略是否适用于特权容器。如果设置为 false，**EnhanceProtect** 模式将在 **RuntimeDefault** 模式之上构建 AppArmor 或 BPF 配置文件。否则，它将在 **AlwaysAllow** 模式之上构建 AppArmor 或 BPF 配置文件。（默认值：false）<br /><br />请注意，如果设置为 true，vArmor 将不会为目标工作负载构建 Seccomp 配置文件。|
-|auditViolations<br />*bool*|可选字段。AuditViolations 用于决定是否对违反强制访问控制规则的操作进行审计。如果设置了此字段，任何检测到的违规行为都将记录到主机中的 `/var/log/varmor/violations.log` 文件中。<br />请注意，当 allowViolations 字段设置为 false 时，Seccomp 强制访问控制器不支持对违规行为进行审计。（默认值：false）|
-|allowViolations<br />*bool*|可选字段。AllowViolations 用于决定是否允许违反强制访问控制规则的操作。如果设置了此字段，任何检测到的违规行为都将被允许而不是被阻止，与此同时将生成并记录一个 “ALLOWED” 类型的审计事件。（默认值：false）|
+|auditViolations<br />*bool*|可选字段。AuditViolations 用于决定是否对违反强制访问控制规则的操作进行审计。如果设置了此字段，任何检测到的违规行为都将记录到主机中的 `/var/log/varmor/violations.log` 文件中。若 allowViolations 设为 true，事件动作会被标记为 `AUDIT`。否则，事件动作会被标记为 `DENIED`。<br /><br />请注意，当 allowViolations 字段设置为 false 时，Seccomp 强制访问控制器不支持对违规行为进行审计。(Default: false)|
+|allowViolations<br />*bool*|可选字段。AllowViolations 用于决定是否允许违反强制访问控制规则的操作。如果设置了此字段，任何检测到的违规行为都将被允许而不是被阻止。（默认值：false）|
 
 ### AttackProtectionRules
 
@@ -77,11 +77,11 @@
 |ptrace<br />*[PtraceRule](#ptracerule)*|可选字段。Ptrace 指定了 ptrace 相关访问控制规则。|
 |mounts<br />*[MountRule](#mountrule) array*|可选字段。Mounts 指定了文件挂载访问控制规则。|
 
-
 ### FileRule
 
 | 字段 | 描述 |
 |-----|------|
+|qualifiers<br />*string array*|Qualifiers 通过值的组合来确定规则的行为。<br />可用值：`deny, audit`|
 |pattern<br />*string*|Pattern 可以是符合策略语法的任意字符串（最大长度为 128 字节），用于匹配文件路径和文件名。|
 |permissions<br />*string array*|Permissions 用于指定文件权限。<br />可用值：`all(*), read(r), write(w), append(a), exec(e)`|
 
@@ -96,6 +96,7 @@
 
 | 字段 | 描述 |
 |-----|------|
+|qualifiers<br />*string array*|Qualifiers 通过值的组合来确定规则的行为。<br />可用值：`deny, audit`|
 |strictMode<br />*bool*|可选字段。StrictMode 用于指示是否对所有源进程和目标进程限制 ptrace 操作。如果设置为 false，将允许进程对同一容器内其他进程执行 trace、read 操作，以及允许进程被同一容器内其他进程执行 traceby、readby 操作。如果设置为 true，则将禁止容器内所有进程的 trace、read、traceby、readby 操作。(默认值：false)|
 |permissions<br />*string array*|Permissions 用于指明目标容器的哪些与 ptrace 相关的权限应受到限制。<br />可用值：`all(*), trace, traceby, read, readby` <br /><br />- trace: 禁止跟踪其他进程<br />- read: 禁止读取其他进程<br />- traceby: 禁止被其他进程跟踪（宿主机进程除外） <br />- readby: 禁止被其他进程读取（宿主机进程除外）<br /><br />trace 和 traceby 权限用于写操作，或其他更危险的操作。例如使用 ptrace 附加到另一个进程，或调用 process_vm_writev(2)。<br /><br />read, readby 权限用于读操作，或其他危险程度较低的操作。例如 get_robust_list(2); kcmp(2); 读取 /proc/pid/auxv; 读取 /proc/pid/environ; 读取 /proc/pid/stat; 读取 /proc/pid/ns/* 等。|
 
@@ -103,6 +104,7 @@
 
 | 字段 | 描述 |
 |-----|------|
+|qualifiers<br />*string array*|Qualifiers 通过值的组合来确定规则的行为。<br />可用值：`deny, audit`|
 |sourcePattern<br />*string*|SourcePattern 可以是符合策略语法的任意字符串（最大长度为 128 字节），用于匹配 mount (2) 的源参数、umount (2) 的目标参数以及 move_mount (2) 的 from_pathname 参数。|
 |fstype<br />*string*|Fstype 用于指定要进行访问控制的文件系统类型（最大长度为 16 字节）。它可以是 `*`，以匹配任何类型。|
 |flags<br />*string array*|Flags 用于指定要进行访问控制的挂载标志. 它们与 AppArmor 的 [MOUNT FLAGS LIST](https://manpages.ubuntu.com/manpages/focal/man5/apparmor.d.5.html) 类似. <br />可用值：`all(*), ro(r, read-only), rw(w), suid, nosuid, dev, nodev, exec, noexec, sync, async, mand, nomand, dirsync, atime, noatime, diratime, nodiratime, silent, loud, relatime, norelatime, iversion, noiversion, strictatime, nostrictatime, remount, bind(B), move(M), rbind(R), make-unbindable, make-private(private), make-slave(slave), make-shared(shared), make-runbindable, make-rprivate, make-rslave, make-rshared, umount`|
@@ -111,6 +113,7 @@
 
 | 字段 | 描述 |
 |-----|------|
+|qualifiers<br />*string array*|Qualifiers 通过值的组合来确定规则的行为。<br />可用值：`deny, audit`|
 |domains<br />*string array*|可选字段。Domains 指定了套接字的通信域。<br />可用值：`all(*), unix, inet, ax25, ipx, appletalk, netrom, bridge, atmpvc, x25, inet6, rose, netbeui, security, key, netlink, packet, ash, econet, atmsvc, rds, sna, irda, pppox, wanpipe, llc, ib, mpls, can, tipc, bluetooth, iucv, rxrpc, isdn, phonet, ieee802154, caif, alg, nfc, vsock, kcm, qipcrtr, smc, xdp, mctp`|
 |types<br />*string array*|可选字段。Types 指定了套接字的通信语义。<br />可用值：`all(*), stream, dgram, raw, rdm, seqpacket, dccp, packet`|
 |protocols<br />*string array*|可选字段。Protocols 指定了要与套接字一起使用的特定协议。<br />可用值：`all(*), icmp, tcp, udp`<br /><br />请注意，protocols 和 types 字段互斥。|
@@ -134,6 +137,7 @@
 
 | 字段 | 描述 |
 |-----|------|
+|qualifiers<br />*string array*|Qualifiers 通过值的组合来确定规则的行为。<br />可用值：`deny, audit`|
 |ip<br />*string*|可选字段。IP 在特定 IP 上定义此规则。请使用有效的 IP 文本表示形式，或诸如 `pod-self`、`unspecified` 或 `localhost` 特殊实体。请注意，ip 字段和 cidr 字段是互斥的。<br /><br />- pod-self: 表示 Pod 自身 IP 地址的实体。对于 IPv4 和 IPv6，每个 Pod 最多可分配 1 个地址。<br />- unspecified: 表示全零地址的实体，具体来说，就是 0.0.0.0 和 ::。 它的全称是未指定地址（Unspecified Address），指的是绑定到所有接口。<br />- localhost: 代表环回地址的实体，具体来说，就是 127.0.0.1 和 ::1。|
 |cidr<br />*string*|可选字段。CIDR 在特定的无类别域间路由上定义了此规则。请注意，IP 字段和无类别域间路由字段是互斥的。|
 |ports<br />*[Port](#port) array*|可选字段。Ports 在特定端口上定义此规则。此列表中的每个条目使用逻辑 “或” 进行组合。如果此字段为空或不存在，则此规则匹配所有端口。如果此字段存在且至少包含一个条目，则此规则匹配列表中的所有端口。|
@@ -142,6 +146,7 @@
 
 | 字段 | 描述 |
 |-----|------|
+|qualifiers<br />*string array*|Qualifiers 通过值的组合来确定规则的行为。<br />可用值：`deny, audit`|
 |namespace<br />*string*|可选字段。Namespace 用于指定 Service 所在的命名空间。|
 |name<br />*string*|可选字段。Name 通过名称和命名空间对来选择 Service。|
 |serviceSelector<br />*[LabelSelector](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#LabelSelector)*|可选字段。ServiceSelector 是一个标签选择器，用于选择 Service。该字段遵循标准的标签选择器语义。它会选择 namespace 中与 serviceSelector 匹配的 Service。如果 namespace 为空或未指定，它会选择所有命名空间中与 serviceSelector 匹配的 Service。请注意，serviceSelector 字段与 name 字段是互斥的。|
@@ -150,6 +155,7 @@
 
 | 字段 | 描述 |
 |-----|------|
+|qualifiers<br />*string array*|Qualifiers 通过值的组合来确定规则的行为。<br />可用值：`deny, audit`|
 |namespace<br />*string*|可选字段。Namespace 用于指定 Pod 所在的命名空间。|
 |podSelector<br />*[LabelSelector](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#LabelSelector)*|PodSelector 是一个标签选择器，用于选择 Pod。该字段遵循标准的标签选择器语义。它会选择 namespace 中与 podSelector 匹配的 Pod。如果 namespace 为空或未指定，它会选择所有命名空间中与 podSelector 匹配的 Pod。|
 |ports<br />*[Port](#port) array*|可选字段。Ports 在特定端口上定义此规则。此列表中的每个条目使用逻辑 “或” 进行组合。如果此字段为空或不存在，则此规则匹配所有端口。如果此字段存在且至少包含一个条目，则此规则匹配列表中的所有端口。|
@@ -173,7 +179,7 @@
 |-----|------|
 |appArmor<br />*[AppArmorProfile](#apparmorprofile)*|可选字段。AppArmor 为默认拒绝访问控制指定 AppArmor 配置文件和其他自定义规则。|
 |seccomp<br />*[SeccompProfile](#seccompprofile)*|可选字段。Seccomp 为默认拒绝访问控制指定 Seccomp 配置文件和其他自定义规则。|
-|allowViolations<br />*bool*|可选字段。AllowViolations 用于确定是否允许违反强制访问控制规则的操作。如果设置了此字段，任何检测到的违规行为将被允许而非阻止，与此同时会生成并记录一个 “ALLOWED” 审计事件。这可用于收集违规情况，以改进默认拒绝访问控制的配置文件。如果未设置此字段，任何检测到的违规行为将被阻止，并生成和记录一个 “DENIED” 审计事件。(默认值：false)
+|allowViolations<br />*bool*|可选字段。AllowViolations 用于确定是否允许违反强制访问控制规则的操作。如果设置了此字段，任何检测到的违规行为将被允许而非阻止，与此同时会生成并记录一个 `ALLOWED` 动作的审计事件。这可用于收集违规情况，以改进默认拒绝访问控制的配置文件。如果未设置此字段，任何检测到的违规行为将被阻止，并生成和记录一个 `DENIED` 动作的审计事件。(默认值：false)
 
 ### AppArmorProfile
 

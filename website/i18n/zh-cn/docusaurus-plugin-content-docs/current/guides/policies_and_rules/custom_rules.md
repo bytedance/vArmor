@@ -128,13 +128,25 @@ policy:
       - pattern: "**ping"
         permissions:
         - exec
+        qualifiers:
+        - audit
+        - deny
       network:
         egresses:
-        - ip: fdbd:dc01:ff:307:9329:268d:3a27:2ca7
-        - ipBlock: 192.168.1.1/24 # 192.168.1.0 to 192.168.1.255
-          port: 80
+          toDestinations:
+          - ip: fdbd:dc01:ff:307:9329:268d:3a27:2ca7
+            qualifiers:
+            - audit
+          - cidr: 192.168.1.1/24 # 192.168.1.0 to 192.168.1.255
+            ports:
+            - port: 80
+              endPort: 8080
+            qualifiers:
+            - audit
         sockets:
         - protocols:
           - "udp"
+          qualifiers:
+          - audit
     // highlight-end
 ```

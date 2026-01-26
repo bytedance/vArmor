@@ -181,7 +181,7 @@ Note that all examples are self-tested by the author of this article. They may b
 #### Install vArmor
 
 ```bash
-helm install varmor varmor-0.7.0.tgz  \
+helm install varmor varmor-x.y.z.tgz  \
     --namespace varmor --create-namespace \
     --set image.registry="elkeid-cn-beijing.cr.volces.com" \
     --set image.namespace="varmor" \
@@ -285,9 +285,9 @@ The [node-local-dns](https://docs.byteplus.com/en/docs/vke/Using-NodeLocal-DNSCa
 5. Export the behavior data and the AppArmor Profile respectively
 
     ```bash
-    $ kubectl get ArmorProfileModel -n kube-system $name -o jsonpath='{.data.dynamicResult.apparmor}' | jq > behavior_data.json
+    $ kubectl get ArmorProfileModel -n kube-system $name -o jsonpath='{.data.dynamicResult.appArmor}' | jq > behavior_data.json
 
-    $ kubectl get ArmorProfileModel -n kube-system $name -o jsonpath='{.data.profile.content}' > apparmor_profile.txt
+    $ kubectl get ArmorProfileModel -n kube-system $name -o jsonpath='{.data.profile.appArmor}' > apparmor_profile.txt
     ```
 
     Note: When the STORAGE-TYPE is LocalDisk, please refer to [this method](https://varmor.org/docs/main/guides/policies_and_rules/policy_modes/behavior_modeling#data-export) to export the data.

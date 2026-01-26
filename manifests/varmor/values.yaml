@@ -11,8 +11,6 @@ fullnameOverride: ""
 
 metrics:
   enabled: false
-  serviceMonitorEnabled: false
-#  syncMetricsSecond: 10
 
 restartExistWorkloads:
   enabled: true
@@ -154,11 +152,11 @@ manager:
 
   resources:
     limits:
-      cpu: 200m
-      memory: 300Mi
+      cpu: "500m"
+      memory: "300Mi"
     requests:
-      cpu: 100m
-      memory: 200Mi
+      cpu: "100m"
+      memory: "200Mi"
 
   autoscaling:
     enabled: false
@@ -172,6 +170,20 @@ manager:
   affinity: {}
 
   tolerations: []
+
+  topologySpreadConstraints:
+  - labelSelector:
+      matchLabels:
+        app.kubernetes.io/component: varmor-manager
+    maxSkew: 1
+    topologyKey: kubernetes.io/hostname
+    whenUnsatisfiable: ScheduleAnyway
+  - labelSelector:
+      matchLabels:
+        app.kubernetes.io/component: varmor-manager
+    maxSkew: 1
+    topologyKey: topology.kubernetes.io/zone
+    whenUnsatisfiable: ScheduleAnyway
 
 
 agent:
@@ -210,7 +222,7 @@ agent:
   network:
     hostNetwork: false
     dnsPolicy: ClusterFirstWithHostNet
-    readinessPort: 6080
+    readinessPort: 9580
 
   args: []
 
@@ -231,22 +243,22 @@ agent:
       name: apparmor-dir
     resources:
       limits:
-        cpu: 200m
-        memory: 100Mi
+        cpu: "1"
+        memory: "100Mi"
       requests:
-        cpu: 100m
-        memory: 40Mi
+        cpu: "100m"
+        memory: "40Mi"
 
   bpfLsmEnforcer:
     args:
     - --enableBpfEnforcer
     resources:
       limits:
-        cpu: 200m
-        memory: 200Mi
+        cpu: "1"
+        memory: "200Mi"
       requests:
-        cpu: 100m
-        memory: 100Mi
+        cpu: "100m"
+        memory: "100Mi"
 
   unloadAllAaProfiles:
     args:
@@ -269,11 +281,11 @@ agent:
       name: auditdata
     resources:
       limits:
-        cpu: 2
-        memory: 2Gi
+        cpu: "2"
+        memory: "2Gi"
       requests:
-        cpu: 500m
-        memory: 500Mi
+        cpu: "500m"
+        memory: "500Mi"
 
   bpfRelated:
     volumeMounts:
@@ -347,17 +359,13 @@ classifier:
   network:
     servicePort: 5000
 
-  resources: {}
-    # We usually recommend not to specify default resources and to leave this as a conscious
-    # choice for the user. This also increases chances charts run on environments with little
-    # resources, such as Minikube. If you do want to specify resources, uncomment the following
-    # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
-    # limits:
-    #   cpu: 100m
-    #   memory: 128Mi
-    # requests:
-    #   cpu: 100m
-    #   memory: 128Mi
+  resources: 
+    limits:
+      cpu: "2"
+      memory: "2Gi"
+    requests:
+      cpu: "500m"
+      memory: "500Mi"
 
   autoscaling:
     enabled: false

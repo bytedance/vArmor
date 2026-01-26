@@ -14,13 +14,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# AppArmor Test Case Configuration
+# AppArmor enforcement test case configuration
 
 # Test name
 TEST_NAME="apparmor-sa-token-protection"
 
 # Test description
-TEST_DESCRIPTION="Testing AppArmor policy protection for ServiceAccount Token"
+TEST_DESCRIPTION="Testing AppArmor enforcer for denying access to ServiceAccount Token"
+
+# Namespace
+NAMESPACE="demo"
+
+# Policy name
+POLICY_NAME="demo-1"
 
 # Initial policy file
 POLICY_FILES="../examples/1-apparmor/vpol-apparmor-alwaysallow.yaml"
@@ -46,7 +52,7 @@ INITIAL_EXPECTED_STATUS=0
 # Verification command - Should not be able to read SA Token in EnhanceProtect mode
 VERIFY_COMMAND="cat /run/secrets/kubernetes.io/serviceaccount/token"
 
-# 验证命令预期状态码 (非0表示失败，预期被策略阻止)
+# Verification command expected status code (non-0 means failure, expected to be blocked by policy)
 VERIFY_EXPECTED_STATUS=1
 
 # Clean up resources after test

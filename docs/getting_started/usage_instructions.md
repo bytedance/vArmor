@@ -25,15 +25,18 @@ The Manager and Agent components log through standard output. By default, the lo
 ### Audit Logs
 vArmor supports configuring policy objects in alarm-only mode (observation mode) and alarm-interception mode. You can achieve this through the `auditViolations` and `allowViolations` fields of the policy object. For common usage, please refer to [this document](../practices/index.md#common-usage-methods). All violation events will be logged in JSON format to the /var/log/varmor/violations.log file on the host machine (the maximum file size is 10MB, and up to 3 old files will be retained).
 
-The format of violation events is as follows. Behaviors that are intercepted and alarmed will generate `warn` level events, and behaviors that are alarmed only without interception will generate `debug` level events.
+The format of violation events is as follows. Behaviors that are intercepted and alarmed will generate events with the `DENIED` action. Behaviors that are alarmed only without interception will generate events with the `AUDIT`, `ALLOWED`, or `AUDIT|ALLOWED` action, depending on the policy mode and the enforcer.
 
 * Currently, only the AppArmor and BPF enforcers support the alarm-interception mode.
 * Limited by the principle and performance impact of Seccomp, you can only use `auditViolations=true` and `allowViolations=true` in combination to implement the alarm-only mode (observation mode) for the Seccomp enforcer when there is no policy in the BehaviorModeling mode.
-* Limited by the principle of the AppArmor LSM and Seccomp, when using the AppArmor or Seccomp enforcer, in some cases, the corresponding container and Pod information cannot be matched.
+* Limited by the principle of the AppArmor LSM and Seccomp, when using the AppArmor or Seccomp enforcer, it may not be possible to associate container and Pod information for the short-lived processes.
 
 ```json
 {
   "level": "warn",
+  "metadata": {
+    "varmorNamespace": "varmor"
+  },
   "nodeName": "192.168.0.24",
   "containerID": "fd808d9394a76680bd9f4de84413e6521cfc4e4c5097e0c6904b0f58e5f564cc",
   "containerName": "c1",
@@ -43,10 +46,11 @@ The format of violation events is as follows. Behaviors that are intercepted and
   "pid": 887808,
   "mntNsID": 4026532637,
   "eventTimestamp": 1740381264,
-  "eventType": "BPF",
+  "enforcer": "BPF",
   "action": "DENIED",
   "profileName": "varmor-demo-demo-2",
   "event": {
+    "operation": "File",
     "permissions": [
       "read"
     ],
@@ -60,6 +64,9 @@ The format of violation events is as follows. Behaviors that are intercepted and
 ```json
 {
   "level": "warn",
+  "metadata": {
+    "varmorNamespace": "varmor"
+  },
   "nodeName": "192.168.0.8",
   "containerID": "5b24d520534b9ad2b618cd9f014a7cca045e5d217718852af6d12d587ef2b6c6",
   "containerName": "c1",
@@ -69,8 +76,8 @@ The format of violation events is as follows. Behaviors that are intercepted and
   "pid": 3811300,
   "mntNsID": 4026532725,
   "eventTimestamp": 1740366282,
-  "eventType": "AppArmor",
-  "action": "DENIED",
+  "enforcer": "AppArmor",
+  "action": "AUDIT",
   "profileName": "varmor-demo-demo-1",
   "event": {
     "version": 1,
@@ -91,31 +98,7 @@ The format of violation events is as follows. Behaviors that are intercepted and
     "profile": "varmor-demo-demo-1//child_0",
     "peerProfile": "",
     "comm": "bash",
-    "name": "/etc/5",
-    "name2": "",
-    "namespace": "",
-    "attribute": "",
-    "parent": 0,
-    "info": "",
-    "peerInfo": "",
-    "errorCode": 0,
-    "activeHat": "",
-    "netFamily": "",
-    "netProtocol": "",
-    "netSockType": "",
-    "netLocalAddr": "",
-    "netLocalPort": 0,
-    "netForeignAddr": "",
-    "netForeignPort": 0,
-    "dbusBus": "",
-    "dbusPath": "",
-    "dbusInterface": "",
-    "dbusMember": "",
-    "signal": "",
-    "peer": "",
-    "fsType": "",
-    "flags": "",
-    "srcName": ""
+    "name": "/etc/5"
   },
   "time": "2025-02-24T03:04:42Z",
   "message": "violation event"
@@ -124,7 +107,10 @@ The format of violation events is as follows. Behaviors that are intercepted and
 
 ```json
 {
-  "level": "debug",
+  "level": "warn",
+  "metadata": {
+    "varmorNamespace": "varmor"
+  },
   "nodeName": "192.168.0.8",
   "containerID": "8c1058d1159d3ed20960c0c9f53fc26968a1c75cd3b390a503e060ffd8c972da",
   "containerName": "c0",
@@ -134,8 +120,8 @@ The format of violation events is as follows. Behaviors that are intercepted and
   "pid": 1448697,
   "mntNsID": 4026533364,
   "eventTimestamp": 1740621808,
-  "eventType": "Seccomp",
-  "action": "ALLOWED",
+  "enforcer": "Seccomp",
+  "action": "AUDIT|ALLOWED",
   "profileName": "varmor-demo-demo-5",
   "event": {
     "auditID": "1740621808.346:683",

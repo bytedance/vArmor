@@ -45,6 +45,7 @@ rules:
   - get
   - list
   - watch
+  - deletecollection
 - apiGroups:
   - crd.varmor.org
   resources:
@@ -61,6 +62,7 @@ rules:
   - get
   - list
   - watch
+  - deletecollection
 - apiGroups:
   - crd.varmor.org
   resources:
@@ -99,6 +101,7 @@ rules:
   - admissionregistration.k8s.io
   resources:
   - mutatingwebhookconfigurations
+  - validatingwebhookconfigurations
   verbs:
   - create
   - list
@@ -107,10 +110,12 @@ rules:
   - admissionregistration.k8s.io
   resources:
   - mutatingwebhookconfigurations
+  - validatingwebhookconfigurations
   verbs:
   - delete
   resourceNames:
   - varmor-resource-mutating-webhook-cfg
+  - varmor-policy-validating-webhook-cfg
 - apiGroups:
   - authentication.k8s.io
   resources:

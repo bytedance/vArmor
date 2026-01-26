@@ -187,85 +187,16 @@ func (c *ClusterPolicyController) handleDeleteVarmorClusterPolicy(name string) e
 	return nil
 }
 
-func (c *ClusterPolicyController) ignoreAdd(vcp *varmor.VarmorClusterPolicy, logger logr.Logger) (bool, error) {
-	if vcp.Spec.Target.Kind != "Deployment" && vcp.Spec.Target.Kind != "StatefulSet" && vcp.Spec.Target.Kind != "DaemonSet" && vcp.Spec.Target.Kind != "Pod" {
-		err := fmt.Errorf("the target kind is not supported")
-		logger.Error(err, "update the policy status with forbidden info")
-		err = statuscommon.UpdateVarmorClusterPolicyStatus(c.varmorInterface, vcp, "", false, varmor.VarmorPolicyError, varmor.VarmorPolicyCreated, apicorev1.ConditionFalse,
-			"Forbidden",
-			"The target kind is not supported.")
-		return true, err
-	}
-
-	if vcp.Spec.Target.Name == "" && vcp.Spec.Target.Selector == nil {
-		err := fmt.Errorf("the target name and selector are empty")
-		logger.Error(err, "update the policy status with forbidden info")
-		err = statuscommon.UpdateVarmorClusterPolicyStatus(c.varmorInterface, vcp, "", false, varmor.VarmorPolicyError, varmor.VarmorPolicyCreated, apicorev1.ConditionFalse,
-			"Forbidden",
-			"You should specify the target workload either by name or selector.")
-		return true, err
-	}
-
-	if vcp.Spec.Target.Name != "" && vcp.Spec.Target.Selector != nil {
-		err := fmt.Errorf("the target name and selector are exclusive")
-		logger.Error(err, "update the policy status with forbidden info")
-		err = statuscommon.UpdateVarmorClusterPolicyStatus(c.varmorInterface, vcp, "", false, varmor.VarmorPolicyError, varmor.VarmorPolicyCreated, apicorev1.ConditionFalse,
-			"Forbidden",
-			"You shouldn't specify the target workload using both name and selector.")
-		return true, err
-	}
-
-	if vcp.Spec.Policy.Mode == varmor.EnhanceProtectMode && vcp.Spec.Policy.EnhanceProtect == nil {
-		err := fmt.Errorf("the enhanceProtect field is not set when the policy runs in the EnhanceProtect mode")
-		logger.Error(err, "update the policy status with forbidden info")
-		err = statuscommon.UpdateVarmorClusterPolicyStatus(c.varmorInterface, vcp, "", false, varmor.VarmorPolicyError, varmor.VarmorPolicyCreated, apicorev1.ConditionFalse,
-			"Forbidden",
-			"The enhanceProtect field should be set when the policy runs in the EnhanceProtect mode.")
-		return true, err
-	}
-
-	if !c.enableBehaviorModeling && vcp.Spec.Policy.Mode == varmor.BehaviorModelingMode {
-		err := fmt.Errorf("the BehaviorModeling mode is not enabled")
-		logger.Error(err, "update the policy status with forbidden info")
-		err = statuscommon.UpdateVarmorClusterPolicyStatus(c.varmorInterface, vcp, "", false, varmor.VarmorPolicyError, varmor.VarmorPolicyCreated, apicorev1.ConditionFalse,
-			"Forbidden",
-			"The BehaviorModeling feature is not enabled.")
-		return true, err
-	}
-
-	if c.enableBehaviorModeling && vcp.Spec.Policy.Mode == varmor.BehaviorModelingMode && vcp.Spec.Policy.ModelingOptions == nil {
-		err := fmt.Errorf("the modelingOptions field is not set when the policy runs in the BehaviorModeling mode")
-		logger.Error(err, "update the policy status with forbidden info")
-		err = statuscommon.UpdateVarmorClusterPolicyStatus(c.varmorInterface, vcp, "", false, varmor.VarmorPolicyError, varmor.VarmorPolicyCreated, apicorev1.ConditionFalse,
-			"Forbidden",
-			"The modelingOptions field should be set when the policy runs in the BehaviorModeling mode.")
-		return true, err
-	}
-
-	// Do not exceed the length of a standard Kubernetes name (63 characters)
-	// Note: The advisory length of AppArmor profile name is 100 (See https://bugs.launchpad.net/apparmor/+bug/1499544).
-	profileName := varmorprofile.GenerateArmorProfileName(varmorconfig.Namespace, vcp.Name, true)
-	if len(profileName) > 63 {
-		err := fmt.Errorf("the length of ArmorProfile name is exceed 63. name: %s, length: %d", profileName, len(profileName))
-		logger.Error(err, "update the policy status with forbidden info")
-		msg := fmt.Sprintf("The length of policy object name is too long, please limit it to %d bytes.", 63-len(varmorprofile.ClusterProfileNameTemplate)+4-len(varmorconfig.Namespace))
-		err = statuscommon.UpdateVarmorClusterPolicyStatus(c.varmorInterface, vcp, "", false, varmor.VarmorPolicyError, varmor.VarmorPolicyCreated, apicorev1.ConditionFalse,
-			"Forbidden",
-			msg)
-		return true, err
-	}
-
-	return false, nil
-}
-
 func (c *ClusterPolicyController) handleAddVarmorClusterPolicy(vcp *varmor.VarmorClusterPolicy) error {
 	logger := c.log.WithName("handleAddVarmorClusterPolicy()")
 
 	logger.Info("VarmorClusterPolicy created", "name", vcp.Name, "labels", vcp.Labels, "target", vcp.Spec.Target)
 
-	if ignore, err := c.ignoreAdd(vcp, logger); ignore {
+	if valid, message := ValidateAddPolicy(vcp, c.enableBehaviorModeling); !valid {
+		logger.Info("update the policy status with forbidden info", "message", message)
+		err := statuscommon.UpdateVarmorClusterPolicyStatus(c.varmorInterface, vcp, "", false, varmor.VarmorPolicyError, varmor.VarmorPolicyCreated, apicorev1.ConditionFalse, "Forbidden", message)
 		if err != nil {
-			logger.Error(err, "ignoreAdd()")
+			logger.Error(err, "statuscommon.UpdateVarmorClusterPolicyStatus()")
 		}
 		return err
 	}
@@ -338,86 +269,16 @@ func (c *ClusterPolicyController) handleAddVarmorClusterPolicy(vcp *varmor.Varmo
 	return nil
 }
 
-func (c *ClusterPolicyController) ignoreUpdate(newVcp *varmor.VarmorClusterPolicy, oldAp *varmor.ArmorProfile, logger logr.Logger) (bool, error) {
-	newEnforcers := varmortypes.GetEnforcerType(newVcp.Spec.Policy.Enforcer)
-	oldEnforcers := varmortypes.GetEnforcerType(oldAp.Spec.Profile.Enforcer)
-
-	// Disallow modifying the target field of a policy.
-	if !reflect.DeepEqual(newVcp.Spec.Target, oldAp.Spec.Target) {
-		err := fmt.Errorf("disallow modifying the target field of a policy")
-		logger.Error(err, "update the policy status with forbidden info")
-		err = statuscommon.UpdateVarmorClusterPolicyStatus(c.varmorInterface, newVcp, "", false, varmor.VarmorPolicyUnchanged, varmor.VarmorPolicyUpdated, apicorev1.ConditionFalse,
-			"Forbidden",
-			"Modifying the target field of a policy is not allowed. You need to recreate the policy object.")
-		return true, err
-	}
-
-	// Disallow switching the mode of a policy from BehaviorModeling to others when behavior modeling is still incomplete.
-	if newVcp.Spec.Policy.Mode != varmor.BehaviorModelingMode &&
-		newVcp.Status.Phase == varmor.VarmorPolicyModeling {
-		err := fmt.Errorf("disallow switching the mode of a policy from BehaviorModeling to others when behavior modeling is still incomplete")
-		logger.Error(err, "update the policy status with forbidden info")
-		err = statuscommon.UpdateVarmorClusterPolicyStatus(c.varmorInterface, newVcp, "", false, varmor.VarmorPolicyUnchanged, varmor.VarmorPolicyUpdated, apicorev1.ConditionFalse,
-			"Forbidden",
-			"Switching the mode of a policy from BehaviorModeling to others is not allowed when behavior modeling is still incomplete.")
-		return true, err
-	}
-
-	// Disallow modifying the enforcer field of a policy when behavior modeling is still incomplete.
-	if newVcp.Spec.Policy.Mode == varmor.BehaviorModelingMode &&
-		newVcp.Status.Phase == varmor.VarmorPolicyModeling &&
-		newEnforcers != oldEnforcers {
-		err := fmt.Errorf("disallow modifying the enforcer field of a policy when behavior modeling is still incomplete")
-		logger.Error(err, "update the policy status with forbidden info")
-		err = statuscommon.UpdateVarmorClusterPolicyStatus(c.varmorInterface, newVcp, "", false, varmor.VarmorPolicyUnchanged, varmor.VarmorPolicyUpdated, apicorev1.ConditionFalse,
-			"Forbidden",
-			"Modifying the enforcer field of a policy is not allowed when behavior modeling is still incomplete.")
-		return true, err
-	}
-
-	// Disallow removing the activated AppArmor or Seccomp enforcer.
-	if (newEnforcers&oldEnforcers != oldEnforcers) && (newEnforcers|varmortypes.BPF != oldEnforcers) {
-		err := fmt.Errorf("disallow removing the activated AppArmor or Seccomp enforcer")
-		logger.Error(err, "update the policy status with forbidden info")
-		err = statuscommon.UpdateVarmorClusterPolicyStatus(c.varmorInterface, newVcp, "", false, varmor.VarmorPolicyUnchanged, varmor.VarmorPolicyUpdated, apicorev1.ConditionFalse,
-			"Forbidden",
-			"Modifying a policy to remove the AppArmor or Seccomp enforcer is not allowed. To remove them, you need to recreate the policy object.")
-		return true, err
-	}
-
-	// Make sure the enhanceProtect field has been set when the policy runs in the EnhanceProtect mode.
-	if newVcp.Spec.Policy.Mode == varmor.EnhanceProtectMode &&
-		newVcp.Spec.Policy.EnhanceProtect == nil {
-		err := fmt.Errorf("the enhanceProtect field is not set when the policy runs in the EnhanceProtect mode")
-		logger.Error(err, "update the policy status with forbidden info")
-		err = statuscommon.UpdateVarmorClusterPolicyStatus(c.varmorInterface, newVcp, "", false, varmor.VarmorPolicyError, varmor.VarmorPolicyUpdated, apicorev1.ConditionFalse,
-			"Forbidden",
-			"The enhanceProtect field should be set when the policy runs in the EnhanceProtect mode.")
-		return true, err
-	}
-
-	// Make sure the modelingOptions field has been set when the policy runs in BehaviorModeling mode.
-	if newVcp.Spec.Policy.Mode == varmor.BehaviorModelingMode &&
-		newVcp.Spec.Policy.ModelingOptions == nil {
-		err := fmt.Errorf("the modelingOptions field is not set when the policy runs in the BehaviorModeling mode")
-		logger.Error(err, "update the policy status with forbidden info")
-		err = statuscommon.UpdateVarmorClusterPolicyStatus(c.varmorInterface, newVcp, "", false, varmor.VarmorPolicyError, varmor.VarmorPolicyUpdated, apicorev1.ConditionFalse,
-			"Forbidden",
-			"The modelingOptions field should be set when the policy runs in the BehaviorModeling mode.")
-		return true, err
-	}
-
-	return false, nil
-}
-
 func (c *ClusterPolicyController) handleUpdateVarmorClusterPolicy(newVcp *varmor.VarmorClusterPolicy, oldAp *varmor.ArmorProfile) error {
 	logger := c.log.WithName("handleUpdateVarmorClusterPolicy()")
 
 	logger.Info("VarmorClusterPolicy updated", "name", newVcp.Name, "labels", newVcp.Labels, "target", newVcp.Spec.Target)
 
-	if ignore, err := c.ignoreUpdate(newVcp, oldAp, logger); ignore {
+	if valid, message := ValidateUpdatePolicy(newVcp, oldAp.Spec.Profile.Enforcer, oldAp.Spec.Target); !valid {
+		logger.Info("update the policy status with forbidden info", "message", message)
+		err := statuscommon.UpdateVarmorClusterPolicyStatus(c.varmorInterface, newVcp, "", false, varmor.VarmorPolicyUnchanged, varmor.VarmorPolicyUpdated, apicorev1.ConditionFalse, "Forbidden", message)
 		if err != nil {
-			logger.Error(err, "ignoreUpdate()")
+			logger.Error(err, "statuscommon.UpdateVarmorClusterPolicyStatus()")
 		}
 		return err
 	}

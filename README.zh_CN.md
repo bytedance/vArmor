@@ -37,6 +37,10 @@ vArmor 是一个云原生容器沙箱系统，它借助 Linux 的 [AppArmor LSM]
 
 vArmor 由字节跳动终端安全团队的 **Elkeid Team** 研发，目前该项目仍在积极迭代中。
 
+## 架构
+<div style="text-align: center;">
+  <img src="docs/img/architecture.svg" width="600">
+</div>
 
 ## 文档
 您可以访问 [varmor.org](https://varmor.org) 查看 vArmor 的文档。

@@ -275,15 +275,19 @@ func (agent *Agent) WaitForManagerReady() {
 			TLSClientConfig: &tls.Config{
 				InsecureSkipVerify: true,
 			},
+			DisableKeepAlives: true,
 		},
+		Timeout: 3 * time.Second,
 	}
 
 	url := fmt.Sprintf("https://%s%s", agent.svcAddresses[varmorconfig.StatusServiceName], "/healthz")
 	for {
 		resp, err := client.Get(url)
-		if err == nil && resp.StatusCode == http.StatusOK {
-			resp.Body.Close()
-			return
+		if err == nil {
+			defer resp.Body.Close()
+			if resp.StatusCode == http.StatusOK {
+				return
+			}
 		}
 		time.Sleep(2 * time.Second)
 	}

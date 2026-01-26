@@ -15,216 +15,114 @@
 package webhooks
 
 import (
-	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
 	"time"
 
 	"github.com/go-logr/logr"
 	admissionv1 "k8s.io/api/admission/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
+	labels "k8s.io/apimachinery/pkg/labels"
+	"k8s.io/client-go/tools/cache"
 
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
+	varmorconfig "github.com/bytedance/vArmor/internal/config"
+	varmorprofile "github.com/bytedance/vArmor/internal/profile"
 	varmortypes "github.com/bytedance/vArmor/internal/types"
 	varmorutils "github.com/bytedance/vArmor/internal/utils"
 )
 
-// bodyToAdmissionReview creates AdmissionReview object from request body.
-// Answers to the http.ResponseWriter if request is not valid.
-func bodyToAdmissionReview(request *http.Request, writer http.ResponseWriter, logger logr.Logger) *admissionv1.AdmissionReview {
-	if request.Body == nil {
-		logger.Info("empty body", "req", request.URL.String())
-		http.Error(writer, "empty body", http.StatusBadRequest)
-		return nil
-	}
-
-	defer request.Body.Close()
-	body, err := io.ReadAll(request.Body)
+func (ws *WebhookServer) matchAndPatch(request *admissionv1.AdmissionRequest, key string, target varmor.Target, logger logr.Logger) *admissionv1.AdmissionResponse {
+	policyNamespace, policyName, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
-		logger.Info("failed to read HTTP body", "req", request.URL.String())
-		http.Error(writer, "failed to read HTTP body", http.StatusBadRequest)
+		return nil
 	}
+	logger.V(2).Info("policy matching", "policy namespace", policyNamespace, "policy name", policyName)
 
-	contentType := request.Header.Get("Content-Type")
-	if contentType != "application/json" {
-		logger.Info("invalid Content-Type", "contextType", contentType)
-		http.Error(writer, "invalid Content-Type, expect `application/json`", http.StatusUnsupportedMediaType)
+	clusterScope := policyNamespace == ""
+	if !clusterScope && policyNamespace != request.Namespace {
 		return nil
 	}
 
-	admissionReview := &admissionv1.AdmissionReview{}
-	if err := json.Unmarshal(body, &admissionReview); err != nil {
-		logger.Error(err, "failed to decode request body to type 'AdmissionReview")
-		http.Error(writer, "Can't decode body as AdmissionReview", http.StatusExpectationFailed)
+	if request.Kind.Kind != target.Kind {
 		return nil
 	}
 
-	return admissionReview
-}
+	enforcer := ""
+	var mode varmor.VarmorPolicyMode
+	if clusterScope {
+		enforcer = ws.policyCacher.ClusterPolicyEnforcer[key]
+		mode = ws.policyCacher.ClusterPolicyMode[key]
+		policyNamespace = varmorconfig.Namespace
+	} else {
+		enforcer = ws.policyCacher.PolicyEnforcer[key]
+		mode = ws.policyCacher.PolicyMode[key]
+	}
 
-func writeResponse(rw http.ResponseWriter, admissionReview *admissionv1.AdmissionReview) {
-	responseJSON, err := json.Marshal(admissionReview)
+	obj, err := ws.deserializeWorkload(request)
 	if err != nil {
-		http.Error(rw, fmt.Sprintf("Could not encode response: %v", err), http.StatusInternalServerError)
-		return
+		logger.Error(err, "ws.deserializeWorkload()")
+		return nil
 	}
 
-	rw.Header().Set("Content-Type", "application/json; charset=utf-8")
-	if _, err := rw.Write(responseJSON); err != nil {
-		http.Error(rw, fmt.Sprintf("could not write response: %v", err), http.StatusInternalServerError)
-	}
-}
-
-func successResponse(uid types.UID, patch []byte) *admissionv1.AdmissionResponse {
-	r := &admissionv1.AdmissionResponse{
-		UID:     uid,
-		Allowed: true,
-		Result: &metav1.Status{
-			Status: "Success",
-		},
+	m, err := meta.Accessor(obj)
+	if err != nil {
+		logger.Error(err, "meta.Accessor()")
+		return nil
 	}
 
-	if len(patch) > 0 {
-		patchType := admissionv1.PatchTypeJSONPatch
-		r.PatchType = &patchType
-		r.Patch = patch
-	}
-
-	return r
-}
-
-func errorResponse(uid types.UID, err error, message string) *admissionv1.AdmissionResponse {
-	return &admissionv1.AdmissionResponse{
-		UID:     uid,
-		Allowed: false,
-		Result: &metav1.Status{
-			Status:  "Failure",
-			Message: message + ": " + err.Error(),
-		},
-	}
-}
-
-func failureResponse(uid types.UID, message string) *admissionv1.AdmissionResponse {
-	return &admissionv1.AdmissionResponse{
-		UID:     uid,
-		Allowed: false,
-		Result: &metav1.Status{
-			Status:  "Failure",
-			Message: message,
-		},
-	}
-}
-
-func buildBpfPatch(
-	appArmorGA bool,
-	workloads bool,
-	bpfExclusiveMode bool,
-	profileName string,
-	container corev1.Container,
-	index int) string {
-
-	var jsonPatch string
-
-	if workloads {
-		jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/template/metadata/annotations/container.bpf.security.beta.varmor.org~1%s", "value": "localhost/%s"},`, container.Name, profileName)
-	} else {
-		jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/metadata/annotations/container.bpf.security.beta.varmor.org~1%s", "value": "localhost/%s"},`, container.Name, profileName)
-	}
-
-	if bpfExclusiveMode {
-		if workloads {
-			if !appArmorGA {
-				jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/template/metadata/annotations/container.apparmor.security.beta.kubernetes.io~1%s", "value": "unconfined"},`, container.Name)
-			} else {
-				if container.SecurityContext == nil {
-					jsonPatch += fmt.Sprintf(`{"op": "add", "path": "/spec/template/spec/containers/%d/securityContext", "value": {}},`, index)
-				}
-				jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/containers/%d/securityContext/appArmorProfile", "value": {"type": "Unconfined"}},`, index)
+	apName := varmorprofile.GenerateArmorProfileName(policyNamespace, policyName, clusterScope)
+	if target.Name != "" && target.Name == m.GetName() {
+		logger.Info("mutating resource", "resource kind", request.Kind.Kind, "resource namespace", request.Namespace, "resource name", request.Name, "profile", apName)
+		patch, err := buildPatch(obj, enforcer, mode, target, apName, ws.bpfExclusiveMode, varmorconfig.AppArmorGA)
+		if err != nil {
+			logger.Error(err, "ws.buildPatch()")
+			return nil
+		}
+		logger.V(2).Info("mutating resource", "json patch", patch)
+		return successResponse(request.UID, []byte(patch))
+	} else if target.Selector != nil {
+		selector, err := metav1.LabelSelectorAsSelector(target.Selector)
+		if err != nil {
+			return nil
+		}
+		if selector.Matches(labels.Set(m.GetLabels())) {
+			logger.Info("mutating resource", "resource kind", request.Kind.Kind, "resource namespace", request.Namespace, "resource name", request.Name, "profile", apName)
+			patch, err := buildPatch(obj, enforcer, mode, target, apName, ws.bpfExclusiveMode, varmorconfig.AppArmorGA)
+			if err != nil {
+				logger.Error(err, "ws.buildPatch()")
+				return nil
 			}
-		} else {
-			if !appArmorGA {
-				jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/metadata/annotations/container.apparmor.security.beta.kubernetes.io~1%s", "value": "unconfined"},`, container.Name)
-			} else {
-				if container.SecurityContext == nil {
-					jsonPatch += fmt.Sprintf(`{"op": "add", "path": "/spec/containers/%d/securityContext", "value": {}},`, index)
-				}
-				jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/containers/%d/securityContext/appArmorProfile", "value": {"type": "Unconfined"}},`, index)
-			}
+			logger.V(2).Info("mutating resource", "json patch", patch)
+			return successResponse(request.UID, []byte(patch))
 		}
 	}
 
-	return jsonPatch
+	return nil
 }
 
-func buildAppArmorPatch(
-	appArmorGA bool,
-	workloads bool,
-	profileName string,
-	container corev1.Container,
-	index int) string {
-
-	var jsonPatch string
-
-	if workloads {
-		if !appArmorGA {
-			jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/template/metadata/annotations/container.apparmor.security.beta.kubernetes.io~1%s", "value": "localhost/%s"},`, container.Name, profileName)
-		} else {
-			jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/template/metadata/annotations/container.apparmor.security.beta.varmor.org~1%s", "value": "localhost/%s"},`, container.Name, profileName)
-			if container.SecurityContext == nil {
-				jsonPatch += fmt.Sprintf(`{"op": "add", "path": "/spec/template/spec/containers/%d/securityContext", "value": {}},`, index)
-			}
-			jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/containers/%d/securityContext/appArmorProfile", "value": {"type": "Localhost", "localhostProfile": "%s"}},`, index, profileName)
-		}
-	} else {
-		if !appArmorGA {
-			jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/metadata/annotations/container.apparmor.security.beta.kubernetes.io~1%s", "value": "localhost/%s"},`, container.Name, profileName)
-		} else {
-			jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/metadata/annotations/container.apparmor.security.beta.varmor.org~1%s", "value": "localhost/%s"},`, container.Name, profileName)
-			if container.SecurityContext == nil {
-				jsonPatch += fmt.Sprintf(`{"op": "add", "path": "/spec/containers/%d/securityContext", "value": {}},`, index)
-			}
-			jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/containers/%d/securityContext/appArmorProfile", "value": {"type": "Localhost", "localhostProfile": "%s"}},`, index, profileName)
-		}
+func (ws *WebhookServer) deserializeWorkload(request *admissionv1.AdmissionRequest) (interface{}, error) {
+	switch request.Kind.Kind {
+	case "Deployment":
+		deploy := appsv1.Deployment{}
+		_, _, err := ws.deserializer.Decode(request.Object.Raw, nil, &deploy)
+		return &deploy, err
+	case "StatefulSet":
+		statusful := appsv1.StatefulSet{}
+		_, _, err := ws.deserializer.Decode(request.Object.Raw, nil, &statusful)
+		return &statusful, err
+	case "DaemonSet":
+		daemon := appsv1.DaemonSet{}
+		_, _, err := ws.deserializer.Decode(request.Object.Raw, nil, &daemon)
+		return &daemon, err
+	case "Pod":
+		pod := corev1.Pod{}
+		_, _, err := ws.deserializer.Decode(request.Object.Raw, nil, &pod)
+		return &pod, err
 	}
-
-	return jsonPatch
-}
-
-func buildSeccompPatch(
-	workloads bool,
-	profileName string,
-	container corev1.Container,
-	index int, mode varmor.VarmorPolicyMode) string {
-
-	var jsonPatch string
-
-	if workloads {
-		jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/template/metadata/annotations/container.seccomp.security.beta.varmor.org~1%s", "value": "localhost/%s"},`, container.Name, profileName)
-		if container.SecurityContext == nil {
-			jsonPatch += fmt.Sprintf(`{"op": "add", "path": "/spec/template/spec/containers/%d/securityContext", "value": {}},`, index)
-		}
-		if mode == varmor.RuntimeDefaultMode {
-			jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/containers/%d/securityContext/seccompProfile", "value": {"type": "RuntimeDefault"}},`, index)
-		} else {
-			jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/containers/%d/securityContext/seccompProfile", "value": {"type": "Localhost", "localhostProfile": "%s"}},`, index, profileName)
-		}
-	} else {
-		jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/metadata/annotations/container.seccomp.security.beta.varmor.org~1%s", "value": "localhost/%s"},`, container.Name, profileName)
-		if container.SecurityContext == nil {
-			jsonPatch += fmt.Sprintf(`{"op": "add", "path": "/spec/containers/%d/securityContext", "value": {}},`, index)
-		}
-		if mode == varmor.RuntimeDefaultMode {
-			jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/containers/%d/securityContext/seccompProfile", "value": {"type": "RuntimeDefault"}},`, index)
-		} else {
-			jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/containers/%d/securityContext/seccompProfile", "value": {"type": "Localhost", "localhostProfile": "%s"}},`, index, profileName)
-		}
-	}
-
-	return jsonPatch
+	return nil, fmt.Errorf("unsupported kind")
 }
 
 func buildPatch(obj interface{}, enforcer string,
@@ -490,4 +388,112 @@ func buildPatch(obj interface{}, enforcer string,
 	}
 
 	return patch, nil
+}
+
+func buildBpfPatch(
+	appArmorGA bool,
+	workloads bool,
+	bpfExclusiveMode bool,
+	profileName string,
+	container corev1.Container,
+	index int) string {
+
+	var jsonPatch string
+
+	if workloads {
+		jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/template/metadata/annotations/container.bpf.security.beta.varmor.org~1%s", "value": "localhost/%s"},`, container.Name, profileName)
+	} else {
+		jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/metadata/annotations/container.bpf.security.beta.varmor.org~1%s", "value": "localhost/%s"},`, container.Name, profileName)
+	}
+
+	if bpfExclusiveMode {
+		if workloads {
+			if !appArmorGA {
+				jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/template/metadata/annotations/container.apparmor.security.beta.kubernetes.io~1%s", "value": "unconfined"},`, container.Name)
+			} else {
+				if container.SecurityContext == nil {
+					jsonPatch += fmt.Sprintf(`{"op": "add", "path": "/spec/template/spec/containers/%d/securityContext", "value": {}},`, index)
+				}
+				jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/containers/%d/securityContext/appArmorProfile", "value": {"type": "Unconfined"}},`, index)
+			}
+		} else {
+			if !appArmorGA {
+				jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/metadata/annotations/container.apparmor.security.beta.kubernetes.io~1%s", "value": "unconfined"},`, container.Name)
+			} else {
+				if container.SecurityContext == nil {
+					jsonPatch += fmt.Sprintf(`{"op": "add", "path": "/spec/containers/%d/securityContext", "value": {}},`, index)
+				}
+				jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/containers/%d/securityContext/appArmorProfile", "value": {"type": "Unconfined"}},`, index)
+			}
+		}
+	}
+
+	return jsonPatch
+}
+
+func buildAppArmorPatch(
+	appArmorGA bool,
+	workloads bool,
+	profileName string,
+	container corev1.Container,
+	index int) string {
+
+	var jsonPatch string
+
+	if workloads {
+		if !appArmorGA {
+			jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/template/metadata/annotations/container.apparmor.security.beta.kubernetes.io~1%s", "value": "localhost/%s"},`, container.Name, profileName)
+		} else {
+			jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/template/metadata/annotations/container.apparmor.security.beta.varmor.org~1%s", "value": "localhost/%s"},`, container.Name, profileName)
+			if container.SecurityContext == nil {
+				jsonPatch += fmt.Sprintf(`{"op": "add", "path": "/spec/template/spec/containers/%d/securityContext", "value": {}},`, index)
+			}
+			jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/containers/%d/securityContext/appArmorProfile", "value": {"type": "Localhost", "localhostProfile": "%s"}},`, index, profileName)
+		}
+	} else {
+		if !appArmorGA {
+			jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/metadata/annotations/container.apparmor.security.beta.kubernetes.io~1%s", "value": "localhost/%s"},`, container.Name, profileName)
+		} else {
+			jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/metadata/annotations/container.apparmor.security.beta.varmor.org~1%s", "value": "localhost/%s"},`, container.Name, profileName)
+			if container.SecurityContext == nil {
+				jsonPatch += fmt.Sprintf(`{"op": "add", "path": "/spec/containers/%d/securityContext", "value": {}},`, index)
+			}
+			jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/containers/%d/securityContext/appArmorProfile", "value": {"type": "Localhost", "localhostProfile": "%s"}},`, index, profileName)
+		}
+	}
+
+	return jsonPatch
+}
+
+func buildSeccompPatch(
+	workloads bool,
+	profileName string,
+	container corev1.Container,
+	index int, mode varmor.VarmorPolicyMode) string {
+
+	var jsonPatch string
+
+	if workloads {
+		jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/template/metadata/annotations/container.seccomp.security.beta.varmor.org~1%s", "value": "localhost/%s"},`, container.Name, profileName)
+		if container.SecurityContext == nil {
+			jsonPatch += fmt.Sprintf(`{"op": "add", "path": "/spec/template/spec/containers/%d/securityContext", "value": {}},`, index)
+		}
+		if mode == varmor.RuntimeDefaultMode {
+			jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/containers/%d/securityContext/seccompProfile", "value": {"type": "RuntimeDefault"}},`, index)
+		} else {
+			jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/containers/%d/securityContext/seccompProfile", "value": {"type": "Localhost", "localhostProfile": "%s"}},`, index, profileName)
+		}
+	} else {
+		jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/metadata/annotations/container.seccomp.security.beta.varmor.org~1%s", "value": "localhost/%s"},`, container.Name, profileName)
+		if container.SecurityContext == nil {
+			jsonPatch += fmt.Sprintf(`{"op": "add", "path": "/spec/containers/%d/securityContext", "value": {}},`, index)
+		}
+		if mode == varmor.RuntimeDefaultMode {
+			jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/containers/%d/securityContext/seccompProfile", "value": {"type": "RuntimeDefault"}},`, index)
+		} else {
+			jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/containers/%d/securityContext/seccompProfile", "value": {"type": "Localhost", "localhostProfile": "%s"}},`, index, profileName)
+		}
+	}
+
+	return jsonPatch
 }

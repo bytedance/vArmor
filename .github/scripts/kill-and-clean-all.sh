@@ -10,5 +10,12 @@ if [ $? -eq 0 ]; then
     echo "K3s uninstalled successfully."
 else
     echo "Failed to uninstall K3s."
-    exit 1
 fi
+
+# Clean up Docker images
+echo "Cleaning up Docker images..."
+docker images -q | while read image_id; do
+    echo "Removing image: $image_id"
+    docker rmi -f "$image_id" 2>/dev/null || echo "Failed to remove image: $image_id"
+done
+echo "Docker image cleanup completed."
