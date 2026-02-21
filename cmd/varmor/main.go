@@ -26,7 +26,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/go-logr/logr"
 	"github.com/go-logr/zerologr"
-	"github.com/kyverno/kyverno/pkg/leaderelection"
 	"github.com/rs/zerolog"
 	"go.uber.org/automaxprocs/maxprocs"
 	"golang.org/x/sys/unix"
@@ -40,6 +39,7 @@ import (
 	varmoragent "github.com/bytedance/vArmor/internal/agent"
 	"github.com/bytedance/vArmor/internal/config"
 	"github.com/bytedance/vArmor/internal/ipwatcher"
+	"github.com/bytedance/vArmor/internal/leaderelection"
 	"github.com/bytedance/vArmor/internal/policy"
 	"github.com/bytedance/vArmor/internal/policycacher"
 	"github.com/bytedance/vArmor/internal/status"
@@ -387,14 +387,14 @@ func main() {
 			}
 		}
 		webhookRegisterLeader, err := leaderelection.New(
-			logger.WithName("webhook-register/LeaderElection"),
+			kubeClient,
 			"webhook-register",
 			config.Namespace,
-			kubeClient,
 			config.Name,
-			leaderelection.DefaultRetryPeriod,
 			registerWebhookConfigurations,
-			nil)
+			nil,
+			logger.WithName("WEBHOOK-REGISTER/LEADER-ELECTION"),
+		)
 		if err != nil {
 			logger.WithName("SETUP").Error(err, "failed to elect a leader")
 			os.Exit(1)
@@ -560,14 +560,14 @@ func main() {
 		}
 
 		leader, err := leaderelection.New(
-			logger.WithName("varmor-manager/LeaderElection"),
+			kubeClient,
 			"varmor-manager",
 			config.Namespace,
-			kubeClient,
 			config.Name,
-			leaderelection.DefaultRetryPeriod,
 			leaderRun,
-			leaderStop)
+			leaderStop,
+			logger.WithName("VARMOR-MANAGER/LEADER-ELECTION"),
+		)
 		if err != nil {
 			logger.WithName("SETUP").Error(err, "failed to elect a leader")
 			os.Exit(1)
