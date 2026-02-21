@@ -58,7 +58,7 @@ func (m *StatusManager) Status(c *gin.Context) {
 	m.statusQueue.Add(profileStatus)
 
 	if m.metricsModule.Enabled {
-		go m.handleProfileStatusUpdate(profileStatus)
+		m.handleProfileStatusUpdate(profileStatus)
 	}
 
 	c.Status(http.StatusOK)
