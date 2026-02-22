@@ -263,9 +263,13 @@ func NewStatusService(
 		Certificates: []tls.Certificate{cert},
 	}
 	s.srv = &http.Server{
-		Addr:      fmt.Sprintf("%s:%d", s.addr, s.port),
-		Handler:   s.router,
-		TLSConfig: tlsConfig,
+		Addr:              fmt.Sprintf("%s:%d", s.addr, s.port),
+		Handler:           s.router,
+		TLSConfig:         tlsConfig,
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       35 * time.Second,
+		WriteTimeout:      35 * time.Second,
+		IdleTimeout:       200 * time.Second,
 	}
 	return &s, nil
 }
