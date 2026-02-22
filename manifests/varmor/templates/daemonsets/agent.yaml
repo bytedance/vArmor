@@ -164,7 +164,7 @@ spec:
           sources:
           - serviceAccountToken:
               path: bound-token
-              expirationSeconds: 7200
+              expirationSeconds: 86400
               audience: varmor-manager
         name: bound-token
       {{- if .Values.appArmorLsmEnforcer.enabled }}
