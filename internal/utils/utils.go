@@ -313,3 +313,20 @@ func GenerateLeaseUpdatePeriod(kubeClient *kubernetes.Clientset) (time.Duration,
 		return 90 * time.Second, 80 * time.Second, 8 * time.Second, nil
 	}
 }
+
+// GenerateStatusUpdateWindow generates status update batch window based on number of nodes in the cluster.
+// This is used to throttle status updates in large clusters to reduce API server load.
+// The larger the cluster, the longer the batch window to collect more status updates before processing.
+func GenerateStatusUpdateWindow(nodeCount int) time.Duration {
+	if nodeCount < 100 {
+		return 2 * time.Second // Small cluster, fast response
+	} else if nodeCount < 1000 {
+		return 5 * time.Second // Medium cluster
+	} else if nodeCount < 5000 {
+		return 10 * time.Second // Large cluster
+	} else if nodeCount < 8000 {
+		return 20 * time.Second // Extra-large cluster
+	} else {
+		return 30 * time.Second // Ultra-large cluster
+	}
+}
