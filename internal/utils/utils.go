@@ -34,6 +34,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	types "k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/version"
+	"k8s.io/client-go/kubernetes"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/util/retry"
 
@@ -267,4 +268,27 @@ func IsRequestSizeError(err error) bool {
 		return true
 	}
 	return false
+}
+
+// GenerateLeaseUpdatePeriod generates the lease update period based on the number of nodes in the cluster.
+// The larger the cluster, the longer the lease update period to reduce the frequency of leader elections.
+func GenerateLeaseUpdatePeriod(kubeClient *kubernetes.Clientset) (time.Duration, time.Duration, time.Duration, error) {
+	nodes, err := kubeClient.CoreV1().Nodes().List(context.Background(), metav1.ListOptions{
+		LabelSelector:   "node.kubernetes.io/instance-type!=virtual-node",
+		ResourceVersion: "0",
+	})
+	if err != nil {
+		return 0, 0, 0, err
+	}
+
+	nodeCount := len(nodes.Items)
+	if nodeCount < 100 {
+		return 15 * time.Second, 10 * time.Second, 2 * time.Second, nil
+	} else if nodeCount < 1000 {
+		return 30 * time.Second, 20 * time.Second, 4 * time.Second, nil
+	} else if nodeCount < 5000 {
+		return 60 * time.Second, 50 * time.Second, 8 * time.Second, nil
+	} else {
+		return 90 * time.Second, 80 * time.Second, 8 * time.Second, nil
+	}
 }
