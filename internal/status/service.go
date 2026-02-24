@@ -29,10 +29,12 @@ import (
 	authnv1 "k8s.io/api/authentication/v1"
 	authzv1 "k8s.io/api/authorization/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/wait"
 	appsv1 "k8s.io/client-go/kubernetes/typed/apps/v1"
 	authnclientv1 "k8s.io/client-go/kubernetes/typed/authentication/v1"
 	authzclientv1 "k8s.io/client-go/kubernetes/typed/authorization/v1"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
+	"k8s.io/client-go/util/retry"
 
 	varmorconfig "github.com/bytedance/vArmor/internal/config"
 	statusmanager "github.com/bytedance/vArmor/internal/status/apis/v1"
@@ -53,11 +55,12 @@ type StatusService struct {
 	port          int
 	inContainer   bool
 	log           logr.Logger
+	tokenCache    *TokenCache
 }
 
 // CheckAgentToken verify the token of the client.
 // Check if the requester is the varmor-agent.
-func CheckAgentToken(authnInterface authnclientv1.AuthenticationV1Interface, inContainer bool) gin.HandlerFunc {
+func CheckAgentToken(authnInterface authnclientv1.AuthenticationV1Interface, inContainer bool, tokenCache *TokenCache) gin.HandlerFunc {
 	if !inContainer {
 		return func(c *gin.Context) {
 			c.Next()
@@ -70,23 +73,52 @@ func CheckAgentToken(authnInterface authnclientv1.AuthenticationV1Interface, inC
 			c.AbortWithStatus(http.StatusUnauthorized)
 			return
 		}
-		tr := &authnv1.TokenReview{
-			Spec: authnv1.TokenReviewSpec{
-				Token: token,
-				Audiences: []string{
-					managerAudience,
-				},
+
+		if authenticated, found := tokenCache.Get(token); found {
+			if authenticated {
+				c.Next()
+				return
+			}
+			c.AbortWithStatus(http.StatusUnauthorized)
+			return
+		}
+
+		var result *authnv1.TokenReview
+		defaultRetry := wait.Backoff{
+			Steps:    3,
+			Duration: 500 * time.Millisecond,
+			Factor:   2.0,
+			Jitter:   0.1,
+		}
+		err := retry.OnError(defaultRetry,
+			func(err error) bool {
+				return err != nil
 			},
-		}
-		result, err := authnInterface.TokenReviews().Create(context.Background(), tr, metav1.CreateOptions{})
+			func() (err error) {
+				tr := &authnv1.TokenReview{
+					Spec: authnv1.TokenReviewSpec{
+						Token: token,
+						Audiences: []string{
+							managerAudience,
+						},
+					},
+				}
+				result, err = authnInterface.TokenReviews().Create(context.Background(), tr, metav1.CreateOptions{})
+				return err
+			})
 		if err != nil {
-			c.AbortWithStatus(http.StatusUnauthorized)
+			c.AbortWithStatus(http.StatusInternalServerError)
 			return
 		}
+
 		if !result.Status.Authenticated {
+			tokenCache.Set(token, false)
 			c.AbortWithStatus(http.StatusUnauthorized)
 			return
 		}
+
+		tokenCache.Set(token, true)
+
 		c.Next()
 	}
 }
@@ -203,13 +235,14 @@ func NewStatusService(
 		port:          port,
 		inContainer:   inContainer,
 		log:           log,
+		tokenCache:    NewTokenCache(defaultTokenCacheTTL, log),
 	}
 	s.router.Use(gin.Recovery(), varmorutils.GinLogger())
 	s.router.SetTrustedProxies(nil)
 
 	s.router.GET("/healthz", health)
-	s.router.POST(varmorconfig.StatusSyncPath, CheckAgentToken(authnInterface, inContainer), statusManager.Status)
-	s.router.POST(varmorconfig.DataSyncPath, CheckAgentToken(authnInterface, inContainer), statusManager.Data)
+	s.router.POST(varmorconfig.StatusSyncPath, CheckAgentToken(authnInterface, inContainer, s.tokenCache), statusManager.Status)
+	s.router.POST(varmorconfig.DataSyncPath, CheckAgentToken(authnInterface, inContainer, s.tokenCache), statusManager.Data)
 
 	apiGroup := s.router.Group("/apis/crd.varmor.org/v1beta1")
 	{
@@ -230,15 +263,21 @@ func NewStatusService(
 		Certificates: []tls.Certificate{cert},
 	}
 	s.srv = &http.Server{
-		Addr:      fmt.Sprintf("%s:%d", s.addr, s.port),
-		Handler:   s.router,
-		TLSConfig: tlsConfig,
+		Addr:              fmt.Sprintf("%s:%d", s.addr, s.port),
+		Handler:           s.router,
+		TLSConfig:         tlsConfig,
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       35 * time.Second,
+		WriteTimeout:      35 * time.Second,
+		IdleTimeout:       200 * time.Second,
 	}
 	return &s, nil
 }
 
 func (s *StatusService) Run(stopCh <-chan struct{}) {
 	s.log.Info("starting", "addr", s.srv.Addr)
+
+	s.tokenCache.StartCleanup(stopCh)
 
 	go s.StatusManager.Run(stopCh)
 

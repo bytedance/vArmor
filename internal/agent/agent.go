@@ -59,7 +59,7 @@ import (
 
 const (
 	// maxRetries used for setting the retry times of sync failed
-	maxRetries = 10
+	maxRetries = 5
 )
 
 type Agent struct {

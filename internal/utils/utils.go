@@ -26,6 +26,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -43,26 +44,42 @@ import (
 )
 
 const (
-	httpTimeout = 3 * time.Second
-	retryTimes  = 5
+	httpTimeout = 40 * time.Second
+	retryTimes  = 3
 )
 
+var (
+	httpClient *http.Client
+	httpOnce   sync.Once
+)
+
+func initHTTPClient() {
+	tr := &http.Transport{
+		TLSClientConfig:   &tls.Config{InsecureSkipVerify: true},
+		DisableKeepAlives: false,
+		MaxIdleConns:      10,
+		IdleConnTimeout:   200 * time.Second,
+	}
+
+	httpClient = &http.Client{
+		Timeout:   httpTimeout,
+		Transport: tr,
+	}
+}
+
 func HTTPSPostWithRetryAndToken(address string, path string, reqBody []byte, inContainer bool) error {
+	httpOnce.Do(initHTTPClient)
+
 	url := fmt.Sprintf("https://%s%s", address, path)
 
-	tr := &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-	}
-	client := &http.Client{Timeout: httpTimeout, Transport: tr}
-
 	var lastErr error
-	for range retryTimes {
+	for retry := 0; retry < retryTimes; retry++ {
 		httpReq, err := http.NewRequest("POST", url, bytes.NewBuffer(reqBody))
 		if err == nil {
 			httpReq.Header.Set("Content-Type", "application/json")
 			httpReq.Header.Set("Token", GetToken())
 
-			httpRsp, err := client.Do(httpReq)
+			httpRsp, err := httpClient.Do(httpReq)
 			if err == nil {
 				switch httpRsp.StatusCode {
 				case http.StatusOK:
@@ -70,7 +87,7 @@ func HTTPSPostWithRetryAndToken(address string, path string, reqBody []byte, inC
 					return nil
 				case http.StatusUnauthorized:
 					if inContainer {
-						// try update token
+						// try to update token
 						updateChan <- true
 					}
 				default:
@@ -84,7 +101,9 @@ func HTTPSPostWithRetryAndToken(address string, path string, reqBody []byte, inC
 			lastErr = err
 		}
 
-		time.Sleep(time.Duration(rand.Intn(500)+200) * time.Millisecond)
+		backoff := time.Duration(1<<uint(retry)) * time.Second
+		jitter := time.Duration(rand.Intn(500)) * time.Millisecond
+		time.Sleep(backoff + jitter)
 	}
 
 	return lastErr
@@ -96,7 +115,7 @@ func HTTPPostAndGetResponseWithRetry(address string, path string, reqBody []byte
 	client := &http.Client{Timeout: httpTimeout}
 
 	var lastErr error
-	for range retryTimes {
+	for retry := 0; retry < retryTimes; retry++ {
 		httpReq, err := http.NewRequest("POST", url, bytes.NewBuffer(reqBody))
 		if err == nil {
 			httpReq.Header.Set("Content-Type", "application/json")
@@ -122,7 +141,9 @@ func HTTPPostAndGetResponseWithRetry(address string, path string, reqBody []byte
 			lastErr = err
 		}
 
-		time.Sleep(time.Duration(rand.Intn(500)+200) * time.Millisecond)
+		backoff := time.Duration(1<<uint(retry)) * time.Second
+		jitter := time.Duration(rand.Intn(500)) * time.Millisecond
+		time.Sleep(backoff + jitter)
 	}
 
 	return nil, lastErr
@@ -290,5 +311,22 @@ func GenerateLeaseUpdatePeriod(kubeClient *kubernetes.Clientset) (time.Duration,
 		return 60 * time.Second, 50 * time.Second, 8 * time.Second, nil
 	} else {
 		return 90 * time.Second, 80 * time.Second, 8 * time.Second, nil
+	}
+}
+
+// GenerateStatusUpdateWindow generates status update batch window based on number of nodes in the cluster.
+// This is used to throttle status updates in large clusters to reduce API server load.
+// The larger the cluster, the longer the batch window to collect more status updates before processing.
+func GenerateStatusUpdateWindow(nodeCount int) time.Duration {
+	if nodeCount < 100 {
+		return 2 * time.Second // Small cluster, fast response
+	} else if nodeCount < 1000 {
+		return 5 * time.Second // Medium cluster
+	} else if nodeCount < 5000 {
+		return 10 * time.Second // Large cluster
+	} else if nodeCount < 8000 {
+		return 20 * time.Second // Extra-large cluster
+	} else {
+		return 30 * time.Second // Ultra-large cluster
 	}
 }
