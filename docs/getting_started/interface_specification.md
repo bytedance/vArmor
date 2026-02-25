@@ -131,7 +131,8 @@ English | [简体中文](interface_specification.zh_CN.md)
 <br />- Within the same field, multiple rules are also in a logical OR relationship.
 <br />- Overlapping rules targeting the same Pod/Service/IP may cause unintended port combinations or conflicts.
 <br />- The system does NOT guarantee deduplication or conflict resolution for overlapping targets. Users must ensure that rules within these fields do NOT repeatedly define the same Pod/Service/IP to avoid unpredictable traffic control behavior.
-<br />- The toServices and toPods rules only take effect when Kubernetes is v1.21 or higher.
+<br />- The toServices rules only take effect when Kubernetes is v1.21 or higher.
+<br />- The toPods rules only take effect when the [Pod Egress Control feature](installation.md#enable-pod-egress-control) is enabled.
 
 ### Destination
 

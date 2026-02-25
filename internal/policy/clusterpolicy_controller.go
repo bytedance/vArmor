@@ -47,20 +47,21 @@ import (
 )
 
 type ClusterPolicyController struct {
-	kubeClient                    *kubernetes.Clientset
-	varmorInterface               varmorinterface.CrdV1beta1Interface
-	vcpInformer                   varmorinformer.VarmorClusterPolicyInformer
-	vcpLister                     varmorlister.VarmorClusterPolicyLister
-	vcpInformerSynced             cache.InformerSynced
-	queue                         workqueue.RateLimitingInterface
-	statusManager                 *statusmanager.StatusManager
-	egressCache                   map[string]varmortypes.EgressInfo
-	egressCacheMutex              *sync.RWMutex
-	restartExistWorkloads         bool
-	enableBehaviorModeling        bool
-	enablePodServiceEgressControl bool
-	bpfExclusiveMode              bool
-	log                           logr.Logger
+	kubeClient                 *kubernetes.Clientset
+	varmorInterface            varmorinterface.CrdV1beta1Interface
+	vcpInformer                varmorinformer.VarmorClusterPolicyInformer
+	vcpLister                  varmorlister.VarmorClusterPolicyLister
+	vcpInformerSynced          cache.InformerSynced
+	queue                      workqueue.RateLimitingInterface
+	statusManager              *statusmanager.StatusManager
+	egressCache                map[string]varmortypes.EgressInfo
+	egressCacheMutex           *sync.RWMutex
+	restartExistWorkloads      bool
+	enableBehaviorModeling     bool
+	enableServiceEgressControl bool
+	enablePodEgressControl     bool
+	bpfExclusiveMode           bool
+	log                        logr.Logger
 }
 
 // NewClusterPolicyController create a new ClusterPolicyController
@@ -73,25 +74,27 @@ func NewClusterPolicyController(
 	egressCacheMutex *sync.RWMutex,
 	restartExistWorkloads bool,
 	enableBehaviorModeling bool,
-	enablePodServiceEgressControl bool,
+	enableServiceEgressControl bool,
+	enablePodEgressControl bool,
 	bpfExclusiveMode bool,
 	log logr.Logger) (*ClusterPolicyController, error) {
 
 	c := ClusterPolicyController{
-		kubeClient:                    kubeClient,
-		varmorInterface:               varmorInterface,
-		vcpInformer:                   vcpInformer,
-		vcpLister:                     vcpInformer.Lister(),
-		vcpInformerSynced:             vcpInformer.Informer().HasSynced,
-		queue:                         workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "clusterpolicy"),
-		statusManager:                 statusManager,
-		egressCache:                   egressCache,
-		egressCacheMutex:              egressCacheMutex,
-		restartExistWorkloads:         restartExistWorkloads,
-		enableBehaviorModeling:        enableBehaviorModeling,
-		enablePodServiceEgressControl: enablePodServiceEgressControl,
-		bpfExclusiveMode:              bpfExclusiveMode,
-		log:                           log,
+		kubeClient:                 kubeClient,
+		varmorInterface:            varmorInterface,
+		vcpInformer:                vcpInformer,
+		vcpLister:                  vcpInformer.Lister(),
+		vcpInformerSynced:          vcpInformer.Informer().HasSynced,
+		queue:                      workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "clusterpolicy"),
+		statusManager:              statusManager,
+		egressCache:                egressCache,
+		egressCacheMutex:           egressCacheMutex,
+		restartExistWorkloads:      restartExistWorkloads,
+		enableBehaviorModeling:     enableBehaviorModeling,
+		enableServiceEgressControl: enableServiceEgressControl,
+		enablePodEgressControl:     enablePodEgressControl,
+		bpfExclusiveMode:           bpfExclusiveMode,
+		log:                        log,
 	}
 
 	return &c, nil
@@ -201,7 +204,7 @@ func (c *ClusterPolicyController) handleAddVarmorClusterPolicy(vcp *varmor.Varmo
 		return err
 	}
 
-	ap, egressInfo, err := varmorprofile.NewArmorProfile(c.kubeClient, c.varmorInterface, vcp, true, c.enablePodServiceEgressControl, logger)
+	ap, egressInfo, err := varmorprofile.NewArmorProfile(c.kubeClient, c.varmorInterface, vcp, true, c.enableServiceEgressControl, c.enablePodEgressControl, logger)
 	if err != nil {
 		logger.Error(err, "NewArmorProfile()")
 		err = statuscommon.UpdateVarmorClusterPolicyStatus(c.varmorInterface, vcp, "", false, varmor.VarmorPolicyError, varmor.VarmorPolicyCreated, apicorev1.ConditionFalse,
@@ -305,7 +308,7 @@ func (c *ClusterPolicyController) handleUpdateVarmorClusterPolicy(newVcp *varmor
 		}
 	}
 
-	newProfile, egressInfo, err := varmorprofile.GenerateProfile(c.kubeClient, c.varmorInterface, newVcp.Spec.Policy, oldAp.Name, varmorconfig.Namespace, complete, c.enablePodServiceEgressControl, logger)
+	newProfile, egressInfo, err := varmorprofile.GenerateProfile(c.kubeClient, c.varmorInterface, newVcp.Spec.Policy, oldAp.Name, varmorconfig.Namespace, complete, c.enableServiceEgressControl, c.enablePodEgressControl, logger)
 	if err != nil {
 		logger.Error(err, "GenerateProfile()")
 		err = statuscommon.UpdateVarmorClusterPolicyStatus(c.varmorInterface, newVcp, "", false, varmor.VarmorPolicyError, varmor.VarmorPolicyUpdated, apicorev1.ConditionFalse,

@@ -61,7 +61,8 @@ func GenerateProfile(
 	policy varmor.Policy,
 	name string, namespace string,
 	complete bool,
-	enablePodServiceEgressControl bool,
+	enableServiceEgressControl bool,
+	enablePodEgressControl bool,
 	logger logr.Logger) (*varmor.Profile, *varmortypes.EgressInfo, error) {
 	var err error
 
@@ -142,7 +143,7 @@ func GenerateProfile(
 		// BPF
 		if (e & varmortypes.BPF) != 0 {
 			var bpfContent varmor.BpfContent
-			err = bpfprofile.GenerateEnhanceProtectProfile(kubeClient, policy.EnhanceProtect, &bpfContent, enablePodServiceEgressControl, &egressInfo)
+			err = bpfprofile.GenerateEnhanceProtectProfile(kubeClient, policy.EnhanceProtect, &bpfContent, enableServiceEgressControl, enablePodEgressControl, &egressInfo)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -283,7 +284,8 @@ func NewArmorProfile(
 	varmorInterface varmorinterface.CrdV1beta1Interface,
 	obj interface{},
 	clusterScope bool,
-	enablePodServiceEgressControl bool,
+	enableServiceEgressControl bool,
+	enablePodEgressControl bool,
 	logger logr.Logger) (*varmor.ArmorProfile, *varmortypes.EgressInfo, error) {
 
 	var ap varmor.ArmorProfile
@@ -310,7 +312,7 @@ func NewArmorProfile(
 		}
 		ap.Finalizers = []string{"varmor.org/ap-protection"}
 
-		profile, egressInfo, err = GenerateProfile(kubeClient, varmorInterface, vcp.Spec.Policy, ap.Name, ap.Namespace, false, enablePodServiceEgressControl, logger)
+		profile, egressInfo, err = GenerateProfile(kubeClient, varmorInterface, vcp.Spec.Policy, ap.Name, ap.Namespace, false, enableServiceEgressControl, enablePodEgressControl, logger)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -342,7 +344,7 @@ func NewArmorProfile(
 		}
 		ap.Finalizers = []string{"varmor.org/ap-protection"}
 
-		profile, egressInfo, err = GenerateProfile(kubeClient, varmorInterface, vp.Spec.Policy, ap.Name, ap.Namespace, false, enablePodServiceEgressControl, logger)
+		profile, egressInfo, err = GenerateProfile(kubeClient, varmorInterface, vp.Spec.Policy, ap.Name, ap.Namespace, false, enableServiceEgressControl, enablePodEgressControl, logger)
 		if err != nil {
 			return nil, nil, err
 		}

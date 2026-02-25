@@ -78,17 +78,26 @@ func NewIPWatcher(
 
 	i := IPWatcher{
 		varmorInterface:  varmorInterface,
-		podinformer:      podinformer,
-		podLister:        podinformer.Lister(),
-		serviceinformer:  serviceinformer,
-		serviceLister:    serviceinformer.Lister(),
-		epsinformer:      epsinformer,
-		epsLister:        epsinformer.Lister(),
 		queue:            workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "ip"),
 		ipPortCache:      &IPPortCache{},
 		egressCache:      egressCache,
 		egressCacheMutex: egressCacheMutex,
 		log:              log,
+	}
+
+	if podinformer != nil {
+		i.podinformer = podinformer
+		i.podLister = podinformer.Lister()
+	}
+
+	if serviceinformer != nil {
+		i.serviceinformer = serviceinformer
+		i.serviceLister = serviceinformer.Lister()
+	}
+
+	if epsinformer != nil {
+		i.epsinformer = epsinformer
+		i.epsLister = epsinformer.Lister()
 	}
 
 	return &i, nil
@@ -135,39 +144,51 @@ func (i *IPWatcher) Run(workers int, stopCh <-chan struct{}) {
 
 	defer utilruntime.HandleCrash()
 
-	if !cache.WaitForCacheSync(stopCh, i.podinformer.Informer().HasSynced) {
-		logger.Error(fmt.Errorf("failed to sync pod informer cache"), "cache.WaitForCacheSync()")
-		return
+	if i.podinformer != nil {
+		if !cache.WaitForCacheSync(stopCh, i.podinformer.Informer().HasSynced) {
+			logger.Error(fmt.Errorf("failed to sync pod informer cache"), "cache.WaitForCacheSync()")
+			return
+		}
 	}
 
-	if !cache.WaitForCacheSync(stopCh, i.serviceinformer.Informer().HasSynced) {
-		logger.Error(fmt.Errorf("failed to sync service informer cache"), "cache.WaitForCacheSync()")
-		return
+	if i.serviceinformer != nil {
+		if !cache.WaitForCacheSync(stopCh, i.serviceinformer.Informer().HasSynced) {
+			logger.Error(fmt.Errorf("failed to sync service informer cache"), "cache.WaitForCacheSync()")
+			return
+		}
 	}
 
-	if !cache.WaitForCacheSync(stopCh, i.epsinformer.Informer().HasSynced) {
-		logger.Error(fmt.Errorf("failed to sync endpointslice informer cache"), "cache.WaitForCacheSync()")
-		return
+	if i.epsinformer != nil {
+		if !cache.WaitForCacheSync(stopCh, i.epsinformer.Informer().HasSynced) {
+			logger.Error(fmt.Errorf("failed to sync endpointslice informer cache"), "cache.WaitForCacheSync()")
+			return
+		}
 	}
 
 	// Register event handlers for Pod.
 	// We assume that the IPs of a Pod can be added but not changed during its lifecircle.
-	i.podinformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-		UpdateFunc: i.updatePod,
-		DeleteFunc: i.deletePod,
-	})
+	if i.podinformer != nil {
+		i.podinformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+			UpdateFunc: i.updatePod,
+			DeleteFunc: i.deletePod,
+		})
+	}
 
 	// Register event handlers for Service.
-	i.serviceinformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc:    i.addService,
-		UpdateFunc: i.updateService,
-		DeleteFunc: i.deleteService})
+	if i.serviceinformer != nil {
+		i.serviceinformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+			AddFunc:    i.addService,
+			UpdateFunc: i.updateService,
+			DeleteFunc: i.deleteService})
+	}
 
 	// Register event handlers for EndpointSlice.
-	i.epsinformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc:    i.addEndpointSlice,
-		UpdateFunc: i.updateEndpointSlice,
-		DeleteFunc: i.deleteEndpointSlice})
+	if i.epsinformer != nil {
+		i.epsinformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+			AddFunc:    i.addEndpointSlice,
+			UpdateFunc: i.updateEndpointSlice,
+			DeleteFunc: i.deleteEndpointSlice})
+	}
 
 	for index := 0; index < workers; index++ {
 		go wait.Until(i.worker, time.Second, stopCh)

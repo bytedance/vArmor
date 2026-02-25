@@ -27,8 +27,11 @@ bpfLsmEnforcer:
 behaviorModeling:
   enabled: false
 
-podServiceEgressControl:
+serviceEgressControl:
   enabled: true
+
+podEgressControl:
+  enabled: false
 
 unloadAllAaProfiles:
   enabled: false
@@ -122,17 +125,29 @@ manager:
       claimName: varmor-manager-apmdata-pvc
       name: apmdata
 
-  podServiceEgressControl:
+  serviceEgressControl:
     args:
-    - --enablePodServiceEgressControl
+    - --enableServiceEgressControl
     clusterrules:
     - apiGroups:
       - ""
       - "discovery.k8s.io"
       resources:
-      - pods
       - services
       - endpointslices
+      verbs:
+      - get
+      - list
+      - watch
+
+  podEgressControl:
+    args:
+    - --enablePodEgressControl
+    clusterrules:
+    - apiGroups:
+      - ""
+      resources:
+      - pods
       verbs:
       - get
       - list
