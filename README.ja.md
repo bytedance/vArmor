@@ -60,13 +60,13 @@ vArmorポリシーは、**AlwaysAllow、RuntimeDefault、EnhanceProtect、Behavi
 
 ### ステップ1. チャートの取得
 ```
-helm pull oci://elkeid-ap-southeast-1.cr.volces.com/varmor/varmor --version 0.9.1
+helm pull oci://elkeid-ap-southeast-1.cr.volces.com/varmor/varmor --version 0.9.2
 ```
 
 ### ステップ2. インストール
 *中国地域内では、ドメイン`elkeid-cn-beijing.cr.volces.com`を使用できます。*
 ```
-helm install varmor varmor-0.9.1.tgz \
+helm install varmor varmor-0.9.2.tgz \
     --namespace varmor --create-namespace \
     --set image.registry="elkeid-ap-southeast-1.cr.volces.com"
 ```
