@@ -112,6 +112,7 @@ jobs:
               --namespace varmor --create-namespace \
               --set image.registry="elkeid-ap-southeast-1.cr.volces.com" \
               --set bpfLsmEnforcer.enabled=true \
+              --set podEgressControl.enabled=true \
               --set image.namespace="varmor-test" \
               --set manager.image.pullPolicy="Never" \
               --set agent.image.pullPolicy="Never" \
