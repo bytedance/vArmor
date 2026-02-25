@@ -498,15 +498,57 @@ func generateAttackProtectionRules(
 		}
 		content.Files = append(content.Files, *fileContent)
 	case "block-access-to-metadata-service", "disallow-metadata-service":
-		// For Aliyun, Volc Engine, etc.
-		networkContent, err = newBpfNetworkConnectRule(mode, "", "100.96.0.96", 0, 0, nil)
+		// AWS, GCP, Azure, OpenStack, etc.
+		networkContent, err = newBpfNetworkConnectRule(mode, "", "169.254.169.254", 0, 0, nil)
 		if err != nil {
 			return err
 		}
 		content.Networks = append(content.Networks, *networkContent)
 
-		// For AWS, GCP, Azure, etc.
+		// AWS IPv6-only EC2 instance
+		networkContent, err = newBpfNetworkConnectRule(mode, "", "fd00:ec2::254", 0, 0, nil)
+		if err != nil {
+			return err
+		}
+		content.Networks = append(content.Networks, *networkContent)
+
+		// Volc Engine, BytePlus (backward compatibility)
+		networkContent, err = newBpfNetworkConnectRule(mode, "", "100.96.0.96", 0, 0, nil)
+		if err != nil {
+			return err
+		}
+		content.Networks = append(content.Networks, *networkContent)
+	case "block-access-to-volc-metadata-service":
+		// Volc Engine, BytePlus
+		networkContent, err = newBpfNetworkConnectRule(mode, "", "100.96.0.96", 0, 0, nil)
+		if err != nil {
+			return err
+		}
+		content.Networks = append(content.Networks, *networkContent)
+	case "block-access-to-alibaba-metadata-service":
+		// Alibaba Cloud
+		networkContent, err = newBpfNetworkConnectRule(mode, "", "100.100.100.200", 0, 0, nil)
+		if err != nil {
+			return err
+		}
+		content.Networks = append(content.Networks, *networkContent)
+	case "block-access-to-aws-metadata-service":
+		// AWS, GCP, Azure, OpenStack, etc.
 		networkContent, err = newBpfNetworkConnectRule(mode, "", "169.254.169.254", 0, 0, nil)
+		if err != nil {
+			return err
+		}
+		content.Networks = append(content.Networks, *networkContent)
+
+		// AWS IPv6-only EC2 instance
+		networkContent, err = newBpfNetworkConnectRule(mode, "", "fd00:ec2::254", 0, 0, nil)
+		if err != nil {
+			return err
+		}
+		content.Networks = append(content.Networks, *networkContent)
+	case "block-access-to-oci-metadata-service":
+		// Oracle Cloud Infrastructure
+		networkContent, err = newBpfNetworkConnectRule(mode, "", "192.0.0.192", 0, 0, nil)
 		if err != nil {
 			return err
 		}
@@ -537,14 +579,12 @@ func generateAttackProtectionRules(
 			return err
 		}
 		content.Files = append(content.Files, *fileContent)
-
 	case "disable-busybox":
 		fileContent, err = newBpfPathRule(mode, "/**/busybox", bpfenforcer.AaMayExec)
 		if err != nil {
 			return err
 		}
 		content.Processes = append(content.Processes, *fileContent)
-
 	case "disable-shell":
 		fileContent, err = newBpfPathRule(mode, "/**/sh", bpfenforcer.AaMayExec)
 		if err != nil {

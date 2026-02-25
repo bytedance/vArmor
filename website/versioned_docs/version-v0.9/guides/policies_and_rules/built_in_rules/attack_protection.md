@@ -82,12 +82,86 @@ Disallow reading ARP address resolution tables (such as `/proc/net/arp`, `/proc/
 
 ### `block-access-to-metadata-service`
 
-Disallow access to the metadata service.
+Disallow access to common metadata services.
 
 :::note[Description]
-This rule prohibits container processes from accessing the cloud server's Instance Metadata Service, including two reserved local addresses: **100.96.0.96** and **169.254.169.254**.
+This rule prohibits container processes from accessing common cloud provider Instance Metadata Services, including **169.254.169.254** (IPv4) and **fd00:ec2::254** (IPv6 for AWS EC2) for AWS, GCP, Azure, and OpenStack, as well as **100.96.0.96** for Volc Engine and BytePlus.
 
-Attackers, upon gaining code execution privileges within a container, may attempt to access the cloud server's Metadata Service for information disclosure. In certain scenarios, attackers may obtain sensitive information, leading to privilege escalation and lateral movement.
+For better performance and granular control, consider using provider-specific rules such as [`block-access-to-aws-metadata-service`](#block-access-to-aws-metadata-service), [`block-access-to-volc-metadata-service`](#block-access-to-volc-metadata-service), [`block-access-to-alibaba-metadata-service`](#block-access-to-alibaba-metadata-service), or [`block-access-to-oci-metadata-service`](#block-access-to-oci-metadata-service).
+
+Attackers, upon gaining code execution privileges within a container, may attempt to access to cloud server's Metadata Service for information disclosure. In certain scenarios, attackers may obtain sensitive information, leading to privilege escalation and lateral movement.
+:::
+
+:::info[Principle & Impact]
+Prohibit connections to Instance Metadata Services' IP addresses.
+:::
+
+:::tip[Supported Enforcer]
+* BPF
+:::
+
+### `block-access-to-aws-metadata-service`
+
+Disallow access to AWS, GCP, Azure, and OpenStack metadata services.
+
+:::note[Description]
+This rule prohibits container processes from accessing Instance Metadata Services for AWS, GCP, Azure, and OpenStack, including **169.254.169.254** (IPv4) and **fd00:ec2::254** (IPv6 for AWS EC2).
+
+Attackers, upon gaining code execution privileges within a container, may attempt to access to cloud server's Metadata Service for information disclosure. In certain scenarios, attackers may obtain sensitive information, leading to privilege escalation and lateral movement.
+:::
+
+:::info[Principle & Impact]
+Prohibit connections to Instance Metadata Services' IP addresses.
+:::
+
+:::tip[Supported Enforcer]
+* BPF
+:::
+
+### `block-access-to-volc-metadata-service`
+
+Disallow access to Volc Engine and BytePlus metadata services.
+
+:::note[Description]
+This rule prohibits container processes from accessing Volc Engine and BytePlus Instance Metadata Services, including **100.96.0.96**.
+
+Attackers, upon gaining code execution privileges within a container, may attempt to access to cloud server's Metadata Service for information disclosure. In certain scenarios, attackers may obtain sensitive information, leading to privilege escalation and lateral movement.
+:::
+
+:::info[Principle & Impact]
+Prohibit connections to Instance Metadata Services' IP addresses.
+:::
+
+:::tip[Supported Enforcer]
+* BPF
+:::
+
+### `block-access-to-alibaba-metadata-service`
+
+Disallow access to Alibaba Cloud (Aliyun) metadata services.
+
+:::note[Description]
+This rule prohibits container processes from accessing Alibaba Cloud Instance Metadata Services, including **100.100.100.200**.
+
+Attackers, upon gaining code execution privileges within a container, may attempt to access to cloud server's Metadata Service for information disclosure. In certain scenarios, attackers may obtain sensitive information, leading to privilege escalation and lateral movement.
+:::
+
+:::info[Principle & Impact]
+Prohibit connections to Instance Metadata Services' IP addresses.
+:::
+
+:::tip[Supported Enforcer]
+* BPF
+:::
+
+### `block-access-to-oci-metadata-service`
+
+Disallow access to Oracle Cloud Infrastructure (OCI) metadata services.
+
+:::note[Description]
+This rule prohibits container processes from accessing Oracle Cloud Infrastructure Instance Metadata Services, including **192.0.0.192**.
+
+Attackers, upon gaining code execution privileges within a container, may attempt to access to cloud server's Metadata Service for information disclosure. In certain scenarios, attackers may obtain sensitive information, leading to privilege escalation and lateral movement.
 :::
 
 :::info[Principle & Impact]
