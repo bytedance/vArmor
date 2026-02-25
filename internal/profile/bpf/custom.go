@@ -34,7 +34,8 @@ func generateCustomRules(
 	kubeClient *kubernetes.Clientset,
 	enhanceProtect *varmor.EnhanceProtect,
 	bpfContent *varmor.BpfContent,
-	enablePodServiceEgressControl bool,
+	enableServiceEgressControl bool,
+	enablePodEgressControl bool,
 	egressInfo *varmortypes.EgressInfo) (err error) {
 	for _, rule := range enhanceProtect.BpfRawRules.Files {
 		err = generateRawFileRule(bpfContent, rule)
@@ -68,7 +69,7 @@ func generateCustomRules(
 			}
 		}
 		if enhanceProtect.BpfRawRules.Network.Egress != nil {
-			err = generateRawNetworkEgressRule(kubeClient, bpfContent, enhanceProtect.BpfRawRules.Network.Egress, enablePodServiceEgressControl, egressInfo)
+			err = generateRawNetworkEgressRule(kubeClient, bpfContent, enhanceProtect.BpfRawRules.Network.Egress, enableServiceEgressControl, enablePodEgressControl, egressInfo)
 			if err != nil {
 				return err
 			}
@@ -572,7 +573,8 @@ func generateRawNetworkEgressRule(
 	kubeClient *kubernetes.Clientset,
 	bpfContent *varmor.BpfContent,
 	rule *varmor.NetworkEgressRule,
-	enablePodServiceEgressControl bool,
+	enableServiceEgressControl bool,
+	enablePodEgressControl bool,
 	egressInfo *varmortypes.EgressInfo) error {
 
 	err := generateRawNetworkEgressRuleForDestinations(bpfContent, rule.ToDestinations)
@@ -584,8 +586,11 @@ func generateRawNetworkEgressRule(
 		return nil
 	}
 
-	if (len(rule.ToPods) != 0 || len(rule.ToServices) != 0) && !enablePodServiceEgressControl {
-		return fmt.Errorf("the PodServiceEgressControl feature is required to generate network egress rule for Pods and Services")
+	if len(rule.ToServices) != 0 && !enableServiceEgressControl {
+		return fmt.Errorf("the ServiceEgressControl feature is required to generate network egress rule for Services")
+	}
+	if len(rule.ToPods) != 0 && !enablePodEgressControl {
+		return fmt.Errorf("the PodEgressControl feature is required to generate network egress rule for Pods")
 	}
 
 	for _, toPod := range rule.ToPods {

@@ -30,6 +30,8 @@ import (
 	"go.uber.org/automaxprocs/maxprocs"
 	"golang.org/x/sys/unix"
 	kubeinformers "k8s.io/client-go/informers"
+	coreinformers "k8s.io/client-go/informers/core/v1"
+	discoveryinformers "k8s.io/client-go/informers/discovery/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/util/retry"
 	"k8s.io/klog/v2"
@@ -61,33 +63,34 @@ const (
 )
 
 var (
-	agent                         bool
-	preDelete                     bool
-	enableMetrics                 bool
-	enableBpfEnforcer             bool
-	enableBehaviorModeling        bool
-	enablePodServiceEgressControl bool
-	unloadAllAaProfiles           bool
-	removeAllSeccompProfiles      bool
-	bpfExclusiveMode              bool
-	restartExistWorkloads         bool
-	clientRateLimitQPS            float64
-	clientRateLimitBurst          int
-	webhookTimeout                int
-	webhookMatchLabel             string
-	statusUpdateCycle             time.Duration
-	auditLogPaths                 string
-	logFormat                     string
-	verbosity                     int
-	managerIP                     string
-	kubeconfig                    string
-	versionFlag                   bool
-	debugFlag                     bool
-	gitVersion                    string
-	gitCommit                     string
-	buildDate                     string
-	goVersion                     string
-	logger                        = log.Log
+	agent                      bool
+	preDelete                  bool
+	enableMetrics              bool
+	enableBpfEnforcer          bool
+	enableBehaviorModeling     bool
+	enableServiceEgressControl bool
+	enablePodEgressControl     bool
+	unloadAllAaProfiles        bool
+	removeAllSeccompProfiles   bool
+	bpfExclusiveMode           bool
+	restartExistWorkloads      bool
+	clientRateLimitQPS         float64
+	clientRateLimitBurst       int
+	webhookTimeout             int
+	webhookMatchLabel          string
+	statusUpdateCycle          time.Duration
+	auditLogPaths              string
+	logFormat                  string
+	verbosity                  int
+	managerIP                  string
+	kubeconfig                 string
+	versionFlag                bool
+	debugFlag                  bool
+	gitVersion                 string
+	gitCommit                  string
+	buildDate                  string
+	goVersion                  string
+	logger                     = log.Log
 )
 
 func setLogger() {
@@ -162,7 +165,8 @@ func main() {
 	flag.BoolVar(&enableMetrics, "enableMetrics", false, "Set this flag to enable metrics.")
 	flag.BoolVar(&enableBpfEnforcer, "enableBpfEnforcer", false, "Set this flag to enable BPF enforcer.")
 	flag.BoolVar(&enableBehaviorModeling, "enableBehaviorModeling", false, "Set this flag to enable BehaviorModeling feature (Note: this is an experimental feature, please do not enable it in production environment).")
-	flag.BoolVar(&enablePodServiceEgressControl, "enablePodServiceEgressControl", false, "Set this flag to enable the egress control feature for Pod and Service access")
+	flag.BoolVar(&enableServiceEgressControl, "enableServiceEgressControl", false, "Set this flag to enable the egress control feature for Service access")
+	flag.BoolVar(&enablePodEgressControl, "enablePodEgressControl", false, "Set this flag to enable the egress control feature for Pod access")
 	flag.BoolVar(&unloadAllAaProfiles, "unloadAllAaProfiles", false, "Unload all AppArmor profiles when the agent exits.")
 	flag.BoolVar(&removeAllSeccompProfiles, "removeAllSeccompProfiles", false, "Remove all Seccomp profiles when the agent exits.")
 	flag.BoolVar(&bpfExclusiveMode, "bpfExclusiveMode", false, "Set this flag to enable exclusive mode for the BPF enforcer. It will disable the AppArmor confinement when using the BPF enforcer.")
@@ -458,13 +462,25 @@ func main() {
 		egressCache := make(map[string]varmortypes.EgressInfo)
 		egressCacheMutex := &sync.RWMutex{}
 		var ipWatcher *ipwatcher.IPWatcher
-		if enablePodServiceEgressControl && enableBpfEnforcer {
+		if (enableServiceEgressControl || enablePodEgressControl) && enableBpfEnforcer {
 			factory := kubeinformers.NewSharedInformerFactoryWithOptions(kubeClient, ipResyncPeriod, kubeinformers.WithTransform(ipwatcher.Transform))
+			var serviceInformer coreinformers.ServiceInformer
+			var endpointSliceInformer discoveryinformers.EndpointSliceInformer
+			var podInformer coreinformers.PodInformer
+
+			if enableServiceEgressControl {
+				serviceInformer = factory.Core().V1().Services()
+				endpointSliceInformer = factory.Discovery().V1().EndpointSlices()
+			}
+			if enablePodEgressControl {
+				podInformer = factory.Core().V1().Pods()
+			}
+
 			ipWatcher, err = ipwatcher.NewIPWatcher(
 				varmorClient.CrdV1beta1(),
-				factory.Core().V1().Pods(),
-				factory.Core().V1().Services(),
-				factory.Discovery().V1().EndpointSlices(),
+				podInformer,
+				serviceInformer,
+				endpointSliceInformer,
 				egressCache,
 				egressCacheMutex,
 				logger.WithName("IP-WATCHER"))
@@ -486,7 +502,8 @@ func main() {
 			egressCacheMutex,
 			restartExistWorkloads,
 			enableBehaviorModeling,
-			enablePodServiceEgressControl,
+			enableServiceEgressControl,
+			enablePodEgressControl,
 			bpfExclusiveMode,
 			logger.WithName("CLUSTER-POLICY"),
 		)
@@ -506,7 +523,8 @@ func main() {
 			egressCacheMutex,
 			restartExistWorkloads,
 			enableBehaviorModeling,
-			enablePodServiceEgressControl,
+			enableServiceEgressControl,
+			enablePodEgressControl,
 			bpfExclusiveMode,
 			logger.WithName("POLICY"),
 		)
@@ -520,7 +538,7 @@ func main() {
 
 		// Wrap all controllers that need leaderelection, start them once by the leader.
 		leaderRun := func(ctx context.Context) {
-			if enablePodServiceEgressControl && enableBpfEnforcer {
+			if (enableServiceEgressControl || enablePodEgressControl) && enableBpfEnforcer {
 				// Only the leader watches the Pod and Service IP changes.
 				go ipWatcher.Run(1, stopCh)
 			}

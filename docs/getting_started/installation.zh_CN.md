@@ -108,14 +108,14 @@ vArmor 只会对包含此 label 的 Workloads 开启沙箱防护。你可以使�
 --set restartExistWorkloads.enabled=false
 ```
 
-#### 关闭 Pod 和 Service 出口控制
-此功能扩展了网络访问控制，以限制容器对特定 Pod 和 Service 的访问。您可以使用下面的选项关闭它。默认值：开启。
+#### 开启 Pod 出口控制
+此功能扩展了网络访问控制，以限制容器对特定 Pod IPs 的访问。您可以使用下面的选项关闭它。默认值：开启。
 
 ```bash
---set podServiceEgressControl.enabled=false
+--set podEgressControl.enabled=false
 ```
 
-当前仅 BPF enforcer 支持此功能，并且需要 Kubernetes v1.21 及以上版本。
+当前仅 BPF enforcer 支持此功能。开启此功能时，您可能需要为 manager 设置更多内存，以便其 watch pods 变化。不建议在大规模集群（如 10k+ 节点）中启用此功能。
 
 #### 在宿主机网络命名空间中运行 Agent
 vArmor 的 Agent 默认运行在独立的网络命名空间中，并在端口 `9580` 暴露就绪探针。如果您想将其部署在宿主网络命名空间中，那么可以使用下面的选项进行配置。

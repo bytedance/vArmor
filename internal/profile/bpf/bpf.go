@@ -370,7 +370,8 @@ func generateVulMitigationRules(
 	content *varmor.BpfContent,
 	mode uint32,
 	rule string,
-	enablePodServiceEgressControl bool,
+	enableServiceEgressControl bool,
+	enablePodEgressControl bool,
 	egressInfo *varmortypes.EgressInfo) error {
 
 	rule = strings.ToLower(rule)
@@ -408,7 +409,7 @@ func generateVulMitigationRules(
 		}
 		content.Files = append(content.Files, *fileContent)
 	case "ingress-nightmare-mitigation":
-		if enablePodServiceEgressControl {
+		if enableServiceEgressControl {
 			service, err := generateRawNetworkEgressRuleForServices(kubeClient, content, varmor.Service{
 				Qualifiers: modeToQualifiers(mode),
 				Namespace:  "ingress-nginx",
@@ -441,7 +442,8 @@ func generateAttackProtectionRules(
 	content *varmor.BpfContent,
 	mode uint32,
 	rule string,
-	enablePodServiceEgressControl bool,
+	enableServiceEgressControl bool,
+	enablePodEgressControl bool,
 	egressInfo *varmortypes.EgressInfo) error {
 
 	var fileContent *varmor.FileContent
@@ -635,7 +637,7 @@ func generateAttackProtectionRules(
 		}
 		content.Networks = append(content.Networks, *networkContent)
 	case "block-access-to-kube-apiserver":
-		if enablePodServiceEgressControl {
+		if enableServiceEgressControl {
 			service, err := generateRawNetworkEgressRuleForServices(kubeClient, content, varmor.Service{
 				Qualifiers: modeToQualifiers(mode),
 				Namespace:  "default",
@@ -674,7 +676,8 @@ func GenerateEnhanceProtectProfile(
 	kubeClient *kubernetes.Clientset,
 	enhanceProtect *varmor.EnhanceProtect,
 	bpfContent *varmor.BpfContent,
-	enablePodServiceEgressControl bool,
+	enableServiceEgressControl bool,
+	enablePodEgressControl bool,
 	egressInfo *varmortypes.EgressInfo) error {
 
 	var err error
@@ -706,7 +709,7 @@ func GenerateEnhanceProtectProfile(
 
 	// Vulnerability Mitigation
 	for _, rule := range enhanceProtect.VulMitigationRules {
-		err = generateVulMitigationRules(kubeClient, bpfContent, mode, rule, enablePodServiceEgressControl, egressInfo)
+		err = generateVulMitigationRules(kubeClient, bpfContent, mode, rule, enableServiceEgressControl, enablePodEgressControl, egressInfo)
 		if err != nil {
 			return err
 		}
@@ -716,7 +719,7 @@ func GenerateEnhanceProtectProfile(
 	for _, attackProtectionRule := range enhanceProtect.AttackProtectionRules {
 		if len(attackProtectionRule.Targets) == 0 {
 			for _, rule := range attackProtectionRule.Rules {
-				err = generateAttackProtectionRules(kubeClient, bpfContent, mode, rule, enablePodServiceEgressControl, egressInfo)
+				err = generateAttackProtectionRules(kubeClient, bpfContent, mode, rule, enableServiceEgressControl, enablePodEgressControl, egressInfo)
 				if err != nil {
 					return err
 				}
@@ -726,7 +729,7 @@ func GenerateEnhanceProtectProfile(
 
 	// Custom
 	if enhanceProtect.BpfRawRules != nil {
-		err = generateCustomRules(kubeClient, enhanceProtect, bpfContent, enablePodServiceEgressControl, egressInfo)
+		err = generateCustomRules(kubeClient, enhanceProtect, bpfContent, enableServiceEgressControl, enablePodEgressControl, egressInfo)
 		if err != nil {
 			return err
 		}

@@ -113,14 +113,14 @@ vArmor allows users to decide whether to perform a rolling restart on all target
 --set restartExistWorkloads.enabled=false
 ```
 
-#### Disable Pod and Service Egress Control
-The feature extends network access control to restrict container access to specific Pods and Services. You can use the following option to disable it. Default: enabled.
+#### Enable Pod Egress Control
+The feature extends network access control to restrict container access to specific Pod IPs. You can use the following option to enable it. Default: disabled.
 
 ```bash
---set podServiceEgressControl.enabled=false
+--set podEgressControl.enabled=true
 ```
 
-The feature is currently only supported by the BPF enforcer and requires Kubernetes v1.21 or higher.
+The feature is currently only supported by the BPF enforcer. When enabling this feature, you may need to allocate more memory to the manager to watch pods. It is not recommended to enable this feature in large-scale clusters (such as those with 10k+ nodes).
 
 #### Run Agent in HostNetwork Mode
 The agent runs in its own network namespace and exposes the readinessProbe on port `9580` by default. If you want to run it in the host's network namespace, you can use following options.
