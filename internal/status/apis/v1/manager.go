@@ -68,13 +68,23 @@ type StatusManager struct {
 	statusQueue          workqueue.RateLimitingInterface
 	dataQueue            workqueue.RateLimitingInterface
 	statusUpdateCycle    time.Duration
-	debug                bool
-	inContainer          bool
-	log                  logr.Logger
-	metricsModule        *varmormetrics.MetricsModule
-	profileSuccess       metric.Float64Counter
-	profileFailure       metric.Float64Counter
-	profileChangeCount   metric.Float64Counter
+	// Batch update throttling for large clusters
+	// pendingUpdates tracks statusKeys that need to be updated and their last update time
+	// Use "namespace/VarmorPolicyName" or "VarmorClusterPolicyName" as key.
+	// One VarmorPolicy/ClusterPolicyName object corresponds to one PolicyStatus
+	pendingUpdates     map[string]time.Time
+	pendingUpdatesLock sync.RWMutex
+	// statusUpdateWindow is the time window for batching status updates
+	statusUpdateWindow time.Duration
+	// batchWorkerTicker triggers periodic batch processing
+	batchWorkerTicker  *time.Ticker
+	debug              bool
+	inContainer        bool
+	log                logr.Logger
+	metricsModule      *varmormetrics.MetricsModule
+	profileSuccess     metric.Float64Counter
+	profileFailure     metric.Float64Counter
+	profileChangeCount metric.Float64Counter
 	//profileStatusPerNode metric.Float64Gauge
 }
 
@@ -89,22 +99,25 @@ func NewStatusManager(coreInterface corev1.CoreV1Interface,
 	log logr.Logger) *StatusManager {
 
 	m := StatusManager{
-		coreInterface:     coreInterface,
-		appsInterface:     appsInterface,
-		varmorInterface:   varmorInterface,
-		policyStatuses:    make(map[string]varmortypes.PolicyStatus),
-		modelingStatuses:  make(map[string]varmortypes.ModelingStatus),
-		ResetCh:           make(chan string, 50),
-		DeleteCh:          make(chan string, 50),
-		UpdateStatusCh:    make(chan string, 100),
-		UpdateModeCh:      make(chan string, 50),
-		statusQueue:       workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "status"),
-		dataQueue:         workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "data"),
-		statusUpdateCycle: statusUpdateCycle,
-		metricsModule:     metricsModule,
-		debug:             debug,
-		inContainer:       inContainer,
-		log:               log,
+		coreInterface:      coreInterface,
+		appsInterface:      appsInterface,
+		varmorInterface:    varmorInterface,
+		policyStatuses:     make(map[string]varmortypes.PolicyStatus),
+		modelingStatuses:   make(map[string]varmortypes.ModelingStatus),
+		ResetCh:            make(chan string, 50),
+		DeleteCh:           make(chan string, 50),
+		UpdateStatusCh:     make(chan string, 100),
+		UpdateModeCh:       make(chan string, 50),
+		statusQueue:        workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "status"),
+		dataQueue:          workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "data"),
+		statusUpdateCycle:  statusUpdateCycle,
+		pendingUpdates:     make(map[string]time.Time),
+		statusUpdateWindow: 0,
+		batchWorkerTicker:  nil,
+		metricsModule:      metricsModule,
+		debug:              debug,
+		inContainer:        inContainer,
+		log:                log,
 	}
 
 	if metricsModule.Enabled {
@@ -448,6 +461,10 @@ func (m *StatusManager) reconcileStatus(stopCh <-chan struct{}) {
 			delete(m.modelingStatuses, statusKey)
 			m.modelingStatusesLock.Unlock()
 
+			m.pendingUpdatesLock.Lock()
+			delete(m.pendingUpdates, statusKey)
+			m.pendingUpdatesLock.Unlock()
+
 		// Update the specified object status.
 		case statusKey := <-m.UpdateStatusCh:
 			logger.V(2).Info("Update the specified object status", "key", statusKey)
@@ -624,7 +641,7 @@ func (m *StatusManager) reconcileStatus(stopCh <-chan struct{}) {
 			}
 
 			apName := varmorprofile.GenerateArmorProfileName(namespace, vpName, clusterScope)
-			profile, _, err := varmorprofile.GenerateProfile(nil, m.varmorInterface, vPolicy, apName, namespace, true, false, logger)
+			profile, _, err := varmorprofile.GenerateProfile(nil, m.varmorInterface, vPolicy, apName, namespace, true, false, false, logger)
 			if err != nil {
 				logger.Error(err, "varmorprofile.GenerateProfile()")
 				break
@@ -656,6 +673,55 @@ func (m *StatusManager) reconcileStatus(stopCh <-chan struct{}) {
 	}
 }
 
+// batchWorker periodically batches status updates to reduce API server pressure.
+// It runs on a ticker and processes all pending updates that have reached the time window.
+func (m *StatusManager) batchWorker(stopCh <-chan struct{}) {
+	logger := m.log.WithName("batchWorker")
+
+	for {
+		select {
+		case <-m.batchWorkerTicker.C:
+			var keysToUpdate []struct {
+				key        string
+				lastUpdate time.Time
+			}
+			// Collect statusKeys that have reached the update window
+			m.pendingUpdatesLock.Lock()
+			for key, lastUpdate := range m.pendingUpdates {
+				keysToUpdate = append(keysToUpdate, struct {
+					key        string
+					lastUpdate time.Time
+				}{key, lastUpdate})
+				delete(m.pendingUpdates, key)
+			}
+			m.pendingUpdatesLock.Unlock()
+
+			if len(keysToUpdate) == 0 {
+				continue
+			}
+
+			logger.Info("batch updating status", "count", len(keysToUpdate), "window", m.statusUpdateWindow)
+
+			// Send update signals to reconcileStatus
+			for _, update := range keysToUpdate {
+				select {
+				case m.UpdateStatusCh <- update.key:
+					logger.V(2).Info("sent update signal", "key", update.key)
+				default:
+					// Channel is full, log warning but don't block
+					logger.Error(fmt.Errorf("UpdateStatusCh is full"), "putting back to pendingUpdatesudates", "key", update.key)
+					m.pendingUpdatesLock.Lock()
+					m.pendingUpdates[update.key] = update.lastUpdate
+					m.pendingUpdatesLock.Unlock()
+				}
+			}
+		// Break out the status reconcile loop.
+		case <-stopCh:
+			return
+		}
+	}
+}
+
 // Run begins syncing the status of VarmorPolicy & ArmorPolicy.
 func (m *StatusManager) Run(stopCh <-chan struct{}) {
 
@@ -677,6 +743,15 @@ func (m *StatusManager) Run(stopCh <-chan struct{}) {
 	go m.reconcileStatus(stopCh)
 	go wait.Until(m.statusWorker, time.Second, stopCh)
 	go wait.Until(m.dataWorker, time.Second, stopCh)
+
+	// Initialize status update window based on cluster size
+	m.statusUpdateWindow = varmorutils.GenerateStatusUpdateWindow(int(m.desiredNumber))
+	m.log.Info("Status update window configured", "window", m.statusUpdateWindow, "desiredNumber", m.desiredNumber)
+
+	// Start batch worker for throttled status updates
+	m.batchWorkerTicker = time.NewTicker(m.statusUpdateWindow)
+	go m.batchWorker(stopCh)
+
 	//go m.syncStatusMetricsLoop()
 	<-stopCh
 }
@@ -685,4 +760,7 @@ func (m *StatusManager) Run(stopCh <-chan struct{}) {
 func (m *StatusManager) CleanUp() {
 	m.statusQueue.ShutDown()
 	m.dataQueue.ShutDown()
+	if m.batchWorkerTicker != nil {
+		m.batchWorkerTicker.Stop()
+	}
 }

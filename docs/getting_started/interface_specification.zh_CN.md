@@ -131,7 +131,8 @@
 <br />- 在同一字段内，多个规则间也处于逻辑“或”关系。
 <br />- 针对同一 Pod、Service、IP 的重叠规则可能会导致意外的端口组合或冲突。
 <br />- 系统不保证对重叠目标进行重复数据删除或冲突解决。用户必须确保这些字段中的规则不会重复定义相同的 Pod、Service、IP，以避免出现不可预测的流量控制行为。
-<br />- toServices 和 toPods 规则仅在 Kubernetes 版本为 1.21 或更高版本时生效。
+<br />- toServices 规则仅在 Kubernetes 版本为 1.21 或更高版本时生效。
+<br />- toPods 规则仅在[启用 Pod Egress Control 功能](installation.zh_CN.md#开启-pod-出口控制) 时生效。
 
 ### Destination
 

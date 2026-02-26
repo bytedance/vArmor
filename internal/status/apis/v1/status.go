@@ -58,7 +58,7 @@ func (m *StatusManager) Status(c *gin.Context) {
 	m.statusQueue.Add(profileStatus)
 
 	if m.metricsModule.Enabled {
-		go m.handleProfileStatusUpdate(profileStatus)
+		m.handleProfileStatusUpdate(profileStatus)
 	}
 
 	c.Status(http.StatusOK)
@@ -197,11 +197,19 @@ func (m *StatusManager) syncStatus(profileStatus varmortypes.ProfileStatus) erro
 		return nil
 	}
 
-	status := fmt.Sprintf("successed/failed/desired (%d/%d/%d)", m.policyStatuses[statusKey].SuccessedNumber, m.policyStatuses[statusKey].FailedNumber, m.desiredNumber)
+	m.policyStatusesLock.RLock()
+	successedNumber := m.policyStatuses[statusKey].SuccessedNumber
+	failedNumber := m.policyStatuses[statusKey].FailedNumber
+	m.policyStatusesLock.RUnlock()
+	status := fmt.Sprintf("successed/failed/desired (%d/%d/%d)", successedNumber, failedNumber, m.desiredNumber)
 	logger.Info("2. policy status cache updated", "key", statusKey, "status", status)
 
-	logger.Info("3. send signal to UpdateStatusCh", "status key", statusKey)
-	m.UpdateStatusCh <- statusKey
+	// Schedule batch update instead of immediate update
+	// The batchWorker will send the signal to UpdateStatusCh after the time window
+	m.pendingUpdatesLock.Lock()
+	m.pendingUpdates[statusKey] = time.Now()
+	m.pendingUpdatesLock.Unlock()
+	logger.Info("3. scheduled batch update", "status key", statusKey)
 
 	return nil
 }

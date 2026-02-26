@@ -83,10 +83,84 @@ description: 针对容器环境中渗透手法的规则。
 
 ### `block-access-to-metadata-service`
 
-禁止访问云服务器的 metadata service。
+禁止访问云服务器的常用 metadata service。
 
 :::note[说明]
-此规则禁止容器进程访问云服务器的 Instance Metadata Service。包含两个本地链接保留地址：**100.96.0.96** 和 **169.254.169.254**。
+此规则禁止容器进程访问常用云服务商的 Instance Metadata Service，包括 **169.254.169.254**（IPv4）和 **fd00:ec2::254**（AWS EC2 的 IPv6）用于 AWS、GCP、Azure 和 OpenStack，以及 **100.96.0.96** 用于 Volc Engine 和 BytePlus。
+
+为了获得更好的性能和更细粒度的控制，可以考虑使用针对特定云服务商的规则，如 [`block-access-to-aws-metadata-service`](#block-access-to-aws-metadata-service)、[`block-access-to-volc-metadata-service`](#block-access-to-volc-metadata-service)、[`block-access-to-alibaba-metadata-service`](#block-access-to-alibaba-metadata-service) 或 [`block-access-to-oci-metadata-service`](#block-access-to-oci-metadata-service)。
+
+攻击者获取容器内的代码执行权限后，会尝试访问云服务器的 Metadata Service 来进行信息泄露。在某些场景下，攻击者可能会获取敏感信息，从而进行权限提升、横向渗透。
+:::
+
+:::info[原理与影响]
+禁止连接 Instance Metadata Services 的 IP 地址。
+:::
+
+:::tip[支持的强制访问控制器]
+* BPF
+:::
+
+### `block-access-to-aws-metadata-service`
+
+禁止访问 AWS、GCP、Azure 和 OpenStack 的 metadata service。
+
+:::note[说明]
+此规则禁止容器进程访问 AWS、GCP、Azure 和 OpenStack 的 Instance Metadata Service，包括 **169.254.169.254**（IPv4）和 **fd00:ec2::254**（AWS EC2 的 IPv6）。
+
+攻击者获取容器内的代码执行权限后，会尝试访问云服务器的 Metadata Service 来进行信息泄露。在某些场景下，攻击者可能会获取敏感信息，从而进行权限提升、横向渗透。
+:::
+
+:::info[原理与影响]
+禁止连接 Instance Metadata Services 的 IP 地址。
+:::
+
+:::tip[支持的强制访问控制器]
+* BPF
+:::
+
+### `block-access-to-volc-metadata-service`
+
+禁止访问 Volc Engine 和 BytePlus 的 metadata service。
+
+:::note[说明]
+此规则禁止容器进程访问 Volc Engine 和 BytePlus 的 Instance Metadata Service，包括 **100.96.0.96**。
+
+攻击者获取容器内的代码执行权限后，会尝试访问云服务器的 Metadata Service 来进行信息泄露。在某些场景下，攻击者可能会获取敏感信息，从而进行权限提升、横向渗透。
+:::
+
+:::info[原理与影响]
+禁止连接 Instance Metadata Services 的 IP 地址。
+:::
+
+:::tip[支持的强制访问控制器]
+* BPF
+:::
+
+### `block-access-to-alibaba-metadata-service`
+
+禁止访问阿里云（Aliyun）的 metadata service。
+
+:::note[说明]
+此规则禁止容器进程访问阿里云的 Instance Metadata Service，包括 **100.100.100.200**。
+
+攻击者获取容器内的代码执行权限后，会尝试访问云服务器的 Metadata Service 来进行信息泄露。在某些场景下，攻击者可能会获取敏感信息，从而进行权限提升、横向渗透。
+:::
+
+:::info[原理与影响]
+禁止连接 Instance Metadata Services 的 IP 地址。
+:::
+
+:::tip[支持的强制访问控制器]
+* BPF
+:::
+
+### `block-access-to-oci-metadata-service`
+
+禁止访问 Oracle Cloud Infrastructure (OCI) 的 metadata service。
+
+:::note[说明]
+此规则禁止容器进程访问 Oracle Cloud Infrastructure 的 Instance Metadata Service，包括 **192.0.0.192**。
 
 攻击者获取容器内的代码执行权限后，会尝试访问云服务器的 Metadata Service 来进行信息泄露。在某些场景下，攻击者可能会获取敏感信息，从而进行权限提升、横向渗透。
 :::

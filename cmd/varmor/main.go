@@ -26,11 +26,12 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/go-logr/logr"
 	"github.com/go-logr/zerologr"
-	"github.com/kyverno/kyverno/pkg/leaderelection"
 	"github.com/rs/zerolog"
 	"go.uber.org/automaxprocs/maxprocs"
 	"golang.org/x/sys/unix"
 	kubeinformers "k8s.io/client-go/informers"
+	coreinformers "k8s.io/client-go/informers/core/v1"
+	discoveryinformers "k8s.io/client-go/informers/discovery/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/util/retry"
 	"k8s.io/klog/v2"
@@ -40,6 +41,7 @@ import (
 	varmoragent "github.com/bytedance/vArmor/internal/agent"
 	"github.com/bytedance/vArmor/internal/config"
 	"github.com/bytedance/vArmor/internal/ipwatcher"
+	"github.com/bytedance/vArmor/internal/leaderelection"
 	"github.com/bytedance/vArmor/internal/policy"
 	"github.com/bytedance/vArmor/internal/policycacher"
 	"github.com/bytedance/vArmor/internal/status"
@@ -61,33 +63,34 @@ const (
 )
 
 var (
-	agent                         bool
-	preDelete                     bool
-	enableMetrics                 bool
-	enableBpfEnforcer             bool
-	enableBehaviorModeling        bool
-	enablePodServiceEgressControl bool
-	unloadAllAaProfiles           bool
-	removeAllSeccompProfiles      bool
-	bpfExclusiveMode              bool
-	restartExistWorkloads         bool
-	clientRateLimitQPS            float64
-	clientRateLimitBurst          int
-	webhookTimeout                int
-	webhookMatchLabel             string
-	statusUpdateCycle             time.Duration
-	auditLogPaths                 string
-	logFormat                     string
-	verbosity                     int
-	managerIP                     string
-	kubeconfig                    string
-	versionFlag                   bool
-	debugFlag                     bool
-	gitVersion                    string
-	gitCommit                     string
-	buildDate                     string
-	goVersion                     string
-	logger                        = log.Log
+	agent                      bool
+	preDelete                  bool
+	enableMetrics              bool
+	enableBpfEnforcer          bool
+	enableBehaviorModeling     bool
+	enableServiceEgressControl bool
+	enablePodEgressControl     bool
+	unloadAllAaProfiles        bool
+	removeAllSeccompProfiles   bool
+	bpfExclusiveMode           bool
+	restartExistWorkloads      bool
+	clientRateLimitQPS         float64
+	clientRateLimitBurst       int
+	webhookTimeout             int
+	webhookMatchLabel          string
+	statusUpdateCycle          time.Duration
+	auditLogPaths              string
+	logFormat                  string
+	verbosity                  int
+	managerIP                  string
+	kubeconfig                 string
+	versionFlag                bool
+	debugFlag                  bool
+	gitVersion                 string
+	gitCommit                  string
+	buildDate                  string
+	goVersion                  string
+	logger                     = log.Log
 )
 
 func setLogger() {
@@ -162,13 +165,14 @@ func main() {
 	flag.BoolVar(&enableMetrics, "enableMetrics", false, "Set this flag to enable metrics.")
 	flag.BoolVar(&enableBpfEnforcer, "enableBpfEnforcer", false, "Set this flag to enable BPF enforcer.")
 	flag.BoolVar(&enableBehaviorModeling, "enableBehaviorModeling", false, "Set this flag to enable BehaviorModeling feature (Note: this is an experimental feature, please do not enable it in production environment).")
-	flag.BoolVar(&enablePodServiceEgressControl, "enablePodServiceEgressControl", false, "Set this flag to enable the egress control feature for Pod and Service access")
+	flag.BoolVar(&enableServiceEgressControl, "enableServiceEgressControl", false, "Set this flag to enable the egress control feature for Service access")
+	flag.BoolVar(&enablePodEgressControl, "enablePodEgressControl", false, "Set this flag to enable the egress control feature for Pod access")
 	flag.BoolVar(&unloadAllAaProfiles, "unloadAllAaProfiles", false, "Unload all AppArmor profiles when the agent exits.")
 	flag.BoolVar(&removeAllSeccompProfiles, "removeAllSeccompProfiles", false, "Remove all Seccomp profiles when the agent exits.")
 	flag.BoolVar(&bpfExclusiveMode, "bpfExclusiveMode", false, "Set this flag to enable exclusive mode for the BPF enforcer. It will disable the AppArmor confinement when using the BPF enforcer.")
 	flag.BoolVar(&restartExistWorkloads, "restartExistWorkloads", false, "Set this flag to allow users control whether or not to restart existing workloads with the .spec.updateExistingWorkloads feild.")
-	flag.Float64Var(&clientRateLimitQPS, "clientRateLimitQPS", 100, "Configure the maximum QPS to the master from vArmor. Uses the client default if zero.")
-	flag.IntVar(&clientRateLimitBurst, "clientRateLimitBurst", 200, "Configure the maximum burst for throttle. Uses the client default if zero.")
+	flag.Float64Var(&clientRateLimitQPS, "clientRateLimitQPS", 150, "Configure the maximum QPS to the master from vArmor. Uses the client default if zero.")
+	flag.IntVar(&clientRateLimitBurst, "clientRateLimitBurst", 300, "Configure the maximum burst for throttle. Uses the client default if zero.")
 	flag.IntVar(&webhookTimeout, "webhookTimeout", int(config.WebhookTimeout), "Timeout for webhook configurations.")
 	flag.StringVar(&webhookMatchLabel, "webhookMatchLabel", "sandbox.varmor.org/enable=true", "Configure the matchLabel of webhook configuration, the valid format is key=value or nil")
 	flag.DurationVar(&statusUpdateCycle, "statusUpdateCycle", time.Hour*2, "Configure the status update cycle for VarmorPolicy and ArmorProfile")
@@ -387,14 +391,14 @@ func main() {
 			}
 		}
 		webhookRegisterLeader, err := leaderelection.New(
-			logger.WithName("webhook-register/LeaderElection"),
+			kubeClient,
 			"webhook-register",
 			config.Namespace,
-			kubeClient,
 			config.Name,
-			leaderelection.DefaultRetryPeriod,
 			registerWebhookConfigurations,
-			nil)
+			nil,
+			logger.WithName("WEBHOOK-REGISTER/LEADER-ELECTION"),
+		)
 		if err != nil {
 			logger.WithName("SETUP").Error(err, "failed to elect a leader")
 			os.Exit(1)
@@ -458,13 +462,25 @@ func main() {
 		egressCache := make(map[string]varmortypes.EgressInfo)
 		egressCacheMutex := &sync.RWMutex{}
 		var ipWatcher *ipwatcher.IPWatcher
-		if enablePodServiceEgressControl && enableBpfEnforcer {
+		if (enableServiceEgressControl || enablePodEgressControl) && enableBpfEnforcer {
 			factory := kubeinformers.NewSharedInformerFactoryWithOptions(kubeClient, ipResyncPeriod, kubeinformers.WithTransform(ipwatcher.Transform))
+			var serviceInformer coreinformers.ServiceInformer
+			var endpointSliceInformer discoveryinformers.EndpointSliceInformer
+			var podInformer coreinformers.PodInformer
+
+			if enableServiceEgressControl {
+				serviceInformer = factory.Core().V1().Services()
+				endpointSliceInformer = factory.Discovery().V1().EndpointSlices()
+			}
+			if enablePodEgressControl {
+				podInformer = factory.Core().V1().Pods()
+			}
+
 			ipWatcher, err = ipwatcher.NewIPWatcher(
 				varmorClient.CrdV1beta1(),
-				factory.Core().V1().Pods(),
-				factory.Core().V1().Services(),
-				factory.Discovery().V1().EndpointSlices(),
+				podInformer,
+				serviceInformer,
+				endpointSliceInformer,
 				egressCache,
 				egressCacheMutex,
 				logger.WithName("IP-WATCHER"))
@@ -486,7 +502,8 @@ func main() {
 			egressCacheMutex,
 			restartExistWorkloads,
 			enableBehaviorModeling,
-			enablePodServiceEgressControl,
+			enableServiceEgressControl,
+			enablePodEgressControl,
 			bpfExclusiveMode,
 			logger.WithName("CLUSTER-POLICY"),
 		)
@@ -506,7 +523,8 @@ func main() {
 			egressCacheMutex,
 			restartExistWorkloads,
 			enableBehaviorModeling,
-			enablePodServiceEgressControl,
+			enableServiceEgressControl,
+			enablePodEgressControl,
 			bpfExclusiveMode,
 			logger.WithName("POLICY"),
 		)
@@ -520,7 +538,7 @@ func main() {
 
 		// Wrap all controllers that need leaderelection, start them once by the leader.
 		leaderRun := func(ctx context.Context) {
-			if enablePodServiceEgressControl && enableBpfEnforcer {
+			if (enableServiceEgressControl || enablePodEgressControl) && enableBpfEnforcer {
 				// Only the leader watches the Pod and Service IP changes.
 				go ipWatcher.Run(1, stopCh)
 			}
@@ -560,14 +578,14 @@ func main() {
 		}
 
 		leader, err := leaderelection.New(
-			logger.WithName("varmor-manager/LeaderElection"),
+			kubeClient,
 			"varmor-manager",
 			config.Namespace,
-			kubeClient,
 			config.Name,
-			leaderelection.DefaultRetryPeriod,
 			leaderRun,
-			leaderStop)
+			leaderStop,
+			logger.WithName("VARMOR-MANAGER/LEADER-ELECTION"),
+		)
 		if err != nil {
 			logger.WithName("SETUP").Error(err, "failed to elect a leader")
 			os.Exit(1)

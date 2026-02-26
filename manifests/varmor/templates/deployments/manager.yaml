@@ -35,7 +35,6 @@ spec:
         image: "{{ .Values.image.registry }}/{{ .Values.image.namespace }}/{{ .Values.manager.image.name }}:{{ .Values.manager.image.tag | default .Chart.AppVersion }}"
         imagePullPolicy: {{ .Values.manager.image.pullPolicy }}
         command: ["/varmor/vArmor"]
-        {{- if or .Values.manager.args .Values.bpfLsmEnforcer.enabled .Values.behaviorModeling.enabled .Values.podServiceEgressControl.enabled .Values.restartExistWorkloads.enabled .Values.bpfExclusiveMode.enabled .Values.metrics.enabled .Values.jsonLogFormat.enabled }}
         args:
           {{- if .Values.manager.args }}
             {{- with .Values.manager.args }}
@@ -53,10 +52,15 @@ spec:
             {{- end }}
           {{- end }}
           {{- if semverCompare ">=1.21.0-0" .Capabilities.KubeVersion.Version }}
-            {{- if .Values.podServiceEgressControl.enabled }}
-              {{- with .Values.manager.podServiceEgressControl.args }}
+            {{- if .Values.serviceEgressControl.enabled }}
+              {{- with .Values.manager.serviceEgressControl.args }}
                 {{- toYaml . | nindent 8 }}
               {{- end }}
+            {{- end }}
+          {{- end }}
+          {{- if .Values.podEgressControl.enabled }}
+            {{- with .Values.manager.podEgressControl.args }}
+              {{- toYaml . | nindent 8 }}
             {{- end }}
           {{- end }}
           {{- if .Values.restartExistWorkloads.enabled }}
@@ -79,7 +83,6 @@ spec:
               {{- toYaml . | nindent 8 }}
             {{- end }}
           {{- end }}
-        {{- end }}
         env:
         - name: POD_NAME
           valueFrom:
