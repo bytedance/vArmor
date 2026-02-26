@@ -109,7 +109,7 @@ vArmor 只会对包含此 label 的 Workloads 开启沙箱防护。你可以使�
 ```
 
 #### 开启 Pod 出口控制
-此功能扩展了网络访问控制，以限制容器对特定 Pod IPs 的访问。您可以使用下面的选项关闭它。默认值：开启。
+此功能扩展了网络访问控制，以限制容器对特定 Pod IPs 的访问。您可以使用下面的选项关闭它。默认值：关闭。
 
 ```bash
 --set podEgressControl.enabled=false
