@@ -92,6 +92,12 @@ type BpfContent struct {
 	Mounts       []MountContent       `json:"mounts,omitempty"`
 }
 
+type NriContent struct {
+	Rules         string `json:"rules,omitempty"`
+	Timeout       int    `json:"timeout,omitempty"`
+	FailurePolicy string `json:"failurePolicy,omitempty"`
+}
+
 type Profile struct {
 	Name     string      `json:"name"`
 	Enforcer string      `json:"enforcer"`
@@ -99,6 +105,7 @@ type Profile struct {
 	AppArmor string      `json:"appArmor,omitempty"`
 	Bpf      *BpfContent `json:"bpf,omitempty"`
 	Seccomp  string      `json:"seccomp,omitempty"`
+	Nri      *NriContent `json:"nri,omitempty"`
 }
 
 type BehaviorModeling struct {

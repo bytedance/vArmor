@@ -208,8 +208,12 @@ spec:
                     type: object
                   enforcer:
                     description: |-
-                      enforcer is used to specify which LSM to use for mandatory access control.
-                      Available values: AppArmor, BPF, Seccomp, AppArmorBPF, AppArmorSeccomp, BPFSeccomp, AppArmorBPFSeccomp
+                      enforcer is used to specify which security mechanisms to use for mandatory access control.
+                      Available values: AppArmor, BPF, Seccomp, NRI, AppArmorBPF, AppArmorSeccomp, BPFSeccomp, AppArmorBPFSeccomp
+
+                      Note:
+                      The NRI enforcer is used to validate container creation requests with rego rules on the host. It can only be
+                      used with the VarmorClusterPolicy and cannot be combined with other enforcers.
                     type: string
                   enhanceProtect:
                     description: |-
@@ -732,6 +736,29 @@ spec:
                         items:
                           type: string
                         type: array
+                      nriOptions:
+                        description: nriOptions is used to set NRI enforcer options
+                          for container creation validation
+                        properties:
+                          failurePolicy:
+                            description: |-
+                              failurePolicy defines how policy evaluation failures are handled.
+                              Available values:
+                                - "Fail": reject container creation on policy evaluation failure
+                                - "Ignore": allow container creation on policy evaluation failure
+                                - "Audit": audit and allow container creation on policy evaluation failure
+                              Default: Audit
+                            type: string
+                          timeout:
+                            description: |-
+                              timeout specifies the maximum time in millisecond for policy evaluation
+                              Default: 2000
+                            type: integer
+                        type: object
+                      nriRawRules:
+                        description: nriRawRules is used to set custom rego rules
+                          for container creation validation with NRI enforcer.
+                        type: string
                       privileged:
                         description: |-
                           privileged is used to identify whether the policy is for the privileged container.

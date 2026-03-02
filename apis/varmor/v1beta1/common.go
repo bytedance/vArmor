@@ -75,6 +75,21 @@ type AttackProtectionRules struct {
 	Targets []string `json:"targets,omitempty"`
 }
 
+type NriOptions struct {
+	// timeout specifies the maximum time in millisecond for policy evaluation
+	// Default: 2000
+	// +optional
+	Timeout int `json:"timeout,omitempty"`
+	// failurePolicy defines how policy evaluation failures are handled.
+	// Available values:
+	//   - "Fail": reject container creation on policy evaluation failure
+	//   - "Ignore": allow container creation on policy evaluation failure
+	//   - "Audit": audit and allow container creation on policy evaluation failure
+	// Default: Audit
+	// +optional
+	FailurePolicy string `json:"failurePolicy,omitempty"`
+}
+
 type EnhanceProtect struct {
 	// hardeningRules are used to specify the built-in hardening rules.
 	// +optional
@@ -105,6 +120,12 @@ type EnhanceProtect struct {
 	// If set to `true`, vArmor will not build Seccomp profile for the target workloads.
 	// +optional
 	Privileged bool `json:"privileged,omitempty"`
+	// nriRawRules is used to set custom rego rules for container creation validation with NRI enforcer.
+	// +optional
+	NriRawRules string `json:"nriRawRules,omitempty"`
+	// nriOptions is used to set NRI enforcer options for container creation validation
+	// +optional
+	NriOptions *NriOptions `json:"nriOptions,omitempty"`
 	// auditViolations determines whether to log the actions that violate the mandatory access control rules.
 	// If this field is set, any detected violation will be logged to `/var/log/varmor/violations.log` file in
 	// the host. The action of the event will be `AUDIT` if allowViolations is set to `true`, otherwise it will
@@ -159,8 +180,12 @@ type DefenseInDepth struct {
 }
 
 type Policy struct {
-	// enforcer is used to specify which LSM to use for mandatory access control.
-	// Available values: AppArmor, BPF, Seccomp, AppArmorBPF, AppArmorSeccomp, BPFSeccomp, AppArmorBPFSeccomp
+	// enforcer is used to specify which security mechanisms to use for mandatory access control.
+	// Available values: AppArmor, BPF, Seccomp, NRI, AppArmorBPF, AppArmorSeccomp, BPFSeccomp, AppArmorBPFSeccomp
+	//
+	// Note:
+	// The NRI enforcer is used to validate container creation requests with rego rules on the host. It can only be
+	// used with the VarmorClusterPolicy and cannot be combined with other enforcers.
 	Enforcer string `json:"enforcer"`
 	// mode used to specify the protection mode.
 	// Available values: AlwaysAllow, RuntimeDefault, EnhanceProtect, BehaviorModeling, DefenseInDepth
