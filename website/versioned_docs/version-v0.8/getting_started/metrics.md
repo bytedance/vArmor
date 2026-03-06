@@ -19,7 +19,7 @@ vArmor now includes a comprehensive metrics system. This document describes the 
 2. Install vArmor with metrics enabled:
    ```bash
    helm install varmor varmor/varmor \
-     --set metrics.enable=true \
+     --set metrics.enabled=true \
      --set metrics.serviceMonitorEnabled=true
    ```
 
