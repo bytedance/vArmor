@@ -80,7 +80,7 @@ func NewWebhookServer(
 		ws.admissionRequests = metricsModule.RegisterFloat64Counter("varmor_admission_requests_total", "Total number of admission requests")
 		ws.mutatedRequests = metricsModule.RegisterFloat64Counter("varmor_mutated_requests", "Number of requests that were mutated")
 		ws.nonMutatedRequests = metricsModule.RegisterFloat64Counter("varmor_non_mutated_requests", "Number of requests that were not mutated")
-		ws.webhookLatency = metricsModule.RegisterHistogram("varmor_webhook_latency", "Latency of webhook processing", 0.1, 0.5, 1, 2, 5)
+		ws.webhookLatency = metricsModule.RegisterHistogram("varmor_webhook_latency", "Latency of webhook processing", 0.1, 0.5, 1, 2, 4, 8, 10)
 	}
 
 	scheme := runtime.NewScheme()

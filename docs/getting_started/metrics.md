@@ -48,7 +48,7 @@ These metrics provide insights into admission webhook operations of the Manager.
 | `varmor_non_mutated_requests` | Counter | Number of requests that were not mutated |
 
 #### Webhook Latency Metric
-The `varmor_webhook_latency` metric is a histogram that measures webhook processing latency with buckets at 0.1, 0.5, 1, 2, and 5 seconds.
+The `varmor_webhook_latency` metric is a histogram that measures webhook processing latency with buckets at 0.1, 0.5, 1, 2, 4, 8 and 10 seconds.
 This metric includes the following labels:
 - `request_kind`: The type of workload be submitted
 - `request_operation`: The operation type of the request
