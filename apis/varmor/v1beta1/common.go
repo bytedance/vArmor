@@ -100,6 +100,9 @@ type EnhanceProtect struct {
 	// vulMitigationRules are used to specify the built-in vulnerability mitigation rules.
 	// +optional
 	VulMitigationRules []string `json:"vulMitigationRules,omitempty"`
+	// RejectContainerRules is used to specify the built-in rules for rejecting container creation.
+	// +optional
+	RejectContainerRules []string `json:"rejectContainerRules,omitempty"`
 	// appArmorRawRules is used to set custom AppArmor rules.
 	// +optional
 	AppArmorRawRules []AppArmorRawRules `json:"appArmorRawRules,omitempty"`

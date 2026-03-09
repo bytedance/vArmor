@@ -28,6 +28,7 @@ import (
 	varmorconfig "github.com/bytedance/vArmor/internal/config"
 	apparmorprofile "github.com/bytedance/vArmor/internal/profile/apparmor"
 	bpfprofile "github.com/bytedance/vArmor/internal/profile/bpf"
+	nriprofile "github.com/bytedance/vArmor/internal/profile/nri"
 	seccompprofile "github.com/bytedance/vArmor/internal/profile/seccomp"
 	varmortypes "github.com/bytedance/vArmor/internal/types"
 	varmorinterface "github.com/bytedance/vArmor/pkg/client/clientset/versioned/typed/varmor/v1beta1"
@@ -155,6 +156,10 @@ func GenerateProfile(
 			if err != nil {
 				return nil, nil, err
 			}
+		}
+		// NRI
+		if (e & varmortypes.NRI) != 0 {
+			profile.Nri = nriprofile.GenerateEnhanceProtectProfile(policy.EnhanceProtect)
 		}
 
 	case varmor.BehaviorModelingMode:

@@ -93,9 +93,13 @@ type BpfContent struct {
 }
 
 type NriContent struct {
-	Rules         string `json:"rules,omitempty"`
-	Timeout       int    `json:"timeout,omitempty"`
-	FailurePolicy string `json:"failurePolicy,omitempty"`
+	Rules string `json:"rules,omitempty"`
+	// PresetRules is the generated Rego rules based on the RejectContainerRules
+	PresetRules     string `json:"presetRules,omitempty"`
+	Timeout         int    `json:"timeout,omitempty"`
+	FailurePolicy   string `json:"failurePolicy,omitempty"`
+	AuditViolations bool   `json:"auditViolations,omitempty"`
+	AllowViolations bool   `json:"allowViolations,omitempty"`
 }
 
 type Profile struct {

@@ -39,6 +39,18 @@ const (
 	ratelimitSysctl = "/proc/sys/kernel/printk_ratelimit"
 )
 
+type NriEvent struct {
+	PodNamespace  string
+	PodName       string
+	ContainerName string
+	ContainerID   string
+	Image         string
+	Profile       string
+	Operation     string
+	Message       string
+	Action        string
+}
+
 type Auditor struct {
 	nodeName               string
 	bootTimestamp          uint64
@@ -48,6 +60,7 @@ type Auditor struct {
 	TaskStartCh            chan varmortypes.ContainerInfo
 	TaskDeleteCh           chan varmortypes.ContainerInfo
 	TaskDeleteSyncCh       chan bool
+	NriEventCh             chan NriEvent
 	mntNsIDCache           map[uint32]uint32                    // key: The init PID of contaienr, value: The mnt ns id
 	containerCache         map[uint32]varmortypes.ContainerInfo // key: The mnt ns id of container, value: The container information
 	auditEventChs          map[string]chan<- string             // auditEventChs used for sending apparmor & seccomp behavior event to subscribers, key: profile name, value: audit event channel
@@ -71,6 +84,7 @@ func NewAuditor(nodeName string, appArmorSupported, bpfLsmSupported, enableBehav
 		TaskStartCh:            make(chan varmortypes.ContainerInfo, 100),
 		TaskDeleteCh:           make(chan varmortypes.ContainerInfo, 100),
 		TaskDeleteSyncCh:       make(chan bool, 1),
+		NriEventCh:             make(chan NriEvent, 100),
 		mntNsIDCache:           make(map[uint32]uint32, 100),
 		containerCache:         make(map[uint32]varmortypes.ContainerInfo, 100),
 		auditEventChs:          make(map[string]chan<- string),
@@ -168,6 +182,20 @@ func (auditor *Auditor) eventHandler(stopCh <-chan struct{}) {
 					delete(auditor.mntNsIDCache, pid)
 				}
 			}
+		case event := <-auditor.NriEventCh:
+			auditor.violationLogger.Warn().
+				Str("NodeName", auditor.nodeName).
+				Str("Namespace", event.PodNamespace).
+				Str("PodName", event.PodName).
+				Str("ContainerName", event.ContainerName).
+				Str("ContainerID", event.ContainerID).
+				Str("Image", event.Image).
+				Str("Profile", event.Profile).
+				Str("Operation", event.Operation).
+				Str("Message", event.Message).
+				Str("Enforcer", "NRI").
+				Str("Action", event.Action).
+				Msg("")
 		case <-stopCh:
 			logger.Info("stop handling the containerd events")
 			return
@@ -204,6 +232,28 @@ func (auditor *Auditor) DeleteBehaviorEventNotifyCh(subscriber string) {
 		if err != nil {
 			auditor.log.Error(err, "auditor.restoreRateLimit()")
 		}
+	}
+}
+
+// LogNriEvent logs the NRI enforcement event to the violation log file
+func (auditor *Auditor) LogNriEvent(podNamespace, podName, containerName, containerID, image, profile, operation, message, action string) {
+	event := NriEvent{
+		PodNamespace:  podNamespace,
+		PodName:       podName,
+		ContainerName: containerName,
+		ContainerID:   containerID,
+		Image:         image,
+		Profile:       profile,
+		Operation:     operation,
+		Message:       message,
+		Action:        action,
+	}
+
+	select {
+	case auditor.NriEventCh <- event:
+	default:
+		// Drop the event if the channel is full to prevent blocking
+		auditor.log.V(3).Info("NriEventCh is full, dropping event", "event", event)
 	}
 }
 

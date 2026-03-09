@@ -769,6 +769,12 @@ spec:
                           Note:
                           If set to `true`, vArmor will not build Seccomp profile for the target workloads.
                         type: boolean
+                      rejectContainerRules:
+                        description: RejectContainerRules is used to specify the built-in
+                          rules for rejecting container creation.
+                        items:
+                          type: string
+                        type: array
                       syscallRawRules:
                         description: |-
                           syscallRawRules is used to set the custom syscalls blocklist rules with Seccomp enforcer.
