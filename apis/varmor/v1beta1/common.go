@@ -80,11 +80,12 @@ type NriOptions struct {
 	// Default: 2000
 	// +optional
 	Timeout int `json:"timeout,omitempty"`
-	// failurePolicy defines how policy evaluation failures are handled.
+	// failurePolicy defines how to handle policy evaluation failures (e.g., policy specification violations
+	// or evaluation timeouts).
 	// Available values:
-	//   - "Fail": reject container creation on policy evaluation failure
-	//   - "Ignore": allow container creation on policy evaluation failure
-	//   - "Audit": audit and allow container creation on policy evaluation failure
+	//   - "Fail": reject the container creation request when policy evaluation fails
+	//   - "Ignore": allow the container creation request when policy evaluation fails
+	//   - "Audit": allow the container creation request and record an audit log when policy evaluation fails
 	// Default: Audit
 	// +optional
 	FailurePolicy string `json:"failurePolicy,omitempty"`
