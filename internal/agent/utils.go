@@ -15,13 +15,17 @@
 package agent
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
+	"github.com/containerd/containerd"
+	varmorconfig "github.com/bytedance/vArmor/internal/config"
 	goversion "github.com/hashicorp/go-version"
 	"k8s.io/apimachinery/pkg/version"
 )
@@ -42,7 +46,8 @@ profile cri-containerd.apparmor.d flags=(attach_disconnected,mediate_deleted) {
 
 	minKernelVersionForAppArmorLSM = "4.15"
 	minKernelVersionForBPFLSM      = "5.10"
-	regexVersion                   = "^\\d+\\.?\\d*\\.?\\d*" // ^\d+\.?\d*\.?\d*
+	minContainerdVersionForNRI     = "2.0.0"
+	regexVersion                   = "^v?\\d+\\.?\\d*\\.?\\d*" // ^v?\d+\.?\d*\.?\d*
 )
 
 func isAppArmorEnabled() bool {
@@ -152,3 +157,19 @@ func saveMockAppArmorProfile(fileName string, content string) error {
 	_, err = f.WriteString(content)
 	return err
 }
+
+func isNRISupported() (bool, error) {
+	client, err := containerd.New(varmorconfig.RuntimeEndpoint, containerd.WithTimeout(3*time.Second))
+	if err != nil {
+		return false, err
+	}
+	defer client.Close()
+
+	version, err := client.Version(context.Background())
+	if err != nil {
+		return false, err
+	}
+
+	return versionGreaterThanOrEqual(version.Version, minContainerdVersionForNRI)
+}
+

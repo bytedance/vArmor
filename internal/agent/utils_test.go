@@ -118,6 +118,30 @@ func Test_versionGreaterThanOrEqual(t *testing.T) {
 			expectedResult: true,
 			expectedErr:    nil,
 		},
+		{
+			current:        "1.6.0",
+			minimumVersion: minContainerdVersionForNRI,
+			expectedResult: false,
+			expectedErr:    fmt.Errorf("the current version (1.6.0) < the minimum version (%s)", minContainerdVersionForNRI),
+		},
+		{
+			current:        "v1.7.0",
+			minimumVersion: minContainerdVersionForNRI,
+			expectedResult: false,
+			expectedErr:    fmt.Errorf("the current version (v1.7.0) < the minimum version (%s)", minContainerdVersionForNRI),
+		},
+		{
+			current:        "2.0.0",
+			minimumVersion: minContainerdVersionForNRI,
+			expectedResult: true,
+			expectedErr:    nil,
+		},
+		{
+			current:        "v2.0.0",
+			minimumVersion: minContainerdVersionForNRI,
+			expectedResult: true,
+			expectedErr:    nil,
+		},
 	}
 
 	for _, tc := range testCases {

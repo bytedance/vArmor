@@ -27,6 +27,7 @@ set -e
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[0;33m'
+MAGENTA='\033[0;35m'
 NC='\033[0m' # No Color
 
 # Global variables
@@ -49,6 +50,10 @@ log_success() {
 
 log_error() {
     echo -e "${RED}[ERROR]${NC} $1"
+}
+
+log_warning() {
+    echo -e "${MAGENTA}[WARNING]${NC} $1"
 }
 
 # Wait for vArmor to be ready
@@ -124,10 +129,19 @@ apply_policy() {
     # Verify if policy is ready
     log_info "Waiting for the policy to be ready..."
 
-    ${KUBECTL_CMD} wait --for=condition=Ready VarmorPolicy -n ${NAMESPACE} ${POLICY_NAME} --timeout=30s
-    if [ $? -ne 0 ]; then
-        log_error "The policy ${NAMESPACE}/${POLICY_NAME} is not ready after 30s."
-        return 1
+    # Check if it's a VarmorClusterPolicy or VarmorPolicy
+    if grep -q "kind: VarmorClusterPolicy" "${policy_file}"; then
+        ${KUBECTL_CMD} wait --for=condition=Ready VarmorClusterPolicy ${POLICY_NAME} --timeout=30s
+        if [ $? -ne 0 ]; then
+            log_error "The VarmorClusterPolicy ${POLICY_NAME} is not ready after 30s."
+            return 1
+        fi
+    else
+        ${KUBECTL_CMD} wait --for=condition=Ready VarmorPolicy -n ${NAMESPACE} ${POLICY_NAME} --timeout=30s
+        if [ $? -ne 0 ]; then
+            log_error "The VarmorPolicy ${NAMESPACE}/${POLICY_NAME} is not ready after 30s."
+            return 1
+        fi
     fi
 
     return 0
@@ -195,6 +209,171 @@ verify_result() {
     fi
 }
 
+# Run NRI enforcer test case (special flow for container creation time enforcement)
+run_nri_testcase() {
+    log_info "---------------------------------------------"
+    local testcase_file=$1
+    TOTAL_TESTS=$((TOTAL_TESTS+1))
+    
+    # Load test case
+    load_testcase "${testcase_file}" || return 1
+    
+    log_info "Test Name: ${TEST_NAME}"
+    log_info "Test Type: NRI Enforcer"
+
+    # Create test namespace
+    ${KUBECTL_CMD} create namespace ${NAMESPACE} 2>/dev/null
+    
+    # ============================================
+    # Phase 1: AlwaysAllow mode - deployment should succeed
+    # ============================================
+    log_info "Phase 1: Testing in AlwaysAllow mode"
+    
+    # Apply the initial (AlwaysAllow) policy
+    for policy_file in ${POLICY_FILES}; do
+        apply_policy "${policy_file}"
+    done
+    
+    # Deploy the workload (should be allowed)
+    log_info "Deploying workload..."
+    for workload_file in ${WORKLOAD_FILES}; do
+        deploy_workload "${workload_file}"
+    done
+    
+    # Verify the Pod is running
+    log_info "Verifying Pod is running..."
+    POD_NAME=$(${KUBECTL_CMD} get pods -n ${NAMESPACE} -l ${POD_SELECTOR} -o jsonpath='{.items[0].metadata.name}')
+    if [ -z "${POD_NAME}" ]; then
+        log_error "Pod failed to start in AlwaysAllow mode"
+        FAILED_TESTS=$((FAILED_TESTS+1))
+        
+        # Clean up before returning
+        if [ "${CLEANUP_AFTER_TEST}" = "true" ]; then
+            log_info "Cleaning up test resources"
+            for policy_file in ${POLICY_FILES} ${ENHANCED_POLICY_FILES}; do
+                ${KUBECTL_CMD} delete -f "${policy_file}" 2>/dev/null || true
+            done
+            for workload_file in ${WORKLOAD_FILES}; do
+                ${KUBECTL_CMD} delete -f "${workload_file}" 2>/dev/null || true
+            done
+        fi
+        return 1
+    fi
+    
+    # Execute initial command to confirm Pod is working
+    execute_command "${POD_NAME}" "${CONTAINER_NAME}" "${INITIAL_COMMAND}" "${INITIAL_EXPECTED_STATUS}"
+    initial_status=$?
+    
+    if [ ${initial_status} -ne ${INITIAL_EXPECTED_STATUS} ]; then
+        log_error "Initial command failed in AlwaysAllow mode"
+        FAILED_TESTS=$((FAILED_TESTS+1))
+        
+        # Clean up before returning
+        if [ "${CLEANUP_AFTER_TEST}" = "true" ]; then
+            log_info "Cleaning up test resources"
+            for policy_file in ${POLICY_FILES} ${ENHANCED_POLICY_FILES}; do
+                ${KUBECTL_CMD} delete -f "${policy_file}" 2>/dev/null || true
+            done
+            for workload_file in ${WORKLOAD_FILES}; do
+                ${KUBECTL_CMD} delete -f "${workload_file}" 2>/dev/null || true
+            done
+        fi
+        return 1
+    fi
+    
+    log_success "Phase 1 passed: Workload runs in AlwaysAllow mode"
+    
+    # Clean up all resources completely before Phase 2 to avoid stale data
+    log_info "Cleaning up all resources completely before Phase 2..."
+    for workload_file in ${WORKLOAD_FILES}; do
+        ${KUBECTL_CMD} delete -f "${workload_file}" 2>/dev/null || true
+    done
+    
+    # Delete any remaining Pods with force
+    log_info "Deleting any remaining Pods..."
+    ${KUBECTL_CMD} delete pods -n ${NAMESPACE} -l ${POD_SELECTOR} --force --grace-period=0 2>/dev/null || true
+    
+    # Clear all old events
+    log_info "Clearing all old events..."
+    ${KUBECTL_CMD} delete events -n ${NAMESPACE} --all 2>/dev/null || true
+    
+    # Wait for resources to be fully cleaned up
+    log_info "Waiting for resources to be fully cleaned up..."
+    sleep 15
+    
+    # Verify no Pods or Events remain
+    log_info "Verifying cleanup is complete..."
+    REMAINING_PODS=$(${KUBECTL_CMD} get pods -n ${NAMESPACE} -l ${POD_SELECTOR} --no-headers 2>/dev/null | wc -l | tr -d ' ')
+    if [ "${REMAINING_PODS}" -ne "0" ]; then
+        log_warning "Warning: ${REMAINING_PODS} Pod(s) still remain, continuing anyway"
+    fi
+    
+    # ============================================
+    # Phase 2: EnhanceProtect mode - deployment should be blocked
+    # ============================================
+    log_info "Phase 2: Testing in EnhanceProtect mode"
+    
+    # Apply the enhanced policy
+    for policy_file in ${ENHANCED_POLICY_FILES}; do
+        apply_policy "${policy_file}"
+    done
+    
+    # Try to deploy the same workload again (should be denied now)
+    log_info "Trying to deploy the same workload again..."
+    for workload_file in ${WORKLOAD_FILES}; do
+        ${KUBECTL_CMD} apply -f "${workload_file}" 2>&1
+    done
+    
+    # Wait a bit for NRI enforcer to act
+    sleep 15
+    
+    # Check if the Pod is NOT in Running state
+    log_info "Verifying Pod is NOT in Running state..."
+    
+    # Get Pod status
+    POD_STATUS=$(${KUBECTL_CMD} get pods -n ${NAMESPACE} -l ${POD_SELECTOR} -o jsonpath='{.items[0].status.phase}' 2>/dev/null || echo "")
+    POD_NAME=$(${KUBECTL_CMD} get pods -n ${NAMESPACE} -l ${POD_SELECTOR} -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
+    
+    if [ -n "${POD_NAME}" ]; then
+        echo "Found Pod: ${POD_NAME}, Status: ${POD_STATUS}"
+    else
+        echo "No Pod found (expected, as it should be blocked)"
+    fi
+    
+    # Also check events for denial messages (events are fresh since we cleared them)
+    log_info "Checking for denial events..."
+    DENIAL_EVENTS=$(${KUBECTL_CMD} get events -n ${NAMESPACE} --field-selector type=Warning 2>/dev/null | grep -i "denied\|forbid\|block\|failed" || echo "")
+    
+    if [ -n "${DENIAL_EVENTS}" ]; then
+        echo "Found denial events:"
+        echo "${DENIAL_EVENTS}"
+    fi
+    
+    # The test passes if Pod is not Running (or has denial events)
+    if [ "${POD_STATUS}" != "Running" ] || [ -n "${DENIAL_EVENTS}" ]; then
+        log_success "Phase 2 passed: Workload is blocked as expected"
+        verify_status=0
+    else
+        log_error "Phase 2 failed: Workload is running (should be blocked)"
+        verify_status=1
+    fi
+    
+    # Verify final result
+    verify_result ${verify_status} 0 "${TEST_NAME}"
+    
+    # Clean up test resources
+    if [ "${CLEANUP_AFTER_TEST}" = "true" ]; then
+        log_info "Cleaning up test resources"
+        for policy_file in ${POLICY_FILES} ${ENHANCED_POLICY_FILES}; do
+            ${KUBECTL_CMD} delete -f "${policy_file}" 2>/dev/null || true
+        done
+        
+        for workload_file in ${WORKLOAD_FILES}; do
+            ${KUBECTL_CMD} delete -f "${workload_file}" 2>/dev/null || true
+        done
+    fi
+}
+
 # Run a single test case
 run_testcase() {
     log_info "---------------------------------------------"
@@ -258,7 +437,16 @@ run_all_testcases() {
     
     # Find all test case files
     for testcase_file in "${TEST_CASES_DIR}"/*.sh; do
-        run_testcase "${testcase_file}"
+        # Load test case to get TEST_NAME
+        source "${testcase_file}"
+        
+        # Check if it's an NRI test
+        if echo "${TEST_NAME}" | grep -q "nri"; then
+            log_info "Detected NRI test case, using NRI-specific test flow"
+            run_nri_testcase "${testcase_file}"
+        else
+            run_testcase "${testcase_file}"
+        fi
     done
     
     # Output test result summary
@@ -352,7 +540,16 @@ main() {
         run_all_testcases
         test_result=$?
     elif [ -n "${TESTCASE_FILE}" ]; then
-        run_testcase "${TESTCASE_FILE}"
+        # Load test case to get TEST_NAME
+        source "${TESTCASE_FILE}"
+        
+        # Check if it's an NRI test
+        if echo "${TEST_NAME}" | grep -q "nri"; then
+            log_info "Detected NRI test case, using NRI-specific test flow"
+            run_nri_testcase "${TESTCASE_FILE}"
+        else
+            run_testcase "${TESTCASE_FILE}"
+        fi
         test_result=$?
     else
         show_help

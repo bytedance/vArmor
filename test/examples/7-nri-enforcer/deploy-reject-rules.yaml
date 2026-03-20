@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo-7-reject-rules
+  namespace: demo
+  labels:
+    app: demo-7-reject-rules
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: demo-7-reject-rules
+  template:
+    metadata:
+      labels:
+        app: demo-7-reject-rules
+    spec:
+      containers:
+      - name: demo-container
+        image: busybox:latest
+        command: ["sh", "-c", "sleep 3600"]
