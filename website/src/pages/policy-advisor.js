@@ -104,21 +104,22 @@ const skipRuleWithModelData = (rule, enforcers, model = {}) => {
     files: fConf,
   } = rule.conflicts;
 
+  // Check all conflict types - if any match, skip the rule
   if (capConf) {
     const modelCaps = retrieveCapabilitiesFromModel(model);
-    return hasCommonItem(capConf, modelCaps);
+    if (hasCommonItem(capConf, modelCaps)) return true;
   }
   if (scConf) {
     const syscalls = retrieveSyscallsFromModel(model);
-    return hasCommonItem(scConf, syscalls);
+    if (hasCommonItem(scConf, syscalls)) return true;
   }
   if (exConf) {
     const execs = retrieveExecutionsFromModel(model);
-    return hasCommonItem(exConf, execs);
+    if (hasCommonItem(exConf, execs)) return true;
   }
   if (fConf) {
     const files = retrieveFilesFromModel(model);
-    return filesConflictWithRule(fConf, files);
+    if (filesConflictWithRule(fConf, files)) return true;
   }
   return false;
 };

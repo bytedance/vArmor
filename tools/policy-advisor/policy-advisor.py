@@ -33,19 +33,23 @@ def skip_the_rule_with_behavior_data(rule, enforcers, behavior_data):
   if "conflicts" in rule:
     if "capabilities" in rule["conflicts"]:
       caps = retrieve_capabilities_from_behavior_data(behavior_data)
-      return has_common_item(rule["conflicts"]["capabilities"], caps)
+      if has_common_item(rule["conflicts"]["capabilities"], caps):
+        return True
 
     if "syscalls" in rule["conflicts"]:
       syscalls = retrieve_syscalls_from_behavior_data(behavior_data)
-      return has_common_item(rule["conflicts"]["syscalls"], syscalls)
+      if has_common_item(rule["conflicts"]["syscalls"], syscalls):
+        return True
 
     if "executions" in rule["conflicts"]:
       executions = retrieve_executions_from_behavior_data(behavior_data)
-      return has_common_item(rule["conflicts"]["executions"], executions)
+      if has_common_item(rule["conflicts"]["executions"], executions):
+        return True
 
     if "files" in rule["conflicts"]:
       files = retrieve_files_from_behavior_data(behavior_data)
-      return files_conflict_with_rule(rule["conflicts"]["files"], files)
+      if files_conflict_with_rule(rule["conflicts"]["files"], files):
+        return True
 
   return False
 
