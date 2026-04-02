@@ -25,20 +25,17 @@ TEST_DESCRIPTION="Testing NRI enforcer import builtin rules in nriRawRules"
 # Namespace
 NAMESPACE="demo"
 
-# Policy name
-POLICY_NAME="demo-7-import-builtin"
-
 # Initial policy file (AlwaysAllow mode)
-POLICY_FILES="../examples/7-nri-enforcer/vpol-nri-raw-rules-import-builtin-alwaysallow.yaml"
+POLICY_FILES="../examples/7-nri-enforcer/vpol-nri-alwaysallow.yaml"
 
 # Enhanced policy file (EnhanceProtect mode with nriRawRules importing builtin)
 ENHANCED_POLICY_FILES="../examples/7-nri-enforcer/vpol-nri-raw-rules-import-builtin.yaml"
 
 # Workload file - same file used for both phases
-WORKLOAD_FILES="../examples/7-nri-enforcer/deploy-raw-rules-import-builtin.yaml"
+WORKLOAD_FILES="../examples/7-nri-enforcer/deploy.yaml"
 
 # Pod selector
-POD_SELECTOR="app=demo-7-import-builtin"
+POD_SELECTOR="app=demo-7"
 
 # Container name
 CONTAINER_NAME="demo-container"

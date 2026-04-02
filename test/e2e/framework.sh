@@ -129,17 +129,29 @@ apply_policy() {
     # Verify if policy is ready
     log_info "Waiting for the policy to be ready..."
 
+    # Extract policy name from YAML file
+    local policy_name=$(grep -A 10 "metadata:" "${policy_file}" | grep "name:" | head -1 | awk '{print $2}' | tr -d '"')
+    if [ -z "${policy_name}" ]; then
+        log_error "Failed to extract policy name from ${policy_file}"
+        return 1
+    fi
+    
+    # Extract namespace from YAML file if present
+    local policy_namespace=$(grep -A 10 "metadata:" "${policy_file}" | grep "namespace:" | head -1 | awk '{print $2}' | tr -d '"')
+    
     # Check if it's a VarmorClusterPolicy or VarmorPolicy
     if grep -q "kind: VarmorClusterPolicy" "${policy_file}"; then
-        ${KUBECTL_CMD} wait --for=condition=Ready VarmorClusterPolicy ${POLICY_NAME} --timeout=30s
+        ${KUBECTL_CMD} wait --for=condition=Ready VarmorClusterPolicy ${policy_name} --timeout=30s
         if [ $? -ne 0 ]; then
-            log_error "The VarmorClusterPolicy ${POLICY_NAME} is not ready after 30s."
+            log_error "The VarmorClusterPolicy ${policy_name} is not ready after 30s."
             return 1
         fi
     else
-        ${KUBECTL_CMD} wait --for=condition=Ready VarmorPolicy -n ${NAMESPACE} ${POLICY_NAME} --timeout=30s
+        # If policy has namespace in YAML, use it; otherwise use NAMESPACE from test case
+        local use_namespace=${policy_namespace:-${NAMESPACE}}
+        ${KUBECTL_CMD} wait --for=condition=Ready VarmorPolicy -n ${use_namespace} ${policy_name} --timeout=30s
         if [ $? -ne 0 ]; then
-            log_error "The VarmorPolicy ${NAMESPACE}/${POLICY_NAME} is not ready after 30s."
+            log_error "The VarmorPolicy ${use_namespace}/${policy_name} is not ready after 30s."
             return 1
         fi
     fi
@@ -295,7 +307,7 @@ run_nri_testcase() {
     
     # Clear all old events
     log_info "Clearing all old events..."
-    ${KUBECTL_CMD} delete events -n ${NAMESPACE} --all 2>/dev/null || true
+    ${KUBECTL_CMD} delete events -n ${NAMESPACE} --all 1>/dev/null 2>/dev/null || true
     
     # Wait for resources to be fully cleaned up
     log_info "Waiting for resources to be fully cleaned up..."
@@ -345,8 +357,8 @@ run_nri_testcase() {
     DENIAL_EVENTS=$(${KUBECTL_CMD} get events -n ${NAMESPACE} --field-selector type=Warning 2>/dev/null | grep -i "denied\|forbid\|block\|failed" || echo "")
     
     if [ -n "${DENIAL_EVENTS}" ]; then
-        echo "Found denial events:"
-        echo "${DENIAL_EVENTS}"
+        echo "Found denial events (showing last 10 lines):"
+        echo "${DENIAL_EVENTS}" | tail -n 10
     fi
     
     # The test passes if Pod is not Running (or has denial events)

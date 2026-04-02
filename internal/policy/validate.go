@@ -33,13 +33,13 @@ import (
 const dummyBuiltinPolicy = "package varmor.nri.builtin\n"
 
 // validateRegoPolicy validates the syntax of Rego policies
-func validateRegoPolicy(presetRules, rawRules string) error {
+func validateRegoPolicy(builtinRules, rawRules string) error {
 	var opts []func(*rego.Rego)
 	opts = append(opts, rego.Query("data.nri.authz"))
 	opts = append(opts, rego.Module("builtin.rego", dummyBuiltinPolicy))
 
-	if presetRules != "" {
-		opts = append(opts, rego.Module("preset.rego", presetRules))
+	if builtinRules != "" {
+		opts = append(opts, rego.Module("builtin-user.rego", builtinRules))
 	}
 
 	if rawRules != "" {
@@ -85,11 +85,6 @@ func ValidateAddPolicy(policy interface{}, behaviorModelingEnabled bool) (bool, 
 	enforcer := varmortypes.GetEnforcerType(spec.Policy.Enforcer)
 
 	if (enforcer & varmortypes.NRI) != 0 {
-		// NRI enforcer is only supported by VarmorClusterPolicy.
-		if !clusterScope {
-			return false, "The NRI enforcer is only supported by VarmorClusterPolicy."
-		}
-
 		// NRI enforcer cannot be combined with other enforcers.
 		if enforcer != varmortypes.NRI {
 			return false, "The NRI enforcer cannot be combined with other enforcers."
@@ -100,26 +95,26 @@ func ValidateAddPolicy(policy interface{}, behaviorModelingEnabled bool) (bool, 
 			return false, "The target kind must be Pod when using the NRI enforcer."
 		}
 
-		// NRI enforcer only supports empty target name, selector and containers.
-		if spec.Target.Name != "" || spec.Target.Selector != nil || len(spec.Target.Containers) != 0 {
-			return false, "The target name, selector and containers fields must be empty when using the NRI enforcer."
+		// NRI enforcer supports selector field for filtering, but name and containers must be empty.
+		if spec.Target.Name != "" || len(spec.Target.Containers) != 0 {
+			return false, "The target name and containers fields must be empty when using the NRI enforcer."
 		}
 
 		// Validate Rego policy syntax
 		if spec.Policy.EnhanceProtect != nil {
-			var presetRules, rawRules string
+			var builtinRules, rawRules string
 			if len(spec.Policy.EnhanceProtect.RejectContainerRules) > 0 {
-				// We need to generate the preset rules to validate them
-				nriProfile := nriprofile.GenerateEnhanceProtectProfile(spec.Policy.EnhanceProtect)
+				// We need to generate the builtin rules to validate them (pass dummy values for matching info)
+				nriProfile := nriprofile.GenerateEnhanceProtectProfile(spec.Policy.EnhanceProtect, "", spec.Target, clusterScope)
 				if nriProfile != nil {
-					presetRules = nriProfile.PresetRules
+					builtinRules = nriProfile.BuiltinRules
 					rawRules = nriProfile.Rules
 				}
 			} else {
 				rawRules = spec.Policy.EnhanceProtect.NriRawRules
 			}
 
-			if err := validateRegoPolicy(presetRules, rawRules); err != nil {
+			if err := validateRegoPolicy(builtinRules, rawRules); err != nil {
 				return false, fmt.Sprintf("Invalid Rego policy syntax: %v", err)
 			}
 		}
@@ -248,11 +243,6 @@ func ValidateUpdatePolicy(policy interface{}, oldEnforcer string, oldTarget varm
 
 	// NRI enforcer checks
 	if (newEnforcers & varmortypes.NRI) != 0 {
-		// NRI enforcer is only supported by VarmorClusterPolicy.
-		if !newClusterScope {
-			return false, "The NRI enforcer is only supported by VarmorClusterPolicy."
-		}
-
 		// NRI enforcer cannot be combined with other enforcers.
 		if newEnforcers != varmortypes.NRI {
 			return false, "The NRI enforcer cannot be combined with other enforcers."
@@ -263,26 +253,26 @@ func ValidateUpdatePolicy(policy interface{}, oldEnforcer string, oldTarget varm
 			return false, "The target kind must be Pod when using the NRI enforcer."
 		}
 
-		// NRI enforcer only supports empty target name, selector and containers.
-		if newSpec.Target.Name != "" || newSpec.Target.Selector != nil || len(newSpec.Target.Containers) != 0 {
-			return false, "The target name, selector and containers fields must be empty when using the NRI enforcer."
+		// NRI enforcer supports selector field for filtering, but name and containers must be empty.
+		if newSpec.Target.Name != "" || len(newSpec.Target.Containers) != 0 {
+			return false, "The target name and containers fields must be empty when using the NRI enforcer."
 		}
 
 		// Validate Rego policy syntax
 		if newSpec.Policy.EnhanceProtect != nil {
-			var presetRules, rawRules string
+			var builtinRules, rawRules string
 			if len(newSpec.Policy.EnhanceProtect.RejectContainerRules) > 0 {
-				// We need to generate the preset rules to validate them
-				nriProfile := nriprofile.GenerateEnhanceProtectProfile(newSpec.Policy.EnhanceProtect)
+				// We need to generate the builtin rules to validate them (pass dummy values for matching info)
+				nriProfile := nriprofile.GenerateEnhanceProtectProfile(newSpec.Policy.EnhanceProtect, "", newSpec.Target, newClusterScope)
 				if nriProfile != nil {
-					presetRules = nriProfile.PresetRules
+					builtinRules = nriProfile.BuiltinRules
 					rawRules = nriProfile.Rules
 				}
 			} else {
 				rawRules = newSpec.Policy.EnhanceProtect.NriRawRules
 			}
 
-			if err := validateRegoPolicy(presetRules, rawRules); err != nil {
+			if err := validateRegoPolicy(builtinRules, rawRules); err != nil {
 				return false, fmt.Sprintf("Invalid Rego policy syntax: %v", err)
 			}
 		}

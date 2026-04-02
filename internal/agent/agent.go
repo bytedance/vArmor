@@ -572,7 +572,13 @@ func (agent *Agent) handleCreateOrUpdateArmorProfile(ap *varmor.ArmorProfile, ke
 				AllowViolations: ap.Spec.Profile.Nri.AllowViolations,
 			}
 
-			err := agent.nriEnforcer.SyncPolicy(ap.Spec.Profile.Name, ap.Spec.Profile.Nri.PresetRules, ap.Spec.Profile.Nri.Rules, options)
+			matchInfo := varmornrienforcer.PolicyMatchInfo{
+				Namespace:      ap.Spec.Profile.Nri.Namespace,
+				Target:         ap.Spec.Profile.Nri.Target,
+				IsClusterScope: ap.Spec.Profile.Nri.IsClusterScope,
+			}
+
+			err := agent.nriEnforcer.SyncPolicy(ap.Spec.Profile.Name, ap.Spec.Profile.Nri.BuiltinRules, ap.Spec.Profile.Nri.Rules, options, matchInfo)
 			if err != nil {
 				logger.Error(err, "SyncPolicy()")
 				errorMessages = append(errorMessages, "SyncPolicy(): "+err.Error())

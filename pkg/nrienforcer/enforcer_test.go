@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
 	"github.com/bytedance/vArmor/pkg/nrienforcer"
 	"github.com/containerd/nri/pkg/api"
 	"github.com/opencontainers/runtime-spec/specs-go"
@@ -80,9 +81,20 @@ deny[d] {
 	}
 
 	// Add policy
-	err = evaluator.UpdatePolicy(context.Background(), "test-profile", presetPolicy, rawPolicy, options)
+	matchInfo := nrienforcer.PolicyMatchInfo{
+		Namespace:      "",
+		Target:         varmor.Target{},
+		IsClusterScope: true,
+	}
+	err = evaluator.UpdatePolicy(context.Background(), "test-profile", presetPolicy, rawPolicy, options, matchInfo)
 	if err != nil {
 		t.Fatalf("Failed to update policy: %v", err)
+	}
+
+	// Create a test pod for matching
+	testPod := &api.PodSandbox{
+		Namespace: "test-namespace",
+		Labels:    map[string]string{},
 	}
 
 	tests := []struct {
@@ -337,7 +349,7 @@ deny[d] {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			results, err := evaluator.Evaluate(context.Background(), tt.input)
+			results, err := evaluator.Evaluate(context.Background(), tt.input, testPod)
 			if err != nil {
 				t.Fatalf("Evaluate failed: %v", err)
 			}
@@ -411,9 +423,20 @@ deny[decision] {
 	}
 
 	// Add policy - 注意：即使有错误的路径，UpdatePolicy 也会成功！
-	err = evaluator.UpdatePolicy(context.Background(), "test-wrong-path", "", rawPolicyWithWrongPath, options)
+	matchInfo2 := nrienforcer.PolicyMatchInfo{
+		Namespace:      "",
+		Target:         varmor.Target{},
+		IsClusterScope: true,
+	}
+	err = evaluator.UpdatePolicy(context.Background(), "test-wrong-path", "", rawPolicyWithWrongPath, options, matchInfo2)
 	if err != nil {
 		t.Fatalf("Failed to update policy (unexpected, should succeed even with wrong paths): %v", err)
+	}
+
+	// Create a test pod for matching
+	testPod2 := &api.PodSandbox{
+		Namespace: "test-namespace",
+		Labels:    map[string]string{},
 	}
 
 	// Test input with latest tag
@@ -426,7 +449,7 @@ deny[decision] {
 		},
 	}
 
-	results, err := evaluator.Evaluate(context.Background(), input)
+	results, err := evaluator.Evaluate(context.Background(), input, testPod2)
 	if err != nil {
 		t.Fatalf("Evaluate failed: %v", err)
 	}

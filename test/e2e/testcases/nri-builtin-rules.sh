@@ -17,7 +17,7 @@
 # NRI reject rules test case configuration
 
 # Test name (must contain "nri" to trigger NRI-specific test flow)
-TEST_NAME="nri-reject-rules"
+TEST_NAME="nri-builtin-rules"
 
 # Test description
 TEST_DESCRIPTION="Testing NRI enforcer rejectContainerRules"
@@ -25,26 +25,23 @@ TEST_DESCRIPTION="Testing NRI enforcer rejectContainerRules"
 # Namespace
 NAMESPACE="demo"
 
-# Policy name
-POLICY_NAME="demo-7-reject-rules"
-
 # Initial policy file (AlwaysAllow mode)
-POLICY_FILES="../examples/7-nri-enforcer/vpol-nri-reject-rules-alwaysallow.yaml"
+POLICY_FILES="../examples/7-nri-enforcer/vpol-nri-alwaysallow.yaml"
 
 # Enhanced policy file (EnhanceProtect mode with rejectContainerRules)
-ENHANCED_POLICY_FILES="../examples/7-nri-enforcer/vpol-nri-reject-rules.yaml"
+ENHANCED_POLICY_FILES="../examples/7-nri-enforcer/vpol-nri-builtin-rules.yaml"
 
 # Workload file - same file used for both phases
-WORKLOAD_FILES="../examples/7-nri-enforcer/deploy-reject-rules.yaml"
+WORKLOAD_FILES="../examples/7-nri-enforcer/deploy.yaml"
 
 # Pod selector
-POD_SELECTOR="app=demo-7-reject-rules"
+POD_SELECTOR="app=demo-7"
 
 # Container name
 CONTAINER_NAME="demo-container"
 
 # Initial command - verifies Pod is working in AlwaysAllow mode
-INITIAL_COMMAND="echo 'NRI reject rules test: Pod is running'"
+INITIAL_COMMAND="echo 'NRI builtin rules test: Pod is running'"
 
 # Initial command expected status code (0 means success)
 INITIAL_EXPECTED_STATUS=0

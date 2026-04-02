@@ -7,7 +7,11 @@ import (
 	"sync"
 	"time"
 
+	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
+	"github.com/containerd/nri/pkg/api"
 	"github.com/open-policy-agent/opa/rego"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 )
 
 const (
@@ -29,6 +33,13 @@ type Options struct {
 	FailurePolicy string
 }
 
+// PolicyMatchInfo stores the matching information for a policy
+type PolicyMatchInfo struct {
+	Namespace      string
+	Target         varmor.Target
+	IsClusterScope bool
+}
+
 //go:embed policies/builtin.rego
 var builtinPolicy string
 
@@ -37,40 +48,44 @@ type Evaluator struct {
 	queries map[string]rego.PreparedEvalQuery
 	// options stores the NriOptions for each policy, keyed by profile name
 	options map[string]Options
-	mu      sync.RWMutex
+	// matchInfos stores the matching information for each policy, keyed by profile name
+	matchInfos map[string]PolicyMatchInfo
+	mu         sync.RWMutex
 }
 
 // NewEvaluator creates a new OPA evaluator.
 func NewEvaluator(ctx context.Context) (*Evaluator, error) {
 	e := &Evaluator{
-		queries: make(map[string]rego.PreparedEvalQuery),
-		options: make(map[string]Options),
+		queries:    make(map[string]rego.PreparedEvalQuery),
+		options:    make(map[string]Options),
+		matchInfos: make(map[string]PolicyMatchInfo),
 	}
 	return e, nil
 }
 
 // UpdatePolicy updates or adds a policy for a specific profile.
-func (e *Evaluator) UpdatePolicy(ctx context.Context, profileName string, presetRules string, rawRules string, options Options) error {
+func (e *Evaluator) UpdatePolicy(ctx context.Context, profileName string, builtinRules string, rawRules string, options Options, matchInfo PolicyMatchInfo) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
-	// If both preset and raw rules are empty, just save the options.
+	// If both builtin and raw rules are empty, just save the options and match info.
 	// However, without a policy query, Evaluate() won't do anything for this profile.
-	if presetRules == "" && rawRules == "" {
+	if builtinRules == "" && rawRules == "" {
 		delete(e.queries, profileName)
 		e.options[profileName] = options
+		e.matchInfos[profileName] = matchInfo
 		return nil
 	}
 
 	// Create a Rego object.
 	// We query the whole package "data.nri.authz" to get all rules (deny, audit_deny, audit_allow).
-	// We load builtin.rego, preset rules (if any), and raw rules (if any) as separate modules.
+	// We load builtin.rego, builtin rules (if any), and raw rules (if any) as separate modules.
 	var opts []func(*rego.Rego)
 	opts = append(opts, rego.Query("data.nri.authz"))
 	opts = append(opts, rego.Module("builtin.rego", builtinPolicy))
 
-	if presetRules != "" {
-		opts = append(opts, rego.Module("preset.rego", presetRules))
+	if builtinRules != "" {
+		opts = append(opts, rego.Module("builtin-user.rego", builtinRules))
 	}
 	if rawRules != "" {
 		opts = append(opts, rego.Module("user.rego", rawRules))
@@ -85,6 +100,7 @@ func (e *Evaluator) UpdatePolicy(ctx context.Context, profileName string, preset
 
 	e.queries[profileName] = query
 	e.options[profileName] = options
+	e.matchInfos[profileName] = matchInfo
 	return nil
 }
 
@@ -94,6 +110,32 @@ func (e *Evaluator) DeletePolicy(profileName string) {
 	defer e.mu.Unlock()
 	delete(e.queries, profileName)
 	delete(e.options, profileName)
+	delete(e.matchInfos, profileName)
+}
+
+// matchesPolicy checks if a policy matches the given pod based on:
+// 1. Namespace match (for non-cluster-scope policies)
+// 2. Label selector match (if target.selector is specified)
+// Empty target means matches everything
+func (e *Evaluator) matchesPolicy(policyNamespace string, target varmor.Target, isClusterScope bool, pod *api.PodSandbox) bool {
+	// 1. Check namespace match if not cluster scope
+	if !isClusterScope && policyNamespace != "" && pod.Namespace != policyNamespace {
+		return false
+	}
+
+	// 2. If no selector specified, match all
+	if target.Selector == nil {
+		return true
+	}
+
+	// 3. Convert LabelSelector to Selector
+	selector, err := metav1.LabelSelectorAsSelector(target.Selector)
+	if err != nil {
+		return false
+	}
+
+	// 4. Match pod labels
+	return selector.Matches(labels.Set(pod.Labels))
 }
 
 // EvalResult contains the result of a policy evaluation
@@ -106,37 +148,58 @@ type EvalResult struct {
 	Error              error
 }
 
-// Evaluate evaluates the input against all registered policies.
+// Evaluate evaluates the input against all matching policies.
+// It first applies VarmorPolicy (namespace-scoped) in matching order, then VarmorClusterPolicy (cluster-scoped).
 // It returns a list of evaluation results for each policy that produced violations, audit messages, or errors.
-func (e *Evaluator) Evaluate(ctx context.Context, input interface{}) ([]EvalResult, error) {
+func (e *Evaluator) Evaluate(ctx context.Context, input interface{}, pod *api.PodSandbox) ([]EvalResult, error) {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 
 	var results []EvalResult
 
-	for profileName, options := range e.options {
-		// Process user policy if exists
-		query, ok := e.queries[profileName]
-		if !ok {
-			continue
-		}
+	// First pass: collect matching policies and separate by scope
+	var varmorPolicyProfiles []string
+	var varmorClusterPolicyProfiles []string
 
-		userRes, err := e.evaluateUserPolicy(ctx, query, options, input)
-		if err != nil {
-			results = append(results, EvalResult{
-				ProfileName: profileName,
-				Options:     options,
-				Error:       err,
-			})
-			continue
-		}
-
-		if len(userRes.DenyMessages) > 0 || len(userRes.AuditDenyMessages) > 0 || len(userRes.AuditAllowMessages) > 0 {
-			userRes.ProfileName = profileName
-			userRes.Options = options
-			results = append(results, userRes)
+	for profileName, matchInfo := range e.matchInfos {
+		if e.matchesPolicy(matchInfo.Namespace, matchInfo.Target, matchInfo.IsClusterScope, pod) {
+			if matchInfo.IsClusterScope {
+				varmorClusterPolicyProfiles = append(varmorClusterPolicyProfiles, profileName)
+			} else {
+				varmorPolicyProfiles = append(varmorPolicyProfiles, profileName)
+			}
 		}
 	}
+
+	// Evaluate in order: VarmorPolicy first, then VarmorClusterPolicy
+	evaluateProfiles := func(profiles []string) {
+		for _, profileName := range profiles {
+			options := e.options[profileName]
+			query, ok := e.queries[profileName]
+			if !ok {
+				continue
+			}
+
+			userRes, err := e.evaluateUserPolicy(ctx, query, options, input)
+			if err != nil {
+				results = append(results, EvalResult{
+					ProfileName: profileName,
+					Options:     options,
+					Error:       err,
+				})
+				continue
+			}
+
+			if len(userRes.DenyMessages) > 0 || len(userRes.AuditDenyMessages) > 0 || len(userRes.AuditAllowMessages) > 0 {
+				userRes.ProfileName = profileName
+				userRes.Options = options
+				results = append(results, userRes)
+			}
+		}
+	}
+
+	evaluateProfiles(varmorPolicyProfiles)
+	evaluateProfiles(varmorClusterPolicyProfiles)
 
 	return results, nil
 }

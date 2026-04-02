@@ -1,10 +1,14 @@
 apiVersion: crd.varmor.org/v1beta1
-kind: VarmorClusterPolicy
+kind: VarmorPolicy
 metadata:
-  name: demo-7-reject-rules
+  name: demo-7-builtin-rules
+  namespace: demo
 spec:
   target:
     kind: Pod
+    selector:
+      matchLabels:
+        app: demo-7
   policy:
     enforcer: NRI
     mode: EnhanceProtect

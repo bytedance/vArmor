@@ -37,9 +37,9 @@ func NewNRIEnforcer(opaEvaluator *Evaluator, auditor *varmorauditor.Auditor, log
 }
 
 // SyncPolicy updates the policy for a given profile.
-func (p *NRIEnforcer) SyncPolicy(profileName string, presetRules string, rawRules string, options Options) error {
+func (p *NRIEnforcer) SyncPolicy(profileName string, builtinRules string, rawRules string, options Options, matchInfo PolicyMatchInfo) error {
 	p.log.Info("SyncPolicy", "profile", profileName)
-	return p.opa.UpdatePolicy(context.Background(), profileName, presetRules, rawRules, options)
+	return p.opa.UpdatePolicy(context.Background(), profileName, builtinRules, rawRules, options, matchInfo)
 }
 
 // DeletePolicy removes the policy for a given profile.
@@ -108,10 +108,12 @@ func (p *NRIEnforcer) StartContainer(ctx context.Context, pod *api.PodSandbox, c
 		Container: container,
 	}
 
+	var containerImage string
 	// Try to get container image from containerd
 	image, err := p.getContainerImage(ctx, container)
 	if err == nil {
 		input.Image = image
+		containerImage = image
 		p.log.V(3).Info("Successfully retrieved container image", "container", container.Name, "image", input.Image)
 	} else {
 		p.log.V(3).Info("Failed to get container image", "container", container.Name, "error", err)
@@ -129,17 +131,17 @@ func (p *NRIEnforcer) StartContainer(ctx context.Context, pod *api.PodSandbox, c
 
 	input.Spec = spec
 
-	results, err := p.opa.Evaluate(ctx, input)
+	results, err := p.opa.Evaluate(ctx, input, pod)
 	if err != nil {
 		// System error during evaluation (unlikely with current Evaluate implementation which returns results with errors)
 		p.log.Error(err, "OPA evaluation system error")
 		return fmt.Errorf("OPA evaluation system error: %w", err)
 	}
 
-	return p.enforcePolicies(pod, container, results)
+	return p.enforcePolicies(pod, container, containerImage, results)
 }
 
-func (p *NRIEnforcer) enforcePolicies(pod *api.PodSandbox, container *api.Container, results []EvalResult) error {
+func (p *NRIEnforcer) enforcePolicies(pod *api.PodSandbox, container *api.Container, image string, results []EvalResult) error {
 	var blockErrors []string
 
 	for _, res := range results {
@@ -174,7 +176,7 @@ func (p *NRIEnforcer) enforcePolicies(pod *api.PodSandbox, container *api.Contai
 					pod.GetName(),
 					container.GetName(),
 					container.GetId(),
-					"",
+					image,
 					profileName,
 					"StartContainer",
 					msg,
@@ -195,7 +197,7 @@ func (p *NRIEnforcer) enforcePolicies(pod *api.PodSandbox, container *api.Contai
 					pod.GetName(),
 					container.GetName(),
 					container.GetId(),
-					"",
+					image,
 					profileName,
 					"StartContainer",
 					msg,
@@ -216,7 +218,7 @@ func (p *NRIEnforcer) enforcePolicies(pod *api.PodSandbox, container *api.Contai
 					pod.GetName(),
 					container.GetName(),
 					container.GetId(),
-					"",
+					image,
 					profileName,
 					"StartContainer",
 					msg,

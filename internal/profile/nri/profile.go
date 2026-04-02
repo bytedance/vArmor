@@ -21,20 +21,20 @@ import (
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
 )
 
-func GenerateEnhanceProtectProfile(enhanceProtect *varmor.EnhanceProtect) *varmor.NriContent {
+func GenerateEnhanceProtectProfile(enhanceProtect *varmor.EnhanceProtect, namespace string, target varmor.Target, isClusterScope bool) *varmor.NriContent {
 	if enhanceProtect == nil {
 		return nil
 	}
 
 	nriContent := &varmor.NriContent{}
 
-	var presetRules []string
+	var builtinRules []string
 	var rawRules string
 
-	// 1. Generate preset rules
+	// 1. Generate builtin rules
 	if len(enhanceProtect.RejectContainerRules) > 0 {
-		presetRules = append(presetRules, "package nri.authz")
-		presetRules = append(presetRules, "import data.varmor.nri.builtin")
+		builtinRules = append(builtinRules, "package nri.authz")
+		builtinRules = append(builtinRules, "import data.varmor.nri.builtin")
 
 		// Determine the rule name and mode based on AllowViolations
 		action := "deny"
@@ -54,29 +54,29 @@ func GenerateEnhanceProtectProfile(enhanceProtect *varmor.EnhanceProtect) *varmo
 		for _, ruleID := range enhanceProtect.RejectContainerRules {
 			switch ruleID {
 			case "disallow-privileged-container":
-				presetRules = append(presetRules, fmt.Sprintf(ruleTemplate, action, "is_privileged_container", "NRI-001", "Privileged containers are strictly forbidden"))
+				builtinRules = append(builtinRules, fmt.Sprintf(ruleTemplate, action, "is_privileged_container", "NRI-001", "Privileged containers are strictly forbidden"))
 			case "disallow-dangerous-capabilities":
-				presetRules = append(presetRules, fmt.Sprintf(ruleTemplate, action, "has_dangerous_capabilities", "NRI-002", "Containers with dangerous capabilities are forbidden"))
+				builtinRules = append(builtinRules, fmt.Sprintf(ruleTemplate, action, "has_dangerous_capabilities", "NRI-002", "Containers with dangerous capabilities are forbidden"))
 			case "disallow-host-root-mount":
-				presetRules = append(presetRules, fmt.Sprintf(ruleTemplate, action, "mounts_host_root", "NRI-003", "Mounting host root directory is forbidden"))
+				builtinRules = append(builtinRules, fmt.Sprintf(ruleTemplate, action, "mounts_host_root", "NRI-003", "Mounting host root directory is forbidden"))
 			case "disallow-host-network":
-				presetRules = append(presetRules, fmt.Sprintf(ruleTemplate, action, "uses_host_network", "NRI-004", "Using host network is forbidden"))
+				builtinRules = append(builtinRules, fmt.Sprintf(ruleTemplate, action, "uses_host_network", "NRI-004", "Using host network is forbidden"))
 			case "disallow-host-pid":
-				presetRules = append(presetRules, fmt.Sprintf(ruleTemplate, action, "uses_host_pid", "NRI-005", "Using host PID namespace is forbidden"))
+				builtinRules = append(builtinRules, fmt.Sprintf(ruleTemplate, action, "uses_host_pid", "NRI-005", "Using host PID namespace is forbidden"))
 			case "disallow-latest-tag":
-				presetRules = append(presetRules, fmt.Sprintf(ruleTemplate, action, "has_latest_tag", "NRI-101", "Using ':latest' tag is forbidden"))
+				builtinRules = append(builtinRules, fmt.Sprintf(ruleTemplate, action, "has_latest_tag", "NRI-101", "Using ':latest' tag is forbidden"))
 			case "disallow-cpu-limits-missing":
-				presetRules = append(presetRules, fmt.Sprintf(ruleTemplate, action, "missing_cpu_limits", "NRI-103", "Missing CPU limits"))
+				builtinRules = append(builtinRules, fmt.Sprintf(ruleTemplate, action, "missing_cpu_limits", "NRI-103", "Missing CPU limits"))
 			case "disallow-memory-limits-missing":
-				presetRules = append(presetRules, fmt.Sprintf(ruleTemplate, action, "missing_memory_limits", "NRI-104", "Missing memory limits"))
+				builtinRules = append(builtinRules, fmt.Sprintf(ruleTemplate, action, "missing_memory_limits", "NRI-104", "Missing memory limits"))
 			case "disallow-root-container":
-				presetRules = append(presetRules, fmt.Sprintf(ruleTemplate, action, "runs_as_root", "NRI-201", "Running as root is forbidden"))
+				builtinRules = append(builtinRules, fmt.Sprintf(ruleTemplate, action, "runs_as_root", "NRI-201", "Running as root is forbidden"))
 			}
 		}
 	}
 
-	if len(presetRules) > 0 {
-		nriContent.PresetRules = strings.Join(presetRules, "\n\n")
+	if len(builtinRules) > 0 {
+		nriContent.BuiltinRules = strings.Join(builtinRules, "\n\n")
 	}
 
 	// 2. Handle raw rules
@@ -92,6 +92,11 @@ func GenerateEnhanceProtectProfile(enhanceProtect *varmor.EnhanceProtect) *varmo
 
 	nriContent.AuditViolations = enhanceProtect.AuditViolations
 	nriContent.AllowViolations = enhanceProtect.AllowViolations
+
+	// 3. Save matching information
+	nriContent.Namespace = namespace
+	nriContent.Target = target
+	nriContent.IsClusterScope = isClusterScope
 
 	return nriContent
 }

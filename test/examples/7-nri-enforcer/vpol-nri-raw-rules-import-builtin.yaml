@@ -1,7 +1,7 @@
 apiVersion: crd.varmor.org/v1beta1
 kind: VarmorClusterPolicy
 metadata:
-  name: demo-7-import-builtin
+  name: demo-7-raw-rules-import-builtin
 spec:
   target:
     kind: Pod
@@ -26,7 +26,7 @@ spec:
         failurePolicy: Audit
         # Specifies the maximum time in milliseconds for policy evaluation.
         # If timeout is exceeded, the failurePolicy will be applied.
-        timeout: 2000
+        timeout: 200
       nriRawRules: |
         # IMPORTANT: Rego policy note
         # - Wrong field paths (e.g., input.container.image instead of input.image) won't error

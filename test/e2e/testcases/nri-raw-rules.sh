@@ -25,20 +25,17 @@ TEST_DESCRIPTION="Testing NRI enforcer with raw Rego rules in nriRawRules"
 # Namespace
 NAMESPACE="demo"
 
-# Policy name
-POLICY_NAME="demo-7-raw"
-
 # Initial policy file (AlwaysAllow mode)
-POLICY_FILES="../examples/7-nri-enforcer/vpol-nri-raw-rules-alwaysallow.yaml"
+POLICY_FILES="../examples/7-nri-enforcer/vpol-nri-alwaysallow.yaml"
 
 # Enhanced policy file (EnhanceProtect mode with raw Rego rules)
 ENHANCED_POLICY_FILES="../examples/7-nri-enforcer/vpol-nri-raw-rules.yaml"
 
 # Workload file - same file used for both phases
-WORKLOAD_FILES="../examples/7-nri-enforcer/deploy-raw-rules.yaml"
+WORKLOAD_FILES="../examples/7-nri-enforcer/deploy.yaml"
 
 # Pod selector
-POD_SELECTOR="app=demo-7-raw"
+POD_SELECTOR="app=demo-7"
 
 # Container name
 CONTAINER_NAME="demo-container"
