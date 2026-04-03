@@ -1,0 +1,42 @@
+apiVersion: crd.varmor.org/v1beta1
+kind: VarmorClusterPolicy
+metadata:
+  name: demo-7-raw-rules-import-builtin
+spec:
+  target:
+    kind: Pod
+  policy:
+    enforcer: NRI
+    mode: EnhanceProtect
+    enhanceProtect:
+      # Audit the actions that violate the mandatory access control rules.
+      # Any detected violation will be logged to /var/log/varmor/violations.log file in the host.
+      # It's disabled by default.
+      auditViolations: true
+      # Allow the actions that violate the mandatory access control rules.
+      # Any detected violation will be allowed instead of being blocked and logged to the same log file 
+      # as the auditViolations feature. You can utilize the feature to achieve some kind of observation mode.
+      # It's diabled by default.
+      # allowViolations: true
+      nriOptions:
+        # Defines the action to take when policy evaluation fails or an error occurs.
+        # "Audit": log the error and allow the action (default)
+        # "Fail": log the error and block the action
+        # "Ignore": allow the action and do not log the error
+        failurePolicy: Audit
+        # Specifies the maximum time in milliseconds for policy evaluation.
+        # If timeout is exceeded, the failurePolicy will be applied.
+        timeout: 200
+      nriRawRules: |
+        # IMPORTANT: Rego policy note
+        # - Wrong field paths (e.g., input.container.image instead of input.image) won't error
+        # - They just return undefined and the rule won't match (silent failure)
+        # - Always verify your policies work as expected through testing or log checking
+        package nri.authz
+
+        import data.varmor.nri.builtin
+
+        deny[msg] {
+            builtin.has_latest_tag
+            msg := sprintf("Image '%v' uses ':latest' tag which is forbidden", [input.image])
+        }

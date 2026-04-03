@@ -641,7 +641,10 @@ func (m *StatusManager) reconcileStatus(stopCh <-chan struct{}) {
 			}
 
 			apName := varmorprofile.GenerateArmorProfileName(namespace, vpName, clusterScope)
-			profile, _, err := varmorprofile.GenerateProfile(nil, m.varmorInterface, vPolicy, apName, namespace, true, false, false, logger)
+			// In this path, we don't have access to the original target, but it's
+			// for BehaviorModeling mode which doesn't use NRI enforcer anyway
+			var emptyTarget varmor.Target
+			profile, _, err := varmorprofile.GenerateProfile(nil, m.varmorInterface, vPolicy, emptyTarget, apName, namespace, clusterScope, true, false, false, logger)
 			if err != nil {
 				logger.Error(err, "varmorprofile.GenerateProfile()")
 				break

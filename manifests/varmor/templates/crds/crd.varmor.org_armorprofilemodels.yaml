@@ -413,6 +413,23 @@ spec:
                     type: string
                   name:
                     type: string
+                  nri:
+                    properties:
+                      allowViolations:
+                        type: boolean
+                      auditViolations:
+                        type: boolean
+                      failurePolicy:
+                        type: string
+                      presetRules:
+                        description: PresetRules is the generated Rego rules based
+                          on the RejectContainerRules
+                        type: string
+                      rules:
+                        type: string
+                      timeout:
+                        type: integer
+                    type: object
                   seccomp:
                     type: string
                 required:

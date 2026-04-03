@@ -92,6 +92,26 @@ type BpfContent struct {
 	Mounts       []MountContent       `json:"mounts,omitempty"`
 }
 
+type NriContent struct {
+	// Namespace is the namespace of the original VarmorPolicy (empty for cluster-scoped policies)
+	Namespace string `json:"namespace,omitempty"`
+	// Target contains the target information from the original policy
+	Target Target `json:"target,omitempty"`
+	// IsClusterScope indicates whether this policy is from a VarmorClusterPolicy
+	IsClusterScope bool `json:"isClusterScope,omitempty"`
+	// Rules is the raw Rego rules defined by the user
+	Rules string `json:"rules,omitempty"`
+	// BuiltinRules is the generated Rego rules based on the RejectContainerRules
+	BuiltinRules string `json:"builtinRules,omitempty"`
+	// Timeout specifies the maximum time in milliseconds for policy evaluation
+	Timeout int `json:"timeout,omitempty"`
+	// FailurePolicy defines the action to take when the policy evaluation fails or an error occurs.
+	// Possible values: "Audit" (log the error and allow), "Fail" (log the error and block), "Ignore" (allow and do not log)
+	FailurePolicy   string `json:"failurePolicy,omitempty"`
+	AuditViolations bool   `json:"auditViolations,omitempty"`
+	AllowViolations bool   `json:"allowViolations,omitempty"`
+}
+
 type Profile struct {
 	Name     string      `json:"name"`
 	Enforcer string      `json:"enforcer"`
@@ -99,6 +119,7 @@ type Profile struct {
 	AppArmor string      `json:"appArmor,omitempty"`
 	Bpf      *BpfContent `json:"bpf,omitempty"`
 	Seccomp  string      `json:"seccomp,omitempty"`
+	Nri      *NriContent `json:"nri,omitempty"`
 }
 
 type BehaviorModeling struct {

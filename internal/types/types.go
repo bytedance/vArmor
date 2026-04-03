@@ -31,7 +31,8 @@ const (
 	AppArmor Enforcer = 0x00000001
 	BPF      Enforcer = 0x00000002
 	Seccomp  Enforcer = 0x00000004
-	Unknown  Enforcer = 0x00000008
+	NRI      Enforcer = 0x00000008
+	Unknown  Enforcer = 0x00000010
 
 	// AppArmor Profile process Status
 	Succeeded Status = "succeeded"
@@ -87,6 +88,7 @@ var enforcerMap = map[string]Enforcer{
 	"apparmor":           AppArmor,
 	"bpf":                BPF,
 	"seccomp":            Seccomp,
+	"nri":                NRI,
 	"apparmorbpf":        AppArmor | BPF,
 	"bpfapparmor":        AppArmor | BPF,
 	"apparmorseccomp":    AppArmor | Seccomp,

@@ -1,0 +1,10 @@
+apiVersion: crd.varmor.org/v1beta1
+kind: VarmorClusterPolicy
+metadata:
+  name: demo-7-alwaysallow
+spec:
+  target:
+    kind: Pod
+  policy:
+    enforcer: NRI
+    mode: AlwaysAllow

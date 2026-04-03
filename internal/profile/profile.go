@@ -28,6 +28,7 @@ import (
 	varmorconfig "github.com/bytedance/vArmor/internal/config"
 	apparmorprofile "github.com/bytedance/vArmor/internal/profile/apparmor"
 	bpfprofile "github.com/bytedance/vArmor/internal/profile/bpf"
+	nriprofile "github.com/bytedance/vArmor/internal/profile/nri"
 	seccompprofile "github.com/bytedance/vArmor/internal/profile/seccomp"
 	varmortypes "github.com/bytedance/vArmor/internal/types"
 	varmorinterface "github.com/bytedance/vArmor/pkg/client/clientset/versioned/typed/varmor/v1beta1"
@@ -59,7 +60,9 @@ func GenerateProfile(
 	kubeClient *kubernetes.Clientset,
 	varmorInterface varmorinterface.CrdV1beta1Interface,
 	policy varmor.Policy,
+	target varmor.Target,
 	name string, namespace string,
+	clusterScope bool,
 	complete bool,
 	enableServiceEgressControl bool,
 	enablePodEgressControl bool,
@@ -155,6 +158,10 @@ func GenerateProfile(
 			if err != nil {
 				return nil, nil, err
 			}
+		}
+		// NRI
+		if (e & varmortypes.NRI) != 0 {
+			profile.Nri = nriprofile.GenerateEnhanceProtectProfile(policy.EnhanceProtect, namespace, target, clusterScope)
 		}
 
 	case varmor.BehaviorModelingMode:
@@ -312,7 +319,7 @@ func NewArmorProfile(
 		}
 		ap.Finalizers = []string{"varmor.org/ap-protection"}
 
-		profile, egressInfo, err = GenerateProfile(kubeClient, varmorInterface, vcp.Spec.Policy, ap.Name, ap.Namespace, false, enableServiceEgressControl, enablePodEgressControl, logger)
+		profile, egressInfo, err = GenerateProfile(kubeClient, varmorInterface, vcp.Spec.Policy, vcp.Spec.Target, ap.Name, ap.Namespace, clusterScope, false, enableServiceEgressControl, enablePodEgressControl, logger)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -344,7 +351,7 @@ func NewArmorProfile(
 		}
 		ap.Finalizers = []string{"varmor.org/ap-protection"}
 
-		profile, egressInfo, err = GenerateProfile(kubeClient, varmorInterface, vp.Spec.Policy, ap.Name, ap.Namespace, false, enableServiceEgressControl, enablePodEgressControl, logger)
+		profile, egressInfo, err = GenerateProfile(kubeClient, varmorInterface, vp.Spec.Policy, vp.Spec.Target, ap.Name, ap.Namespace, clusterScope, false, enableServiceEgressControl, enablePodEgressControl, logger)
 		if err != nil {
 			return nil, nil, err
 		}

@@ -52,6 +52,7 @@ import (
 	varmorapparmor "github.com/bytedance/vArmor/pkg/lsm/apparmor"
 	varmorbpfenforcer "github.com/bytedance/vArmor/pkg/lsm/bpfenforcer"
 	varmormetrics "github.com/bytedance/vArmor/pkg/metrics"
+	varmornrienforcer "github.com/bytedance/vArmor/pkg/nrienforcer"
 	varmorptracer "github.com/bytedance/vArmor/pkg/processtracer"
 	varmorruntime "github.com/bytedance/vArmor/pkg/runtime"
 	varmorseccomp "github.com/bytedance/vArmor/pkg/seccomp"
@@ -71,9 +72,11 @@ type Agent struct {
 	appArmorSupported        bool
 	bpfLsmSupported          bool
 	seccompSupported         bool
+	nriSupported             bool
 	appArmorProfileDir       string
 	seccompProfileDir        string
 	bpfEnforcer              *varmorbpfenforcer.BpfEnforcer
+	nriEnforcer              *varmornrienforcer.NRIEnforcer
 	auditor                  *varmorauditor.Auditor
 	monitor                  *varmorruntime.RuntimeMonitor
 	waitExistingApSync       sync.WaitGroup
@@ -81,6 +84,7 @@ type Agent struct {
 	processedApCount         int
 	enableBehaviorModeling   bool
 	enableBpfEnforcer        bool
+	enableNriEnforcer        bool
 	unloadAllAaProfiles      bool
 	removeAllSeccompProfiles bool
 	ptracer                  *varmorptracer.ProcessTracer
@@ -99,6 +103,7 @@ func NewAgent(
 	apInformer varmorinformer.ArmorProfileInformer,
 	enableBehaviorModeling bool,
 	enableBpfEnforcer bool,
+	enableNriEnforcer bool,
 	unloadAllAaProfiles bool,
 	removeAllSeccompProfiles bool,
 	svcAddresses map[string]string,
@@ -124,6 +129,7 @@ func NewAgent(
 		processedApCount:         0,
 		enableBehaviorModeling:   enableBehaviorModeling,
 		enableBpfEnforcer:        enableBpfEnforcer,
+		enableNriEnforcer:        enableNriEnforcer,
 		unloadAllAaProfiles:      unloadAllAaProfiles,
 		removeAllSeccompProfiles: removeAllSeccompProfiles,
 		modellers:                make(map[string]*varmorbehavior.BehaviorModeller),
@@ -171,12 +177,22 @@ func NewAgent(
 		agent.bpfLsmSupported = false
 		log.Info("the BPF enforcer is not enabled (use --enableBpfEnforcer to enable it)")
 	}
+
+	if enableNriEnforcer {
+		agent.nriSupported, err = isNRISupported()
+		if err != nil {
+			log.Info("the NRI enforcer is not supported", "error", err)
+		}
+	} else {
+		agent.nriSupported = false
+		log.Info("the NRI enforcer is not enabled (use --enableNriEnforcer to enable it)")
+	}
 	agent.seccompSupported, err = isSeccompSupported(varmorconfig.ServerVersion)
 	if err != nil {
 		log.Info("the Seccomp enforcer only supports Kubernetes v1.19 and above", "error", err)
 	}
 
-	if !agent.appArmorSupported && !agent.bpfLsmSupported && !agent.seccompSupported {
+	if !agent.appArmorSupported && !agent.bpfLsmSupported && !agent.seccompSupported && !agent.nriSupported {
 		log.Error(fmt.Errorf("no enforcer is supported in the environment"), "unsupported OS and Kubernetes")
 		return nil, err
 	}
@@ -263,6 +279,25 @@ func NewAgent(
 		agent.ptracer, err = varmorptracer.NewProcessTracer(log.WithName("TRACER"))
 		if err != nil {
 			return nil, err
+		}
+	}
+
+	// NRI enforcer initialization
+	if agent.nriSupported {
+		log.Info("initialize the NRI Enforcer")
+		// Initialize OPA evaluator
+		opaEvaluator, err := varmornrienforcer.NewEvaluator(context.Background())
+		if err != nil {
+			log.Error(err, "failed to initialize OPA evaluator")
+			agent.nriSupported = false
+		} else {
+			agent.nriEnforcer, err = varmornrienforcer.NewNRIEnforcer(opaEvaluator, agent.auditor, log.WithName("NRI-ENFORCER"))
+			if err != nil {
+				log.Error(err, "failed to initialize NRI enforcer")
+				agent.nriSupported = false
+			} else {
+				go agent.nriEnforcer.Run(context.Background())
+			}
 		}
 	}
 
@@ -393,6 +428,10 @@ func (agent *Agent) selectEnforcer(ap *varmor.ArmorProfile) (varmortypes.Enforce
 		return e, fmt.Errorf("the Seccomp enforcer needs Kubernetes v1.19 and above")
 	}
 
+	if (e&varmortypes.NRI != 0) && !agent.nriSupported {
+		return e, fmt.Errorf("the NRI enforcer failed to initialize, need containerd v2.0.0 and above")
+	}
+
 	if e&varmortypes.Unknown != 0 {
 		return e, fmt.Errorf("unknown enforcer")
 	}
@@ -520,6 +559,33 @@ func (agent *Agent) handleCreateOrUpdateArmorProfile(ap *varmor.ArmorProfile, ke
 		}
 	}
 
+	// NRI
+	if (enforcer & varmortypes.NRI) != 0 {
+		// Sync NRI policy.
+		logger.Info(fmt.Sprintf("synchronizing the NRI policy '%s (%s)' to Node/%s", ap.Spec.Profile.Name, ap.Spec.Profile.Mode, agent.nodeName))
+
+		if ap.Spec.Profile.Nri != nil {
+			options := varmornrienforcer.Options{
+				Timeout:         ap.Spec.Profile.Nri.Timeout,
+				FailurePolicy:   ap.Spec.Profile.Nri.FailurePolicy,
+				AuditViolations: ap.Spec.Profile.Nri.AuditViolations,
+				AllowViolations: ap.Spec.Profile.Nri.AllowViolations,
+			}
+
+			matchInfo := varmornrienforcer.PolicyMatchInfo{
+				Namespace:      ap.Spec.Profile.Nri.Namespace,
+				Target:         ap.Spec.Profile.Nri.Target,
+				IsClusterScope: ap.Spec.Profile.Nri.IsClusterScope,
+			}
+
+			err := agent.nriEnforcer.SyncPolicy(ap.Spec.Profile.Name, ap.Spec.Profile.Nri.BuiltinRules, ap.Spec.Profile.Nri.Rules, options, matchInfo)
+			if err != nil {
+				logger.Error(err, "SyncPolicy()")
+				errorMessages = append(errorMessages, "SyncPolicy(): "+err.Error())
+			}
+		}
+	}
+
 	logger.Info("send a status to the manager")
 	if len(errorMessages) > 0 {
 		combinedErr := strings.Join(errorMessages, "; ")
@@ -534,7 +600,7 @@ func (agent *Agent) handleDeleteArmorProfile(namespace, name, key string) error 
 
 	logger.Info("ArmorProfile deleted", "namespace", namespace, "name", name)
 
-	if !agent.appArmorSupported && !agent.bpfLsmSupported {
+	if !agent.appArmorSupported && !agent.bpfLsmSupported && !agent.nriSupported {
 		return nil
 	}
 
@@ -567,6 +633,13 @@ func (agent *Agent) handleDeleteArmorProfile(namespace, name, key string) error 
 			if err != nil {
 				logger.Error(err, "RemoveAppArmorProfile()")
 			}
+		}
+	}
+
+	// NRI
+	if agent.nriSupported {
+		if agent.nriEnforcer != nil {
+			agent.nriEnforcer.DeletePolicy(name)
 		}
 	}
 

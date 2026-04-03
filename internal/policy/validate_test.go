@@ -938,3 +938,227 @@ func TestValidateUpdatePolicy_ValidEnforcerCombination(t *testing.T) {
 	assert.True(t, valid, "Valid enforcer combination update should pass validation")
 	assert.Equal(t, "", message)
 }
+
+// TestValidateAddPolicy_NRISupport tests NRI enforcer validation for AddPolicy
+func TestValidateAddPolicy_NRISupport(t *testing.T) {
+	// Case 1: VarmorPolicy with NRI enforcer without EnhanceProtect (Should fail)
+	vp := &varmor.VarmorPolicy{
+		Spec: varmor.VarmorPolicySpec{
+			Policy: varmor.Policy{
+				Enforcer: "NRI",
+				Mode:     varmor.EnhanceProtectMode,
+			},
+			Target: varmor.Target{
+				Kind: "Pod",
+			},
+		},
+	}
+	valid, msg := ValidateAddPolicy(vp, false)
+	assert.False(t, valid)
+	assert.Equal(t, "The enhanceProtect field should be set when the policy runs in the EnhanceProtect mode.", msg)
+
+	// Case 2: VarmorClusterPolicy with NRI enforcer and other enforcers (Should fail)
+	vcp := &varmor.VarmorClusterPolicy{
+		Spec: varmor.VarmorPolicySpec{
+			Policy: varmor.Policy{
+				Enforcer: "NRIAppArmor",
+				Mode:     varmor.EnhanceProtectMode,
+				EnhanceProtect: &varmor.EnhanceProtect{
+					NriRawRules: "package nri.authz\ndeny[msg] { msg := \"denied\" }",
+				},
+			},
+			Target: varmor.Target{
+				Kind: "Pod",
+			},
+		},
+	}
+	valid, msg = ValidateAddPolicy(vcp, false)
+	assert.False(t, valid)
+
+	// Case 3: VarmorClusterPolicy with NRI enforcer and wrong target Kind (Should fail)
+	vcp = &varmor.VarmorClusterPolicy{
+		Spec: varmor.VarmorPolicySpec{
+			Policy: varmor.Policy{
+				Enforcer: "NRI",
+				Mode:     varmor.EnhanceProtectMode,
+				EnhanceProtect: &varmor.EnhanceProtect{
+					NriRawRules: "package nri.authz\ndeny[msg] { msg := \"denied\" }",
+				},
+			},
+			Target: varmor.Target{
+				Kind: "Deployment",
+			},
+		},
+	}
+	valid, msg = ValidateAddPolicy(vcp, false)
+	assert.False(t, valid)
+	assert.Equal(t, "The target kind must be Pod when using the NRI enforcer.", msg)
+
+	// Case 4: VarmorClusterPolicy with NRI enforcer and non-empty target Name (Should fail)
+	vcp = &varmor.VarmorClusterPolicy{
+		Spec: varmor.VarmorPolicySpec{
+			Policy: varmor.Policy{
+				Enforcer: "NRI",
+				Mode:     varmor.EnhanceProtectMode,
+				EnhanceProtect: &varmor.EnhanceProtect{
+					NriRawRules: "package nri.authz\ndeny[msg] { msg := \"denied\" }",
+				},
+			},
+			Target: varmor.Target{
+				Kind: "Pod",
+				Name: "test-pod",
+			},
+		},
+	}
+	valid, msg = ValidateAddPolicy(vcp, false)
+	assert.False(t, valid)
+	assert.Equal(t, "The target name and containers fields must be empty when using the NRI enforcer.", msg)
+
+	// Case 5: VarmorClusterPolicy with NRI enforcer and non-empty target Containers (Should fail)
+	vcp = &varmor.VarmorClusterPolicy{
+		Spec: varmor.VarmorPolicySpec{
+			Policy: varmor.Policy{
+				Enforcer: "NRI",
+				Mode:     varmor.EnhanceProtectMode,
+				EnhanceProtect: &varmor.EnhanceProtect{
+					NriRawRules: "package nri.authz\ndeny[msg] { msg := \"denied\" }",
+				},
+			},
+			Target: varmor.Target{
+				Kind:       "Pod",
+				Containers: []string{"test-container"},
+			},
+		},
+	}
+	valid, msg = ValidateAddPolicy(vcp, false)
+	assert.False(t, valid)
+	assert.Equal(t, "The target name and containers fields must be empty when using the NRI enforcer.", msg)
+
+	// Case 6: Valid VarmorClusterPolicy with NRI enforcer (Should pass)
+	vcp = &varmor.VarmorClusterPolicy{
+		Spec: varmor.VarmorPolicySpec{
+			Policy: varmor.Policy{
+				Enforcer: "NRI",
+				Mode:     varmor.EnhanceProtectMode,
+				EnhanceProtect: &varmor.EnhanceProtect{
+					NriRawRules: "package nri.authz\ndeny[msg] { msg := \"denied\" }",
+				},
+			},
+			Target: varmor.Target{
+				Kind: "Pod",
+			},
+		},
+	}
+	valid, msg = ValidateAddPolicy(vcp, false)
+	assert.True(t, valid)
+	assert.Equal(t, "", msg)
+
+	// Case 7: Valid VarmorPolicy with NRI enforcer and selector (Should pass)
+	vp = &varmor.VarmorPolicy{
+		Spec: varmor.VarmorPolicySpec{
+			Policy: varmor.Policy{
+				Enforcer: "NRI",
+				Mode:     varmor.EnhanceProtectMode,
+				EnhanceProtect: &varmor.EnhanceProtect{
+					NriRawRules: "package nri.authz\ndeny[msg] { msg := \"denied\" }",
+				},
+			},
+			Target: varmor.Target{
+				Kind: "Pod",
+				Selector: &metav1.LabelSelector{
+					MatchLabels: map[string]string{"app": "test"},
+				},
+			},
+		},
+	}
+	valid, msg = ValidateAddPolicy(vp, false)
+	assert.True(t, valid)
+	assert.Equal(t, "", msg)
+}
+
+// TestValidateUpdatePolicy_NRISupport tests NRI enforcer validation for UpdatePolicy
+func TestValidateUpdatePolicy_NRISupport(t *testing.T) {
+	// Case 1: Valid Update (Should pass)
+	vcp := &varmor.VarmorClusterPolicy{
+		Spec: varmor.VarmorPolicySpec{
+			Policy: varmor.Policy{
+				Enforcer: "NRI",
+				Mode:     varmor.EnhanceProtectMode,
+				EnhanceProtect: &varmor.EnhanceProtect{
+					NriRawRules: "package nri.authz\ndeny[msg] { msg := \"denied\" }",
+				},
+			},
+			Target: varmor.Target{
+				Kind: "Pod",
+			},
+		},
+	}
+	oldEnforcer := "NRI"
+	oldTarget := varmor.Target{
+		Kind: "Pod",
+	}
+	valid, msg := ValidateUpdatePolicy(vcp, oldEnforcer, oldTarget)
+	assert.True(t, valid)
+	assert.Equal(t, "", msg)
+
+	// Case 2: Update Target (Should fail)
+	vcp.Spec.Target.Kind = "Deployment"
+	valid, msg = ValidateUpdatePolicy(vcp, oldEnforcer, oldTarget)
+	assert.False(t, valid)
+	assert.Contains(t, msg, "Modifying the target field of a policy is not allowed")
+
+	// Case 3: Update NRI enforcer with non-empty Target Name (Should fail)
+	vcpNRI := &varmor.VarmorClusterPolicy{
+		Spec: varmor.VarmorPolicySpec{
+			Policy: varmor.Policy{
+				Enforcer: "NRI", // Already NRI
+				Mode:     varmor.EnhanceProtectMode,
+				EnhanceProtect: &varmor.EnhanceProtect{
+					NriRawRules: "package nri.authz\ndeny[msg] { msg := \"denied\" }",
+				},
+			},
+			Target: varmor.Target{
+				Kind: "Pod",
+				Name: "test-pod", // Not empty
+			},
+		},
+	}
+	oldEnforcerNRI := "NRI"
+	oldTargetNRI := varmor.Target{
+		Kind: "Pod",
+		Name: "test-pod",
+	}
+	// Target is unchanged (matches oldTarget)
+	valid, msg = ValidateUpdatePolicy(vcpNRI, oldEnforcerNRI, oldTargetNRI)
+	assert.False(t, valid)
+	assert.Equal(t, "The target name and containers fields must be empty when using the NRI enforcer.", msg)
+
+	// Case 4: Valid VarmorPolicy with NRI enforcer and selector (Should pass)
+	vp := &varmor.VarmorPolicy{
+		Spec: varmor.VarmorPolicySpec{
+			Policy: varmor.Policy{
+				Enforcer: "NRI",
+				Mode:     varmor.EnhanceProtectMode,
+				EnhanceProtect: &varmor.EnhanceProtect{
+					NriRawRules: "package nri.authz\ndeny[msg] { msg := \"denied\" }",
+				},
+			},
+			Target: varmor.Target{
+				Kind: "Pod",
+				Selector: &metav1.LabelSelector{
+					MatchLabels: map[string]string{"app": "test"},
+				},
+			},
+		},
+	}
+	oldEnforcerVP := "NRI"
+	oldTargetVP := varmor.Target{
+		Kind: "Pod",
+		Selector: &metav1.LabelSelector{
+			MatchLabels: map[string]string{"app": "test"},
+		},
+	}
+	valid, msg = ValidateUpdatePolicy(vp, oldEnforcerVP, oldTargetVP)
+	assert.True(t, valid)
+	assert.Equal(t, "", msg)
+}

@@ -15,14 +15,41 @@
 package policy
 
 import (
+	"context"
 	"fmt"
 	"reflect"
+
+	"github.com/open-policy-agent/opa/rego"
 
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
 	varmorconfig "github.com/bytedance/vArmor/internal/config"
 	varmorprofile "github.com/bytedance/vArmor/internal/profile"
+	nriprofile "github.com/bytedance/vArmor/internal/profile/nri"
 	varmortypes "github.com/bytedance/vArmor/internal/types"
 )
+
+// dummyBuiltinPolicy is a minimal implementation of builtin module
+// used for syntax validation only (we don't need actual logic)
+const dummyBuiltinPolicy = "package varmor.nri.builtin\n"
+
+// validateRegoPolicy validates the syntax of Rego policies
+func validateRegoPolicy(builtinRules, rawRules string) error {
+	var opts []func(*rego.Rego)
+	opts = append(opts, rego.Query("data.nri.authz"))
+	opts = append(opts, rego.Module("builtin.rego", dummyBuiltinPolicy))
+
+	if builtinRules != "" {
+		opts = append(opts, rego.Module("builtin-user.rego", builtinRules))
+	}
+
+	if rawRules != "" {
+		opts = append(opts, rego.Module("user.rego", rawRules))
+	}
+
+	r := rego.New(opts...)
+	_, err := r.PrepareForEval(context.Background())
+	return err
+}
 
 // ValidateAddPolicy validates policy objects for creation operations.
 // This is a generic validation function that supports both VarmorPolicy and VarmorClusterPolicy types.
@@ -55,19 +82,57 @@ func ValidateAddPolicy(policy interface{}, behaviorModelingEnabled bool) (bool, 
 		return false, "The policy type is not supported."
 	}
 
-	// Validate target workload kind - only supported Kubernetes resource types are allowed
-	if spec.Target.Kind != "Deployment" && spec.Target.Kind != "StatefulSet" && spec.Target.Kind != "DaemonSet" && spec.Target.Kind != "Pod" {
-		return false, "The target kind is not supported. You should specify the target kind as a Deployment, StatefulSet, DaemonSet, or Pod."
-	}
+	enforcer := varmortypes.GetEnforcerType(spec.Policy.Enforcer)
 
-	// Ensure either target name or selector is specified, but not both
-	if spec.Target.Name == "" && spec.Target.Selector == nil {
-		return false, "The target name and selector are empty. You should specify the target workload either by name or selector."
-	}
+	if (enforcer & varmortypes.NRI) != 0 {
+		// NRI enforcer cannot be combined with other enforcers.
+		if enforcer != varmortypes.NRI {
+			return false, "The NRI enforcer cannot be combined with other enforcers."
+		}
 
-	// Target name and selector are mutually exclusive to avoid ambiguity
-	if spec.Target.Name != "" && spec.Target.Selector != nil {
-		return false, "The target name and selector are exclusive. You shouldn't specify the target workload using both name and selector."
+		// NRI enforcer only supports Pod target kind.
+		if spec.Target.Kind != "Pod" {
+			return false, "The target kind must be Pod when using the NRI enforcer."
+		}
+
+		// NRI enforcer supports selector field for filtering, but name and containers must be empty.
+		if spec.Target.Name != "" || len(spec.Target.Containers) != 0 {
+			return false, "The target name and containers fields must be empty when using the NRI enforcer."
+		}
+
+		// Validate Rego policy syntax
+		if spec.Policy.EnhanceProtect != nil {
+			var builtinRules, rawRules string
+			if len(spec.Policy.EnhanceProtect.RejectContainerRules) > 0 {
+				// We need to generate the builtin rules to validate them (pass dummy values for matching info)
+				nriProfile := nriprofile.GenerateEnhanceProtectProfile(spec.Policy.EnhanceProtect, "", spec.Target, clusterScope)
+				if nriProfile != nil {
+					builtinRules = nriProfile.BuiltinRules
+					rawRules = nriProfile.Rules
+				}
+			} else {
+				rawRules = spec.Policy.EnhanceProtect.NriRawRules
+			}
+
+			if err := validateRegoPolicy(builtinRules, rawRules); err != nil {
+				return false, fmt.Sprintf("Invalid Rego policy syntax: %v", err)
+			}
+		}
+	} else {
+		// Validate target workload kind - only supported Kubernetes resource types are allowed
+		if spec.Target.Kind != "Deployment" && spec.Target.Kind != "StatefulSet" && spec.Target.Kind != "DaemonSet" && spec.Target.Kind != "Pod" {
+			return false, "The target kind is not supported. You should specify the target kind as a Deployment, StatefulSet, DaemonSet, or Pod."
+		}
+
+		// Ensure either target name or selector is specified, but not both
+		if spec.Target.Name == "" && spec.Target.Selector == nil {
+			return false, "The target name and selector are empty. You should specify the target workload either by name or selector."
+		}
+
+		// Target name and selector are mutually exclusive to avoid ambiguity
+		if spec.Target.Name != "" && spec.Target.Selector != nil {
+			return false, "The target name and selector are exclusive. You shouldn't specify the target workload using both name and selector."
+		}
 	}
 
 	// EnhanceProtect mode requires specific configuration to function properly
@@ -118,6 +183,7 @@ func ValidateUpdatePolicy(policy interface{}, oldEnforcer string, oldTarget varm
 	var newEnforcers varmortypes.Enforcer
 	var newSpec varmor.VarmorPolicySpec
 	var newStatus varmor.VarmorPolicyStatus
+	var newClusterScope bool
 
 	switch p := policy.(type) {
 	case *varmor.VarmorPolicy:
@@ -128,6 +194,7 @@ func ValidateUpdatePolicy(policy interface{}, oldEnforcer string, oldTarget varm
 		newEnforcers = varmortypes.GetEnforcerType(p.Spec.Policy.Enforcer)
 		newSpec = p.Spec
 		newStatus = p.Status
+		newClusterScope = true
 	default:
 		return false, "The policy type is not supported."
 	}
@@ -172,6 +239,43 @@ func ValidateUpdatePolicy(policy interface{}, oldEnforcer string, oldTarget varm
 	if newSpec.Policy.Mode == varmor.BehaviorModelingMode &&
 		newSpec.Policy.ModelingOptions == nil {
 		return false, "The modelingOptions field should be set when the policy runs in the BehaviorModeling mode."
+	}
+
+	// NRI enforcer checks
+	if (newEnforcers & varmortypes.NRI) != 0 {
+		// NRI enforcer cannot be combined with other enforcers.
+		if newEnforcers != varmortypes.NRI {
+			return false, "The NRI enforcer cannot be combined with other enforcers."
+		}
+
+		// NRI enforcer only supports Pod target kind.
+		if newSpec.Target.Kind != "Pod" {
+			return false, "The target kind must be Pod when using the NRI enforcer."
+		}
+
+		// NRI enforcer supports selector field for filtering, but name and containers must be empty.
+		if newSpec.Target.Name != "" || len(newSpec.Target.Containers) != 0 {
+			return false, "The target name and containers fields must be empty when using the NRI enforcer."
+		}
+
+		// Validate Rego policy syntax
+		if newSpec.Policy.EnhanceProtect != nil {
+			var builtinRules, rawRules string
+			if len(newSpec.Policy.EnhanceProtect.RejectContainerRules) > 0 {
+				// We need to generate the builtin rules to validate them (pass dummy values for matching info)
+				nriProfile := nriprofile.GenerateEnhanceProtectProfile(newSpec.Policy.EnhanceProtect, "", newSpec.Target, newClusterScope)
+				if nriProfile != nil {
+					builtinRules = nriProfile.BuiltinRules
+					rawRules = nriProfile.Rules
+				}
+			} else {
+				rawRules = newSpec.Policy.EnhanceProtect.NriRawRules
+			}
+
+			if err := validateRegoPolicy(builtinRules, rawRules); err != nil {
+				return false, fmt.Sprintf("Invalid Rego policy syntax: %v", err)
+			}
+		}
 	}
 
 	// All validations passed

@@ -67,6 +67,7 @@ var (
 	preDelete                  bool
 	enableMetrics              bool
 	enableBpfEnforcer          bool
+	enableNriEnforcer          bool
 	enableBehaviorModeling     bool
 	enableServiceEgressControl bool
 	enablePodEgressControl     bool
@@ -164,6 +165,7 @@ func main() {
 	flag.BoolVar(&preDelete, "preDelete", false, "Set this flag to run pre-delete hook before uninstalling vArmor.")
 	flag.BoolVar(&enableMetrics, "enableMetrics", false, "Set this flag to enable metrics.")
 	flag.BoolVar(&enableBpfEnforcer, "enableBpfEnforcer", false, "Set this flag to enable BPF enforcer.")
+	flag.BoolVar(&enableNriEnforcer, "enableNriEnforcer", false, "Set this flag to enable NRI enforcer.")
 	flag.BoolVar(&enableBehaviorModeling, "enableBehaviorModeling", false, "Set this flag to enable BehaviorModeling feature (Note: this is an experimental feature, please do not enable it in production environment).")
 	flag.BoolVar(&enableServiceEgressControl, "enableServiceEgressControl", false, "Set this flag to enable the egress control feature for Service access")
 	flag.BoolVar(&enablePodEgressControl, "enablePodEgressControl", false, "Set this flag to enable the egress control feature for Pod access")
@@ -289,6 +291,7 @@ func main() {
 			varmorFactory.Crd().V1beta1().ArmorProfiles(),
 			enableBehaviorModeling,
 			enableBpfEnforcer,
+			enableNriEnforcer,
 			unloadAllAaProfiles,
 			removeAllSeccompProfiles,
 			svcAddresses,

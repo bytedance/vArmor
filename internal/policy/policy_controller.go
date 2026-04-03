@@ -313,7 +313,7 @@ func (c *PolicyController) handleUpdateVarmorPolicy(newVp *varmor.VarmorPolicy, 
 		}
 	}
 
-	newProfile, egressInfo, err := varmorprofile.GenerateProfile(c.kubeClient, c.varmorInterface, newVp.Spec.Policy, oldAp.Name, oldAp.Namespace, complete, c.enableServiceEgressControl, c.enablePodEgressControl, logger)
+	newProfile, egressInfo, err := varmorprofile.GenerateProfile(c.kubeClient, c.varmorInterface, newVp.Spec.Policy, newVp.Spec.Target, oldAp.Name, oldAp.Namespace, false, complete, c.enableServiceEgressControl, c.enablePodEgressControl, logger)
 	if err != nil {
 		logger.Error(err, "GenerateProfile()")
 		err = statuscommon.UpdateVarmorPolicyStatus(c.varmorInterface, newVp, "", false, varmor.VarmorPolicyError, varmor.VarmorPolicyUpdated, apicorev1.ConditionFalse,

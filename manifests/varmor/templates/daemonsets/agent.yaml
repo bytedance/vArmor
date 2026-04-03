@@ -61,6 +61,11 @@ spec:
               {{- toYaml . | nindent 8 }}
             {{- end }}
           {{- end }}
+          {{- if .Values.nriEnforcer.enabled }}
+            {{- with .Values.agent.nriEnforcer.args }}
+              {{- toYaml . | nindent 8 }}
+            {{- end }}
+          {{- end }}
           {{- if .Values.unloadAllAaProfiles.enabled }}
             {{- with .Values.agent.unloadAllAaProfiles.args }}
               {{- toYaml . | nindent 8 }}
@@ -138,6 +143,8 @@ spec:
           {{- toYaml .Values.agent.behaviorModeling.resources | nindent 10 }}
         {{- else if .Values.bpfLsmEnforcer.enabled }}
           {{- toYaml .Values.agent.bpfLsmEnforcer.resources | nindent 10 }}
+        {{- else if .Values.nriEnforcer.enabled }}
+          {{- toYaml .Values.agent.nriEnforcer.resources | nindent 10 }}
         {{- else }}
           {{- toYaml .Values.agent.appArmorLsmEnforcer.resources | nindent 10 }}
         {{- end }}
