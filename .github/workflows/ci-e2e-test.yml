@@ -226,14 +226,13 @@ jobs:
         if: always()
         run: ./.github/scripts/kill-and-clean-all.sh
 
-  e2e-test-nri-enforcer:
+  e2e-test-nri-with-self-hosted-runner::
     needs: build
     strategy:
       fail-fast: false
       matrix:
-        k8s_version: [ "1.28.15" ]
-        os: ["ubuntu-latest" ]
-    runs-on:  ${{ matrix.os }}
+        k8s_version: [ "1.28.13" ]
+    runs-on:  self-hosted
     env:
       KUBE_VER: ${{ matrix.k8s_version }}
     steps:
@@ -303,7 +302,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: e2e-test-results-nri-enforcer-${{ matrix.k8s_version }}
+          name: e2e-test-nri-results-with-self-hosted-runner
           path: test-results/
 
       - name: Cleanup
