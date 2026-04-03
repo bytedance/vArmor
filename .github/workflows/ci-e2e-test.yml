@@ -226,7 +226,7 @@ jobs:
         if: always()
         run: ./.github/scripts/kill-and-clean-all.sh
 
-  e2e-test-nri-with-self-hosted-runner::
+  e2e-test-nri-with-self-hosted-runner:
     needs: build
     strategy:
       fail-fast: false
