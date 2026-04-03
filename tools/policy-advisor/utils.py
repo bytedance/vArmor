@@ -31,7 +31,7 @@ def files_conflict_with_rule(file_rules, files):
 def retrieve_capabilities_from_behavior_data(behavior_data):
   caps = []
   caps.extend(behavior_data.get("data", {}).get("dynamicResult", {}).get("appArmor", {}).get("capabilities", []))
-  caps.extend(behavior_data.get("data", {}).get("dynamicResult", {}).get("bpf", {}).get("syscalls", []))
+  caps.extend(behavior_data.get("data", {}).get("dynamicResult", {}).get("bpf", {}).get("capabilities", []))
   return caps
 
 
