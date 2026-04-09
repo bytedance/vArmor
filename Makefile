@@ -272,16 +272,6 @@ push-dev: ## Push images and chart to the private repository for development.
 	@echo "----------------------------------------"
 	docker manifest push $(CLASSIFIER_IMAGE_DEV)
 	@echo "----------------------------------------"
-	docker push $(PROXYINIT_IMAGE_DEV)-amd64
-	@echo "----------------------------------------"
-	docker push $(PROXYINIT_IMAGE_DEV)-arm64
-	@echo "----------------------------------------"
-	-docker manifest rm $(PROXYINIT_IMAGE_DEV)
-	@echo "----------------------------------------"
-	docker manifest create $(PROXYINIT_IMAGE_DEV) $(PROXYINIT_IMAGE_DEV)-amd64 $(PROXYINIT_IMAGE_DEV)-arm64
-	@echo "----------------------------------------"
-	docker manifest push $(PROXYINIT_IMAGE_DEV)
-	@echo "----------------------------------------"
 	helm push varmor-$(CHART_VERSION_DEV).tgz oci://$(REPO_DEV)
 
 push: ## Push images and chart to the public repository for release.
@@ -321,6 +311,16 @@ sync-proxy-images: docker-build-proxyinit ## Sync proxy images to the public rep
 	docker manifest create $(PROXYINIT_IMAGE_AP) $(PROXYINIT_IMAGE_AP)-amd64 $(PROXYINIT_IMAGE_AP)-arm64
 	@echo "----------------------------------------"
 	docker manifest push $(PROXYINIT_IMAGE_AP)
+	@echo "----------------------------------------"
+	docker push $(PROXYINIT_IMAGE_DEV)-amd64
+	@echo "----------------------------------------"
+	docker push $(PROXYINIT_IMAGE_DEV)-arm64
+	@echo "----------------------------------------"
+	-docker manifest rm $(PROXYINIT_IMAGE_DEV)
+	@echo "----------------------------------------"
+	docker manifest create $(PROXYINIT_IMAGE_DEV) $(PROXYINIT_IMAGE_DEV)-amd64 $(PROXYINIT_IMAGE_DEV)-arm64
+	@echo "----------------------------------------"
+	docker manifest push $(PROXYINIT_IMAGE_DEV)
 	@echo "----------------------------------------"
 	@echo "[+] Pull proxy image"
 	@docker pull --platform linux/amd64 envoyproxy/$(PROXY_IMAGE_NAME):$(PROXY_IMAGE_TAG)
