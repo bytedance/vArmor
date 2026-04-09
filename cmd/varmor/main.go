@@ -331,7 +331,7 @@ func main() {
 			cancel()
 		}()
 
-		// Create a policy cacher for the webhook server
+		// Create a policy cacher for the webhook server and proxy config propagator
 		cacher, _ := policycacher.NewPolicyCacher(
 			varmorFactory.Crd().V1beta1().VarmorClusterPolicies(),
 			varmorFactory.Crd().V1beta1().VarmorPolicies(),
@@ -536,6 +536,18 @@ func main() {
 		// Start all varmor CRD informers
 		varmorFactory.Start(stopCh)
 
+		// Create the ProxyConfigPropagator to watch the Namespace creation and propagate the proxy config
+		// for the VarmorClusterPolicy with the NetworkProxy enforcer.
+		nsFactory := kubeinformers.NewSharedInformerFactoryWithOptions(kubeClient, varmorResyncPeriod)
+		proxyPropagator := policy.NewProxyConfigPropagator(
+			kubeClient,
+			varmorClient.CrdV1beta1(),
+			nsFactory.Core().V1().Namespaces(),
+			cacher,
+			stopCh,
+			logger.WithName("PROXY-CONFIG-PROPAGATOR"))
+		nsFactory.Start(stopCh)
+
 		// Wrap all controllers that need leaderelection, start them once by the leader.
 		leaderRun := func(ctx context.Context) {
 			if (enableServiceEgressControl || enablePodEgressControl) && enableBpfEnforcer {
@@ -549,6 +561,7 @@ func main() {
 			// Only the leader runs as the VarmorClusterPolicy & VarmorPolicy controller.
 			go clusterPolicyCtrl.Run(1, stopCh)
 			go policyCtrl.Run(1, stopCh)
+			go proxyPropagator.Run(stopCh)
 
 			// Tag the leader Pod with "identity: leader" label so that agents can use varmor-status-svc for state synchronization.
 			if inContainer {

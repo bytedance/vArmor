@@ -20,11 +20,19 @@ VARMOR_IMAGE_TAG_DEV := $(GIT_VERSION)
 CLASSIFIER_IMAGE_NAME := classifier
 CLASSIFIER_IMAGE_TAG := $(VARMOR_IMAGE_TAG)
 CLASSIFIER_IMAGE_TAG_DEV := $(VARMOR_IMAGE_TAG_DEV)
+PROXYINIT_IMAGE_NAME := proxyinit
+PROXYINIT_IMAGE_TAG := v0.1
+PROXY_IMAGE_NAME:= envoy
+PROXY_IMAGE_TAG := v1.33-latest
 
 VARMOR_IMAGE_AP ?= $(REPO_AP)/$(VARMOR_IMAGE_NAME):$(VARMOR_IMAGE_TAG)
 VARMOR_IMAGE_DEV ?= $(REPO_DEV)/$(VARMOR_IMAGE_NAME):$(VARMOR_IMAGE_TAG_DEV)
 CLASSIFIER_IMAGE_AP ?= $(REPO_AP)/$(CLASSIFIER_IMAGE_NAME):$(CLASSIFIER_IMAGE_TAG)
 CLASSIFIER_IMAGE_DEV ?= $(REPO_DEV)/$(CLASSIFIER_IMAGE_NAME):$(CLASSIFIER_IMAGE_TAG_DEV)
+PROXYINIT_IMAGE_AP ?= $(REPO_AP)/$(PROXYINIT_IMAGE_NAME):$(PROXYINIT_IMAGE_TAG)
+PROXYINIT_IMAGE_DEV ?= $(REPO_DEV)/$(PROXYINIT_IMAGE_NAME):$(PROXYINIT_IMAGE_TAG)
+PROXY_IMAGE_AP ?= $(REPO_AP)/$(PROXY_IMAGE_NAME):$(PROXY_IMAGE_TAG)
+PROXY_IMAGE_DEV ?= $(REPO_DEV)/$(PROXY_IMAGE_NAME):$(PROXY_IMAGE_TAG)
 
 CHART_APP_VERSION := $(VARMOR_IMAGE_TAG)
 CHART_APP_VERSION_DEV := $(GIT_VERSION)
@@ -212,6 +220,13 @@ docker-build-classifier-arm64-dev:
 	@echo "[+] Build classifier-arm64 image for the development version"
 	@docker buildx build --file $(PWD)/$(CLASSIFIER_PATH)/Dockerfile --tag $(CLASSIFIER_IMAGE_DEV)-arm64 --platform linux/arm64 --load .
 
+docker-build-proxyinit:
+	@echo "[+] Build proxyinit image"
+	@docker buildx build --file $(PWD)/tools/proxyinit/Dockerfile --tag $(PROXYINIT_IMAGE_AP)-amd64 --platform linux/amd64 --load .
+	@docker buildx build --file $(PWD)/tools/proxyinit/Dockerfile --tag $(PROXYINIT_IMAGE_AP)-arm64 --platform linux/arm64 --load .
+	@docker buildx build --file $(PWD)/tools/proxyinit/Dockerfile --tag $(PROXYINIT_IMAGE_DEV)-amd64 --platform linux/amd64 --load .
+	@docker buildx build --file $(PWD)/tools/proxyinit/Dockerfile --tag $(PROXYINIT_IMAGE_DEV)-arm64 --platform linux/arm64 --load .
+
 docker-save-ci-dev:
 	@docker tag  $(VARMOR_IMAGE_DEV)-amd64 $(VARMOR_IMAGE_DEV)
 	@docker tag  $(CLASSIFIER_IMAGE_DEV)-amd64 $(CLASSIFIER_IMAGE_DEV)
@@ -257,6 +272,16 @@ push-dev: ## Push images and chart to the private repository for development.
 	@echo "----------------------------------------"
 	docker manifest push $(CLASSIFIER_IMAGE_DEV)
 	@echo "----------------------------------------"
+	docker push $(PROXYINIT_IMAGE_DEV)-amd64
+	@echo "----------------------------------------"
+	docker push $(PROXYINIT_IMAGE_DEV)-arm64
+	@echo "----------------------------------------"
+	-docker manifest rm $(PROXYINIT_IMAGE_DEV)
+	@echo "----------------------------------------"
+	docker manifest create $(PROXYINIT_IMAGE_DEV) $(PROXYINIT_IMAGE_DEV)-amd64 $(PROXYINIT_IMAGE_DEV)-arm64
+	@echo "----------------------------------------"
+	docker manifest push $(PROXYINIT_IMAGE_DEV)
+	@echo "----------------------------------------"
 	helm push varmor-$(CHART_VERSION_DEV).tgz oci://$(REPO_DEV)
 
 push: ## Push images and chart to the public repository for release.
@@ -281,3 +306,51 @@ push: ## Push images and chart to the public repository for release.
 	docker manifest push $(CLASSIFIER_IMAGE_AP)
 	@echo "----------------------------------------"
 	helm push varmor-$(CHART_VERSION).tgz oci://$(REPO_AP)
+
+.PHONY: sync-proxy-images
+sync-proxy-images: docker-build-proxyinit
+	@echo "[+] Push proxyinit image"
+	@echo "----------------------------------------"
+	docker push $(PROXYINIT_IMAGE_AP)-amd64
+	@echo "----------------------------------------"
+	docker push $(PROXYINIT_IMAGE_AP)-arm64
+	@echo "----------------------------------------"
+	-docker manifest rm $(PROXYINIT_IMAGE_AP)
+	@echo "----------------------------------------"
+	docker manifest create $(PROXYINIT_IMAGE_AP) $(PROXYINIT_IMAGE_AP)-amd64 $(PROXYINIT_IMAGE_AP)-arm64
+	@echo "----------------------------------------"
+	docker manifest push $(PROXYINIT_IMAGE_AP)
+	@echo "----------------------------------------"
+	@echo "[+] Pull proxy image"
+	@docker pull --platform linux/amd64 envoyproxy/$(PROXY_IMAGE_NAME):$(PROXY_IMAGE_TAG)
+	@docker tag envoyproxy/$(PROXY_IMAGE_NAME):$(PROXY_IMAGE_TAG) $(PROXY_IMAGE_AP)-amd64
+	@docker tag envoyproxy/$(PROXY_IMAGE_NAME):$(PROXY_IMAGE_TAG) $(PROXY_IMAGE_DEV)-amd64
+	@echo "----------------------------------------"
+	@docker pull --platform linux/arm64 envoyproxy/$(PROXY_IMAGE_NAME):$(PROXY_IMAGE_TAG)
+	@docker tag envoyproxy/$(PROXY_IMAGE_NAME):$(PROXY_IMAGE_TAG) $(PROXY_IMAGE_AP)-arm64
+	@docker tag envoyproxy/$(PROXY_IMAGE_NAME):$(PROXY_IMAGE_TAG) $(PROXY_IMAGE_DEV)-arm64
+	@echo "----------------------------------------"
+	@docker rmi envoyproxy/$(PROXY_IMAGE_NAME):$(PROXY_IMAGE_TAG)
+	@echo "----------------------------------------"
+	@echo "[+] Push proxy image"
+	@echo "----------------------------------------"
+	docker push $(PROXY_IMAGE_DEV)-amd64
+	@echo "----------------------------------------"
+	docker push $(PROXY_IMAGE_DEV)-arm64
+	@echo "----------------------------------------"
+	-docker manifest rm $(PROXY_IMAGE_DEV)
+	@echo "----------------------------------------"
+	docker manifest create $(PROXY_IMAGE_DEV) $(PROXY_IMAGE_DEV)-amd64 $(PROXY_IMAGE_DEV)-arm64
+	@echo "----------------------------------------"
+	docker manifest push $(PROXY_IMAGE_DEV)
+	@echo "----------------------------------------"
+	docker push $(PROXY_IMAGE_AP)-amd64
+	@echo "----------------------------------------"
+	docker push $(PROXY_IMAGE_AP)-arm64
+	@echo "----------------------------------------"
+	-docker manifest rm $(PROXY_IMAGE_AP)
+	@echo "----------------------------------------"
+	docker manifest create $(PROXY_IMAGE_AP) $(PROXY_IMAGE_AP)-amd64 $(PROXY_IMAGE_AP)-arm64
+	@echo "----------------------------------------"
+	docker manifest push $(PROXY_IMAGE_AP)
+	

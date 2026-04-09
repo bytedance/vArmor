@@ -26,8 +26,10 @@ import (
 	appsV1 "k8s.io/api/apps/v1"
 	coreV1 "k8s.io/api/core/v1"
 	k8errors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	appsv1 "k8s.io/client-go/kubernetes/typed/apps/v1"
 	"k8s.io/client-go/util/retry"
 
@@ -38,11 +40,117 @@ import (
 	varmorinterface "github.com/bytedance/vArmor/pkg/client/clientset/versioned/typed/varmor/v1beta1"
 )
 
-func modifyDeploymentAnnotationsAndEnv(enforcer string, mode varmor.VarmorPolicyMode, target varmor.Target, deploy *appsV1.Deployment, profileName string, bpfExclusiveMode bool) {
+var (
+	scriptTemplate = `set -ex
+ENVOY_UID=%d
+ENVOY_PORT=%d
+ENVOY_ADMIN_PORT=%d
+iptables -t nat -N VARMOR_OUTPUT
+iptables -t nat -N VARMOR_REDIRECT
+iptables -t nat -A OUTPUT -p tcp -j VARMOR_OUTPUT
+iptables -t nat -A VARMOR_OUTPUT -m owner --uid-owner ${ENVOY_UID} -j RETURN
+iptables -t nat -A VARMOR_OUTPUT -d 127.0.0.0/8 -j RETURN
+iptables -t nat -A VARMOR_OUTPUT -p tcp -j VARMOR_REDIRECT
+iptables -t nat -A VARMOR_REDIRECT -p tcp -j REDIRECT --to-ports ${ENVOY_PORT}
+iptables -t filter -A OUTPUT -p tcp --dport ${ENVOY_ADMIN_PORT} -m owner ! --uid-owner ${ENVOY_UID} -j DROP`
+
+	proxyInitContainer = coreV1.Container{
+		Name:  "varmor-network-proxy-init",
+		Image: varmortypes.ProxyInitImage,
+		SecurityContext: &coreV1.SecurityContext{
+			Capabilities: &coreV1.Capabilities{
+				Add: []coreV1.Capability{"NET_ADMIN"},
+			},
+		},
+		Resources: coreV1.ResourceRequirements{
+			Requests: coreV1.ResourceList{
+				coreV1.ResourceCPU:    resource.MustParse("10m"),
+				coreV1.ResourceMemory: resource.MustParse("16Mi"),
+			},
+		},
+		Command: []string{}, // Set Command with script
+	}
+
+	proxyContainer = coreV1.Container{
+		Name:            "varmor-network-proxy",
+		Image:           varmortypes.ProxyImage,
+		SecurityContext: &coreV1.SecurityContext{}, // Set RunAsUser with proxyUID
+		Args:            []string{"-c", "/etc/envoy/bootstrap.yaml", "-l", "info"},
+		ReadinessProbe: &coreV1.Probe{
+			ProbeHandler: coreV1.ProbeHandler{
+				HTTPGet: &coreV1.HTTPGetAction{
+					Path: "/ready",
+					Port: intstr.IntOrString{Type: intstr.Int, IntVal: 0}, // Set IntVal with ProxyAdminPort
+				},
+			},
+			InitialDelaySeconds: 2,
+			PeriodSeconds:       5,
+		},
+		Resources: coreV1.ResourceRequirements{
+			Requests: coreV1.ResourceList{
+				coreV1.ResourceCPU:    resource.MustParse("50m"),
+				coreV1.ResourceMemory: resource.MustParse("64Mi"),
+			},
+			Limits: coreV1.ResourceList{
+				coreV1.ResourceCPU:    resource.MustParse("200m"),
+				coreV1.ResourceMemory: resource.MustParse("128Mi"),
+			},
+		},
+		VolumeMounts: []coreV1.VolumeMount{
+			{
+				Name:      "varmor-network-proxy-config",
+				MountPath: "/etc/envoy",
+				ReadOnly:  true,
+			},
+		},
+	}
+
+	proxyVolume = coreV1.Volume{
+		Name: "varmor-network-proxy-config",
+		VolumeSource: coreV1.VolumeSource{
+			ConfigMap: &coreV1.ConfigMapVolumeSource{}, // Set name with profileName
+		},
+	}
+)
+
+func modifyDeploymentAnnotationsAndEnv(
+	enforcer string,
+	mode varmor.VarmorPolicyMode,
+	target varmor.Target,
+	proxyConfig *varmor.NetworkProxyConfig,
+	deploy *appsV1.Deployment,
+	profileName string,
+	bpfExclusiveMode bool) {
+
 	e := varmortypes.GetEnforcerType(enforcer)
 
 	// Clean up first
 	for key, value := range deploy.Spec.Template.Annotations {
+		// NetworkProxy
+		if key == "pod.networkproxy.security.beta.varmor.org" && value != "unconfined" {
+			delete(deploy.Spec.Template.Annotations, key)
+			// Clean up the proxy init container
+			for index, container := range deploy.Spec.Template.Spec.InitContainers {
+				if container.Name == proxyInitContainer.Name {
+					deploy.Spec.Template.Spec.InitContainers = append(deploy.Spec.Template.Spec.InitContainers[:index], deploy.Spec.Template.Spec.InitContainers[index+1:]...)
+					break
+				}
+			}
+			// Clean up the proxy container
+			for index, container := range deploy.Spec.Template.Spec.Containers {
+				if container.Name == proxyContainer.Name {
+					deploy.Spec.Template.Spec.Containers = append(deploy.Spec.Template.Spec.Containers[:index], deploy.Spec.Template.Spec.Containers[index+1:]...)
+					break
+				}
+			}
+			// Clean up the proxy volume
+			for index, volume := range deploy.Spec.Template.Spec.Volumes {
+				if volume.Name == proxyVolume.Name {
+					deploy.Spec.Template.Spec.Volumes = append(deploy.Spec.Template.Spec.Volumes[:index], deploy.Spec.Template.Spec.Volumes[index+1:]...)
+					break
+				}
+			}
+		}
 		// BPF
 		if strings.HasPrefix(key, "container.bpf.security.beta.varmor.org/") && value != "unconfined" {
 			delete(deploy.Spec.Template.Annotations, key)
@@ -98,7 +206,41 @@ func modifyDeploymentAnnotationsAndEnv(enforcer string, mode varmor.VarmorPolicy
 		return
 	}
 
-	// Setting new annotations and seccomp context
+	// NetworkProxy
+	if (e & varmortypes.NetworkProxy) != 0 {
+		if value, ok := deploy.Spec.Template.Annotations["pod.networkproxy.security.beta.varmor.org"]; !ok || value != "unconfined" {
+			proxyUID := varmortypes.DefaultProxyUID
+			proxyPort := varmortypes.DefaultProxyPort
+			proxyAdminPort := varmortypes.DefaultProxyAdminPort
+
+			if proxyConfig != nil {
+				if proxyConfig.ProxyUID != nil {
+					proxyUID = *proxyConfig.ProxyUID
+				}
+				if proxyConfig.ProxyPort != nil {
+					proxyPort = *proxyConfig.ProxyPort
+				}
+				if proxyConfig.ProxyAdminPort != nil {
+					proxyAdminPort = *proxyConfig.ProxyAdminPort
+				}
+			}
+
+			deploy.Spec.Template.Annotations["pod.networkproxy.security.beta.varmor.org"] = fmt.Sprintf("localhost/%s", profileName)
+			// Add a init container
+			script := fmt.Sprintf(scriptTemplate, proxyUID, proxyPort, proxyAdminPort)
+			proxyInitContainer.Command = []string{"sh", "-c", script}
+			deploy.Spec.Template.Spec.InitContainers = append(deploy.Spec.Template.Spec.InitContainers, proxyInitContainer)
+			// Add a proxy sidecar container
+			proxyContainer.SecurityContext.RunAsUser = &proxyUID
+			proxyContainer.ReadinessProbe.HTTPGet.Port.IntVal = int32(proxyAdminPort)
+			deploy.Spec.Template.Spec.Containers = append(deploy.Spec.Template.Spec.Containers, proxyContainer)
+			// Add a volume
+			proxyVolume.ConfigMap.Name = profileName
+			deploy.Spec.Template.Spec.Volumes = append(deploy.Spec.Template.Spec.Volumes, proxyVolume)
+		}
+	}
+
+	// Setting new annotations and seccomp context for AppArmor, BPF and Seccomp
 	for index, container := range deploy.Spec.Template.Spec.Containers {
 		if len(target.Containers) != 0 && !varmorutils.InStringArray(container.Name, target.Containers) {
 			continue
@@ -173,11 +315,43 @@ func modifyDeploymentAnnotationsAndEnv(enforcer string, mode varmor.VarmorPolicy
 	}
 }
 
-func modifyStatefulSetAnnotationsAndEnv(enforcer string, mode varmor.VarmorPolicyMode, target varmor.Target, stateful *appsV1.StatefulSet, profileName string, bpfExclusiveMode bool) {
+func modifyStatefulSetAnnotationsAndEnv(
+	enforcer string,
+	mode varmor.VarmorPolicyMode,
+	target varmor.Target,
+	proxyConfig *varmor.NetworkProxyConfig,
+	stateful *appsV1.StatefulSet,
+	profileName string,
+	bpfExclusiveMode bool) {
 	e := varmortypes.GetEnforcerType(enforcer)
 
 	// Clean up first
 	for key, value := range stateful.Spec.Template.Annotations {
+		// NetworkProxy
+		if key == "pod.networkproxy.security.beta.varmor.org" && value != "unconfined" {
+			delete(stateful.Spec.Template.Annotations, key)
+			// Clean up the proxy init container
+			for index, container := range stateful.Spec.Template.Spec.InitContainers {
+				if container.Name == proxyInitContainer.Name {
+					stateful.Spec.Template.Spec.InitContainers = append(stateful.Spec.Template.Spec.InitContainers[:index], stateful.Spec.Template.Spec.InitContainers[index+1:]...)
+					break
+				}
+			}
+			// Clean up the proxy container
+			for index, container := range stateful.Spec.Template.Spec.Containers {
+				if container.Name == proxyContainer.Name {
+					stateful.Spec.Template.Spec.Containers = append(stateful.Spec.Template.Spec.Containers[:index], stateful.Spec.Template.Spec.Containers[index+1:]...)
+					break
+				}
+			}
+			// Clean up the proxy volume
+			for index, volume := range stateful.Spec.Template.Spec.Volumes {
+				if volume.Name == proxyVolume.Name {
+					stateful.Spec.Template.Spec.Volumes = append(stateful.Spec.Template.Spec.Volumes[:index], stateful.Spec.Template.Spec.Volumes[index+1:]...)
+					break
+				}
+			}
+		}
 		// BPF
 		if strings.HasPrefix(key, "container.bpf.security.beta.varmor.org/") && value != "unconfined" {
 			delete(stateful.Spec.Template.Annotations, key)
@@ -233,7 +407,41 @@ func modifyStatefulSetAnnotationsAndEnv(enforcer string, mode varmor.VarmorPolic
 		return
 	}
 
-	// Setting new annotations and seccomp context
+	// NetworkProxy
+	if (e & varmortypes.NetworkProxy) != 0 {
+		if value, ok := stateful.Spec.Template.Annotations["pod.networkproxy.security.beta.varmor.org"]; !ok || value != "unconfined" {
+			proxyUID := varmortypes.DefaultProxyUID
+			proxyPort := varmortypes.DefaultProxyPort
+			proxyAdminPort := varmortypes.DefaultProxyAdminPort
+
+			if proxyConfig != nil {
+				if proxyConfig.ProxyUID != nil {
+					proxyUID = *proxyConfig.ProxyUID
+				}
+				if proxyConfig.ProxyPort != nil {
+					proxyPort = *proxyConfig.ProxyPort
+				}
+				if proxyConfig.ProxyAdminPort != nil {
+					proxyAdminPort = *proxyConfig.ProxyAdminPort
+				}
+			}
+
+			stateful.Spec.Template.Annotations["pod.networkproxy.security.beta.varmor.org"] = fmt.Sprintf("localhost/%s", profileName)
+			// Add a init container
+			script := fmt.Sprintf(scriptTemplate, proxyUID, proxyPort, proxyAdminPort)
+			proxyInitContainer.Command = []string{"sh", "-c", script}
+			stateful.Spec.Template.Spec.InitContainers = append(stateful.Spec.Template.Spec.InitContainers, proxyInitContainer)
+			// Add a proxy sidecar container
+			proxyContainer.SecurityContext.RunAsUser = &proxyUID
+			proxyContainer.ReadinessProbe.HTTPGet.Port.IntVal = int32(proxyAdminPort)
+			stateful.Spec.Template.Spec.Containers = append(stateful.Spec.Template.Spec.Containers, proxyContainer)
+			// Add a volume
+			proxyVolume.ConfigMap.Name = profileName
+			stateful.Spec.Template.Spec.Volumes = append(stateful.Spec.Template.Spec.Volumes, proxyVolume)
+		}
+	}
+
+	// Setting new annotations and seccomp context for AppArmor, BPF and Seccomp
 	for index, container := range stateful.Spec.Template.Spec.Containers {
 		if len(target.Containers) != 0 && !varmorutils.InStringArray(container.Name, target.Containers) {
 			continue
@@ -308,11 +516,43 @@ func modifyStatefulSetAnnotationsAndEnv(enforcer string, mode varmor.VarmorPolic
 	}
 }
 
-func modifyDaemonSetAnnotationsAndEnv(enforcer string, mode varmor.VarmorPolicyMode, target varmor.Target, daemon *appsV1.DaemonSet, profileName string, bpfExclusiveMode bool) {
+func modifyDaemonSetAnnotationsAndEnv(
+	enforcer string,
+	mode varmor.VarmorPolicyMode,
+	target varmor.Target,
+	proxyConfig *varmor.NetworkProxyConfig,
+	daemon *appsV1.DaemonSet,
+	profileName string,
+	bpfExclusiveMode bool) {
 	e := varmortypes.GetEnforcerType(enforcer)
 
 	// Clean up first
 	for key, value := range daemon.Spec.Template.Annotations {
+		// NetworkProxy
+		if key == "pod.networkproxy.security.beta.varmor.org" && value != "unconfined" {
+			delete(daemon.Spec.Template.Annotations, key)
+			// Clean up the proxy init container
+			for index, container := range daemon.Spec.Template.Spec.InitContainers {
+				if container.Name == proxyInitContainer.Name {
+					daemon.Spec.Template.Spec.InitContainers = append(daemon.Spec.Template.Spec.InitContainers[:index], daemon.Spec.Template.Spec.InitContainers[index+1:]...)
+					break
+				}
+			}
+			// Clean up the proxy container
+			for index, container := range daemon.Spec.Template.Spec.Containers {
+				if container.Name == proxyContainer.Name {
+					daemon.Spec.Template.Spec.Containers = append(daemon.Spec.Template.Spec.Containers[:index], daemon.Spec.Template.Spec.Containers[index+1:]...)
+					break
+				}
+			}
+			// Clean up the proxy volume
+			for index, volume := range daemon.Spec.Template.Spec.Volumes {
+				if volume.Name == proxyVolume.Name {
+					daemon.Spec.Template.Spec.Volumes = append(daemon.Spec.Template.Spec.Volumes[:index], daemon.Spec.Template.Spec.Volumes[index+1:]...)
+					break
+				}
+			}
+		}
 		// BPF
 		if strings.HasPrefix(key, "container.bpf.security.beta.varmor.org/") && value != "unconfined" {
 			delete(daemon.Spec.Template.Annotations, key)
@@ -368,7 +608,41 @@ func modifyDaemonSetAnnotationsAndEnv(enforcer string, mode varmor.VarmorPolicyM
 		return
 	}
 
-	// Setting new annotations and seccomp context
+	// NetworkProxy
+	if (e & varmortypes.NetworkProxy) != 0 {
+		if value, ok := daemon.Spec.Template.Annotations["pod.networkproxy.security.beta.varmor.org"]; !ok || value != "unconfined" {
+			proxyUID := varmortypes.DefaultProxyUID
+			proxyPort := varmortypes.DefaultProxyPort
+			proxyAdminPort := varmortypes.DefaultProxyAdminPort
+
+			if proxyConfig != nil {
+				if proxyConfig.ProxyUID != nil {
+					proxyUID = *proxyConfig.ProxyUID
+				}
+				if proxyConfig.ProxyPort != nil {
+					proxyPort = *proxyConfig.ProxyPort
+				}
+				if proxyConfig.ProxyAdminPort != nil {
+					proxyAdminPort = *proxyConfig.ProxyAdminPort
+				}
+			}
+
+			daemon.Spec.Template.Annotations["pod.networkproxy.security.beta.varmor.org"] = fmt.Sprintf("localhost/%s", profileName)
+			// Add a init container
+			script := fmt.Sprintf(scriptTemplate, proxyUID, proxyPort, proxyAdminPort)
+			proxyInitContainer.Command = []string{"sh", "-c", script}
+			daemon.Spec.Template.Spec.InitContainers = append(daemon.Spec.Template.Spec.InitContainers, proxyInitContainer)
+			// Add a proxy sidecar container
+			proxyContainer.SecurityContext.RunAsUser = &proxyUID
+			proxyContainer.ReadinessProbe.HTTPGet.Port.IntVal = int32(proxyAdminPort)
+			daemon.Spec.Template.Spec.Containers = append(daemon.Spec.Template.Spec.Containers, proxyContainer)
+			// Add a volume
+			proxyVolume.ConfigMap.Name = profileName
+			daemon.Spec.Template.Spec.Volumes = append(daemon.Spec.Template.Spec.Volumes, proxyVolume)
+		}
+	}
+
+	// Setting new annotations and seccomp context for AppArmor, BPF and Seccomp
 	for index, container := range daemon.Spec.Template.Spec.Containers {
 		if len(target.Containers) != 0 && !varmorutils.InStringArray(container.Name, target.Containers) {
 			continue
@@ -449,6 +723,7 @@ func updateWorkloadAnnotationsAndEnv(
 	enforcer string,
 	mode varmor.VarmorPolicyMode,
 	target varmor.Target,
+	proxyConfig *varmor.NetworkProxyConfig,
 	profileName string,
 	bpfExclusiveMode bool,
 	logger logr.Logger) {
@@ -505,7 +780,7 @@ func updateWorkloadAnnotationsAndEnv(
 				}
 
 				deployOld := deploy.DeepCopy()
-				modifyDeploymentAnnotationsAndEnv(enforcer, mode, target, deploy, profileName, bpfExclusiveMode)
+				modifyDeploymentAnnotationsAndEnv(enforcer, mode, target, proxyConfig, deploy, profileName, bpfExclusiveMode)
 				if reflect.DeepEqual(deployOld, deploy) {
 					return nil
 				}
@@ -548,7 +823,7 @@ func updateWorkloadAnnotationsAndEnv(
 				}
 
 				statefulOld := stateful.DeepCopy()
-				modifyStatefulSetAnnotationsAndEnv(enforcer, mode, target, stateful, profileName, bpfExclusiveMode)
+				modifyStatefulSetAnnotationsAndEnv(enforcer, mode, target, proxyConfig, stateful, profileName, bpfExclusiveMode)
 				if reflect.DeepEqual(statefulOld, stateful) {
 					return nil
 				}
@@ -595,7 +870,7 @@ func updateWorkloadAnnotationsAndEnv(
 				}
 
 				daemonOld := daemon.DeepCopy()
-				modifyDaemonSetAnnotationsAndEnv(enforcer, mode, target, daemon, profileName, bpfExclusiveMode)
+				modifyDaemonSetAnnotationsAndEnv(enforcer, mode, target, proxyConfig, daemon, profileName, bpfExclusiveMode)
 				if reflect.DeepEqual(daemonOld, &daemon) {
 					return nil
 				}

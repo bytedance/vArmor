@@ -26,6 +26,15 @@ rules:
 - apiGroups:
   - ""
   resources:
+  - configmaps
+  verbs:
+  - get
+  - create
+  - delete
+  - update
+- apiGroups:
+  - ""
+  resources:
   - namespaces
   - nodes
   verbs:

@@ -90,8 +90,10 @@ spec:
                           Default is false.
                         type: boolean
                       appArmor:
-                        description: appArmor specifies the AppArmor profile and additional
-                          custom rules for the Deny-by-Default protection.
+                        description: |-
+                          appArmor specifies the AppArmor profile and additional custom rules for the Deny-by-Default protection.
+
+                          This field is only effective when the enforcer includes "AppArmor".
                         properties:
                           appArmorRawRules:
                             description: |-
@@ -140,9 +142,197 @@ spec:
                         required:
                         - profileType
                         type: object
+                      networkProxy:
+                        description: |-
+                          networkProxy is used to set network access control rules enforced by the
+                          NetworkProxy enforcer via a sidecar proxy. These rules operate at the application
+                          protocol level (L4 domain/SNI matching, L7 HTTP matching) and are independent
+                          of BPF kernel-level network rules.
+
+                          This field is only effective when the enforcer includes "NetworkProxy".
+                        properties:
+                          egress:
+                            description: egress specifies the egress (outbound) access
+                              control rules.
+                            properties:
+                              defaultAction:
+                                description: |-
+                                  defaultAction specifies the default action for connections that do not
+                                  match any rule.
+
+                                  Available values:
+                                    - "deny":  connections not matching any allow rule are rejected (whitelist mode).
+                                    - "allow": connections not matching any deny rule are permitted (blacklist mode).
+
+                                  When both allow and deny rules coexist, deny rules are evaluated first
+                                  (deny takes precedence), then allow rules are evaluated. Connections
+                                  matching neither are subject to defaultAction.
+                                type: string
+                              httpRules:
+                                description: |-
+                                  httpRules specifies L7 (HTTP request-level) egress access control rules.
+                                  These rules can inspect HTTP method, host, path, and other request attributes.
+
+                                  For HTTPS traffic, httpRules require TLS MITM to be configured via the
+                                  mitm field. For plain HTTP traffic, httpRules apply directly.
+                                items:
+                                  description: |-
+                                    NetworkProxyHTTPRule describes an application-level egress access control
+                                    rule for HTTP/HTTPS traffic. It controls which web services (by domain,
+                                    path, method) the container can access.
+                                  properties:
+                                    description:
+                                      type: string
+                                    match:
+                                      description: HTTPMatch describes match criteria
+                                        for HTTP/HTTPS traffic.
+                                      properties:
+                                        hosts:
+                                          description: |-
+                                            hosts specifies the target service domains to match.
+
+                                            Matching mechanism varies by traffic type:
+                                              - HTTPS: matched via TLS SNI (Server Name Indication), no decryption needed
+                                              - HTTP:  matched via Host header
+                                              - HTTPS + MITM: matched via Host header after TLS termination
+
+                                            Supports exact match ("api.openai.com") and wildcard ("*.openai.com").
+                                            Multiple values are OR'd.
+                                          items:
+                                            type: string
+                                          type: array
+                                        methods:
+                                          description: |-
+                                            methods specifies HTTP methods to match (e.g., GET, POST).
+
+                                            Same visibility requirements as paths.
+                                          items:
+                                            type: string
+                                          type: array
+                                        paths:
+                                          description: |-
+                                            paths specifies HTTP request path matching.
+
+                                            Note: path matching requires visibility into plaintext HTTP.
+                                              - For plain HTTP: works directly
+                                              - For HTTPS: requires MITM configuration
+                                              - If HTTPS without MITM: paths are IGNORED (only hosts matching applies)
+                                          items:
+                                            description: HTTPPathMatch describes how
+                                              to match an HTTP request path.
+                                            properties:
+                                              exact:
+                                                description: exact specifies an exact
+                                                  path string to match.
+                                                type: string
+                                              prefix:
+                                                description: prefix specifies a path
+                                                  prefix to match.
+                                                type: string
+                                            type: object
+                                          type: array
+                                        ports:
+                                          description: ports restricts the rule to
+                                            specific destination ports.
+                                          items:
+                                            description: Port describes a port or
+                                              port range to match traffic.
+                                            properties:
+                                              endPort:
+                                                description: |-
+                                                  If endPort is set, it indicates that the range of ports from port to endPort. The endPort must be equal or greater
+                                                  than port and must be in the range [1, 65535].
+                                                type: integer
+                                              port:
+                                                description: port is the port number
+                                                  to match traffic. The port number
+                                                  must be in the range [1, 65535].
+                                                type: integer
+                                            required:
+                                            - port
+                                            type: object
+                                          type: array
+                                      type: object
+                                    qualifiers:
+                                      items:
+                                        type: string
+                                      type: array
+                                  required:
+                                  - match
+                                  - qualifiers
+                                  type: object
+                                type: array
+                              rules:
+                                description: |-
+                                  rules specifies L4 (connection-level) egress access control rules.
+                                  Rules support matching by domain (TLS SNI), IP, CIDR, and port.
+
+                                  Rules within this list are evaluated based on their qualifiers:
+                                    - Deny rules (qualifiers contain "deny") are evaluated first as a group.
+                                    - Allow rules (qualifiers contain "allow") are evaluated second as a group.
+                                    - Within each group, rules are in a logical OR relationship.
+                                items:
+                                  description: |-
+                                    NetworkProxyEgressRule describes a single L4 egress access control rule
+                                    enforced by the Network enforcer (sidecar proxy).
+                                    It matches connections based on destination IP, CIDR, and port only.
+                                  properties:
+                                    cidr:
+                                      description: |-
+                                        cidr specifies a destination IP range.
+                                        Mutually exclusive with ip.
+                                      type: string
+                                    description:
+                                      description: description is a human-readable
+                                        description of the rule's purpose.
+                                      type: string
+                                    ip:
+                                      description: |-
+                                        ip specifies a single destination IP address.
+                                        Mutually exclusive with cidr.
+                                      type: string
+                                    ports:
+                                      description: |-
+                                        ports restricts the rule to specific destination ports (OR relationship).
+                                        If empty, matches all ports.
+                                      items:
+                                        description: Port describes a port or port
+                                          range to match traffic.
+                                        properties:
+                                          endPort:
+                                            description: |-
+                                              If endPort is set, it indicates that the range of ports from port to endPort. The endPort must be equal or greater
+                                              than port and must be in the range [1, 65535].
+                                            type: integer
+                                          port:
+                                            description: port is the port number to
+                                              match traffic. The port number must
+                                              be in the range [1, 65535].
+                                            type: integer
+                                        required:
+                                        - port
+                                        type: object
+                                      type: array
+                                    qualifiers:
+                                      description: |-
+                                        qualifiers determine the behavior of the rule.
+                                        Available values: allow, deny, audit (allow and deny are mutually exclusive).
+                                      items:
+                                        type: string
+                                      type: array
+                                  required:
+                                  - qualifiers
+                                  type: object
+                                type: array
+                            required:
+                            - defaultAction
+                            type: object
+                        type: object
                       seccomp:
-                        description: seccomp specifies the Seccomp profile and additional
-                          custom rules for the Deny-by-Default protection.
+                        description: |-
+                          seccomp specifies the Seccomp profile and additional custom rules for the Deny-by-Default protection.
+
+                          This field is only effective when the enforcer includes "Seccomp".
                         properties:
                           customProfile:
                             description: |-
@@ -208,8 +398,8 @@ spec:
                     type: object
                   enforcer:
                     description: |-
-                      enforcer is used to specify which LSM to use for mandatory access control.
-                      Available values: AppArmor, BPF, Seccomp, AppArmorBPF, AppArmorSeccomp, BPFSeccomp, AppArmorBPFSeccomp
+                      enforcer is used to specify which security mechanisms to use for mandatory access control.
+                      Available values: AppArmor, BPF, Seccomp, NetworkProxy, AppArmorBPF, AppArmorSeccomp, BPFSeccomp, AppArmorBPFSeccomp, NetworkProxyBPFSeccomp
                     type: string
                   enhanceProtect:
                     description: |-
@@ -219,7 +409,7 @@ spec:
                     properties:
                       allowViolations:
                         description: |-
-                          allowViolations determines whether to allow the actions that are against mandatory access control rules.
+                          allowViolations determines whether to allow the actions that are against the built-in rules.
                           If this field is set, any detected violation will be allowed rather than blocked.
 
                           Default is false.
@@ -270,7 +460,7 @@ spec:
                         type: array
                       auditViolations:
                         description: |-
-                          auditViolations determines whether to log the actions that violate the mandatory access control rules.
+                          auditViolations determines whether to log the actions that violate the built-in rules.
                           If this field is set, any detected violation will be logged to `/var/log/varmor/violations.log` file in
                           the host. The action of the event will be `AUDIT` if allowViolations is set to `true`, otherwise it will
                           be `DENIED`. Please note that the Seccomp enforcer does not support auditing violations when the
@@ -732,6 +922,192 @@ spec:
                         items:
                           type: string
                         type: array
+                      networkProxyRawRules:
+                        description: |-
+                          networkProxyRawRules is used to set network access control rules enforced by the
+                          NetworkProxy enforcer via a sidecar proxy. These rules operate at the application
+                          protocol level (L4 domain/SNI matching, L7 HTTP matching) and are independent
+                          of BPF kernel-level network rules.
+
+                          This field is only effective when the enforcer includes "NetworkProxy".
+                        properties:
+                          egress:
+                            description: egress specifies the egress (outbound) access
+                              control rules.
+                            properties:
+                              defaultAction:
+                                description: |-
+                                  defaultAction specifies the default action for connections that do not
+                                  match any rule.
+
+                                  Available values:
+                                    - "deny":  connections not matching any allow rule are rejected (whitelist mode).
+                                    - "allow": connections not matching any deny rule are permitted (blacklist mode).
+
+                                  When both allow and deny rules coexist, deny rules are evaluated first
+                                  (deny takes precedence), then allow rules are evaluated. Connections
+                                  matching neither are subject to defaultAction.
+                                type: string
+                              httpRules:
+                                description: |-
+                                  httpRules specifies L7 (HTTP request-level) egress access control rules.
+                                  These rules can inspect HTTP method, host, path, and other request attributes.
+
+                                  For HTTPS traffic, httpRules require TLS MITM to be configured via the
+                                  mitm field. For plain HTTP traffic, httpRules apply directly.
+                                items:
+                                  description: |-
+                                    NetworkProxyHTTPRule describes an application-level egress access control
+                                    rule for HTTP/HTTPS traffic. It controls which web services (by domain,
+                                    path, method) the container can access.
+                                  properties:
+                                    description:
+                                      type: string
+                                    match:
+                                      description: HTTPMatch describes match criteria
+                                        for HTTP/HTTPS traffic.
+                                      properties:
+                                        hosts:
+                                          description: |-
+                                            hosts specifies the target service domains to match.
+
+                                            Matching mechanism varies by traffic type:
+                                              - HTTPS: matched via TLS SNI (Server Name Indication), no decryption needed
+                                              - HTTP:  matched via Host header
+                                              - HTTPS + MITM: matched via Host header after TLS termination
+
+                                            Supports exact match ("api.openai.com") and wildcard ("*.openai.com").
+                                            Multiple values are OR'd.
+                                          items:
+                                            type: string
+                                          type: array
+                                        methods:
+                                          description: |-
+                                            methods specifies HTTP methods to match (e.g., GET, POST).
+
+                                            Same visibility requirements as paths.
+                                          items:
+                                            type: string
+                                          type: array
+                                        paths:
+                                          description: |-
+                                            paths specifies HTTP request path matching.
+
+                                            Note: path matching requires visibility into plaintext HTTP.
+                                              - For plain HTTP: works directly
+                                              - For HTTPS: requires MITM configuration
+                                              - If HTTPS without MITM: paths are IGNORED (only hosts matching applies)
+                                          items:
+                                            description: HTTPPathMatch describes how
+                                              to match an HTTP request path.
+                                            properties:
+                                              exact:
+                                                description: exact specifies an exact
+                                                  path string to match.
+                                                type: string
+                                              prefix:
+                                                description: prefix specifies a path
+                                                  prefix to match.
+                                                type: string
+                                            type: object
+                                          type: array
+                                        ports:
+                                          description: ports restricts the rule to
+                                            specific destination ports.
+                                          items:
+                                            description: Port describes a port or
+                                              port range to match traffic.
+                                            properties:
+                                              endPort:
+                                                description: |-
+                                                  If endPort is set, it indicates that the range of ports from port to endPort. The endPort must be equal or greater
+                                                  than port and must be in the range [1, 65535].
+                                                type: integer
+                                              port:
+                                                description: port is the port number
+                                                  to match traffic. The port number
+                                                  must be in the range [1, 65535].
+                                                type: integer
+                                            required:
+                                            - port
+                                            type: object
+                                          type: array
+                                      type: object
+                                    qualifiers:
+                                      items:
+                                        type: string
+                                      type: array
+                                  required:
+                                  - match
+                                  - qualifiers
+                                  type: object
+                                type: array
+                              rules:
+                                description: |-
+                                  rules specifies L4 (connection-level) egress access control rules.
+                                  Rules support matching by domain (TLS SNI), IP, CIDR, and port.
+
+                                  Rules within this list are evaluated based on their qualifiers:
+                                    - Deny rules (qualifiers contain "deny") are evaluated first as a group.
+                                    - Allow rules (qualifiers contain "allow") are evaluated second as a group.
+                                    - Within each group, rules are in a logical OR relationship.
+                                items:
+                                  description: |-
+                                    NetworkProxyEgressRule describes a single L4 egress access control rule
+                                    enforced by the Network enforcer (sidecar proxy).
+                                    It matches connections based on destination IP, CIDR, and port only.
+                                  properties:
+                                    cidr:
+                                      description: |-
+                                        cidr specifies a destination IP range.
+                                        Mutually exclusive with ip.
+                                      type: string
+                                    description:
+                                      description: description is a human-readable
+                                        description of the rule's purpose.
+                                      type: string
+                                    ip:
+                                      description: |-
+                                        ip specifies a single destination IP address.
+                                        Mutually exclusive with cidr.
+                                      type: string
+                                    ports:
+                                      description: |-
+                                        ports restricts the rule to specific destination ports (OR relationship).
+                                        If empty, matches all ports.
+                                      items:
+                                        description: Port describes a port or port
+                                          range to match traffic.
+                                        properties:
+                                          endPort:
+                                            description: |-
+                                              If endPort is set, it indicates that the range of ports from port to endPort. The endPort must be equal or greater
+                                              than port and must be in the range [1, 65535].
+                                            type: integer
+                                          port:
+                                            description: port is the port number to
+                                              match traffic. The port number must
+                                              be in the range [1, 65535].
+                                            type: integer
+                                        required:
+                                        - port
+                                        type: object
+                                      type: array
+                                    qualifiers:
+                                      description: |-
+                                        qualifiers determine the behavior of the rule.
+                                        Available values: allow, deny, audit (allow and deny are mutually exclusive).
+                                      items:
+                                        type: string
+                                      type: array
+                                  required:
+                                  - qualifiers
+                                  type: object
+                                type: array
+                            required:
+                            - defaultAction
+                            type: object
+                        type: object
                       privileged:
                         description: |-
                           privileged is used to identify whether the policy is for the privileged container.
@@ -813,6 +1189,54 @@ spec:
                         type: integer
                     required:
                     - duration
+                    type: object
+                  networkProxyConfig:
+                    description: networkProxyConfig holds the proxy sidecar configuration
+                      for the NetworkProxy enforcer.
+                    properties:
+                      mitm:
+                        description: |-
+                          mitm configures TLS Man-in-the-Middle for inspecting encrypted
+                          HTTPS traffic at the HTTP level.
+                        properties:
+                          caSecretRef:
+                            description: |-
+                              caSecretRef is the name of the Kubernetes Secret containing the CA
+                              certificate and private key used for signing MITM certificates.
+                              The Secret must contain 'ca.crt' and 'ca.key' data entries.
+                            type: string
+                          domains:
+                            description: |-
+                              domains specifies which TLS connections should be terminated
+                              for L7 inspection. Only connections to these domains will
+                              be decrypted; all other TLS traffic passes through unmodified.
+                            items:
+                              type: string
+                            type: array
+                        required:
+                        - caSecretRef
+                        - domains
+                        type: object
+                      proxyAdminPort:
+                        description: |-
+                          proxyAdminPort is the listen port which the proxy sidecar process listens on for admin requests.
+                          This field cannot be modified after the policy is created.
+                          Default: 15000
+                        type: integer
+                      proxyPort:
+                        description: |-
+                          proxyPort is the listen port which the proxy sidecar process listens on.
+                          This field cannot be modified after the policy is created.
+                          Default: 15001
+                        type: integer
+                      proxyUID:
+                        description: |-
+                          proxyUID is the UID which the proxy sidecar process runs as.
+                          iptables bypass rules use this UID.
+                          This field cannot be modified after the policy is created.
+                          Default: 1337
+                        format: int64
+                        type: integer
                     type: object
                 required:
                 - enforcer

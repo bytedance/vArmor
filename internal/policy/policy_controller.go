@@ -36,6 +36,7 @@ import (
 	// informers "k8s.io/client-go/informers/core/v1"
 
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
+	varmornetworkproxy "github.com/bytedance/vArmor/internal/networkproxy"
 	varmorprofile "github.com/bytedance/vArmor/internal/profile"
 	statusmanager "github.com/bytedance/vArmor/internal/status/apis/v1"
 	statuscommon "github.com/bytedance/vArmor/internal/status/common"
@@ -152,6 +153,13 @@ func (c *PolicyController) handleDeleteVarmorPolicy(namespace, name string) erro
 	logger.Info("VarmorPolicy", "namespace", namespace, "name", name)
 
 	apName := varmorprofile.GenerateArmorProfileName(namespace, name, false)
+
+	logger.Info("remove the finalizers of network proxy ConfigMap object if needed")
+	err := varmornetworkproxy.RemoveNetworkProxyConfigMapFinalizers(c.kubeClient, namespace, apName)
+	if err != nil {
+		logger.Error(err, "failed to remove the finalizers of network proxy ConfigMap object")
+	}
+
 	logger.Info("retrieve ArmorProfile", "namespace", namespace, "name", apName)
 	ap, err := c.varmorInterface.ArmorProfiles(namespace).Get(context.Background(), apName, metav1.GetOptions{})
 	if err != nil {
@@ -171,6 +179,7 @@ func (c *PolicyController) handleDeleteVarmorPolicy(namespace, name string) erro
 				ap.Spec.Profile.Enforcer,
 				"",
 				ap.Spec.Target,
+				nil,
 				"", false, logger)
 		}
 
@@ -209,6 +218,27 @@ func (c *PolicyController) handleAddVarmorPolicy(vp *varmor.VarmorPolicy) error 
 		return err
 	}
 
+	logger.Info("update VarmorPolicy/status (created=true)")
+	err := statuscommon.UpdateVarmorPolicyStatus(c.varmorInterface, vp, "", false, varmor.VarmorPolicyPending, varmor.VarmorPolicyCreated, apicorev1.ConditionTrue, "", "")
+	if err != nil {
+		logger.Error(err, "statuscommon.UpdateVarmorPolicyStatus()")
+		return err
+	}
+
+	logger.Info("create ConfigMap object for the NetworkProxy enforcer if needed")
+	err = varmornetworkproxy.CreateNetworkProxyConfigMap(c.kubeClient, vp, vp.Namespace, false, logger)
+	if err != nil {
+		logger.Error(err, "CreateNetworkProxyConfigMap()")
+		err = statuscommon.UpdateVarmorPolicyStatus(c.varmorInterface, vp, "", false, varmor.VarmorPolicyError, varmor.VarmorPolicyCreated, apicorev1.ConditionFalse,
+			"Error",
+			err.Error())
+		if err != nil {
+			logger.Error(err, "statuscommon.UpdateVarmorPolicyStatus()")
+			return err
+		}
+		return nil
+	}
+
 	ap, egressInfo, err := varmorprofile.NewArmorProfile(c.kubeClient, c.varmorInterface, vp, false, c.enableServiceEgressControl, c.enablePodEgressControl, logger)
 	if err != nil {
 		logger.Error(err, "NewArmorProfile()")
@@ -222,13 +252,6 @@ func (c *PolicyController) handleAddVarmorPolicy(vp *varmor.VarmorPolicy) error 
 		return nil
 	}
 
-	logger.Info("update VarmorPolicy/status (created=true)")
-	err = statuscommon.UpdateVarmorPolicyStatus(c.varmorInterface, vp, ap.Spec.Profile.Name, false, varmor.VarmorPolicyPending, varmor.VarmorPolicyCreated, apicorev1.ConditionTrue, "", "")
-	if err != nil {
-		logger.Error(err, "statuscommon.UpdateVarmorPolicyStatus()")
-		return err
-	}
-
 	if vp.Spec.Policy.Mode == varmor.BehaviorModelingMode {
 		err = resetArmorProfileModelStatus(c.varmorInterface, ap.Namespace, ap.Name)
 		if err != nil {
@@ -238,7 +261,7 @@ func (c *PolicyController) handleAddVarmorPolicy(vp *varmor.VarmorPolicy) error 
 
 	atomic.StoreInt32(&c.statusManager.UpdateDesiredNumber, 1)
 
-	logger.Info("create ArmorProfile")
+	logger.Info("create a new ArmorProfile object")
 	ap, err = c.varmorInterface.ArmorProfiles(vp.Namespace).Create(context.Background(), ap, metav1.CreateOptions{})
 	if err != nil {
 		logger.Error(err, "ArmorProfile().Create()")
@@ -269,6 +292,7 @@ func (c *PolicyController) handleAddVarmorPolicy(vp *varmor.VarmorPolicy) error 
 			vp.Spec.Policy.Enforcer,
 			vp.Spec.Policy.Mode,
 			vp.Spec.Target,
+			vp.Spec.Policy.NetworkProxyConfig,
 			ap.Name,
 			c.bpfExclusiveMode,
 			logger)
@@ -301,7 +325,22 @@ func (c *PolicyController) handleUpdateVarmorPolicy(newVp *varmor.VarmorPolicy, 
 		return err
 	}
 
-	// Second, create a new ArmorProfileSpec with the updated policy
+	// Second, update ConfigMap object for the NetworkProxy enforcer if needed
+	logger.Info("2. update ConfigMap object for the NetworkProxy enforcer if needed")
+	err = varmornetworkproxy.UpdateNetworkProxyConfigMap(c.kubeClient, newVp, newVp.Namespace, false, logger)
+	if err != nil {
+		logger.Error(err, "UpdateNetworkProxyConfigMap()")
+		err = statuscommon.UpdateVarmorPolicyStatus(c.varmorInterface, newVp, "", false, varmor.VarmorPolicyError, varmor.VarmorPolicyUpdated, apicorev1.ConditionFalse,
+			"Error",
+			err.Error())
+		if err != nil {
+			logger.Error(err, "statuscommon.UpdateVarmorPolicyStatus()")
+			return err
+		}
+		return nil
+	}
+
+	// Third, create a new ArmorProfileSpec with the updated policy
 	complete := false
 	if newVp.Spec.Policy.Mode == varmor.BehaviorModelingMode {
 		if newVp.Spec.Policy.ModelingOptions != nil {
@@ -344,7 +383,7 @@ func (c *PolicyController) handleUpdateVarmorPolicy(newVp *varmor.VarmorPolicy, 
 		}
 	}
 
-	// Third, cache the egress information for the policy which has network egress rules with toPods and toService fields
+	// Fourth, cache the egress information for the policy which has network egress rules with toPods and toService fields
 	if egressInfo != nil {
 		policyKey := statusKey
 		c.egressCacheMutex.Lock()
@@ -359,9 +398,9 @@ func (c *PolicyController) handleUpdateVarmorPolicy(newVp *varmor.VarmorPolicy, 
 	// Last, do update
 	if !reflect.DeepEqual(oldAp.Spec, *newApSpec) {
 		// Update the objects and their statuses if the spec of ArmorProfile has changed
-		logger.Info("2. update the object and its status")
+		logger.Info("3. update the VarmorPolicy and ArmorProfile objects")
 
-		logger.Info("2.1. reset ArmorProfile/status and ArmorProfileModel/Status", "namespace", oldAp.Namespace, "name", oldAp.Name)
+		logger.Info("3.1. reset ArmorProfile/status and ArmorProfileModel/Status", "namespace", oldAp.Namespace, "name", oldAp.Name)
 		oldAp.Status.CurrentNumberLoaded = 0
 		oldAp.Status.Conditions = nil
 		oldAp, err = c.varmorInterface.ArmorProfiles(newVp.Namespace).UpdateStatus(context.Background(), oldAp, metav1.UpdateOptions{})
@@ -377,7 +416,7 @@ func (c *PolicyController) handleUpdateVarmorPolicy(newVp *varmor.VarmorPolicy, 
 			}
 		}
 
-		logger.Info("2.2. update ArmorProfile")
+		logger.Info("3.2. update the ArmorProfile object")
 		oldAp.Spec = *newApSpec
 		forceSetOwnerReference(oldAp, newVp, false)
 		_, err = c.varmorInterface.ArmorProfiles(oldAp.Namespace).Update(context.Background(), oldAp, metav1.UpdateOptions{})
@@ -407,9 +446,9 @@ func (c *PolicyController) handleUpdateVarmorPolicy(newVp *varmor.VarmorPolicy, 
 		}
 	} else {
 		// Update the objects' statuses
-		logger.Info("2. update the object' status")
+		logger.Info("3. update the object' status")
 
-		logger.Info("2.1. update VarmorPolicy/status and ArmorProfile/status", "status key", statusKey)
+		logger.Info("3.1. update VarmorPolicy/status and ArmorProfile/status", "status key", statusKey)
 		c.statusManager.UpdateStatusCh <- statusKey
 	}
 	return nil
