@@ -307,8 +307,9 @@ push: ## Push images and chart to the public repository for release.
 	@echo "----------------------------------------"
 	helm push varmor-$(CHART_VERSION).tgz oci://$(REPO_AP)
 
+##@ Sync proxy images
 .PHONY: sync-proxy-images
-sync-proxy-images: docker-build-proxyinit
+sync-proxy-images: docker-build-proxyinit ## Sync proxy images to the public repository.
 	@echo "[+] Push proxyinit image"
 	@echo "----------------------------------------"
 	docker push $(PROXYINIT_IMAGE_AP)-amd64
