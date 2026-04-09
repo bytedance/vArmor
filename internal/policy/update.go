@@ -56,7 +56,7 @@ iptables -t filter -A OUTPUT -p tcp --dport ${ENVOY_ADMIN_PORT} -m owner ! --uid
 
 	proxyInitContainer = coreV1.Container{
 		Name:  "varmor-network-proxy-init",
-		Image: varmortypes.ProxyInitImage,
+		Image: varmorconfig.ProxyInitImage,
 		SecurityContext: &coreV1.SecurityContext{
 			Capabilities: &coreV1.Capabilities{
 				Add: []coreV1.Capability{"NET_ADMIN"},
@@ -73,7 +73,7 @@ iptables -t filter -A OUTPUT -p tcp --dport ${ENVOY_ADMIN_PORT} -m owner ! --uid
 
 	proxyContainer = coreV1.Container{
 		Name:            "varmor-network-proxy",
-		Image:           varmortypes.ProxyImage,
+		Image:           varmorconfig.ProxyImage,
 		SecurityContext: &coreV1.SecurityContext{}, // Set RunAsUser with proxyUID
 		Args:            []string{"-c", "/etc/envoy/bootstrap.yaml", "-l", "info"},
 		ReadinessProbe: &coreV1.Probe{
@@ -209,9 +209,9 @@ func modifyDeploymentAnnotationsAndEnv(
 	// NetworkProxy
 	if (e & varmortypes.NetworkProxy) != 0 {
 		if value, ok := deploy.Spec.Template.Annotations["pod.networkproxy.security.beta.varmor.org"]; !ok || value != "unconfined" {
-			proxyUID := varmortypes.DefaultProxyUID
-			proxyPort := varmortypes.DefaultProxyPort
-			proxyAdminPort := varmortypes.DefaultProxyAdminPort
+			proxyUID := varmorconfig.DefaultProxyUID
+			proxyPort := varmorconfig.DefaultProxyPort
+			proxyAdminPort := varmorconfig.DefaultProxyAdminPort
 
 			if proxyConfig != nil {
 				if proxyConfig.ProxyUID != nil {
@@ -410,9 +410,9 @@ func modifyStatefulSetAnnotationsAndEnv(
 	// NetworkProxy
 	if (e & varmortypes.NetworkProxy) != 0 {
 		if value, ok := stateful.Spec.Template.Annotations["pod.networkproxy.security.beta.varmor.org"]; !ok || value != "unconfined" {
-			proxyUID := varmortypes.DefaultProxyUID
-			proxyPort := varmortypes.DefaultProxyPort
-			proxyAdminPort := varmortypes.DefaultProxyAdminPort
+			proxyUID := varmorconfig.DefaultProxyUID
+			proxyPort := varmorconfig.DefaultProxyPort
+			proxyAdminPort := varmorconfig.DefaultProxyAdminPort
 
 			if proxyConfig != nil {
 				if proxyConfig.ProxyUID != nil {
@@ -611,9 +611,9 @@ func modifyDaemonSetAnnotationsAndEnv(
 	// NetworkProxy
 	if (e & varmortypes.NetworkProxy) != 0 {
 		if value, ok := daemon.Spec.Template.Annotations["pod.networkproxy.security.beta.varmor.org"]; !ok || value != "unconfined" {
-			proxyUID := varmortypes.DefaultProxyUID
-			proxyPort := varmortypes.DefaultProxyPort
-			proxyAdminPort := varmortypes.DefaultProxyAdminPort
+			proxyUID := varmorconfig.DefaultProxyUID
+			proxyPort := varmorconfig.DefaultProxyPort
+			proxyAdminPort := varmorconfig.DefaultProxyAdminPort
 
 			if proxyConfig != nil {
 				if proxyConfig.ProxyUID != nil {

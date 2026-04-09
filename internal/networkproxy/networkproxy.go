@@ -173,7 +173,7 @@ func GenerateEnvoyConfigMaps(obj interface{}, namespace string, clusterScope boo
 	ownerReferences := []metav1.OwnerReference{}
 	controller := true
 	finalizers := []string{}
-	proxyAdminPort := varmortypes.DefaultProxyAdminPort
+	proxyAdminPort := varmorconfig.DefaultProxyAdminPort
 
 	if clusterScope {
 		vcp := obj.(*varmor.VarmorClusterPolicy)
@@ -261,7 +261,7 @@ func GenerateEnvoyConfig(policy varmor.Policy, version int64) (lds string, cds s
 	}
 
 	// Get the proxy port from the policy. Default is 15001.
-	proxyPort := varmortypes.DefaultProxyPort
+	proxyPort := varmorconfig.DefaultProxyPort
 	if policy.NetworkProxyConfig != nil && policy.NetworkProxyConfig.ProxyPort != nil {
 		proxyPort = *policy.NetworkProxyConfig.ProxyPort
 	}

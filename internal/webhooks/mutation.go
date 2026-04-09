@@ -562,9 +562,9 @@ func buildNetworkProxyPatch(profileName string, workloads bool, networkProxyConf
 		pathPrefix = "/spec/template"
 	}
 
-	proxyUID := varmortypes.DefaultProxyUID
-	proxyPort := varmortypes.DefaultProxyPort
-	proxyAdminPort := varmortypes.DefaultProxyAdminPort
+	proxyUID := varmorconfig.DefaultProxyUID
+	proxyPort := varmorconfig.DefaultProxyPort
+	proxyAdminPort := varmorconfig.DefaultProxyAdminPort
 	if networkProxyConfig != nil {
 		if networkProxyConfig.ProxyUID != nil {
 			proxyUID = *networkProxyConfig.ProxyUID
@@ -590,7 +590,7 @@ func buildNetworkProxyPatch(profileName string, workloads bool, networkProxyConf
 			`"securityContext": {"capabilities": {"add": ["NET_ADMIN"]}}, `+
 			`"resources": {"requests": {"cpu": "10m", "memory": "16Mi"}}, `+
 			`"command": ["sh", "-c", %s]}},`,
-		pathPrefix, varmortypes.ProxyInitImage, iptablesScript(proxyUID, proxyPort, proxyAdminPort),
+		pathPrefix, varmorconfig.ProxyInitImage, iptablesScript(proxyUID, proxyPort, proxyAdminPort),
 	))
 
 	// --- 2. sidecar container: varmor-network-proxy ---
@@ -604,7 +604,7 @@ func buildNetworkProxyPatch(profileName string, workloads bool, networkProxyConf
 			`"resources": {"requests": {"cpu": "50m", "memory": "64Mi"}, "limits": {"cpu": "200m", "memory": "128Mi"}}, `+
 			`"volumeMounts": [`+
 			`{"name": "varmor-network-proxy-config", "mountPath": "/etc/envoy", "readOnly": true}]}}, `,
-		pathPrefix, varmortypes.ProxyImage, proxyUID, proxyAdminPort,
+		pathPrefix, varmorconfig.ProxyImage, proxyUID, proxyAdminPort,
 	))
 
 	// --- 3. volumes ---

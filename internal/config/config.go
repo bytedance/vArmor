@@ -158,6 +158,21 @@ var (
 
 	// RuntimeEndpoint is the socket address of the containerd
 	RuntimeEndpoint string = "/run/containerd/containerd.sock"
+
+	// DefaultProxyUID is the default UID which the proxy sidecar process runs as
+	DefaultProxyUID int64 = 1337
+
+	// DefaultProxyPort is the default listen port which the proxy sidecar process listens on
+	DefaultProxyPort uint16 = 15001
+
+	// DefaultProxyAdminPort is the default listen port which the proxy sidecar process listens on for admin requests
+	DefaultProxyAdminPort uint16 = 15000
+
+	// DefaultProxyInitImage is the default init image for the proxy sidecar process
+	ProxyInitImage = os.Getenv("PROXY_INIT_IMAGE")
+
+	// DefaultProxyImage is the default image for the proxy sidecar process
+	ProxyImage = os.Getenv("PROXY_IMAGE")
 )
 
 // CreateClientConfig creates client config and applies rate limit QPS and burst

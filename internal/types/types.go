@@ -47,17 +47,6 @@ const (
 
 	// ReconcileAnnotation control whether to force agents to update the profile
 	ReconcileAnnotation string = "profile-reconcile-counter"
-
-	// DefaultProxyUID is the default UID which the proxy sidecar process runs as
-	DefaultProxyUID int64 = 1337
-	// DefaultProxyPort is the default listen port which the proxy sidecar process listens on
-	DefaultProxyPort uint16 = 15001
-	// DefaultProxyAdminPort is the default listen port which the proxy sidecar process listens on for admin requests
-	DefaultProxyAdminPort uint16 = 15000
-	// DefaultProxyInitImage is the default init image for the proxy sidecar process
-	ProxyInitImage = "elkeid-test-cn-beijing.cr.volces.com/public/iptables:0.1"
-	// DefaultProxyImage is the default image for the proxy sidecar process
-	ProxyImage = "elkeid-test-cn-beijing.cr.volces.com/public/envoy:v1.32-latest"
 )
 
 type Status string
