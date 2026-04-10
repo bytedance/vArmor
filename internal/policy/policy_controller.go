@@ -204,7 +204,7 @@ func (c *PolicyController) handleDeleteVarmorPolicy(namespace, name string) erro
 	return nil
 }
 
-func (c *PolicyController) handleAddVarmorPolicy(vp *varmor.VarmorPolicy) error {
+func (c *PolicyController) handleAddVarmorPolicy(vp *varmor.VarmorPolicy, profileName string) error {
 	logger := c.log.WithName("handleAddVarmorPolicy()")
 
 	logger.Info("VarmorPolicy created", "namespace", vp.Namespace, "name", vp.Name, "labels", vp.Labels, "target", vp.Spec.Target)
@@ -219,7 +219,7 @@ func (c *PolicyController) handleAddVarmorPolicy(vp *varmor.VarmorPolicy) error 
 	}
 
 	logger.Info("update VarmorPolicy/status (created=true)")
-	err := statuscommon.UpdateVarmorPolicyStatus(c.varmorInterface, vp, "", false, varmor.VarmorPolicyPending, varmor.VarmorPolicyCreated, apicorev1.ConditionTrue, "", "")
+	err := statuscommon.UpdateVarmorPolicyStatus(c.varmorInterface, vp, profileName, false, varmor.VarmorPolicyPending, varmor.VarmorPolicyCreated, apicorev1.ConditionTrue, "", "")
 	if err != nil {
 		logger.Error(err, "statuscommon.UpdateVarmorPolicyStatus()")
 		return err
@@ -502,7 +502,7 @@ func (c *PolicyController) syncPolicy(key string) error {
 	if k8errors.IsNotFound(err) || newPolicy {
 		// VarmorPolicy create event
 		logger.V(2).Info("processing VarmorPolicy create event")
-		return c.handleAddVarmorPolicy(vp)
+		return c.handleAddVarmorPolicy(vp, apName)
 	}
 
 	return err

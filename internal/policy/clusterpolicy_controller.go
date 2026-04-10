@@ -203,7 +203,7 @@ func (c *ClusterPolicyController) handleDeleteVarmorClusterPolicy(name string) e
 	return nil
 }
 
-func (c *ClusterPolicyController) handleAddVarmorClusterPolicy(vcp *varmor.VarmorClusterPolicy) error {
+func (c *ClusterPolicyController) handleAddVarmorClusterPolicy(vcp *varmor.VarmorClusterPolicy, profileName string) error {
 	logger := c.log.WithName("handleAddVarmorClusterPolicy()")
 
 	logger.Info("VarmorClusterPolicy created", "name", vcp.Name, "labels", vcp.Labels, "target", vcp.Spec.Target)
@@ -218,7 +218,7 @@ func (c *ClusterPolicyController) handleAddVarmorClusterPolicy(vcp *varmor.Varmo
 	}
 
 	logger.Info("update VarmorClusterPolicy/status (created=true)")
-	err := statuscommon.UpdateVarmorClusterPolicyStatus(c.varmorInterface, vcp, "", false, varmor.VarmorPolicyPending, varmor.VarmorPolicyCreated, apicorev1.ConditionTrue, "", "")
+	err := statuscommon.UpdateVarmorClusterPolicyStatus(c.varmorInterface, vcp, profileName, false, varmor.VarmorPolicyPending, varmor.VarmorPolicyCreated, apicorev1.ConditionTrue, "", "")
 	if err != nil {
 		logger.Error(err, "statuscommon.UpdateVarmorClusterPolicyStatus()")
 		return err
@@ -511,7 +511,7 @@ func (c *ClusterPolicyController) syncClusterPolicy(key string) error {
 	if k8errors.IsNotFound(err) || newPolicy {
 		// VarmorClusterPolicy create event
 		logger.V(2).Info("processing VarmorClusterPolicy create event")
-		return c.handleAddVarmorClusterPolicy(vcp)
+		return c.handleAddVarmorClusterPolicy(vcp, apName)
 	}
 
 	return err
