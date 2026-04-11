@@ -23,13 +23,55 @@ import (
 
 // ============================================================================
 // YAML Renderer: converts internal translator structures to Envoy xDS YAML
-//
-// Output format: file-based xDS (version_info + resources[])
-// - LDS: version_info + Listener resource  → write to ConfigMap lds.yaml
-// - CDS: version_info + Cluster resource   → write to ConfigMap cds.yaml
 // ============================================================================
 
-func renderListenerYAML(tlsChain, httpChain FilterChain, tcpChain FilterChain, version int64, proxyPort uint16) string {
+// --- CEL Expression Constants ---
+//
+// All access_log filtering uses CEL (Common Expression Language) exclusively.
+// This eliminates response_flag_filter (UAEX), metadata_filter, and or_filter,
+// providing a single, consistent mechanism across all layers.
+//
+// Background: Envoy's RBAC filters do NOT set the UAEX response flag.
+// UAEX is only set by ext_authz. Network RBAC sets CONNECTION_TERMINATION_DETAILS,
+// and HTTP RBAC sets RESPONSE_CODE_DETAILS. We use CEL to inspect these attributes.
+//
+// Listener-level (connection-level, covers TLS + TCP chains):
+//   Deny detection:  connection.termination_details.matches("rbac_access_denied.*")
+//   Shadow detection: 'shadow_effective_policy_id' in metadata.filter_metadata['envoy.filters.network.rbac']
+//
+// HCM-level (HTTP chain):
+//   Deny detection:  response.code_details.matches("rbac_access_denied.*")
+//   Shadow detection: 'shadow_effective_policy_id' in metadata.filter_metadata['envoy.filters.http.rbac']
+//
+// CEL error handling: ExpressionFilter treats expression evaluation errors as false,
+// which is safe — when an attribute or metadata namespace doesn't exist, the
+// expression simply returns false (no log emitted).
+
+const (
+	// Listener-level CEL: detect Network RBAC denial
+	celListenerDeny = `connection.termination_details.matches("rbac_access_denied.*")`
+	// Listener-level CEL: detect shadow_rules match (network RBAC audit)
+	celListenerShadow = `'shadow_effective_policy_id' in metadata.filter_metadata['envoy.filters.network.rbac']`
+	// Listener-level CEL: deny OR shadow (deny-default with shadow rules)
+	celListenerDenyOrShadow = `connection.termination_details.matches("rbac_access_denied.*") || 'shadow_effective_policy_id' in metadata.filter_metadata['envoy.filters.network.rbac']`
+
+	// HCM-level CEL: detect HTTP RBAC denial
+	celHCMDeny = `response.code_details.matches("rbac_access_denied.*")`
+	// HCM-level CEL: detect shadow_rules match (HTTP RBAC audit)
+	celHCMShadow = `'shadow_effective_policy_id' in metadata.filter_metadata['envoy.filters.http.rbac']`
+	// HCM-level CEL: deny OR shadow (deny-default with shadow rules)
+	celHCMDenyOrShadow = `response.code_details.matches("rbac_access_denied.*") || 'shadow_effective_policy_id' in metadata.filter_metadata['envoy.filters.http.rbac']`
+)
+
+// yamlCEL wraps a CEL expression for safe embedding in YAML.
+// Uses double-quoted YAML string, escaping internal double quotes and backslashes.
+func yamlCEL(expr string) string {
+	escaped := strings.ReplaceAll(expr, `\`, `\\`)
+	escaped = strings.ReplaceAll(escaped, `"`, `\"`)
+	return `"` + escaped + `"`
+}
+
+func renderListenerYAML(tlsChain, httpChain FilterChain, tcpChain FilterChain, version int64, proxyPort uint16, listenerAccessLogEnabled bool, listenerCEL string) string {
 	var sb strings.Builder
 
 	sb.WriteString(fmt.Sprintf(`version_info: "%d"
@@ -52,9 +94,37 @@ resources:
   - name: envoy.filters.listener.http_inspector
     typed_config:
       "@type": type.googleapis.com/envoy.extensions.filters.listener.http_inspector.v3.HttpInspector
-
-  filter_chains:
 `, version, proxyPort))
+
+	// Listener-level access_log: captures connection-level events across ALL filter chains
+	// (TLS chain + TCP default chain). Uses CEL to detect Network RBAC deny events
+	// and/or shadow_rules metadata matches.
+	//
+	// The listener-level CEL expression is pre-computed by the translator based on:
+	//   - deny-default + shadow: celListenerDenyOrShadow
+	//   - deny-default only:     celListenerDeny
+	//   - allow-default + shadow: celListenerShadow
+	//   - allow-default only:     (no listener access_log)
+	//
+	// HTTP chain events are handled separately at the HCM level, so there is no
+	// namespace conflict between envoy.filters.network.rbac and envoy.filters.http.rbac.
+	if listenerAccessLogEnabled && listenerCEL != "" {
+		sb.WriteString("\n  access_log:\n")
+		sb.WriteString("  - name: envoy.access_loggers.stdout\n")
+		sb.WriteString("    filter:\n")
+		sb.WriteString("      extension_filter:\n")
+		sb.WriteString("        name: envoy.access_loggers.extension_filters.cel\n")
+		sb.WriteString("        typed_config:\n")
+		sb.WriteString("          \"@type\": type.googleapis.com/envoy.extensions.access_loggers.filters.cel.v3.ExpressionFilter\n")
+		sb.WriteString(fmt.Sprintf("          expression: %s\n", yamlCEL(listenerCEL)))
+		sb.WriteString("    typed_config:\n")
+		sb.WriteString("      \"@type\": type.googleapis.com/envoy.extensions.access_loggers.stream.v3.StdoutAccessLog\n")
+		sb.WriteString("      log_format:\n")
+		sb.WriteString("        text_format_source:\n")
+		sb.WriteString("          inline_string: \"[%START_TIME%][L4] dst=%DOWNSTREAM_LOCAL_ADDRESS% sni=%REQUESTED_SERVER_NAME% duration=%DURATION%ms reason=%CONNECTION_TERMINATION_DETAILS%\\n\"\n")
+	}
+
+	sb.WriteString("\n  filter_chains:\n")
 
 	// Chain 1: TLS
 	sb.WriteString(renderFilterChainYAML(&tlsChain, 2))
@@ -140,6 +210,19 @@ func renderTCPProxyFilterYAML(f *NetworkFilter, indent int) string {
 	sb.WriteString(fmt.Sprintf("%s    \"@type\": type.googleapis.com/envoy.extensions.filters.network.tcp_proxy.v3.TcpProxy\n", prefix))
 	sb.WriteString(fmt.Sprintf("%s    stat_prefix: %s\n", prefix, cfg.StatPrefix))
 	sb.WriteString(fmt.Sprintf("%s    cluster: %s\n", prefix, cfg.Cluster))
+
+	// tcp_proxy access_log is NO LONGER rendered.
+	//
+	// In the all-CEL architecture (v4), ALL audit logging is handled by:
+	//   - Listener-level access_log (CEL on connection.termination_details / network shadow metadata)
+	//     → Covers TLS and TCP chain deny + shadow events
+	//   - HCM-level access_log (CEL on response.code_details / HTTP shadow metadata)
+	//     → Covers HTTP chain deny + shadow events
+	//
+	// tcp_proxy only sees ALLOWED traffic (denied traffic never reaches it), and
+	// shadow_rules metadata from network RBAC is visible at the listener level.
+	// Therefore, tcp_proxy access_log is redundant and removed entirely.
+
 	return sb.String()
 }
 
@@ -176,6 +259,32 @@ func renderHTTPConnManagerYAML(f *NetworkFilter, indent int) string {
 	sb.WriteString(fmt.Sprintf("%s    \"@type\": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager\n", prefix))
 	sb.WriteString(fmt.Sprintf("%s    stat_prefix: %s\n", prefix, cfg.StatPrefix))
 	sb.WriteString(fmt.Sprintf("%s    internal_address_config: {}\n", prefix))
+
+	// HCM access_log filter: uses a single CEL expression for ALL scenarios.
+	//
+	// The CEL expression is pre-computed by the translator based on:
+	//   - deny-default + shadow: celHCMDenyOrShadow
+	//   - deny-default only:     celHCMDeny
+	//   - allow-default + shadow: celHCMShadow
+	//   - allow-default only:     (no access_log)
+	//
+	// This replaces the previous mix of response_flag_filter, metadata_filter,
+	// and or_filter with a single, unified CEL expression.
+	if cfg.AccessLogEnabled && cfg.AccessLogCEL != "" {
+		sb.WriteString(fmt.Sprintf("%s    access_log:\n", prefix))
+		sb.WriteString(fmt.Sprintf("%s    - name: envoy.access_loggers.stdout\n", prefix))
+		sb.WriteString(fmt.Sprintf("%s      filter:\n", prefix))
+		sb.WriteString(fmt.Sprintf("%s        extension_filter:\n", prefix))
+		sb.WriteString(fmt.Sprintf("%s          name: envoy.access_loggers.extension_filters.cel\n", prefix))
+		sb.WriteString(fmt.Sprintf("%s          typed_config:\n", prefix))
+		sb.WriteString(fmt.Sprintf("%s            \"@type\": type.googleapis.com/envoy.extensions.access_loggers.filters.cel.v3.ExpressionFilter\n", prefix))
+		sb.WriteString(fmt.Sprintf("%s            expression: %s\n", prefix, yamlCEL(cfg.AccessLogCEL)))
+		sb.WriteString(fmt.Sprintf("%s      typed_config:\n", prefix))
+		sb.WriteString(fmt.Sprintf("%s        \"@type\": type.googleapis.com/envoy.extensions.access_loggers.stream.v3.StdoutAccessLog\n", prefix))
+		sb.WriteString(fmt.Sprintf("%s        log_format:\n", prefix))
+		sb.WriteString(fmt.Sprintf("%s          text_format_source:\n", prefix))
+		sb.WriteString(fmt.Sprintf("%s            inline_string: \"[%%START_TIME%%][L7] method=%%REQ(:METHOD)%% uri=%%REQ(:AUTHORITY)%%%%REQ(:PATH)%% code=%%RESPONSE_CODE%% dst=%%DOWNSTREAM_LOCAL_ADDRESS%% duration=%%DURATION%%ms reason=%%RESPONSE_CODE_DETAILS%%\\n\"\n", prefix))
+	}
 
 	// Route config
 	if cfg.RouteConfig != nil {
@@ -246,21 +355,6 @@ func renderHTTPRBACFilterYAML(hf *HTTPFilter, indent int) string {
 	return sb.String()
 }
 
-// renderRBACRulesYAML renders RBAC rules content (action + policies).
-//
-// Indentation model (relative to `indent` parameter):
-//
-//	action: DENY                       ← indent
-//	policies:                          ← indent
-//	  "policy_name":                   ← indent+2
-//	    permissions:                   ← indent+4
-//	    - destination_ip:              ← indent+4  (list item aligned with key)
-//	        address_prefix: ...        ← indent+8
-//	    - and_rules:                   ← indent+4
-//	        rules:                     ← indent+8
-//	        - destination_ip: ...      ← indent+8  (list item aligned with key)
-//	    principals:                    ← indent+4
-//	    - any: true                    ← indent+4
 func renderRBACRulesYAML(rules *RBACRules, indent int, rbacType string) string {
 	prefix := strings.Repeat(" ", indent)
 
@@ -268,7 +362,6 @@ func renderRBACRulesYAML(rules *RBACRules, indent int, rbacType string) string {
 	sb.WriteString(fmt.Sprintf("%saction: %s\n", prefix, rules.Action))
 	sb.WriteString(fmt.Sprintf("%spolicies:\n", prefix))
 
-	// Sort policy names for deterministic output
 	names := make([]string, 0, len(rules.Policies))
 	for name := range rules.Policies {
 		names = append(names, name)
@@ -282,14 +375,11 @@ func renderRBACRulesYAML(rules *RBACRules, indent int, rbacType string) string {
 
 		for _, perm := range policy.Permissions {
 			if len(perm.AndRules) == 1 {
-				// Single rule: list item aligned with "permissions:" key
 				sb.WriteString(renderPermissionRuleYAML(perm.AndRules[0], indent+4, rbacType))
 			} else {
-				// Multiple rules: and_rules wrapper, list item aligned with "permissions:" key
 				sb.WriteString(fmt.Sprintf("%s    - and_rules:\n", prefix))
 				sb.WriteString(fmt.Sprintf("%s        rules:\n", prefix))
 				for _, r := range perm.AndRules {
-					// Inner list items aligned with "rules:" key
 					sb.WriteString(renderPermissionRuleYAML(r, indent+8, rbacType))
 				}
 			}

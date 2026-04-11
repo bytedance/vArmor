@@ -90,17 +90,14 @@ func TestXDSFormat(t *testing.T) {
 		t.Fatalf("TranslateEgressRules failed: %v", err)
 	}
 
-	// LDS must be in xDS discovery response format
 	assertContains(t, result.LDS, `version_info: "1"`, "LDS version_info")
 	assertContains(t, result.LDS, `"@type": type.googleapis.com/envoy.config.listener.v3.Listener`, "LDS Listener type")
 	assertContains(t, result.LDS, "resources:", "LDS resources array")
 
-	// CDS must be in xDS discovery response format
 	assertContains(t, result.CDS, `version_info: "1"`, "CDS version_info")
 	assertContains(t, result.CDS, `"@type": type.googleapis.com/envoy.config.cluster.v3.Cluster`, "CDS Cluster type")
 	assertContains(t, result.CDS, "resources:", "CDS resources array")
 
-	// Must NOT use static_resources format
 	assertNotContains(t, result.LDS, "static_resources:", "must not use static_resources format")
 }
 
@@ -148,9 +145,6 @@ func TestHTTPChainStructure(t *testing.T) {
 	}
 
 	assertContains(t, result.LDS, "http_chain", "HTTP chain name")
-
-	// CRITICAL: Must use application_protocols (set by http_inspector),
-	// NOT transport_protocol: "raw_buffer" which would swallow all non-TLS traffic
 	assertContains(t, result.LDS, `application_protocols: ["http/1.0", "http/1.1", "h2c"]`,
 		"HTTP chain must match by application_protocols from http_inspector")
 	assertNotContains(t, result.LDS, `transport_protocol: "raw_buffer"`,
@@ -295,7 +289,7 @@ func TestScenario10_TCP_MetadataService_CIDRDeny(t *testing.T) {
 }
 
 // ============================================================================
-// Additional tests
+// Additional tests (existing)
 // ============================================================================
 
 func TestDefaultActionAllow(t *testing.T) {
@@ -313,6 +307,11 @@ func TestDefaultActionAllow(t *testing.T) {
 	assertNotContains(t, result.LDS, "action: ALLOW", "no ALLOW RBAC when defaultAction=allow")
 }
 
+// TestAuditOnlyRule tests the new audit behavior:
+// In deny-default mode, "audit" alone → deny + auto-audit (follows default).
+// The deny rule for 10.0.0.1 goes into the deny RBAC (enforcement).
+// Access log is enabled for deny-default.
+// The allow rule for 10.0.0.2 goes into the allow RBAC.
 func TestAuditOnlyRule(t *testing.T) {
 	egress := &varmor.NetworkProxyEgress{
 		DefaultAction: "deny",
@@ -325,9 +324,13 @@ func TestAuditOnlyRule(t *testing.T) {
 	if err != nil {
 		t.Fatalf("TranslateEgressRules failed: %v", err)
 	}
-	assertContains(t, result.LDS, "shadow_rules:", "shadow_rules for audit")
-	assertContains(t, result.LDS, "10.0.0.1", "audit rule IP")
+	// In deny-default, "audit" alone → deny (follows default) + auto-audit.
+	// 10.0.0.1 is in the deny RBAC (enforcement).
+	assertContains(t, result.LDS, "10.0.0.1", "audit-only rule IP in deny RBAC")
 	assertContains(t, result.LDS, "10.0.0.2", "allow rule IP")
+	assertContains(t, result.LDS, "action: DENY", "DENY action for audit-only rule")
+	// Access log enabled for deny-default
+	assertContains(t, result.LDS, "access_log", "access_log enabled for deny-default")
 }
 
 func TestPortRange(t *testing.T) {
@@ -388,10 +391,6 @@ func TestMultipleHostsORSemantics(t *testing.T) {
 	assertContains(t, result.LDS, `exact: "b.com"`, "host b.com")
 }
 
-// TestChainSelectionIsolation verifies that the 3 chains are properly isolated:
-// - TLS traffic → Chain 1 (transport_protocol: tls)
-// - HTTP traffic → Chain 2 (application_protocols: http/*)
-// - Other TCP → Chain 3 (default_filter_chain)
 func TestChainSelectionIsolation(t *testing.T) {
 	egress := buildTestEgress()
 	result, err := TranslateEgressRules(egress, 1, 15001)
@@ -401,18 +400,11 @@ func TestChainSelectionIsolation(t *testing.T) {
 
 	lds := result.LDS
 
-	// Chain 1: TLS uses transport_protocol
 	assertContains(t, lds, `transport_protocol: "tls"`, "Chain 1 matches TLS")
-
-	// Chain 2: HTTP uses application_protocols (NOT raw_buffer)
 	assertContains(t, lds, `application_protocols: ["http/1.0", "http/1.1", "h2c"]`,
 		"Chain 2 matches HTTP by application_protocols")
-
-	// Verify raw_buffer is NOT used anywhere (would cause chain overlap)
 	assertNotContains(t, lds, "raw_buffer",
 		"raw_buffer must not be used (would make TCP default chain unreachable)")
-
-	// Chain 3: default_filter_chain (no match criteria)
 	assertContains(t, lds, "default_filter_chain:", "Chain 3 is default fallback")
 }
 
@@ -420,8 +412,6 @@ func TestChainSelectionIsolation(t *testing.T) {
 // L7 Method and Path tests
 // ============================================================================
 
-// TestMethodOnlyRule verifies that a rule with only methods (no hosts/ports/paths)
-// generates :method header matchers in the HTTP chain.
 func TestMethodOnlyRule(t *testing.T) {
 	egress := &varmor.NetworkProxyEgress{
 		DefaultAction: "deny",
@@ -444,7 +434,6 @@ func TestMethodOnlyRule(t *testing.T) {
 	assertContains(t, result.LDS, `exact: "POST"`, "POST method match")
 }
 
-// TestPathOnlyRule verifies that a rule with only paths generates url_path matchers.
 func TestPathOnlyRule(t *testing.T) {
 	egress := &varmor.NetworkProxyEgress{
 		DefaultAction: "deny",
@@ -470,9 +459,6 @@ func TestPathOnlyRule(t *testing.T) {
 	assertContains(t, result.LDS, `prefix: "/v1/models"`, "prefix path match")
 }
 
-// TestHostMethodPathCrossProduct verifies the cross product: hosts × methods × paths.
-// Rule: hosts=[api.openai.com] + methods=[POST] + paths=[/v1/chat/completions]
-// Expected: single AND permission with 3 matchers (host AND method AND path)
 func TestHostMethodPathCrossProduct(t *testing.T) {
 	egress := &varmor.NetworkProxyEgress{
 		DefaultAction: "deny",
@@ -494,7 +480,6 @@ func TestHostMethodPathCrossProduct(t *testing.T) {
 
 	lds := result.LDS
 
-	// All three matchers must be present
 	assertContains(t, lds, `name: ":authority"`, "host header matcher")
 	assertContains(t, lds, `exact: "api.openai.com"`, "host exact match")
 	assertContains(t, lds, `name: ":method"`, "method header matcher")
@@ -502,13 +487,9 @@ func TestHostMethodPathCrossProduct(t *testing.T) {
 	assertContains(t, lds, "url_path:", "url_path matcher")
 	assertContains(t, lds, `exact: "/v1/chat/completions"`, "exact path match")
 
-	// Should use and_rules (3 matchers ANDed together)
 	assertContains(t, lds, "and_rules:", "and_rules for cross product")
 }
 
-// TestMultiMethodMultiPathCrossProduct verifies cross product with multiple values.
-// Rule: methods=[GET, POST] + paths=[/api, /health]
-// Expected: 4 permissions (GET+/api, GET+/health, POST+/api, POST+/health)
 func TestMultiMethodMultiPathCrossProduct(t *testing.T) {
 	egress := &varmor.NetworkProxyEgress{
 		DefaultAction: "deny",
@@ -533,12 +514,9 @@ func TestMultiMethodMultiPathCrossProduct(t *testing.T) {
 	assertContains(t, lds, `prefix: "/api"`, "prefix path /api")
 	assertContains(t, lds, `exact: "/health"`, "exact path /health")
 
-	// Should have and_rules for each combination
 	assertContains(t, lds, "and_rules:", "and_rules for cross product combos")
 }
 
-// TestHostPortMethodPathFullCombination verifies the full 4-dimension cross product.
-// Rule: hosts=[api.openai.com] + ports=[443] + methods=[POST] + paths=[/v1/chat/completions]
 func TestHostPortMethodPathFullCombination(t *testing.T) {
 	egress := &varmor.NetworkProxyEgress{
 		DefaultAction: "deny",
@@ -570,7 +548,6 @@ func TestHostPortMethodPathFullCombination(t *testing.T) {
 	assertContains(t, lds, "and_rules:", "all 4 dimensions ANDed")
 }
 
-// TestMethodCaseNormalization verifies that method names are normalized to uppercase.
 func TestMethodCaseNormalization(t *testing.T) {
 	egress := &varmor.NetworkProxyEgress{
 		DefaultAction: "deny",
@@ -592,7 +569,6 @@ func TestMethodCaseNormalization(t *testing.T) {
 	assertContains(t, result.LDS, `exact: "POST"`, "mixed case 'Post' normalized to 'POST'")
 }
 
-// TestMethodPathDenyRule verifies that deny rules with methods/paths work correctly.
 func TestMethodPathDenyRule(t *testing.T) {
 	egress := &varmor.NetworkProxyEgress{
 		DefaultAction: "allow",
@@ -619,8 +595,6 @@ func TestMethodPathDenyRule(t *testing.T) {
 	assertContains(t, lds, `exact: "internal.service"`, "host in deny rule")
 }
 
-// TestTLSChainIgnoresMethodsAndPaths verifies that methods/paths in HTTPRules
-// are NOT applied to the TLS chain (only SNI + port are usable in TLS).
 func TestTLSChainIgnoresMethodsAndPaths(t *testing.T) {
 	egress := &varmor.NetworkProxyEgress{
 		DefaultAction: "deny",
@@ -642,19 +616,10 @@ func TestTLSChainIgnoresMethodsAndPaths(t *testing.T) {
 
 	lds := result.LDS
 
-	// TLS chain should have SNI match for the host
 	assertContains(t, lds, `exact: "api.openai.com"`, "SNI match in TLS chain")
-
-	// TLS chain uses requested_server_name, not :authority header
 	assertContains(t, lds, "requested_server_name:", "SNI matcher in TLS chain")
-
-	// The :method and url_path should only appear in the HTTP chain section,
-	// not in the TLS chain section. We verify by checking that the TLS chain
-	// uses requested_server_name (SNI) for host matching.
-	// Methods/Paths are only applicable via http.rbac in the HTTP chain.
 }
 
-// TestHostWithMethodNoPath verifies partial L7: hosts + methods but no paths.
 func TestHostWithMethodNoPath(t *testing.T) {
 	egress := &varmor.NetworkProxyEgress{
 		DefaultAction: "deny",
@@ -681,8 +646,6 @@ func TestHostWithMethodNoPath(t *testing.T) {
 	assertContains(t, lds, "and_rules:", "host AND method combined")
 }
 
-// TestCrossProductCount verifies the number of permissions generated by cross product.
-// 2 hosts × 2 methods = 4 permissions (each is a single AND rule)
 func TestCrossProductCount(t *testing.T) {
 	egress := &varmor.NetworkProxyEgress{
 		DefaultAction: "deny",
@@ -703,13 +666,643 @@ func TestCrossProductCount(t *testing.T) {
 
 	lds := result.LDS
 
-	// Count "and_rules:" occurrences - should be 4 (2 hosts × 2 methods)
 	count := strings.Count(lds, "and_rules:")
-	// In HTTP chain: 4 and_rules for the allow RBAC
-	// Each is: (host AND method)
 	if count < 4 {
-		t.Errorf("expected at least 4 and_rules for 2×2 cross product in HTTP chain, got %d", count)
+		t.Errorf("expected at least 4 and_rules for 2x2 cross product in HTTP chain, got %d", count)
 	}
+}
+
+// ============================================================================
+// AUDIT TESTS - Semantic Matrix Verification (v4: all-CEL)
+//
+// v4 architecture:
+//   Listener: CEL on connection.termination_details (deny) + network.rbac metadata (shadow)
+//   HCM:      CEL on response.code_details (deny) + http.rbac metadata (shadow)
+//   tcp_proxy: NO access_log (all handled at listener/HCM level)
+//
+// No UAEX, no response_flag_filter, no metadata_filter, no or_filter anywhere.
+// ============================================================================
+
+// TestDenyDefaultAutoAudit verifies that access_log is present when defaultAction=deny.
+// In deny-default mode, ALL deny actions are auto-audited.
+// Both listener and HCM use CEL extension_filter.
+// When no shadow_rules exist (no allow+audit rules), CEL checks deny only.
+func TestDenyDefaultAutoAudit(t *testing.T) {
+	egress := &varmor.NetworkProxyEgress{
+		DefaultAction: "deny",
+		Rules: []varmor.NetworkProxyEgressRule{
+			{Qualifiers: []string{"allow"}, IP: "10.0.0.1"},
+		},
+	}
+	result, err := TranslateEgressRules(egress, 1, 15001)
+	if err != nil {
+		t.Fatalf("TranslateEgressRules failed: %v", err)
+	}
+
+	lds := result.LDS
+	// access_log should be present (deny-default always enables it)
+	assertContains(t, lds, "access_log", "access_log present for deny-default auto-audit")
+	assertContains(t, lds, "envoy.access_loggers.stdout", "stdout access logger")
+	// Listener-level uses CEL on connection.termination_details
+	assertContains(t, lds, "extension_filter", "CEL extension_filter")
+	assertContains(t, lds, "ExpressionFilter", "CEL ExpressionFilter type")
+	assertContains(t, lds, "connection.termination_details", "listener CEL checks termination_details")
+	// Listener-level access_log for denied connections
+	assertContains(t, lds, "[L4] dst=", "listener-level access_log format")
+	// HCM access_log uses CEL on response.code_details
+	assertContains(t, lds, "REQ(:METHOD)", "HCM access_log format present")
+	assertContains(t, lds, "rbac_access_denied", "CEL matches rbac_access_denied")
+	// No legacy filters
+	assertNotContains(t, lds, "UAEX", "no UAEX in v4")
+	assertNotContains(t, lds, "response_flag_filter", "no response_flag_filter in v4")
+	assertNotContains(t, lds, "or_filter", "no or_filter when no shadow_rules")
+	assertNotContains(t, lds, "metadata_filter", "no metadata_filter in v4")
+}
+
+// TestDenyDefaultAllowNoAudit verifies that an allow rule without audit qualifier
+// does NOT add shadow_rules in deny-default mode.
+func TestDenyDefaultAllowNoAudit(t *testing.T) {
+	egress := &varmor.NetworkProxyEgress{
+		DefaultAction: "deny",
+		Rules: []varmor.NetworkProxyEgressRule{
+			{Qualifiers: []string{"allow"}, IP: "10.0.0.1"},
+		},
+	}
+	result, err := TranslateEgressRules(egress, 1, 15001)
+	if err != nil {
+		t.Fatalf("TranslateEgressRules failed: %v", err)
+	}
+
+	lds := result.LDS
+	// allow without audit should NOT create shadow_rules
+	assertNotContains(t, lds, "shadow_rules", "no shadow_rules for allow without audit")
+	// The allow rule should still be in the ALLOW RBAC
+	assertContains(t, lds, "action: ALLOW", "ALLOW RBAC present")
+	assertContains(t, lds, "10.0.0.1", "allow rule IP present")
+}
+
+// TestDenyDefaultAllowWithAudit verifies that allow+audit adds shadow_rules in deny-default.
+// v4: HCM uses single CEL expression with deny OR shadow check.
+func TestDenyDefaultAllowWithAudit(t *testing.T) {
+	egress := &varmor.NetworkProxyEgress{
+		DefaultAction: "deny",
+		Rules: []varmor.NetworkProxyEgressRule{
+			{Qualifiers: []string{"allow", "audit"}, IP: "10.0.0.1"},
+		},
+	}
+	result, err := TranslateEgressRules(egress, 1, 15001)
+	if err != nil {
+		t.Fatalf("TranslateEgressRules failed: %v", err)
+	}
+
+	lds := result.LDS
+	// allow+audit should create shadow_rules for the allow rule
+	assertContains(t, lds, "shadow_rules", "shadow_rules for allow+audit")
+	// The allow rule should also be in ALLOW RBAC enforcement
+	assertContains(t, lds, "action: ALLOW", "ALLOW RBAC for enforcement")
+	assertContains(t, lds, "10.0.0.1", "audit allow rule IP")
+	// access_log should be present (deny-default)
+	assertContains(t, lds, "access_log", "access_log present")
+	// v4: single CEL expression combining deny + shadow check in HCM
+	assertContains(t, lds, "extension_filter", "CEL extension_filter")
+	assertContains(t, lds, "rbac_access_denied", "CEL deny detection")
+	assertContains(t, lds, "shadow_effective_policy_id", "CEL shadow detection")
+	assertContains(t, lds, "envoy.filters.http.rbac", "HTTP RBAC namespace in CEL")
+	// Listener-level uses CEL on termination_details + shadow
+	assertContains(t, lds, "connection.termination_details", "listener CEL deny detection")
+	assertContains(t, lds, "envoy.filters.network.rbac", "network RBAC namespace in CEL")
+	// No legacy filters
+	assertNotContains(t, lds, "UAEX", "no UAEX in v4")
+	assertNotContains(t, lds, "or_filter", "no or_filter in v4")
+	assertNotContains(t, lds, "metadata_filter", "no metadata_filter in v4")
+	assertNotContains(t, lds, "response_flag_filter", "no response_flag_filter in v4")
+}
+
+// TestDenyDefaultAuditOnlyFollowsDefault verifies that "audit" alone in deny-default
+// mode means deny + auto-audit (follows defaultAction=deny).
+func TestDenyDefaultAuditOnlyFollowsDefault(t *testing.T) {
+	egress := &varmor.NetworkProxyEgress{
+		DefaultAction: "deny",
+		Rules: []varmor.NetworkProxyEgressRule{
+			{Qualifiers: []string{"audit"}, IP: "10.0.0.1"},
+		},
+	}
+	result, err := TranslateEgressRules(egress, 1, 15001)
+	if err != nil {
+		t.Fatalf("TranslateEgressRules failed: %v", err)
+	}
+
+	lds := result.LDS
+	// "audit" alone in deny-default → deny (follows default) + auto-audit
+	// 10.0.0.1 should be in the DENY RBAC (not ALLOW)
+	assertContains(t, lds, "action: DENY", "DENY action for audit-only in deny-default")
+	assertContains(t, lds, "10.0.0.1", "audit rule IP in deny RBAC")
+	// NO shadow_rules needed: deny is auto-audited in deny-default
+	assertNotContains(t, lds, "shadow_rules", "no shadow_rules for auto-audited deny")
+	// access_log enabled with CEL
+	assertContains(t, lds, "access_log", "access_log for deny-default")
+	assertContains(t, lds, "extension_filter", "CEL extension_filter")
+	assertContains(t, lds, "rbac_access_denied", "CEL matches rbac_access_denied")
+	assertContains(t, lds, "connection.termination_details", "listener CEL")
+	// No legacy filters
+	assertNotContains(t, lds, "UAEX", "no UAEX in v4")
+	assertNotContains(t, lds, "response_flag_filter", "no response_flag_filter in v4")
+}
+
+// TestAllowDefaultNoAccessLog verifies no access_log when defaultAction=allow
+// and no rules have audit qualifier.
+func TestAllowDefaultNoAccessLog(t *testing.T) {
+	egress := &varmor.NetworkProxyEgress{
+		DefaultAction: "allow",
+		Rules: []varmor.NetworkProxyEgressRule{
+			{Qualifiers: []string{"deny"}, CIDR: "169.254.0.0/16"},
+		},
+	}
+	result, err := TranslateEgressRules(egress, 1, 15001)
+	if err != nil {
+		t.Fatalf("TranslateEgressRules failed: %v", err)
+	}
+
+	lds := result.LDS
+	// No audit qualifier → no access_log in allow-default
+	assertNotContains(t, lds, "access_log", "no access_log when allow-default and no audit")
+	assertNotContains(t, lds, "shadow_rules", "no shadow_rules when no audit")
+	// Deny RBAC should still be present
+	assertContains(t, lds, "action: DENY", "DENY RBAC present")
+}
+
+// TestAllowDefaultDenyWithAudit verifies that deny+audit enables access_log and
+// shadow_rules in allow-default mode.
+// v4: uses CEL shadow check instead of metadata_filter.
+func TestAllowDefaultDenyWithAudit(t *testing.T) {
+	egress := &varmor.NetworkProxyEgress{
+		DefaultAction: "allow",
+		Rules: []varmor.NetworkProxyEgressRule{
+			{Qualifiers: []string{"deny", "audit"}, CIDR: "169.254.0.0/16"},
+		},
+	}
+	result, err := TranslateEgressRules(egress, 1, 15001)
+	if err != nil {
+		t.Fatalf("TranslateEgressRules failed: %v", err)
+	}
+
+	lds := result.LDS
+	// deny+audit in allow-default → deny + audit via shadow_rules
+	assertContains(t, lds, "access_log", "access_log for deny+audit in allow-default")
+	assertContains(t, lds, "action: DENY", "DENY RBAC for deny+audit")
+	assertContains(t, lds, "169.254.0.0", "deny CIDR")
+	// shadow_rules needed for CEL shadow check
+	assertContains(t, lds, "shadow_rules", "shadow_rules for deny+audit in allow-default")
+	// v4: CEL shadow check in HCM and listener
+	assertContains(t, lds, "extension_filter", "CEL extension_filter")
+	assertContains(t, lds, "shadow_effective_policy_id", "CEL checks shadow_effective_policy_id")
+	// No legacy filters
+	assertNotContains(t, lds, "UAEX", "no UAEX for allow-default")
+	assertNotContains(t, lds, "or_filter", "no or_filter in v4")
+	assertNotContains(t, lds, "metadata_filter", "no metadata_filter in v4")
+	assertNotContains(t, lds, "response_flag_filter", "no response_flag_filter in v4")
+}
+
+// TestAllowDefaultDenyNoAudit verifies that deny without audit doesn't enable
+// access_log when there are no other audit rules.
+func TestAllowDefaultDenyNoAudit(t *testing.T) {
+	egress := &varmor.NetworkProxyEgress{
+		DefaultAction: "allow",
+		Rules: []varmor.NetworkProxyEgressRule{
+			{Qualifiers: []string{"deny"}, CIDR: "169.254.0.0/16"},
+		},
+	}
+	result, err := TranslateEgressRules(egress, 1, 15001)
+	if err != nil {
+		t.Fatalf("TranslateEgressRules failed: %v", err)
+	}
+
+	lds := result.LDS
+	// deny without audit in allow-default → no access_log
+	assertNotContains(t, lds, "access_log", "no access_log for deny without audit in allow-default")
+}
+
+// TestAllowDefaultAuditOnly verifies that "audit" alone in allow-default mode
+// means allow + audit (follows defaultAction=allow).
+// v4: uses CEL shadow check.
+func TestAllowDefaultAuditOnly(t *testing.T) {
+	egress := &varmor.NetworkProxyEgress{
+		DefaultAction: "allow",
+		Rules: []varmor.NetworkProxyEgressRule{
+			{Qualifiers: []string{"audit"}, IP: "10.0.0.1"},
+		},
+	}
+	result, err := TranslateEgressRules(egress, 1, 15001)
+	if err != nil {
+		t.Fatalf("TranslateEgressRules failed: %v", err)
+	}
+
+	lds := result.LDS
+	// "audit" alone in allow-default → allow + audit
+	// Should create shadow_rules for the allow+audit rule
+	assertContains(t, lds, "shadow_rules", "shadow_rules for audit-only in allow-default")
+	assertContains(t, lds, "10.0.0.1", "audit rule IP in shadow_rules")
+	// No DENY RBAC (it's an allow action)
+	assertNotContains(t, lds, "action: DENY", "no DENY action for allow+audit")
+	// access_log should be enabled (audit qualifier present)
+	assertContains(t, lds, "access_log", "access_log for audit in allow-default")
+	// v4: CEL shadow check
+	assertContains(t, lds, "extension_filter", "CEL extension_filter")
+	assertContains(t, lds, "shadow_effective_policy_id", "CEL checks shadow key")
+	// No legacy filters
+	assertNotContains(t, lds, "UAEX", "no UAEX for allow-default")
+	assertNotContains(t, lds, "metadata_filter", "no metadata_filter in v4")
+}
+
+// TestDenyDefaultDenyWithAuditRedundant verifies that deny+audit in deny-default
+// is the same as deny alone (audit is redundant since auto-audited).
+func TestDenyDefaultDenyWithAuditRedundant(t *testing.T) {
+	// deny+audit in deny-default: deny action, auto-audit (audit redundant)
+	egress := &varmor.NetworkProxyEgress{
+		DefaultAction: "deny",
+		Rules: []varmor.NetworkProxyEgressRule{
+			{Qualifiers: []string{"deny", "audit"}, CIDR: "169.254.0.0/16"},
+			{Qualifiers: []string{"allow"}, IP: "10.0.0.1"},
+		},
+	}
+	result, err := TranslateEgressRules(egress, 1, 15001)
+	if err != nil {
+		t.Fatalf("TranslateEgressRules failed: %v", err)
+	}
+
+	lds := result.LDS
+	assertContains(t, lds, "action: DENY", "DENY action present")
+	assertContains(t, lds, "169.254.0.0", "deny CIDR")
+	assertContains(t, lds, "action: ALLOW", "ALLOW action for allow rule")
+	// access_log enabled (deny-default auto-audit)
+	assertContains(t, lds, "access_log", "access_log present")
+	// No shadow_rules (deny is auto-audited, not via shadow_rules)
+	assertNotContains(t, lds, "shadow_rules", "no shadow_rules for deny+audit in deny-default")
+	// v4: CEL at listener and HCM
+	assertContains(t, lds, "extension_filter", "CEL extension_filter")
+	assertContains(t, lds, "rbac_access_denied", "CEL matches rbac_access_denied")
+	assertContains(t, lds, "connection.termination_details", "listener CEL")
+	// No legacy filters
+	assertNotContains(t, lds, "UAEX", "no UAEX in v4")
+	assertNotContains(t, lds, "metadata_filter", "no metadata_filter in v4")
+}
+
+// TestAllowDefaultAllowWithAudit verifies that allow+audit in allow-default
+// creates shadow_rules and enables access_log with CEL shadow check.
+func TestAllowDefaultAllowWithAudit(t *testing.T) {
+	egress := &varmor.NetworkProxyEgress{
+		DefaultAction: "allow",
+		HTTPRules: []varmor.NetworkProxyHTTPRule{
+			{
+				Qualifiers: []string{"allow", "audit"},
+				Match: varmor.HTTPMatch{
+					Hosts: []string{"api.openai.com"},
+				},
+			},
+		},
+	}
+	result, err := TranslateEgressRules(egress, 1, 15001)
+	if err != nil {
+		t.Fatalf("TranslateEgressRules failed: %v", err)
+	}
+
+	lds := result.LDS
+	// allow+audit in allow-default → allow action, audited via shadow_rules
+	assertContains(t, lds, "shadow_rules", "shadow_rules for allow+audit")
+	assertContains(t, lds, "access_log", "access_log for audit")
+	assertContains(t, lds, `"api.openai.com"`, "host in shadow_rules")
+	// No enforcement RBAC needed (defaultAction=allow)
+	assertNotContains(t, lds, "action: DENY", "no DENY in allow-default with only allow+audit")
+	// v4: CEL shadow check
+	assertContains(t, lds, "extension_filter", "CEL extension_filter")
+	assertContains(t, lds, "shadow_effective_policy_id", "CEL shadow check")
+	// No legacy filters
+	assertNotContains(t, lds, "UAEX", "no UAEX for allow-default")
+	assertNotContains(t, lds, "metadata_filter", "no metadata_filter in v4")
+}
+
+// TestMixedAuditRulesInAllowDefault verifies a scenario with mixed rules in allow-default.
+func TestMixedAuditRulesInAllowDefault(t *testing.T) {
+	egress := &varmor.NetworkProxyEgress{
+		DefaultAction: "allow",
+		Rules: []varmor.NetworkProxyEgressRule{
+			{Qualifiers: []string{"deny", "audit"}, CIDR: "169.254.0.0/16"},
+			{Qualifiers: []string{"deny"}, CIDR: "10.0.0.0/8"},
+		},
+		HTTPRules: []varmor.NetworkProxyHTTPRule{
+			{
+				Qualifiers: []string{"allow", "audit"},
+				Match:      varmor.HTTPMatch{Hosts: []string{"api.openai.com"}},
+			},
+		},
+	}
+	result, err := TranslateEgressRules(egress, 1, 15001)
+	if err != nil {
+		t.Fatalf("TranslateEgressRules failed: %v", err)
+	}
+
+	lds := result.LDS
+	// Both deny rules should be in DENY RBAC
+	assertContains(t, lds, "action: DENY", "DENY RBAC present")
+	assertContains(t, lds, "169.254.0.0", "deny+audit CIDR")
+	assertContains(t, lds, "10.0.0.0", "deny CIDR")
+	// allow+audit HTTP rule AND deny+audit egress rule → shadow_rules
+	assertContains(t, lds, "shadow_rules", "shadow_rules for audit rules")
+	// access_log enabled (audit qualifier present)
+	assertContains(t, lds, "access_log", "access_log enabled")
+	// v4: CEL shadow check
+	assertContains(t, lds, "extension_filter", "CEL extension_filter")
+	assertContains(t, lds, "shadow_effective_policy_id", "CEL shadow check")
+	// No legacy filters
+	assertNotContains(t, lds, "UAEX", "no UAEX for allow-default")
+	assertNotContains(t, lds, "metadata_filter", "no metadata_filter in v4")
+}
+
+// TestClassifyRuleFunction directly tests the classifyRule helper.
+func TestClassifyRuleFunction(t *testing.T) {
+	tests := []struct {
+		name        string
+		qualifiers  []string
+		defaultDeny bool
+		wantAction  ruleAction
+		wantAudit   bool
+	}{
+		// deny-default cases
+		{"deny-default, deny qualifier", []string{"deny"}, true, ruleActionDeny, true},
+		{"deny-default, deny+audit qualifier", []string{"deny", "audit"}, true, ruleActionDeny, true},
+		{"deny-default, audit only", []string{"audit"}, true, ruleActionDeny, true},
+		{"deny-default, allow qualifier", []string{"allow"}, true, ruleActionAllow, false},
+		{"deny-default, allow+audit qualifier", []string{"allow", "audit"}, true, ruleActionAllow, true},
+
+		// allow-default cases
+		{"allow-default, allow qualifier", []string{"allow"}, false, ruleActionAllow, false},
+		{"allow-default, allow+audit qualifier", []string{"allow", "audit"}, false, ruleActionAllow, true},
+		{"allow-default, audit only", []string{"audit"}, false, ruleActionAllow, true},
+		{"allow-default, deny qualifier", []string{"deny"}, false, ruleActionDeny, false},
+		{"allow-default, deny+audit qualifier", []string{"deny", "audit"}, false, ruleActionDeny, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			action, audit := classifyRule(tt.qualifiers, tt.defaultDeny)
+			if action != tt.wantAction {
+				t.Errorf("classifyRule(%v, %v) action = %v, want %v", tt.qualifiers, tt.defaultDeny, action, tt.wantAction)
+			}
+			if audit != tt.wantAudit {
+				t.Errorf("classifyRule(%v, %v) audit = %v, want %v", tt.qualifiers, tt.defaultDeny, audit, tt.wantAudit)
+			}
+		})
+	}
+}
+
+// ============================================================================
+// FILTER-SPECIFIC TESTS - Verify exact filter structure (v4: all-CEL)
+// ============================================================================
+
+// TestDenyDefaultFilterStructure verifies that deny-default with shadow_rules uses
+// a single CEL expression combining deny+shadow check in HCM access_log.
+func TestDenyDefaultFilterStructure(t *testing.T) {
+	egress := &varmor.NetworkProxyEgress{
+		DefaultAction: "deny",
+		Rules: []varmor.NetworkProxyEgressRule{
+			{Qualifiers: []string{"allow", "audit"}, IP: "10.0.0.1"},
+		},
+	}
+	result, err := TranslateEgressRules(egress, 1, 15001)
+	if err != nil {
+		t.Fatalf("TranslateEgressRules failed: %v", err)
+	}
+
+	lds := result.LDS
+	// v4: HCM uses single CEL with deny OR shadow
+	assertContains(t, lds, "extension_filter", "CEL extension_filter in HCM access_log")
+	assertContains(t, lds, "rbac_access_denied", "CEL matches rbac_access_denied")
+	assertContains(t, lds, "shadow_effective_policy_id", "CEL checks shadow metadata")
+	assertContains(t, lds, "envoy.filters.http.rbac", "http rbac namespace in CEL")
+	assertContains(t, lds, "envoy.filters.network.rbac", "network rbac namespace in listener CEL")
+	assertContains(t, lds, "connection.termination_details", "listener CEL for deny detection")
+	// No legacy filters
+	assertNotContains(t, lds, "or_filter", "no or_filter in v4")
+	assertNotContains(t, lds, "metadata_filter", "no metadata_filter in v4")
+	assertNotContains(t, lds, "UAEX", "no UAEX in v4")
+	assertNotContains(t, lds, "response_flag_filter", "no response_flag_filter in v4")
+}
+
+// TestAllowDefaultFilterStructure verifies that allow-default uses CEL shadow
+// check only (no deny detection needed).
+func TestAllowDefaultFilterStructure(t *testing.T) {
+	egress := &varmor.NetworkProxyEgress{
+		DefaultAction: "allow",
+		Rules: []varmor.NetworkProxyEgressRule{
+			{Qualifiers: []string{"audit"}, IP: "10.0.0.1"},
+		},
+	}
+	result, err := TranslateEgressRules(egress, 1, 15001)
+	if err != nil {
+		t.Fatalf("TranslateEgressRules failed: %v", err)
+	}
+
+	lds := result.LDS
+	// v4: allow-default uses CEL shadow check only
+	assertContains(t, lds, "extension_filter", "CEL extension_filter")
+	assertContains(t, lds, "shadow_effective_policy_id", "CEL shadow check")
+	// No legacy filters
+	assertNotContains(t, lds, "UAEX", "no UAEX for allow-default")
+	assertNotContains(t, lds, "or_filter", "no or_filter in v4")
+	assertNotContains(t, lds, "response_flag_filter", "no response_flag_filter in v4")
+	assertNotContains(t, lds, "metadata_filter", "no metadata_filter in v4")
+}
+
+// TestTCPProxyNoAccessLog verifies that tcp_proxy has NO access_log in v4.
+// All audit is handled at listener-level and HCM-level via CEL.
+func TestTCPProxyNoAccessLog(t *testing.T) {
+	// deny-default with shadow: tcp_proxy should still have NO access_log
+	egress := &varmor.NetworkProxyEgress{
+		DefaultAction: "deny",
+		Rules: []varmor.NetworkProxyEgressRule{
+			{Qualifiers: []string{"allow", "audit"}, IP: "10.0.0.1"},
+		},
+	}
+	result, err := TranslateEgressRules(egress, 1, 15001)
+	if err != nil {
+		t.Fatalf("TranslateEgressRules failed: %v", err)
+	}
+
+	lds := result.LDS
+	// v4: tcp_proxy should NOT have any access_log
+	// The old "TCP dst=" format should not appear
+	assertNotContains(t, lds, "TCP dst=", "no tcp_proxy access_log in v4")
+	// Listener and HCM should still have access_log
+	assertContains(t, lds, "[L4] dst=", "listener access_log present")
+	assertContains(t, lds, "REQ(:METHOD)", "HCM access_log present")
+}
+
+// TestDenyDefaultNoShadowCELDenyOnly verifies that when deny-default
+// has no allow+audit rules, both listener and HCM use CEL deny-only check.
+func TestDenyDefaultNoShadowCELDenyOnly(t *testing.T) {
+	egress := &varmor.NetworkProxyEgress{
+		DefaultAction: "deny",
+		Rules: []varmor.NetworkProxyEgressRule{
+			{Qualifiers: []string{"allow"}, IP: "10.0.0.1"},
+		},
+		HTTPRules: []varmor.NetworkProxyHTTPRule{
+			{
+				Qualifiers: []string{"allow"},
+				Match:      varmor.HTTPMatch{Hosts: []string{"example.com"}},
+			},
+		},
+	}
+	result, err := TranslateEgressRules(egress, 1, 15001)
+	if err != nil {
+		t.Fatalf("TranslateEgressRules failed: %v", err)
+	}
+
+	lds := result.LDS
+
+	// No shadow_rules → no shadow check in CEL
+	assertNotContains(t, lds, "shadow_rules", "no shadow_rules without allow+audit")
+	assertNotContains(t, lds, "shadow_effective_policy_id", "no shadow check in CEL")
+
+	// Listener-level uses CEL deny check
+	assertContains(t, lds, "connection.termination_details", "listener CEL deny check")
+	assertContains(t, lds, "[L4] dst=", "listener-level access_log format")
+
+	// HCM access_log uses CEL deny check
+	assertContains(t, lds, "extension_filter", "CEL extension_filter")
+	assertContains(t, lds, "rbac_access_denied", "CEL matches rbac_access_denied")
+	assertContains(t, lds, "REQ(:METHOD)", "HCM access_log format")
+
+	// No legacy filters
+	assertNotContains(t, lds, "UAEX", "no UAEX in v4")
+	assertNotContains(t, lds, "response_flag_filter", "no response_flag_filter in v4")
+	assertNotContains(t, lds, "metadata_filter", "no metadata_filter in v4")
+	assertNotContains(t, lds, "or_filter", "no or_filter in v4")
+	// No tcp_proxy access_log
+	assertNotContains(t, lds, "TCP dst=", "no tcp_proxy access_log in v4")
+}
+
+// TestAllowDefaultDenyAuditShadowRulesContainsDenyRule verifies that in allow-default,
+// deny+audit rule appears in both enforcement RBAC (DENY) and shadow_rules.
+func TestAllowDefaultDenyAuditShadowRulesContainsDenyRule(t *testing.T) {
+	egress := &varmor.NetworkProxyEgress{
+		DefaultAction: "allow",
+		Rules: []varmor.NetworkProxyEgressRule{
+			{Qualifiers: []string{"deny", "audit"}, CIDR: "169.254.0.0/16"},
+		},
+	}
+	result, err := TranslateEgressRules(egress, 1, 15001)
+	if err != nil {
+		t.Fatalf("TranslateEgressRules failed: %v", err)
+	}
+
+	lds := result.LDS
+	// Enforcement: DENY RBAC with the CIDR
+	assertContains(t, lds, "action: DENY", "DENY RBAC for enforcement")
+	assertContains(t, lds, "169.254.0.0", "CIDR in enforcement RBAC")
+	// Shadow rules: same rule for audit metadata
+	assertContains(t, lds, "shadow_rules", "shadow_rules for deny+audit")
+	// CEL shadow check in access_log
+	assertContains(t, lds, "shadow_effective_policy_id", "CEL shadow check in access_log")
+}
+
+// TestFullSemanticMatrixDenyDefault walks through ALL deny-default matrix rows.
+func TestFullSemanticMatrixDenyDefault(t *testing.T) {
+	egress := &varmor.NetworkProxyEgress{
+		DefaultAction: "deny",
+		Rules: []varmor.NetworkProxyEgressRule{
+			// Row 2: explicit deny → deny + auto-audit
+			{Qualifiers: []string{"deny"}, IP: "10.0.0.1"},
+			// Row 3: deny+audit → deny + auto-audit (redundant)
+			{Qualifiers: []string{"deny", "audit"}, IP: "10.0.0.2"},
+			// Row 4: audit alone → deny + auto-audit
+			{Qualifiers: []string{"audit"}, IP: "10.0.0.3"},
+			// Row 5: allow → allow + NO audit
+			{Qualifiers: []string{"allow"}, IP: "10.0.0.4"},
+			// Row 6: allow+audit → allow + audit (shadow)
+			{Qualifiers: []string{"allow", "audit"}, IP: "10.0.0.5"},
+		},
+	}
+	result, err := TranslateEgressRules(egress, 1, 15001)
+	if err != nil {
+		t.Fatalf("TranslateEgressRules failed: %v", err)
+	}
+
+	lds := result.LDS
+
+	// All IPs should appear somewhere
+	for _, ip := range []string{"10.0.0.1", "10.0.0.2", "10.0.0.3", "10.0.0.4", "10.0.0.5"} {
+		assertContains(t, lds, ip, "IP "+ip+" present in output")
+	}
+
+	// DENY RBAC for rows 2,3,4 (deny actions)
+	assertContains(t, lds, "action: DENY", "DENY RBAC present")
+
+	// ALLOW RBAC for rows 5,6 (allow actions in deny-default)
+	assertContains(t, lds, "action: ALLOW", "ALLOW RBAC present")
+
+	// shadow_rules present for row 6 only (allow+audit)
+	assertContains(t, lds, "shadow_rules", "shadow_rules for allow+audit")
+
+	// v4: CEL at both listener and HCM
+	assertContains(t, lds, "extension_filter", "CEL extension_filter")
+	assertContains(t, lds, "rbac_access_denied", "CEL deny detection")
+	assertContains(t, lds, "connection.termination_details", "listener CEL")
+	assertContains(t, lds, "shadow_effective_policy_id", "CEL shadow detection")
+
+	// access_log enabled
+	assertContains(t, lds, "access_log", "access_log enabled")
+
+	// No legacy filters
+	assertNotContains(t, lds, "UAEX", "no UAEX in v4")
+	assertNotContains(t, lds, "or_filter", "no or_filter in v4")
+	assertNotContains(t, lds, "metadata_filter", "no metadata_filter in v4")
+}
+
+// TestFullSemanticMatrixAllowDefault walks through ALL allow-default matrix rows.
+func TestFullSemanticMatrixAllowDefault(t *testing.T) {
+	egress := &varmor.NetworkProxyEgress{
+		DefaultAction: "allow",
+		Rules: []varmor.NetworkProxyEgressRule{
+			// Row 2: explicit allow → allow + NO audit
+			{Qualifiers: []string{"allow"}, IP: "10.0.0.1"},
+			// Row 3: allow+audit → allow + audit (shadow)
+			{Qualifiers: []string{"allow", "audit"}, IP: "10.0.0.2"},
+			// Row 4: audit alone → allow + audit (shadow)
+			{Qualifiers: []string{"audit"}, IP: "10.0.0.3"},
+			// Row 5: deny → deny + NO audit
+			{Qualifiers: []string{"deny"}, IP: "10.0.0.4"},
+			// Row 6: deny+audit → deny + audit (shadow)
+			{Qualifiers: []string{"deny", "audit"}, IP: "10.0.0.5"},
+		},
+	}
+	result, err := TranslateEgressRules(egress, 1, 15001)
+	if err != nil {
+		t.Fatalf("TranslateEgressRules failed: %v", err)
+	}
+
+	lds := result.LDS
+
+	// IPs with enforcement or audit should appear in output
+	for _, ip := range []string{"10.0.0.2", "10.0.0.3", "10.0.0.4", "10.0.0.5"} {
+		assertContains(t, lds, ip, "IP "+ip+" present in output")
+	}
+
+	// DENY RBAC for rows 5,6 (deny actions)
+	assertContains(t, lds, "action: DENY", "DENY RBAC present")
+
+	// shadow_rules for rows 3,4,6 (all with explicit "audit")
+	assertContains(t, lds, "shadow_rules", "shadow_rules for audit rules")
+
+	// access_log enabled (audit qualifiers present)
+	assertContains(t, lds, "access_log", "access_log enabled")
+
+	// v4: CEL shadow check only (no deny detection in allow-default)
+	assertContains(t, lds, "extension_filter", "CEL extension_filter")
+	assertContains(t, lds, "shadow_effective_policy_id", "CEL shadow check")
+	// No legacy filters
+	assertNotContains(t, lds, "UAEX", "no UAEX for allow-default")
+	assertNotContains(t, lds, "or_filter", "no or_filter in v4")
+	assertNotContains(t, lds, "metadata_filter", "no metadata_filter in v4")
 }
 
 // ============================================================================
@@ -736,4 +1329,412 @@ func truncate(s string, maxLen int) string {
 		return s
 	}
 	return s[:maxLen] + "...(truncated)"
+}
+
+// ============================================================================
+// REGRESSION TESTS - v4 CEL architecture verification
+// ============================================================================
+
+// TestListenerAccessLogDenyDefaultCELDeny verifies that listener-level access_log
+// in deny-default mode uses CEL with connection.termination_details.
+// Must NOT use UAEX or response_flag_filter.
+func TestListenerAccessLogDenyDefaultCELDeny(t *testing.T) {
+	egress := &varmor.NetworkProxyEgress{
+		DefaultAction: "deny",
+		Rules: []varmor.NetworkProxyEgressRule{
+			{Qualifiers: []string{"allow"}, IP: "10.0.0.1"},
+		},
+	}
+	result, err := TranslateEgressRules(egress, 1, 15001)
+	if err != nil {
+		t.Fatalf("TranslateEgressRules failed: %v", err)
+	}
+
+	lds := result.LDS
+
+	// Extract the listener-level access_log section (before filter_chains:)
+	filterChainsIdx := strings.Index(lds, "filter_chains:")
+	if filterChainsIdx == -1 {
+		t.Fatal("filter_chains: not found in LDS")
+	}
+	listenerSection := lds[:filterChainsIdx]
+
+	// Listener-level MUST have access_log with CEL
+	if !strings.Contains(listenerSection, "access_log") {
+		t.Fatal("listener-level access_log missing in deny-default mode")
+	}
+	if !strings.Contains(listenerSection, "extension_filter") {
+		t.Fatal("listener-level should have CEL extension_filter")
+	}
+	if !strings.Contains(listenerSection, "connection.termination_details") {
+		t.Fatal("listener-level CEL should check connection.termination_details")
+	}
+	if !strings.Contains(listenerSection, "rbac_access_denied") {
+		t.Fatal("listener-level CEL should match rbac_access_denied")
+	}
+
+	// CRITICAL: Must NOT have legacy filters
+	if strings.Contains(listenerSection, "UAEX") {
+		t.Fatal("REGRESSION: listener-level MUST NOT use UAEX (broken for Network RBAC)")
+	}
+	if strings.Contains(listenerSection, "response_flag_filter") {
+		t.Fatal("REGRESSION: listener-level MUST NOT use response_flag_filter")
+	}
+	if strings.Contains(listenerSection, "metadata_filter") {
+		t.Fatal("listener-level should NOT have metadata_filter")
+	}
+	if strings.Contains(listenerSection, "or_filter") {
+		t.Fatal("listener-level should NOT have or_filter (no shadow_rules in this test)")
+	}
+}
+
+// TestListenerAccessLogAllowDefaultAbsent verifies that listener-level access_log
+// is NOT rendered for allow-default mode when there are NO shadow rules for
+// the listener (i.e., no egress audit rules that generate network RBAC shadows).
+func TestListenerAccessLogAllowDefaultNoShadow(t *testing.T) {
+	egress := &varmor.NetworkProxyEgress{
+		DefaultAction: "allow",
+		Rules: []varmor.NetworkProxyEgressRule{
+			{Qualifiers: []string{"deny"}, CIDR: "169.254.0.0/16"},
+		},
+	}
+	result, err := TranslateEgressRules(egress, 1, 15001)
+	if err != nil {
+		t.Fatalf("TranslateEgressRules failed: %v", err)
+	}
+
+	lds := result.LDS
+
+	// No audit → no access_log anywhere
+	assertNotContains(t, lds, "access_log", "no access_log when no audit rules")
+}
+
+// TestListenerAccessLogAllowDefaultWithShadow verifies that listener-level access_log
+// IS rendered for allow-default mode when shadow rules exist.
+// v4: listener uses CEL shadow check for network RBAC metadata.
+func TestListenerAccessLogAllowDefaultWithShadow(t *testing.T) {
+	egress := &varmor.NetworkProxyEgress{
+		DefaultAction: "allow",
+		Rules: []varmor.NetworkProxyEgressRule{
+			{Qualifiers: []string{"deny", "audit"}, CIDR: "169.254.0.0/16"},
+		},
+	}
+	result, err := TranslateEgressRules(egress, 1, 15001)
+	if err != nil {
+		t.Fatalf("TranslateEgressRules failed: %v", err)
+	}
+
+	lds := result.LDS
+
+	// Extract listener-level section
+	filterChainsIdx := strings.Index(lds, "filter_chains:")
+	if filterChainsIdx == -1 {
+		t.Fatal("filter_chains: not found")
+	}
+	listenerSection := lds[:filterChainsIdx]
+
+	// v4: listener-level SHOULD have access_log with CEL shadow check
+	if !strings.Contains(listenerSection, "access_log") {
+		t.Fatal("listener-level access_log should be present for allow-default with shadow rules")
+	}
+	if !strings.Contains(listenerSection, "extension_filter") {
+		t.Fatal("listener-level should have CEL extension_filter")
+	}
+	if !strings.Contains(listenerSection, "shadow_effective_policy_id") {
+		t.Fatal("listener-level CEL should check shadow_effective_policy_id")
+	}
+	// Should NOT have deny check (allow-default doesn't auto-audit denies)
+	if strings.Contains(listenerSection, "termination_details") {
+		t.Fatal("listener-level should NOT check termination_details for allow-default")
+	}
+}
+
+// TestListenerAccessLogDenyDefaultWithShadow verifies that listener-level access_log
+// in deny-default with shadow rules uses CEL combining deny+shadow check.
+func TestListenerAccessLogDenyDefaultWithShadow(t *testing.T) {
+	egress := &varmor.NetworkProxyEgress{
+		DefaultAction: "deny",
+		Rules: []varmor.NetworkProxyEgressRule{
+			{Qualifiers: []string{"allow", "audit"}, IP: "10.0.0.1"},
+		},
+		HTTPRules: []varmor.NetworkProxyHTTPRule{
+			{
+				Qualifiers: []string{"allow", "audit"},
+				Match:      varmor.HTTPMatch{Hosts: []string{"api.openai.com"}},
+			},
+		},
+	}
+	result, err := TranslateEgressRules(egress, 1, 15001)
+	if err != nil {
+		t.Fatalf("TranslateEgressRules failed: %v", err)
+	}
+
+	lds := result.LDS
+
+	// Extract listener-level section
+	filterChainsIdx := strings.Index(lds, "filter_chains:")
+	if filterChainsIdx == -1 {
+		t.Fatal("filter_chains: not found in LDS")
+	}
+	listenerSection := lds[:filterChainsIdx]
+
+	// Listener-level should have CEL with both deny + shadow check
+	if !strings.Contains(listenerSection, "connection.termination_details") {
+		t.Fatal("listener-level CEL should check termination_details for deny detection")
+	}
+	if !strings.Contains(listenerSection, "shadow_effective_policy_id") {
+		t.Fatal("listener-level CEL should check shadow_effective_policy_id for shadow detection")
+	}
+	// Should NOT have legacy filters
+	if strings.Contains(listenerSection, "UAEX") {
+		t.Fatal("REGRESSION: listener-level MUST NOT use UAEX")
+	}
+	if strings.Contains(listenerSection, "or_filter") {
+		t.Fatal("listener-level should NOT use or_filter (single CEL expression instead)")
+	}
+	if strings.Contains(listenerSection, "metadata_filter") {
+		t.Fatal("listener-level should NOT use metadata_filter")
+	}
+
+	// HCM level should also have combined CEL
+	hcmSection := lds[filterChainsIdx:]
+	if !strings.Contains(hcmSection, "rbac_access_denied") {
+		t.Fatal("HCM-level CEL should check rbac_access_denied for deny detection")
+	}
+	if !strings.Contains(hcmSection, "shadow_effective_policy_id") {
+		t.Fatal("HCM-level CEL should check shadow_effective_policy_id for shadow detection")
+	}
+	if !strings.Contains(hcmSection, "shadow_rules") {
+		t.Fatal("shadow_rules should be present for allow+audit rules")
+	}
+}
+
+// ============================================================================
+// HCM/tcp_proxy specific tests (v4)
+// ============================================================================
+
+// TestDenyDefaultNoShadowHCMOnlyCEL verifies that when deny-default has no
+// shadow_rules, HCM access_log uses CEL deny-only check.
+// No metadata_filter, no or_filter, no UAEX, no tcp_proxy access_log.
+func TestDenyDefaultNoShadowHCMOnlyCEL(t *testing.T) {
+	egress := &varmor.NetworkProxyEgress{
+		DefaultAction: "deny",
+		Rules: []varmor.NetworkProxyEgressRule{
+			{Qualifiers: []string{"allow"}, IP: "10.0.0.1"},
+		},
+		HTTPRules: []varmor.NetworkProxyHTTPRule{
+			{
+				Qualifiers: []string{"allow"},
+				Match:      varmor.HTTPMatch{Hosts: []string{"example.com"}},
+			},
+		},
+	}
+	result, err := TranslateEgressRules(egress, 1, 15001)
+	if err != nil {
+		t.Fatalf("TranslateEgressRules failed: %v", err)
+	}
+
+	lds := result.LDS
+
+	// No shadow_rules → no shadow check
+	assertNotContains(t, lds, "shadow_rules", "no shadow_rules without allow+audit")
+	assertNotContains(t, lds, "shadow_effective_policy_id", "no shadow check without shadow_rules")
+
+	// CEL deny check at both levels
+	assertContains(t, lds, "extension_filter", "CEL extension_filter")
+	assertContains(t, lds, "rbac_access_denied", "CEL matches rbac_access_denied")
+	assertContains(t, lds, "connection.termination_details", "listener CEL deny check")
+
+	// Access log formats
+	assertContains(t, lds, "[L4] dst=", "listener-level access_log format")
+	assertContains(t, lds, "REQ(:METHOD)", "HCM access_log format")
+
+	// No legacy filters
+	assertNotContains(t, lds, "UAEX", "no UAEX in v4")
+	assertNotContains(t, lds, "response_flag_filter", "no response_flag_filter in v4")
+	assertNotContains(t, lds, "metadata_filter", "no metadata_filter in v4")
+	assertNotContains(t, lds, "or_filter", "no or_filter in v4")
+	// No tcp_proxy access_log
+	assertNotContains(t, lds, "TCP dst=", "no tcp_proxy access_log in v4")
+}
+
+// TestDenyDefaultWithShadowHCMCELDenyOrShadow verifies that when deny-default has
+// shadow_rules (allow+audit), HCM access_log uses single CEL combining deny+shadow.
+func TestDenyDefaultWithShadowHCMCELDenyOrShadow(t *testing.T) {
+	egress := &varmor.NetworkProxyEgress{
+		DefaultAction: "deny",
+		Rules: []varmor.NetworkProxyEgressRule{
+			{Qualifiers: []string{"allow", "audit"}, IP: "10.0.0.1"},
+		},
+	}
+	result, err := TranslateEgressRules(egress, 1, 15001)
+	if err != nil {
+		t.Fatalf("TranslateEgressRules failed: %v", err)
+	}
+
+	lds := result.LDS
+
+	// shadow_rules present
+	assertContains(t, lds, "shadow_rules", "shadow_rules for allow+audit")
+
+	// v4: single CEL expression with deny + shadow (not or_filter)
+	assertContains(t, lds, "extension_filter", "CEL extension_filter")
+	assertContains(t, lds, "rbac_access_denied", "CEL deny detection")
+	assertContains(t, lds, "shadow_effective_policy_id", "CEL shadow detection")
+	assertContains(t, lds, "connection.termination_details", "listener CEL deny check")
+
+	// No legacy filters
+	assertNotContains(t, lds, "or_filter", "no or_filter in v4")
+	assertNotContains(t, lds, "metadata_filter", "no metadata_filter in v4")
+	assertNotContains(t, lds, "UAEX", "no UAEX in v4")
+
+	// No tcp_proxy access_log
+	assertNotContains(t, lds, "TCP dst=", "no tcp_proxy access_log in v4")
+
+	// Listener and HCM access_log present
+	assertContains(t, lds, "[L4] dst=", "listener access_log present")
+	assertContains(t, lds, "REQ(:METHOD)", "HCM access_log present")
+}
+
+// TestAllowDefaultNoShadowNoAccessLog verifies that allow-default without
+// audit qualifiers produces NO access_log at any level.
+func TestAllowDefaultNoShadowNoAccessLog(t *testing.T) {
+	egress := &varmor.NetworkProxyEgress{
+		DefaultAction: "allow",
+		Rules: []varmor.NetworkProxyEgressRule{
+			{Qualifiers: []string{"deny"}, CIDR: "169.254.0.0/16"},
+			{Qualifiers: []string{"allow"}, IP: "10.0.0.1"},
+		},
+	}
+	result, err := TranslateEgressRules(egress, 1, 15001)
+	if err != nil {
+		t.Fatalf("TranslateEgressRules failed: %v", err)
+	}
+
+	lds := result.LDS
+	assertNotContains(t, lds, "access_log", "no access_log anywhere without audit")
+	assertNotContains(t, lds, "extension_filter", "no CEL filter without audit")
+	assertNotContains(t, lds, "UAEX", "no UAEX")
+}
+
+// TestAllowDefaultWithShadowCELOnly verifies that allow-default with
+// audit qualifiers uses CEL shadow check only at both listener and HCM levels.
+func TestAllowDefaultWithShadowCELOnly(t *testing.T) {
+	egress := &varmor.NetworkProxyEgress{
+		DefaultAction: "allow",
+		Rules: []varmor.NetworkProxyEgressRule{
+			{Qualifiers: []string{"deny", "audit"}, CIDR: "169.254.0.0/16"},
+		},
+	}
+	result, err := TranslateEgressRules(egress, 1, 15001)
+	if err != nil {
+		t.Fatalf("TranslateEgressRules failed: %v", err)
+	}
+
+	lds := result.LDS
+
+	// shadow_rules present
+	assertContains(t, lds, "shadow_rules", "shadow_rules for deny+audit")
+
+	// CEL shadow check
+	assertContains(t, lds, "extension_filter", "CEL extension_filter")
+	assertContains(t, lds, "shadow_effective_policy_id", "CEL shadow check")
+
+	// No deny detection in allow-default
+	assertNotContains(t, lds, "UAEX", "no UAEX for allow-default")
+	assertNotContains(t, lds, "or_filter", "no or_filter in v4")
+	assertNotContains(t, lds, "metadata_filter", "no metadata_filter in v4")
+
+	// v4: listener-level SHOULD have access_log with CEL shadow (unlike v3)
+	filterChainsIdx := strings.Index(lds, "filter_chains:")
+	if filterChainsIdx == -1 {
+		t.Fatal("filter_chains: not found")
+	}
+	listenerSection := lds[:filterChainsIdx]
+	if !strings.Contains(listenerSection, "access_log") {
+		t.Fatal("v4: listener-level should have access_log for allow-default with shadow rules")
+	}
+}
+
+// ============================================================================
+// Shadow RBAC ordering verification
+// ============================================================================
+
+// TestHTTPChainShadowRBACBeforeEnforcement verifies that in the generated LDS YAML,
+// shadow_rules appears before the enforcement RBAC rules in the HTTP filter chain.
+func TestHTTPChainShadowRBACBeforeEnforcement(t *testing.T) {
+	egress := &varmor.NetworkProxyEgress{
+		DefaultAction: "deny",
+		Rules: []varmor.NetworkProxyEgressRule{
+			{Qualifiers: []string{"allow", "audit"}, IP: "10.0.0.1"},
+		},
+		HTTPRules: []varmor.NetworkProxyHTTPRule{
+			{
+				Qualifiers: []string{"allow", "audit"},
+				Match:      varmor.HTTPMatch{Hosts: []string{"api.openai.com"}},
+			},
+		},
+	}
+	result, err := TranslateEgressRules(egress, 1, 15001)
+	if err != nil {
+		t.Fatalf("TranslateEgressRules failed: %v", err)
+	}
+
+	lds := result.LDS
+
+	// shadow_rules must be present
+	assertContains(t, lds, "shadow_rules", "shadow_rules present for allow+audit")
+
+	// Find shadow_rules and enforcement rules positions in the HTTP RBAC section.
+	httpRBACIdx := strings.Index(lds, "envoy.filters.http.rbac")
+	if httpRBACIdx == -1 {
+		t.Fatal("envoy.filters.http.rbac not found in LDS")
+	}
+
+	// Look at the section after the HTTP RBAC filter declaration
+	httpRBACSection := lds[httpRBACIdx:]
+
+	shadowIdx := strings.Index(httpRBACSection, "shadow_rules:")
+	if shadowIdx == -1 {
+		t.Fatal("shadow_rules: not found in HTTP RBAC section")
+	}
+
+	// Find the enforcement "rules:" that comes after the HTTP RBAC type URL.
+	// We need to find "rules:" that is NOT "shadow_rules:" and NOT "and_rules:".
+	rulesIdx := -1
+	searchFrom := 0
+	for {
+		idx := strings.Index(httpRBACSection[searchFrom:], "rules:")
+		if idx == -1 {
+			break
+		}
+		absIdx := searchFrom + idx
+		// Check it's not part of "shadow_rules:"
+		if absIdx >= len("shadow_") {
+			prefix := httpRBACSection[absIdx-len("shadow_") : absIdx]
+			if strings.HasSuffix(prefix, "shadow_") {
+				searchFrom = absIdx + len("rules:")
+				continue
+			}
+		}
+		// Check it's not part of "and_rules:"
+		if absIdx >= len("and_") {
+			prefix2 := httpRBACSection[absIdx-len("and_") : absIdx]
+			if strings.HasSuffix(prefix2, "and_") {
+				searchFrom = absIdx + len("rules:")
+				continue
+			}
+		}
+		rulesIdx = absIdx
+		break
+	}
+
+	if rulesIdx == -1 {
+		t.Fatal("enforcement rules: not found in HTTP RBAC section")
+	}
+
+	if shadowIdx >= rulesIdx {
+		t.Errorf("shadow_rules (at offset %d) should appear BEFORE enforcement rules (at offset %d) in HTTP RBAC filter",
+			shadowIdx, rulesIdx)
+	}
 }

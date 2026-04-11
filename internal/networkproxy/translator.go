@@ -34,29 +34,28 @@ type FilterChain struct {
 
 // FilterChainMatch defines the match criteria for a filter chain.
 type FilterChainMatch struct {
-	// TransportProtocol: "tls" for TLS traffic. Empty for non-transport-level match.
-	TransportProtocol string
-	// ApplicationProtocols: set by http_inspector. e.g., ["http/1.0", "http/1.1", "h2c"]
+	TransportProtocol    string
 	ApplicationProtocols []string
 }
 
 // NetworkFilter represents a network-level filter in a chain.
 type NetworkFilter struct {
 	Name        string
-	TypedConfig interface{} // *RBACConfig, *HTTPConnManagerConfig, or *TCPProxyConfig
+	TypedConfig interface{}
 }
 
 // TCPProxyConfig represents tcp_proxy filter configuration.
 type TCPProxyConfig struct {
 	StatPrefix string
 	Cluster    string
+	// Note: tcp_proxy access_log is no longer rendered in v4 (all-CEL architecture).
+	// All audit logging is handled at listener-level and HCM-level via CEL.
 }
 
 // ============================================================================
-// RBAC types (for network.rbac and http.rbac)
+// RBAC types
 // ============================================================================
 
-// RBACAction is the action for an RBAC filter.
 type RBACAction string
 
 const (
@@ -65,79 +64,75 @@ const (
 	RBACActionLog   RBACAction = "LOG"
 )
 
-// RBACConfig represents a network.rbac or http.rbac filter config.
 type RBACConfig struct {
-	StatPrefix  string     // only used by network.rbac, ignored for http.rbac
+	StatPrefix  string
 	Rules       *RBACRules `json:"rules,omitempty"`
 	ShadowRules *RBACRules `json:"shadow_rules,omitempty"`
 }
 
-// RBACRules contains the action and a set of policies.
 type RBACRules struct {
 	Action   RBACAction
 	Policies map[string]*RBACPolicy
 }
 
-// RBACPolicy represents a single RBAC policy with permissions and principals.
 type RBACPolicy struct {
 	Permissions []Permission
 	Principals  []Principal
 }
 
-// Permission defines what the policy matches on.
 type Permission struct {
-	AndRules []PermissionRule // AND semantics within one permission
+	AndRules []PermissionRule
 }
 
-// PermissionRule is a single atomic permission matcher.
 type PermissionRule struct {
-	Type  string      // "any", "destination_ip", "destination_port", "destination_port_range", "requested_server_name", "header", "url_path"
-	Value interface{} // string, uint16, map[string]string, map[string]uint16
+	Type  string
+	Value interface{}
 }
 
-// Principal defines who (source) the policy applies to.
 type Principal struct {
 	Any bool
 }
 
-// HTTPFilter represents an HTTP-level filter inside http_connection_manager.
 type HTTPFilter struct {
 	Name        string
-	TypedConfig interface{} // *RBACConfig or nil (for router)
+	TypedConfig interface{}
 }
 
-// HTTPConnManagerConfig represents the http_connection_manager typed_config.
 type HTTPConnManagerConfig struct {
-	StatPrefix  string
-	HTTPFilters []HTTPFilter
-	RouteConfig *RouteConfig
+	StatPrefix       string
+	HTTPFilters      []HTTPFilter
+	RouteConfig      *RouteConfig
+	AccessLogEnabled bool
+	// AccessLogCEL is the pre-computed CEL expression for HCM access_log filtering.
+	// Empty string means no access_log should be rendered.
+	// Possible values:
+	//   - celHCMDenyOrShadow: deny-default with shadow rules
+	//   - celHCMDeny: deny-default without shadow rules
+	//   - celHCMShadow: allow-default with shadow rules
+	//   - "": allow-default without shadow rules (no access_log)
+	AccessLogCEL string
 }
 
-// RouteConfig for inline route configuration.
 type RouteConfig struct {
 	Name         string
 	VirtualHosts []VirtualHost
 }
 
-// VirtualHost defines virtual host routing.
 type VirtualHost struct {
 	Name    string
 	Domains []string
 	Routes  []Route
 }
 
-// Route defines a single route entry.
 type Route struct {
 	Match  RouteMatch
 	Action RouteAction
 }
 
-// RouteMatch defines route matching criteria.
 type RouteMatch struct {
 	Prefix string
 }
 
-// RouteAction defines the route action.
 type RouteAction struct {
 	Cluster string
 }
@@ -164,16 +159,42 @@ func hasQualifier(qualifiers []string, q string) bool {
 	return false
 }
 
-func isAllowRule(qualifiers []string) bool {
-	return hasQualifier(qualifiers, "allow")
-}
+// ruleAction represents the effective action of a rule.
+type ruleAction string
 
-func isDenyRule(qualifiers []string) bool {
-	return hasQualifier(qualifiers, "deny")
-}
+const (
+	ruleActionAllow ruleAction = "allow"
+	ruleActionDeny  ruleAction = "deny"
+)
 
-func isAuditOnly(qualifiers []string) bool {
-	return hasQualifier(qualifiers, "audit") && !hasQualifier(qualifiers, "allow") && !hasQualifier(qualifiers, "deny")
+// classifyRule determines the effective action and audit flag for a rule
+// based on its qualifiers and the default action.
+//
+// Rules:
+//   - Explicit "allow" → allow, explicit "deny" → deny, neither → follows defaultAction
+//   - defaultAction=deny: ALL deny actions are auto-audited. allow is NOT audited unless "audit" present.
+//   - defaultAction=allow: deny is NOT audited unless "audit" present. "audit" alone = allow+audit.
+func classifyRule(qualifiers []string, defaultDeny bool) (action ruleAction, audit bool) {
+	hasAllow := hasQualifier(qualifiers, "allow")
+	hasDeny := hasQualifier(qualifiers, "deny")
+	hasAudit := hasQualifier(qualifiers, "audit")
+
+	if hasAllow {
+		action = ruleActionAllow
+	} else if hasDeny {
+		action = ruleActionDeny
+	} else if defaultDeny {
+		action = ruleActionDeny
+	} else {
+		action = ruleActionAllow
+	}
+
+	if hasAudit {
+		audit = true
+	} else if defaultDeny && action == ruleActionDeny {
+		audit = true // all denies auto-audited in deny-default
+	}
+	return
 }
 
 // ============================================================================
@@ -189,65 +210,180 @@ func wildcardToSuffix(domain string) string {
 }
 
 // ============================================================================
+// AuditConfig carries audit-related information to chain builders.
+// ============================================================================
+
+// AuditConfig holds audit configuration computed during rule classification.
+type AuditConfig struct {
+	// AccessLogEnabled indicates whether access_log should be rendered.
+	// True when defaultAction=deny (always) or when any rule has audit qualifier.
+	AccessLogEnabled bool
+	// DefaultDeny determines the access_log filter strategy.
+	DefaultDeny bool
+	// AuditShadowEgressRules are egress rules that need shadow_rules for audit metadata.
+	// For deny-default: only allow+audit rules (deny is auto-captured by CEL deny detection).
+	// For allow-default: all rules with explicit "audit" qualifier.
+	AuditShadowEgressRules []varmor.NetworkProxyEgressRule
+	// AuditShadowHTTPRules are HTTP rules that need shadow_rules for audit metadata.
+	AuditShadowHTTPRules []varmor.NetworkProxyHTTPRule
+}
+
+// HasShadowRules returns true if there are any shadow rules to generate.
+func (a *AuditConfig) HasShadowRules() bool {
+	return len(a.AuditShadowEgressRules) > 0 || len(a.AuditShadowHTTPRules) > 0
+}
+
+// HasShadowEgressRules returns true if there are shadow egress rules.
+func (a *AuditConfig) HasShadowEgressRules() bool {
+	return len(a.AuditShadowEgressRules) > 0
+}
+
+// HasShadowHTTPRules returns true if there are shadow HTTP rules.
+func (a *AuditConfig) HasShadowHTTPRules() bool {
+	return len(a.AuditShadowHTTPRules) > 0
+}
+
+// ============================================================================
+// CEL Expression Selection
+// ============================================================================
+
+// computeListenerCEL returns the CEL expression for listener-level access_log.
+// Returns empty string if no listener access_log is needed.
+func computeListenerCEL(defaultDeny bool, hasShadowEgressRules bool) string {
+	if defaultDeny && hasShadowEgressRules {
+		return celListenerDenyOrShadow
+	} else if defaultDeny {
+		return celListenerDeny
+	} else if hasShadowEgressRules {
+		return celListenerShadow
+	}
+	return ""
+}
+
+// computeHCMCEL returns the CEL expression for HCM-level access_log.
+// Returns empty string if no HCM access_log is needed.
+func computeHCMCEL(defaultDeny bool, hasShadowRules bool) string {
+	if defaultDeny && hasShadowRules {
+		return celHCMDenyOrShadow
+	} else if defaultDeny {
+		return celHCMDeny
+	} else if hasShadowRules {
+		return celHCMShadow
+	}
+	return ""
+}
+
+// ============================================================================
 // Core Translator
 // ============================================================================
 
-// TranslateResult contains the generated Envoy xDS configuration.
-// LDS and CDS are in file-based xDS format, ready to be written to ConfigMap.
 type TranslateResult struct {
-	LDS string // Listener Discovery Service YAML (lds.yaml)
-	CDS string // Cluster Discovery Service YAML (cds.yaml)
+	LDS string
+	CDS string
 }
 
-// TranslateEgressRules converts NetworkProxyEgress CRD rules into Envoy xDS configuration.
-// Output is in file-based xDS format (version_info + resources[]),
-// directly usable as ConfigMap data for Envoy sidecar.
+// TranslateEgressRules converts varmor.NetworkProxyEgress CRD rules into Envoy xDS configuration.
 func TranslateEgressRules(egress *varmor.NetworkProxyEgress, version int64, proxyPort uint16) (*TranslateResult, error) {
 	if egress == nil {
 		return nil, fmt.Errorf("network proxy egress rules is nil")
 	}
 
-	// Classify rules by action
+	defaultDeny := strings.ToLower(egress.DefaultAction) == "deny"
+
+	// Classify rules into buckets
 	var (
 		denyEgressRules  []varmor.NetworkProxyEgressRule
 		allowEgressRules []varmor.NetworkProxyEgressRule
-		auditEgressRules []varmor.NetworkProxyEgressRule
 
 		denyHTTPRules  []varmor.NetworkProxyHTTPRule
 		allowHTTPRules []varmor.NetworkProxyHTTPRule
-		auditHTTPRules []varmor.NetworkProxyHTTPRule
+
+		// Shadow rules for audit: computed differently based on defaultAction
+		auditShadowEgressRules []varmor.NetworkProxyEgressRule
+		auditShadowHTTPRules   []varmor.NetworkProxyHTTPRule
 	)
 
+	anyAuditQualifier := false
+
 	for _, r := range egress.Rules {
-		switch {
-		case isAuditOnly(r.Qualifiers):
-			auditEgressRules = append(auditEgressRules, r)
-		case isDenyRule(r.Qualifiers):
+		action, audit := classifyRule(r.Qualifiers, defaultDeny)
+		if audit && hasQualifier(r.Qualifiers, "audit") {
+			anyAuditQualifier = true
+		}
+		switch action {
+		case ruleActionDeny:
 			denyEgressRules = append(denyEgressRules, r)
-		case isAllowRule(r.Qualifiers):
+		case ruleActionAllow:
 			allowEgressRules = append(allowEgressRules, r)
+		}
+
+		// Shadow rules computation differs by defaultAction:
+		// deny-default: only allow+audit needs shadow (deny is auto-captured by CEL deny detection)
+		// allow-default: all rules with explicit "audit" qualifier need shadow
+		if defaultDeny {
+			if action == ruleActionAllow && audit {
+				auditShadowEgressRules = append(auditShadowEgressRules, r)
+			}
+		} else {
+			if hasQualifier(r.Qualifiers, "audit") {
+				auditShadowEgressRules = append(auditShadowEgressRules, r)
+			}
 		}
 	}
 
 	for _, r := range egress.HTTPRules {
-		switch {
-		case isAuditOnly(r.Qualifiers):
-			auditHTTPRules = append(auditHTTPRules, r)
-		case isDenyRule(r.Qualifiers):
+		action, audit := classifyRule(r.Qualifiers, defaultDeny)
+		if audit && hasQualifier(r.Qualifiers, "audit") {
+			anyAuditQualifier = true
+		}
+		switch action {
+		case ruleActionDeny:
 			denyHTTPRules = append(denyHTTPRules, r)
-		case isAllowRule(r.Qualifiers):
+		case ruleActionAllow:
 			allowHTTPRules = append(allowHTTPRules, r)
+		}
+
+		// Shadow rules computation
+		if defaultDeny {
+			if action == ruleActionAllow && audit {
+				auditShadowHTTPRules = append(auditShadowHTTPRules, r)
+			}
+		} else {
+			if hasQualifier(r.Qualifiers, "audit") {
+				auditShadowHTTPRules = append(auditShadowHTTPRules, r)
+			}
 		}
 	}
 
-	defaultDeny := strings.ToLower(egress.DefaultAction) == "deny"
+	// Compute accessLogEnabled:
+	// - defaultAction=deny: always (to capture auto-audited denies)
+	// - defaultAction=allow: only if any rule has explicit "audit" qualifier
+	accessLogEnabled := defaultDeny || anyAuditQualifier
+
+	auditCfg := AuditConfig{
+		AccessLogEnabled:       accessLogEnabled,
+		DefaultDeny:            defaultDeny,
+		AuditShadowEgressRules: auditShadowEgressRules,
+		AuditShadowHTTPRules:   auditShadowHTTPRules,
+	}
 
 	// Build 3 filter chains
-	tlsChain := buildTLSChain(defaultDeny, denyEgressRules, allowEgressRules, auditEgressRules, denyHTTPRules, allowHTTPRules, auditHTTPRules)
-	httpChain := buildHTTPChain(defaultDeny, denyEgressRules, allowEgressRules, auditEgressRules, denyHTTPRules, allowHTTPRules, auditHTTPRules)
-	tcpChain := buildTCPDefaultChain(defaultDeny, denyEgressRules, allowEgressRules, auditEgressRules)
+	tlsChain := buildTLSChain(defaultDeny, denyEgressRules, allowEgressRules, denyHTTPRules, allowHTTPRules, auditCfg)
+	httpChain := buildHTTPChain(defaultDeny, denyEgressRules, allowEgressRules, denyHTTPRules, allowHTTPRules, auditCfg)
+	tcpChain := buildTCPDefaultChain(defaultDeny, denyEgressRules, allowEgressRules, auditCfg)
 
-	lds := renderListenerYAML(tlsChain, httpChain, tcpChain, version, proxyPort)
+	// Compute listener-level CEL expression.
+	// The listener CEL checks connection.termination_details (set by Network RBAC)
+	// and/or network RBAC shadow metadata.
+	//
+	// Note: hasShadowEgressRules is used (not HasShadowRules) because the listener
+	// uses envoy.filters.network.rbac namespace. HTTP shadow rules are handled at HCM level.
+	// However, for TLS chain, HTTP rules generate SNI-based network RBAC shadow rules too,
+	// so we check both egress and HTTP shadow rules for the TLS chain.
+	hasShadowForListener := auditCfg.HasShadowRules()
+	listenerCEL := computeListenerCEL(defaultDeny, hasShadowForListener)
+
+	lds := renderListenerYAML(tlsChain, httpChain, tcpChain, version, proxyPort, accessLogEnabled, listenerCEL)
 	cds := renderClustersYAML(version)
 
 	return &TranslateResult{
@@ -257,14 +393,13 @@ func TranslateEgressRules(egress *varmor.NetworkProxyEgress, version int64, prox
 }
 
 // ============================================================================
-// Chain 1: TLS (tls_inspector detected → transport_protocol: "tls")
-// network.rbac: EgressRules → destination_ip/port, HTTPRules → requested_server_name (SNI)
-// NOTE: Methods/Paths are NOT applicable in TLS chain (encrypted, no HTTP parsing)
+// Chain 1: TLS
 // ============================================================================
 
 func buildTLSChain(defaultDeny bool,
-	denyEgressRules, allowEgressRules, auditEgressRules []varmor.NetworkProxyEgressRule,
-	denyHTTPRules, allowHTTPRules, auditHTTPRules []varmor.NetworkProxyHTTPRule,
+	denyEgressRules, allowEgressRules []varmor.NetworkProxyEgressRule,
+	denyHTTPRules, allowHTTPRules []varmor.NetworkProxyHTTPRule,
+	auditCfg AuditConfig,
 ) FilterChain {
 	chain := FilterChain{
 		Name: "tls_chain",
@@ -273,20 +408,29 @@ func buildTLSChain(defaultDeny bool,
 		},
 	}
 
+	// Shadow RBAC must be placed before enforcement RBAC in the network filter chain.
+	// If enforcement RBAC denies a connection, subsequent network filters won't execute,
+	// so shadow metadata would never be written. Same reasoning as the HTTP chain.
+	auditShadowRBAC := buildNetworkRBACForTLS(RBACActionAllow, auditCfg.AuditShadowEgressRules, auditCfg.AuditShadowHTTPRules)
+	if auditShadowRBAC != nil {
+		chain.Filters = append(chain.Filters, NetworkFilter{
+			Name: "envoy.filters.network.rbac",
+			TypedConfig: &RBACConfig{
+				StatPrefix:  "tls_audit_rbac",
+				ShadowRules: auditShadowRBAC,
+			},
+		})
+	}
+
 	// Deny RBAC
 	denyRBAC := buildNetworkRBACForTLS(RBACActionDeny, denyEgressRules, denyHTTPRules)
-	auditDenyRBAC := buildNetworkRBACForTLS(RBACActionDeny, auditEgressRules, auditHTTPRules)
-	if denyRBAC != nil || auditDenyRBAC != nil {
-		cfg := &RBACConfig{StatPrefix: "tls_deny_rbac"}
-		if denyRBAC != nil {
-			cfg.Rules = denyRBAC
-		}
-		if auditDenyRBAC != nil {
-			cfg.ShadowRules = auditDenyRBAC
-		}
+	if denyRBAC != nil {
 		chain.Filters = append(chain.Filters, NetworkFilter{
-			Name:        "envoy.filters.network.rbac",
-			TypedConfig: cfg,
+			Name: "envoy.filters.network.rbac",
+			TypedConfig: &RBACConfig{
+				StatPrefix: "tls_deny_rbac",
+				Rules:      denyRBAC,
+			},
 		})
 	}
 
@@ -304,7 +448,7 @@ func buildTLSChain(defaultDeny bool,
 		}
 	}
 
-	// tcp_proxy → original_dst cluster
+	// tcp_proxy → original_dst cluster (no access_log — handled at listener level)
 	chain.Filters = append(chain.Filters, NetworkFilter{
 		Name: "envoy.filters.network.tcp_proxy",
 		TypedConfig: &TCPProxyConfig{
@@ -355,47 +499,45 @@ func buildNetworkRBACForTLS(action RBACAction, egressRules []varmor.NetworkProxy
 }
 
 // ============================================================================
-// Chain 2: HTTP (http_inspector detected → application_protocols match)
-//
-// KEY: Use application_protocols: ["http/1.0", "http/1.1", "h2c"] instead of
-// transport_protocol: "raw_buffer". The http_inspector sets application_protocols
-// when it detects HTTP. Using raw_buffer would match ALL non-TLS traffic
-// (both HTTP and pure TCP), making the TCP default chain unreachable.
-//
-// http_connection_manager → http.rbac
-// Supports full L7 matching: Host header + Port + Method + Path
+// Chain 2: HTTP
 // ============================================================================
 
 func buildHTTPChain(defaultDeny bool,
-	denyEgressRules, allowEgressRules, auditEgressRules []varmor.NetworkProxyEgressRule,
-	denyHTTPRules, allowHTTPRules, auditHTTPRules []varmor.NetworkProxyHTTPRule,
+	denyEgressRules, allowEgressRules []varmor.NetworkProxyEgressRule,
+	denyHTTPRules, allowHTTPRules []varmor.NetworkProxyHTTPRule,
+	auditCfg AuditConfig,
 ) FilterChain {
 	chain := FilterChain{
 		Name: "http_chain",
 		FilterChainMatch: &FilterChainMatch{
-			// http_inspector sets application_protocols when HTTP is detected.
-			// This ensures only confirmed HTTP traffic enters this chain.
-			// Pure TCP traffic (non-HTTP, non-TLS) falls to default_filter_chain.
 			ApplicationProtocols: []string{"http/1.0", "http/1.1", "h2c"},
 		},
 	}
 
 	var httpFilters []HTTPFilter
 
+	// Shadow RBAC must be placed before enforcement RBAC in the HTTP filter chain.
+	// If enforcement denies a request (returns 403), subsequent filters won't execute,
+	// so shadow metadata would never be written.
+	auditShadowRBAC := buildHTTPRBACForHTTP(RBACActionAllow, auditCfg.AuditShadowEgressRules, auditCfg.AuditShadowHTTPRules)
+	hasHTTPShadow := auditShadowRBAC != nil
+	if auditShadowRBAC != nil {
+		httpFilters = append(httpFilters, HTTPFilter{
+			Name: "envoy.filters.http.rbac",
+			TypedConfig: &RBACConfig{
+				ShadowRules: auditShadowRBAC,
+			},
+		})
+	}
+
 	// Deny HTTP RBAC
 	denyRBAC := buildHTTPRBACForHTTP(RBACActionDeny, denyEgressRules, denyHTTPRules)
-	auditDenyRBAC := buildHTTPRBACForHTTP(RBACActionDeny, auditEgressRules, auditHTTPRules)
-	if denyRBAC != nil || auditDenyRBAC != nil {
-		cfg := &RBACConfig{}
-		if denyRBAC != nil {
-			cfg.Rules = denyRBAC
-		}
-		if auditDenyRBAC != nil {
-			cfg.ShadowRules = auditDenyRBAC
-		}
+	if denyRBAC != nil {
 		httpFilters = append(httpFilters, HTTPFilter{
-			Name:        "envoy.filters.http.rbac",
-			TypedConfig: cfg,
+			Name: "envoy.filters.http.rbac",
+			TypedConfig: &RBACConfig{
+				Rules: denyRBAC,
+			},
 		})
 	}
 
@@ -416,11 +558,16 @@ func buildHTTPChain(defaultDeny bool,
 		TypedConfig: nil,
 	})
 
+	// Compute HCM CEL expression
+	hcmCEL := computeHCMCEL(auditCfg.DefaultDeny, hasHTTPShadow)
+
 	chain.Filters = append(chain.Filters, NetworkFilter{
 		Name: "envoy.filters.network.http_connection_manager",
 		TypedConfig: &HTTPConnManagerConfig{
-			StatPrefix:  "http_outbound",
-			HTTPFilters: httpFilters,
+			StatPrefix:       "http_outbound",
+			HTTPFilters:      httpFilters,
+			AccessLogEnabled: auditCfg.AccessLogEnabled,
+			AccessLogCEL:     hcmCEL,
 			RouteConfig: &RouteConfig{
 				Name: "local_route",
 				VirtualHosts: []VirtualHost{{
@@ -477,32 +624,41 @@ func buildHTTPRBACForHTTP(action RBACAction, egressRules []varmor.NetworkProxyEg
 }
 
 // ============================================================================
-// Chain 3: TCP Default (fallback for non-TLS, non-HTTP traffic)
-// network.rbac: Only EgressRules (IP/CIDR/Port). HTTPRules dead here.
+// Chain 3: TCP Default
 // ============================================================================
 
 func buildTCPDefaultChain(defaultDeny bool,
-	denyEgressRules, allowEgressRules, auditEgressRules []varmor.NetworkProxyEgressRule,
+	denyEgressRules, allowEgressRules []varmor.NetworkProxyEgressRule,
+	auditCfg AuditConfig,
 ) FilterChain {
 	chain := FilterChain{
 		Name:             "tcp_default_chain",
-		FilterChainMatch: nil, // default filter chain
+		FilterChainMatch: nil,
+	}
+
+	// Shadow RBAC must be placed before enforcement RBAC in the network filter chain.
+	// Same reasoning as TLS chain and HTTP chain: denied connections terminate
+	// before subsequent filters run, so shadow metadata must be written first.
+	auditShadowRBAC := buildNetworkRBACForTCP(RBACActionAllow, auditCfg.AuditShadowEgressRules)
+	if auditShadowRBAC != nil {
+		chain.Filters = append(chain.Filters, NetworkFilter{
+			Name: "envoy.filters.network.rbac",
+			TypedConfig: &RBACConfig{
+				StatPrefix:  "tcp_audit_rbac",
+				ShadowRules: auditShadowRBAC,
+			},
+		})
 	}
 
 	// Deny RBAC
 	denyRBAC := buildNetworkRBACForTCP(RBACActionDeny, denyEgressRules)
-	auditDenyRBAC := buildNetworkRBACForTCP(RBACActionDeny, auditEgressRules)
-	if denyRBAC != nil || auditDenyRBAC != nil {
-		cfg := &RBACConfig{StatPrefix: "tcp_deny_rbac"}
-		if denyRBAC != nil {
-			cfg.Rules = denyRBAC
-		}
-		if auditDenyRBAC != nil {
-			cfg.ShadowRules = auditDenyRBAC
-		}
+	if denyRBAC != nil {
 		chain.Filters = append(chain.Filters, NetworkFilter{
-			Name:        "envoy.filters.network.rbac",
-			TypedConfig: cfg,
+			Name: "envoy.filters.network.rbac",
+			TypedConfig: &RBACConfig{
+				StatPrefix: "tcp_deny_rbac",
+				Rules:      denyRBAC,
+			},
 		})
 	}
 
@@ -520,7 +676,7 @@ func buildTCPDefaultChain(defaultDeny bool,
 		}
 	}
 
-	// tcp_proxy → original_dst cluster
+	// tcp_proxy → original_dst cluster (no access_log — handled at listener level)
 	chain.Filters = append(chain.Filters, NetworkFilter{
 		Name: "envoy.filters.network.tcp_proxy",
 		TypedConfig: &TCPProxyConfig{
@@ -559,10 +715,9 @@ func buildNetworkRBACForTCP(action RBACAction, egressRules []varmor.NetworkProxy
 }
 
 // ============================================================================
-// Permission builders: CRD Rule → RBAC permissions
+// Permission builders
 // ============================================================================
 
-// egressRuleToNetworkPermissions converts an EgressRule to network.rbac permissions.
 func egressRuleToNetworkPermissions(r varmor.NetworkProxyEgressRule) []Permission {
 	var rules []PermissionRule
 
@@ -586,7 +741,6 @@ func egressRuleToNetworkPermissions(r varmor.NetworkProxyEgressRule) []Permissio
 		return nil
 	}
 
-	// If only ports specified (no IP/CIDR), each port is a separate permission (OR)
 	if r.IP == "" && r.CIDR == "" && len(r.Ports) > 0 {
 		var perms []Permission
 		for _, pr := range rules {
@@ -595,17 +749,13 @@ func egressRuleToNetworkPermissions(r varmor.NetworkProxyEgressRule) []Permissio
 		return perms
 	}
 
-	// AND all rules together into one permission
 	return []Permission{{AndRules: rules}}
 }
 
-// egressRuleToHTTPPermissions converts an EgressRule to http.rbac permissions.
 func egressRuleToHTTPPermissions(r varmor.NetworkProxyEgressRule) []Permission {
 	return egressRuleToNetworkPermissions(r)
 }
 
-// httpRuleToSNIPermissions converts an HTTPRule to network.rbac SNI permissions (TLS chain).
-// NOTE: Methods/Paths are NOT used here - TLS chain can only see SNI + IP/Port.
 func httpRuleToSNIPermissions(r varmor.NetworkProxyHTTPRule) []Permission {
 	if len(r.Match.Hosts) == 0 {
 		return nil
@@ -636,7 +786,6 @@ func httpRuleToSNIPermissions(r varmor.NetworkProxyHTTPRule) []Permission {
 		return perms
 	}
 
-	// Cross product: (host AND port)
 	var perms []Permission
 	for _, sr := range sniRules {
 		for _, pr := range portRules {
@@ -646,18 +795,7 @@ func httpRuleToSNIPermissions(r varmor.NetworkProxyHTTPRule) []Permission {
 	return perms
 }
 
-// httpRuleToHTTPPermissions converts an HTTPRule to http.rbac permissions (HTTP chain).
-// Supports full L7 matching: Host (:authority header) + varmor.Port + Method (:method header) + Path (url_path).
-//
-// Combination semantics:
-//   - Within each dimension (hosts, ports, methods, paths): OR
-//   - Across dimensions: AND (cross product)
-//   - Example: hosts=[a.com, b.com] + methods=[GET, POST]
-//     → (a.com AND GET) OR (a.com AND POST) OR (b.com AND GET) OR (b.com AND POST)
-//
-// If only methods/paths are specified (no hosts), they still generate valid permissions.
 func httpRuleToHTTPPermissions(r varmor.NetworkProxyHTTPRule) []Permission {
-	// Collect atomic rules per dimension
 	var hostRules []PermissionRule
 	for _, host := range r.Match.Hosts {
 		if isWildcardDomain(host) {
@@ -707,8 +845,6 @@ func httpRuleToHTTPPermissions(r varmor.NetworkProxyHTTPRule) []Permission {
 		}
 	}
 
-	// Build cross product of all non-empty dimensions
-	// Each combination produces one Permission with AND semantics
 	dimensions := [][]PermissionRule{}
 	if len(hostRules) > 0 {
 		dimensions = append(dimensions, hostRules)
@@ -727,7 +863,6 @@ func httpRuleToHTTPPermissions(r varmor.NetworkProxyHTTPRule) []Permission {
 		return nil
 	}
 
-	// Compute cross product
 	combos := crossProduct(dimensions)
 	var perms []Permission
 	for _, combo := range combos {
@@ -736,9 +871,6 @@ func httpRuleToHTTPPermissions(r varmor.NetworkProxyHTTPRule) []Permission {
 	return perms
 }
 
-// crossProduct computes the cartesian product of multiple slices of PermissionRules.
-// Each element in the result is a combination with one rule from each dimension (AND).
-// Multiple result elements represent OR semantics.
 func crossProduct(dimensions [][]PermissionRule) [][]PermissionRule {
 	if len(dimensions) == 0 {
 		return nil
@@ -760,7 +892,6 @@ func crossProduct(dimensions [][]PermissionRule) [][]PermissionRule {
 	return result
 }
 
-// portToPermissionRules converts varmor.Port slice to PermissionRules.
 func portToPermissionRules(ports []varmor.Port) []PermissionRule {
 	var rules []PermissionRule
 	for _, p := range ports {
@@ -769,7 +900,7 @@ func portToPermissionRules(ports []varmor.Port) []PermissionRule {
 				Type: "destination_port_range",
 				Value: map[string]uint16{
 					"start": p.Port,
-					"end":   p.EndPort + 1, // Envoy port range is [start, end)
+					"end":   p.EndPort + 1,
 				},
 			})
 		} else {
