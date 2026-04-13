@@ -360,6 +360,13 @@ func renderRBACRulesYAML(rules *RBACRules, indent int, rbacType string) string {
 
 	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf("%saction: %s\n", prefix, rules.Action))
+
+	// Empty policies map → render as "policies: {}" (ALLOW with no policies = deny all)
+	if len(rules.Policies) == 0 {
+		sb.WriteString(fmt.Sprintf("%spolicies: {}\n", prefix))
+		return sb.String()
+	}
+
 	sb.WriteString(fmt.Sprintf("%spolicies:\n", prefix))
 
 	names := make([]string, 0, len(rules.Policies))

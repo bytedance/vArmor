@@ -437,15 +437,20 @@ func buildTLSChain(defaultDeny bool,
 	// Allow RBAC (only when defaultAction=deny)
 	if defaultDeny {
 		allowRBAC := buildNetworkRBACForTLS(RBACActionAllow, allowEgressRules, allowHTTPRules)
-		if allowRBAC != nil {
-			chain.Filters = append(chain.Filters, NetworkFilter{
-				Name: "envoy.filters.network.rbac",
-				TypedConfig: &RBACConfig{
-					StatPrefix: "tls_allow_rbac",
-					Rules:      allowRBAC,
-				},
-			})
+		if allowRBAC == nil {
+			// No allow rules for TLS → deny all TLS (ALLOW with empty policies = deny all)
+			allowRBAC = &RBACRules{
+				Action:   RBACActionAllow,
+				Policies: map[string]*RBACPolicy{},
+			}
 		}
+		chain.Filters = append(chain.Filters, NetworkFilter{
+			Name: "envoy.filters.network.rbac",
+			TypedConfig: &RBACConfig{
+				StatPrefix: "tls_allow_rbac",
+				Rules:      allowRBAC,
+			},
+		})
 	}
 
 	// tcp_proxy → original_dst cluster (no access_log — handled at listener level)
@@ -544,12 +549,17 @@ func buildHTTPChain(defaultDeny bool,
 	// Allow HTTP RBAC (only when defaultAction=deny)
 	if defaultDeny {
 		allowRBAC := buildHTTPRBACForHTTP(RBACActionAllow, allowEgressRules, allowHTTPRules)
-		if allowRBAC != nil {
-			httpFilters = append(httpFilters, HTTPFilter{
-				Name:        "envoy.filters.http.rbac",
-				TypedConfig: &RBACConfig{Rules: allowRBAC},
-			})
+		if allowRBAC == nil {
+			// No allow rules for HTTP → deny all HTTP (ALLOW with empty policies = deny all)
+			allowRBAC = &RBACRules{
+				Action:   RBACActionAllow,
+				Policies: map[string]*RBACPolicy{},
+			}
 		}
+		httpFilters = append(httpFilters, HTTPFilter{
+			Name:        "envoy.filters.http.rbac",
+			TypedConfig: &RBACConfig{Rules: allowRBAC},
+		})
 	}
 
 	// Router (terminal filter)
@@ -665,15 +675,20 @@ func buildTCPDefaultChain(defaultDeny bool,
 	// Allow RBAC (only when defaultAction=deny)
 	if defaultDeny {
 		allowRBAC := buildNetworkRBACForTCP(RBACActionAllow, allowEgressRules)
-		if allowRBAC != nil {
-			chain.Filters = append(chain.Filters, NetworkFilter{
-				Name: "envoy.filters.network.rbac",
-				TypedConfig: &RBACConfig{
-					StatPrefix: "tcp_allow_rbac",
-					Rules:      allowRBAC,
-				},
-			})
+		if allowRBAC == nil {
+			// No L4 allow rules → deny all raw TCP (ALLOW with empty policies = deny all)
+			allowRBAC = &RBACRules{
+				Action:   RBACActionAllow,
+				Policies: map[string]*RBACPolicy{},
+			}
 		}
+		chain.Filters = append(chain.Filters, NetworkFilter{
+			Name: "envoy.filters.network.rbac",
+			TypedConfig: &RBACConfig{
+				StatPrefix: "tcp_allow_rbac",
+				Rules:      allowRBAC,
+			},
+		})
 	}
 
 	// tcp_proxy → original_dst cluster (no access_log — handled at listener level)

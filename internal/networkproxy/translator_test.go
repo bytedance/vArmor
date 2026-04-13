@@ -1738,3 +1738,179 @@ func TestHTTPChainShadowRBACBeforeEnforcement(t *testing.T) {
 			shadowIdx, rulesIdx)
 	}
 }
+
+// ============================================================================
+// Tests for deny-all RBAC in default_filter_chain (TCP), TLS, and HTTP chains
+// when defaultAction=deny but no matching allow rules exist for that chain.
+// ============================================================================
+
+// TestDenyDefaultTCPChainDenyAll verifies that when defaultAction=deny and
+// only httpRules exist (no L4 egress rules), the TCP default chain gets a
+// deny-all RBAC (action: ALLOW, policies: {}) to prevent raw TCP bypass.
+func TestDenyDefaultTCPChainDenyAll(t *testing.T) {
+	egress := &varmor.NetworkProxyEgress{
+		DefaultAction: "deny",
+		HTTPRules: []varmor.NetworkProxyHTTPRule{
+			{Qualifiers: []string{"allow", "audit"}, Match: varmor.HTTPMatch{Hosts: []string{"api.example.com"}}},
+		},
+	}
+	result, err := TranslateEgressRules(egress, 1, 15001)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// TCP default chain must contain RBAC with deny-all (ALLOW + empty policies)
+	assertContains(t, result.LDS, "tcp_allow_rbac", "tcp default chain must have allow RBAC")
+	assertContains(t, result.LDS, "policies: {}", "tcp default chain must have empty policies (deny-all)")
+
+	// Verify the deny-all RBAC is in the default_filter_chain section
+	defaultChainIdx := strings.Index(result.LDS, "default_filter_chain:")
+	if defaultChainIdx == -1 {
+		t.Fatal("default_filter_chain not found in LDS")
+	}
+	defaultChainSection := result.LDS[defaultChainIdx:]
+	assertContains(t, defaultChainSection, "tcp_allow_rbac", "tcp_allow_rbac must be in default_filter_chain")
+	assertContains(t, defaultChainSection, "policies: {}", "policies: {} must be in default_filter_chain")
+
+	// tcp_proxy must still exist after the RBAC
+	tcpProxyIdx := strings.Index(defaultChainSection, "tcp_passthrough")
+	rbacIdx := strings.Index(defaultChainSection, "tcp_allow_rbac")
+	if rbacIdx == -1 || tcpProxyIdx == -1 || rbacIdx >= tcpProxyIdx {
+		t.Errorf("tcp_allow_rbac (at %d) must appear before tcp_proxy (at %d)", rbacIdx, tcpProxyIdx)
+	}
+}
+
+// TestDenyDefaultNoRulesAtAll verifies that when defaultAction=deny and there
+// are NO rules at all, all 3 chains get deny-all RBAC.
+func TestDenyDefaultNoRulesAtAll(t *testing.T) {
+	egress := &varmor.NetworkProxyEgress{
+		DefaultAction: "deny",
+	}
+	result, err := TranslateEgressRules(egress, 1, 15001)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// All three chains must have deny-all RBAC
+	assertContains(t, result.LDS, "tls_allow_rbac", "TLS chain must have allow RBAC")
+	assertContains(t, result.LDS, "tcp_allow_rbac", "TCP chain must have allow RBAC")
+
+	// HTTP chain: check for RBAC with ALLOW + empty policies
+	httpChainIdx := strings.Index(result.LDS, "http_chain")
+	if httpChainIdx == -1 {
+		t.Fatal("http_chain not found in LDS")
+	}
+
+	// Count occurrences of "policies: {}" — should appear in all 3 chains
+	count := strings.Count(result.LDS, "policies: {}")
+	if count < 3 {
+		t.Errorf("expected at least 3 occurrences of 'policies: {}' (TLS+HTTP+TCP deny-all), got %d", count)
+	}
+
+	// Listener access_log must exist (defaultAction=deny → auto-audit all denies)
+	assertContains(t, result.LDS, "[L4] dst=", "listener access_log format must be present")
+}
+
+// TestAllowDefaultTCPChainNoRBAC verifies that when defaultAction=allow,
+// the TCP default chain has NO RBAC (all traffic passes through).
+func TestAllowDefaultTCPChainNoRBAC(t *testing.T) {
+	egress := &varmor.NetworkProxyEgress{
+		DefaultAction: "allow",
+		HTTPRules: []varmor.NetworkProxyHTTPRule{
+			{Qualifiers: []string{"deny"}, Match: varmor.HTTPMatch{Hosts: []string{"evil.com"}}},
+		},
+	}
+	result, err := TranslateEgressRules(egress, 1, 15001)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// TCP default chain should NOT have RBAC (allow-default, no deny egress rules)
+	defaultChainIdx := strings.Index(result.LDS, "default_filter_chain:")
+	if defaultChainIdx == -1 {
+		t.Fatal("default_filter_chain not found in LDS")
+	}
+	defaultChainSection := result.LDS[defaultChainIdx:]
+	assertNotContains(t, defaultChainSection, "tcp_allow_rbac", "allow-default should not have allow RBAC in TCP chain")
+	assertNotContains(t, defaultChainSection, "tcp_deny_rbac", "no deny egress rules should mean no deny RBAC in TCP chain")
+}
+
+// TestDenyDefaultHTTPOnlyRules verifies the exact scenario from the user's
+// bug report: defaultAction=deny with only httpRules (reverse shell bypass).
+func TestDenyDefaultHTTPOnlyRules(t *testing.T) {
+	egress := &varmor.NetworkProxyEgress{
+		DefaultAction: "deny",
+		HTTPRules: []varmor.NetworkProxyHTTPRule{
+			{
+				Qualifiers: []string{"allow", "audit"},
+				Match:      varmor.HTTPMatch{Hosts: []string{"ark.cn-beijing.volces.com", "open.feishu.cn", "msg-frontier.feishu.cn"}},
+			},
+			{
+				Qualifiers: []string{"allow"},
+				Match:      varmor.HTTPMatch{Hosts: []string{"phrack.org"}},
+			},
+			{
+				Qualifiers: []string{"deny"},
+				Match:      varmor.HTTPMatch{Hosts: []string{"httpforever.com"}},
+			},
+			{
+				Qualifiers: []string{"allow"},
+				Match: varmor.HTTPMatch{
+					Hosts: []string{"darksouls.wikidot.com"},
+					Paths: []varmor.HTTPPathMatch{{Exact: "/classes"}, {Exact: "/story"}},
+				},
+			},
+		},
+	}
+	result, err := TranslateEgressRules(egress, 1, 15001)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// TCP default chain MUST have deny-all RBAC (no L4 egress rules)
+	defaultChainIdx := strings.Index(result.LDS, "default_filter_chain:")
+	if defaultChainIdx == -1 {
+		t.Fatal("default_filter_chain not found")
+	}
+	defaultChainSection := result.LDS[defaultChainIdx:]
+	assertContains(t, defaultChainSection, "tcp_allow_rbac", "TCP chain must have deny-all RBAC for reverse shell protection")
+	assertContains(t, defaultChainSection, "policies: {}", "TCP chain deny-all must have empty policies")
+
+	// TLS chain must have allow RBAC with actual policies (from httpRules SNI matching)
+	tlsChainIdx := strings.Index(result.LDS, "tls_chain")
+	httpChainIdx := strings.Index(result.LDS, "http_chain")
+	if tlsChainIdx == -1 || httpChainIdx == -1 {
+		t.Fatal("tls_chain or http_chain not found")
+	}
+	tlsSection := result.LDS[tlsChainIdx:httpChainIdx]
+	assertContains(t, tlsSection, "tls_allow_rbac", "TLS chain must have allow RBAC")
+	assertContains(t, tlsSection, "ark.cn-beijing.volces.com", "TLS chain must have SNI rules")
+	assertContains(t, tlsSection, "tls_audit_rbac", "TLS chain must have shadow RBAC for audit")
+}
+
+// TestDenyDefaultWithL4EgressRulesTCPChainHasAllowRBAC verifies that when
+// defaultAction=deny and there ARE L4 egress rules, the TCP chain uses
+// those rules in the ALLOW RBAC (not deny-all).
+func TestDenyDefaultWithL4EgressRulesTCPChainHasAllowRBAC(t *testing.T) {
+	egress := &varmor.NetworkProxyEgress{
+		DefaultAction: "deny",
+		Rules: []varmor.NetworkProxyEgressRule{
+			{Qualifiers: []string{"allow"}, IP: "10.0.0.1", Ports: []varmor.Port{{Port: 8900}}},
+		},
+	}
+	result, err := TranslateEgressRules(egress, 1, 15001)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// TCP default chain must have ALLOW RBAC with actual policies (not deny-all)
+	defaultChainIdx := strings.Index(result.LDS, "default_filter_chain:")
+	if defaultChainIdx == -1 {
+		t.Fatal("default_filter_chain not found")
+	}
+	defaultChainSection := result.LDS[defaultChainIdx:]
+	assertContains(t, defaultChainSection, "tcp_allow_rbac", "TCP chain must have allow RBAC")
+	assertContains(t, defaultChainSection, "10.0.0.1", "TCP chain must have the L4 allow rule")
+	// Should NOT have empty policies since there ARE allow rules
+	assertNotContains(t, defaultChainSection, "policies: {}", "TCP chain should have actual policies, not deny-all")
+}
