@@ -29,19 +29,21 @@ import (
 )
 
 type PolicyCacher struct {
-	vcpInformer           varmorinformer.VarmorClusterPolicyInformer
-	vcpLister             varmorlister.VarmorClusterPolicyLister
-	vcpInformerSynced     cache.InformerSynced
-	vpInformer            varmorinformer.VarmorPolicyInformer
-	vpLister              varmorlister.VarmorPolicyLister
-	vpInformerSynced      cache.InformerSynced
-	ClusterPolicyTargets  map[string]varmor.Target
-	ClusterPolicyEnforcer map[string]string
-	ClusterPolicyMode     map[string]varmor.VarmorPolicyMode
-	PolicyTargets         map[string]varmor.Target
-	PolicyEnforcer        map[string]string
-	PolicyMode            map[string]varmor.VarmorPolicyMode
-	log                   logr.Logger
+	vcpInformer              varmorinformer.VarmorClusterPolicyInformer
+	vcpLister                varmorlister.VarmorClusterPolicyLister
+	vcpInformerSynced        cache.InformerSynced
+	vpInformer               varmorinformer.VarmorPolicyInformer
+	vpLister                 varmorlister.VarmorPolicyLister
+	vpInformerSynced         cache.InformerSynced
+	ClusterPolicyTargets     map[string]varmor.Target
+	ClusterPolicyEnforcer    map[string]string
+	ClusterPolicyMode        map[string]varmor.VarmorPolicyMode
+	ClusterPolicyProxyConfig map[string]*varmor.NetworkProxyConfig
+	PolicyTargets            map[string]varmor.Target
+	PolicyEnforcer           map[string]string
+	PolicyMode               map[string]varmor.VarmorPolicyMode
+	PolicyProxyConfig        map[string]*varmor.NetworkProxyConfig
+	log                      logr.Logger
 }
 
 func NewPolicyCacher(
@@ -50,19 +52,21 @@ func NewPolicyCacher(
 	log logr.Logger) (*PolicyCacher, error) {
 
 	cacher := PolicyCacher{
-		vcpInformer:           vcpInformer,
-		vcpLister:             vcpInformer.Lister(),
-		vcpInformerSynced:     vcpInformer.Informer().HasSynced,
-		vpInformer:            vpInformer,
-		vpLister:              vpInformer.Lister(),
-		vpInformerSynced:      vpInformer.Informer().HasSynced,
-		ClusterPolicyTargets:  make(map[string]varmor.Target),
-		ClusterPolicyEnforcer: make(map[string]string),
-		ClusterPolicyMode:     make(map[string]varmor.VarmorPolicyMode),
-		PolicyTargets:         make(map[string]varmor.Target),
-		PolicyEnforcer:        make(map[string]string),
-		PolicyMode:            make(map[string]varmor.VarmorPolicyMode),
-		log:                   log,
+		vcpInformer:              vcpInformer,
+		vcpLister:                vcpInformer.Lister(),
+		vcpInformerSynced:        vcpInformer.Informer().HasSynced,
+		vpInformer:               vpInformer,
+		vpLister:                 vpInformer.Lister(),
+		vpInformerSynced:         vpInformer.Informer().HasSynced,
+		ClusterPolicyTargets:     make(map[string]varmor.Target),
+		ClusterPolicyEnforcer:    make(map[string]string),
+		ClusterPolicyMode:        make(map[string]varmor.VarmorPolicyMode),
+		ClusterPolicyProxyConfig: make(map[string]*varmor.NetworkProxyConfig),
+		PolicyTargets:            make(map[string]varmor.Target),
+		PolicyEnforcer:           make(map[string]string),
+		PolicyMode:               make(map[string]varmor.VarmorPolicyMode),
+		PolicyProxyConfig:        make(map[string]*varmor.NetworkProxyConfig),
+		log:                      log,
 	}
 
 	return &cacher, nil
@@ -79,6 +83,7 @@ func (c *PolicyCacher) addVarmorClusterPolicy(obj interface{}) {
 	c.ClusterPolicyTargets[key] = vcp.Spec.DeepCopy().Target
 	c.ClusterPolicyEnforcer[key] = vcp.Spec.Policy.Enforcer
 	c.ClusterPolicyMode[key] = vcp.Spec.Policy.Mode
+	c.ClusterPolicyProxyConfig[key] = vcp.Spec.Policy.DeepCopy().NetworkProxyConfig
 }
 
 func (c *PolicyCacher) updateVarmorClusterPolicy(oldObj, newObj interface{}) {
@@ -112,6 +117,7 @@ func (c *PolicyCacher) deleteVarmorClusterPolicy(obj interface{}) {
 	delete(c.ClusterPolicyTargets, key)
 	delete(c.ClusterPolicyEnforcer, key)
 	delete(c.ClusterPolicyMode, key)
+	delete(c.ClusterPolicyProxyConfig, key)
 }
 
 func (c *PolicyCacher) addVarmorPolicy(obj interface{}) {
@@ -125,6 +131,7 @@ func (c *PolicyCacher) addVarmorPolicy(obj interface{}) {
 	c.PolicyTargets[key] = vp.Spec.DeepCopy().Target
 	c.PolicyEnforcer[key] = vp.Spec.Policy.Enforcer
 	c.PolicyMode[key] = vp.Spec.Policy.Mode
+	c.PolicyProxyConfig[key] = vp.Spec.Policy.DeepCopy().NetworkProxyConfig
 }
 
 func (c *PolicyCacher) updateVarmorPolicy(oldObj, newObj interface{}) {
@@ -158,6 +165,7 @@ func (c *PolicyCacher) deleteVarmorPolicy(obj interface{}) {
 	delete(c.PolicyTargets, key)
 	delete(c.PolicyEnforcer, key)
 	delete(c.PolicyMode, key)
+	delete(c.PolicyProxyConfig, key)
 }
 
 func (c *PolicyCacher) Run(stopCh <-chan struct{}) {

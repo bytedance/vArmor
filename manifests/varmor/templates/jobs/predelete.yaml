@@ -20,11 +20,7 @@ spec:
       serviceAccountName: {{ include "varmor.manager.serviceAccountName" . }}
       containers:
       - name: pre-delete-cleanup-container
-        {{- if .Values.image.registry }}
         image: "{{ .Values.image.registry }}/{{ .Values.image.namespace }}/{{ .Values.manager.image.name }}:{{ .Values.manager.image.tag | default .Chart.AppVersion }}"
-        {{- else }}
-        image: "{{ .Values.publicConfig.registry }}/{{ .Values.manager.image.name }}:{{ .Values.manager.image.tag | default .Chart.AppVersion }}"
-        {{- end }}
         imagePullPolicy: {{ .Values.manager.image.pullPolicy }}
         command: ["/varmor/vArmor"]
         args: ["--preDelete"]

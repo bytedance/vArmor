@@ -28,10 +28,11 @@ type Enforcer int
 
 const (
 	// Enforcer types
-	AppArmor Enforcer = 0x00000001
-	BPF      Enforcer = 0x00000002
-	Seccomp  Enforcer = 0x00000004
-	Unknown  Enforcer = 0x00000008
+	AppArmor     Enforcer = 0x00000001
+	BPF          Enforcer = 0x00000002
+	Seccomp      Enforcer = 0x00000004
+	NetworkProxy Enforcer = 0x00000008
+	Unknown      Enforcer = 0x00000010
 
 	// AppArmor Profile process Status
 	Succeeded Status = "succeeded"
@@ -83,30 +84,28 @@ type ModelingStatus struct {
 	NodeMessages    map[string]string // Use NodeName as its key
 }
 
-var enforcerMap = map[string]Enforcer{
-	"apparmor":           AppArmor,
-	"bpf":                BPF,
-	"seccomp":            Seccomp,
-	"apparmorbpf":        AppArmor | BPF,
-	"bpfapparmor":        AppArmor | BPF,
-	"apparmorseccomp":    AppArmor | Seccomp,
-	"seccompapparmor":    AppArmor | Seccomp,
-	"bpfseccomp":         BPF | Seccomp,
-	"seccompbpf":         BPF | Seccomp,
-	"apparmorbpfseccomp": AppArmor | BPF | Seccomp,
-	"apparmorseccompbpf": AppArmor | BPF | Seccomp,
-	"bpfapparmorseccomp": AppArmor | BPF | Seccomp,
-	"bpfseccompapparmor": AppArmor | BPF | Seccomp,
-	"seccompbpfapparmor": AppArmor | BPF | Seccomp,
-	"seccompapparmorbpf": AppArmor | BPF | Seccomp,
-}
-
 func GetEnforcerType(enforcer string) Enforcer {
+	t := Enforcer(0)
+
 	enforcer = strings.ToLower(enforcer)
-	if t, ok := enforcerMap[enforcer]; ok {
+	if strings.Contains(enforcer, "apparmor") {
+		t |= AppArmor
+	}
+	if strings.Contains(enforcer, "bpf") {
+		t |= BPF
+	}
+	if strings.Contains(enforcer, "seccomp") {
+		t |= Seccomp
+	}
+	if strings.Contains(enforcer, "networkproxy") {
+		t |= NetworkProxy
+	}
+
+	if t == 0 {
+		return Unknown
+	} else {
 		return t
 	}
-	return Unknown
 }
 
 // Pod saves the rule for matching the traffic of pods
