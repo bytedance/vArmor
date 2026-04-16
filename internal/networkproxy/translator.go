@@ -734,37 +734,46 @@ func buildNetworkRBACForTCP(action RBACAction, egressRules []varmor.NetworkProxy
 // ============================================================================
 
 func egressRuleToNetworkPermissions(r varmor.NetworkProxyEgressRule) []Permission {
-	var rules []PermissionRule
-
+	// Build IP/CIDR rules as one dimension
+	var ipRules []PermissionRule
 	if r.IP != "" {
-		rules = append(rules, PermissionRule{
+		ipRules = append(ipRules, PermissionRule{
 			Type:  "destination_ip",
 			Value: r.IP,
 		})
 	}
-
 	if r.CIDR != "" {
-		rules = append(rules, PermissionRule{
+		ipRules = append(ipRules, PermissionRule{
 			Type:  "destination_ip",
 			Value: r.CIDR,
 		})
 	}
 
-	rules = append(rules, portToPermissionRules(r.Ports)...)
+	// Build port rules as another dimension
+	portRules := portToPermissionRules(r.Ports)
 
-	if len(rules) == 0 {
+	// Use cross-product to generate correct OR semantics across dimensions.
+	// E.g., IP=10.0.0.1 + ports=[443, 80] produces:
+	//   (IP AND port443) OR (IP AND port80)
+	// NOT: IP AND port443 AND port80 (impossible to match)
+	var dimensions [][]PermissionRule
+	if len(ipRules) > 0 {
+		dimensions = append(dimensions, ipRules)
+	}
+	if len(portRules) > 0 {
+		dimensions = append(dimensions, portRules)
+	}
+
+	if len(dimensions) == 0 {
 		return nil
 	}
 
-	if r.IP == "" && r.CIDR == "" && len(r.Ports) > 0 {
-		var perms []Permission
-		for _, pr := range rules {
-			perms = append(perms, Permission{AndRules: []PermissionRule{pr}})
-		}
-		return perms
+	combos := crossProduct(dimensions)
+	var perms []Permission
+	for _, combo := range combos {
+		perms = append(perms, Permission{AndRules: combo})
 	}
-
-	return []Permission{{AndRules: rules}}
+	return perms
 }
 
 func egressRuleToHTTPPermissions(r varmor.NetworkProxyEgressRule) []Permission {

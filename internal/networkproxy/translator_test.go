@@ -1914,3 +1914,141 @@ func TestDenyDefaultWithL4EgressRulesTCPChainHasAllowRBAC(t *testing.T) {
 	// Should NOT have empty policies since there ARE allow rules
 	assertNotContains(t, defaultChainSection, "policies: {}", "TCP chain should have actual policies, not deny-all")
 }
+
+// ============================================================================
+// Tests for multi-port rule: IP + multiple ports must use OR across ports
+// ============================================================================
+
+// TestMultiPortEgressRuleORSemantics verifies that an egress rule with
+// IP + multiple ports generates cross-product permissions:
+//
+//	(IP AND port443) OR (IP AND port80)
+//
+// NOT: IP AND port443 AND port80 (which is impossible to match).
+func TestMultiPortEgressRuleORSemantics(t *testing.T) {
+	egress := &varmor.NetworkProxyEgress{
+		DefaultAction: "deny",
+		Rules: []varmor.NetworkProxyEgressRule{
+			{
+				Qualifiers: []string{"allow"},
+				IP:         "10.96.0.1",
+				Ports:      []varmor.Port{{Port: 443}, {Port: 80}},
+			},
+		},
+	}
+	result, err := TranslateEgressRules(egress, 1, 15001)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	lds := result.LDS
+
+	// There should be TWO separate and_rules blocks (one per port),
+	// NOT one and_rules with both ports inside.
+	andCount := strings.Count(lds, "and_rules:")
+	// Each chain (TLS, HTTP, TCP) that has this rule should have 2 and_rules.
+	// TLS chain: 2, HTTP chain: 2, TCP chain: 2 = 6 total
+	if andCount < 6 {
+		t.Errorf("expected at least 6 and_rules blocks (2 per chain × 3 chains), got %d", andCount)
+	}
+
+	// Verify TLS chain has two separate permission entries with destination_port
+	tlsIdx := strings.Index(lds, "tls_chain")
+	httpIdx := strings.Index(lds, "http_chain")
+	if tlsIdx == -1 || httpIdx == -1 {
+		t.Fatal("tls_chain or http_chain not found")
+	}
+	tlsSection := lds[tlsIdx:httpIdx]
+
+	// Count destination_port occurrences in TLS section - should be 2 (one per and_rules)
+	portCount := strings.Count(tlsSection, "destination_port:")
+	if portCount != 2 {
+		t.Errorf("TLS chain: expected 2 destination_port entries (one per port), got %d", portCount)
+	}
+
+	// Both ports must appear
+	assertContains(t, tlsSection, "destination_port: 443", "TLS chain must contain port 443")
+	assertContains(t, tlsSection, "destination_port: 80", "TLS chain must contain port 80")
+
+	// IP must appear in each and_rules
+	ipCount := strings.Count(tlsSection, "10.96.0.1")
+	if ipCount < 2 {
+		t.Errorf("TLS chain: expected IP 10.96.0.1 to appear at least 2 times (once per and_rules), got %d", ipCount)
+	}
+}
+
+// TestSinglePortEgressRuleStillWorks verifies no regression: a single port
+// still generates a single and_rules block.
+func TestSinglePortEgressRuleStillWorks(t *testing.T) {
+	egress := &varmor.NetworkProxyEgress{
+		DefaultAction: "deny",
+		Rules: []varmor.NetworkProxyEgressRule{
+			{
+				Qualifiers: []string{"allow"},
+				IP:         "10.0.0.1",
+				Ports:      []varmor.Port{{Port: 443}},
+			},
+		},
+	}
+	result, err := TranslateEgressRules(egress, 1, 15001)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Should have destination_ip and destination_port in the same and_rules
+	assertContains(t, result.LDS, "10.0.0.1", "must contain IP")
+	assertContains(t, result.LDS, "destination_port: 443", "must contain port 443")
+}
+
+// TestPortOnlyRuleMultiplePorts verifies that ports-only rules (no IP) with
+// multiple ports generate separate permissions (OR semantics).
+func TestPortOnlyRuleMultiplePorts(t *testing.T) {
+	egress := &varmor.NetworkProxyEgress{
+		DefaultAction: "deny",
+		Rules: []varmor.NetworkProxyEgressRule{
+			{
+				Qualifiers: []string{"allow"},
+				Ports:      []varmor.Port{{Port: 443}, {Port: 80}, {Port: 8080}},
+			},
+		},
+	}
+	result, err := TranslateEgressRules(egress, 1, 15001)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify TCP chain has 3 separate port entries
+	defaultIdx := strings.Index(result.LDS, "default_filter_chain:")
+	if defaultIdx == -1 {
+		t.Fatal("default_filter_chain not found")
+	}
+	tcpSection := result.LDS[defaultIdx:]
+
+	assertContains(t, tcpSection, "destination_port: 443", "TCP chain must contain port 443")
+	assertContains(t, tcpSection, "destination_port: 80", "TCP chain must contain port 80")
+	assertContains(t, tcpSection, "destination_port: 8080", "TCP chain must contain port 8080")
+}
+
+// TestIPWithPortRangeAndExactPort verifies cross-product with mixed port types.
+func TestIPWithPortRangeAndExactPort(t *testing.T) {
+	egress := &varmor.NetworkProxyEgress{
+		DefaultAction: "deny",
+		Rules: []varmor.NetworkProxyEgressRule{
+			{
+				Qualifiers: []string{"allow"},
+				IP:         "10.0.0.1",
+				Ports:      []varmor.Port{{Port: 443}, {Port: 8000, EndPort: 9000}},
+			},
+		},
+	}
+	result, err := TranslateEgressRules(egress, 1, 15001)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Should have 2 and_rules per chain: (IP+443) and (IP+8000-9001)
+	assertContains(t, result.LDS, "destination_port: 443", "must contain exact port 443")
+	assertContains(t, result.LDS, "destination_port_range:", "must contain port range")
+	assertContains(t, result.LDS, "start: 8000", "port range start")
+	assertContains(t, result.LDS, "end: 9001", "port range end (exclusive)")
+}
