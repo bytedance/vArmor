@@ -43,18 +43,23 @@ type NetworkProxyConfig struct {
 	// HTTPS traffic at the HTTP level.
 	// +optional
 	MITM *MITMConfig `json:"mitm,omitempty"`
-	// proxyUID is the UID which the proxy sidecar process runs as.
-	// iptables bypass rules use this UID.
+	// proxyUID specifies the UID used by the proxy sidecar process at runtime.
+	// This UID must be different from the UID of the target application, as iptables
+	// rules rely on this UID for traffic distinction.
 	// This field cannot be modified after the policy is created.
 	// Default: 1337
 	// +optional
 	ProxyUID *int64 `json:"proxyUID,omitempty"`
-	// proxyPort is the listen port which the proxy sidecar process listens on.
+	// proxyPort specifies the listening port on which the proxy sidecar process listens.
+	// When the listening port of the target application conflicts with it, a different port
+	// can be specified.
 	// This field cannot be modified after the policy is created.
 	// Default: 15001
 	// +optional
 	ProxyPort *uint16 `json:"proxyPort,omitempty"`
-	// proxyAdminPort is the listen port which the proxy sidecar process listens on for admin requests.
+	// proxyAdminPort specifies the listening port on which the proxy sidecar process handles
+	// admin requests. When the listening port of the target application conflicts with it,
+	// a different port can be specified.
 	// This field cannot be modified after the policy is created.
 	// Default: 15000
 	// +optional
