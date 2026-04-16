@@ -36,11 +36,12 @@ description: The interface specification of vArmor.
 
 | Field | Description |
 |-------|-------------|
-|enforcer<br />*string*|Enforcer is used to specify which security mechanism to use for mandatory access control. <br />Available values: AppArmor, BPF, Seccomp, AppArmorBPF, AppArmorSeccomp, BPFSeccomp, AppArmorBPFSeccomp|
+|enforcer<br />*string*|Enforcer is used to specify which security mechanism to use for mandatory access control. <br />Available values: AppArmor, BPF, Seccomp, NetworkProxy, AppArmorBPF, AppArmorSeccomp, BPFSeccomp, BPFNetworkProxy, AppArmorBPFSeccomp|
 |mode<br />*string*|Mode used to specify the protection mode.<br />Available values: AlwaysAllow, RuntimeDefault, EnhanceProtect, BehaviorModeling, DefenseInDepth|
 |enhanceProtect<br />*[EnhanceProtect](#enhanceprotect)*|EnhanceProtect configures the EnhanceProtect mode. It allows you to set built-in and custom rules to generate profiles for workload protection and control the behavior of profiles (e.g., audit or allow violations).|
 |modelingOptions<br />*[ModelingOptions](#modelingoptions)*|ModelingOptions configures the BehaviorModeling mode.|
-|defenseInDepth<br />*[DefenseInDepth](#defenseindepth)*|DefenseInDepth configures the DefenseInDepth mode.
+|defenseInDepth<br />*[DefenseInDepth](#defenseindepth)*|DefenseInDepth configures the DefenseInDepth mode.|
+|networkProxyConfig<br />*[NetworkProxyConfig](#networkproxyconfig)*|NetworkProxyConfig holds the network proxy sidecar configuration for the NetworkProxy enforcer.|
 
 ## EnhanceProtect
 
@@ -200,6 +201,14 @@ description: The interface specification of vArmor.
 |profileType<br />*string*|ProfileType indicates which kind of Seccomp profile will be applied. Valid options are: BehaviorModel - a profile generated via the BehaviorModeling mode will be used. Custom - a custom profile defined in the customProfile field will be used.|
 |customProfile<br />*string*|Optional. CustomProfile holds the user-defined Seccomp profile content. It must be a valid profile that adheres to Seccomp syntax. Please refer to [this document](https://github.com/opencontainers/runtime-spec/blob/main/config-linux.md#seccomp) to create custom profiles.|
 |syscallRawRules<br />*[LinuxSyscall](https://pkg.go.dev/github.com/opencontainers/runtime-spec/specs-go#LinuxSyscall) array*|Optional. SyscallRawRules specifies custom Seccomp rules. These rules will be added to the end of the Seccomp profile that you specified.|
+
+## NetworkProxyConfig
+
+| Field | Description |
+|-------|-------------|
+|proxyUID<br />**int64*|Optional. ProxyUID specifies the UID used by the proxy sidecar process at runtime. This UID must be different from the UID of the target application, as iptables rules rely on this UID for traffic distinction. This field cannot be modified after the policy is created. (Default: 1337)|
+|proxyPort<br />**uint16*|Optional. ProxyPort specifies the listening port on which the proxy sidecar process listens. When the listening port of the target application conflicts with it, a different port can be specified. This field cannot be modified after the policy is created. (Default: 15001)|
+|proxyAdminPort<br />**uint16*|Optional. ProxyAdminPort specifies the listening port on which the proxy sidecar process handles admin requests. When the listening port of the target application conflicts with it, a different port can be specified. This field cannot be modified after the policy is created. (Default: 15000)|
 
 ## VarmorPolicyStatus
 
