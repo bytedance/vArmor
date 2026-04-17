@@ -4,8 +4,22 @@ description: 针对容器环境中渗透手法的规则。
 ---
 
 # 攻击防护
+这些规则针对容器内的常见渗透手法进行防护，例如缓解容器信息泄露、禁用敏感行为等。您可以参考以下格式定义策略：
 
-这些规则针对容器内的常见渗透手法进行防护，例如缓解容器信息泄露、禁用敏感行为等。
+```yaml
+  policy:
+    enforcer: AppArmorBPF
+    mode: EnhanceProtect
+    enhanceProtect:
+      attackProtectionRules:
+      - rules:
+        - mitigate-sa-leak
+      - rules:
+        - disable-write-etc
+        targets:
+        - "/bin/bash"
+        - "/usr/bin/bash"
+```
 
 ## 缓解信息泄露
 
