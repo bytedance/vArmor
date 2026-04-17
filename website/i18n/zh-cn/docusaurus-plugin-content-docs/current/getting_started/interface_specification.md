@@ -40,7 +40,7 @@ description: vArmor 的接口规范。
 |mode<br />*string*|Mode 用于指定防护模式。<br />可用值：AlwaysAllow, RuntimeDefault, EnhanceProtect, BehaviorModeling, DefenseInDepth|
 |enhanceProtect<br />*[EnhanceProtect](#enhanceprotect)*|EnhanceProtect 用于配置 EnhanceProtect 模式。它允许您设置内置规则和自定义规则，以生成保护工作负载的配置文件（即 Profile），并控制配置文件的行为（例如，审计、允许违规行为）。|
 |modelingOptions<br />*[ModelingOptions](#modelingoptions)*|ModelingOptions 用于配置 BehaviorModeling 模式。|
-|defenseInDepth<br />*[DefenseInDepth](#defenseindepth)*|DefenseInDepth 用于配置 DefenseInDepth 模式。
+|defenseInDepth<br />*[DefenseInDepth](#defenseindepth)*|DefenseInDepth 用于配置 DefenseInDepth 模式。|
 |networkProxyConfig<br />*[NetworkProxyConfig](#networkproxyconfig)*|NetworkProxyConfig 用于配置 NetworkProxy enforcer 的网络代理边车容器。|
 
 ## EnhanceProtect
@@ -55,6 +55,7 @@ description: vArmor 的接口规范。
 |syscallRawRules<br />*[LinuxSyscall](https://pkg.go.dev/github.com/opencontainers/runtime-spec@v1.1.0/specs-go#LinuxSyscall) array*|可选字段。SyscallRawRules 用于设置自定义的 Seccomp 规则。请参考 https://github.com/opencontainers/runtime-spec/blob/main/config-linux.md#seccomp。|
 |privileged<br />*bool*|可选字段。Privileged 用于确定该策略是否适用于特权容器。如果设置为 false，**EnhanceProtect** 模式将在 **RuntimeDefault** 模式之上构建 AppArmor 或 BPF 配置文件。否则，它将在 **AlwaysAllow** 模式之上构建 AppArmor 或 BPF 配置文件。（默认值：false）<br /><br />请注意，如果设置为 true，vArmor 将不会为目标工作负载构建 Seccomp 配置文件。|
 |auditViolations<br />*bool*|可选字段。AuditViolations 用于决定是否对违反强制访问控制规则的操作进行审计。如果设置了此字段，任何检测到的违规行为都将记录到主机中的 `/var/log/varmor/violations.log` 文件中。若 allowViolations 设为 true，事件动作会被标记为 `AUDIT`。否则，事件动作会被标记为 `DENIED`。<br /><br />请注意，当 allowViolations 字段设置为 false 时，Seccomp 强制访问控制器不支持对违规行为进行审计。（默认值：false）|
+|networkProxyRawRules<br />*[NetworkProxyRules](#networkproxyrules)*|可选字段。NetworkProxyRawRules 用于设置由 NetworkProxy enforcer 通过 sidecar 代理强制执行的网络访问控制规则。这些规则在应用协议层面（L4 域名/SNI 匹配、L7 HTTP 匹配）运行，且独立于 BPF 内核级网络规则。<br /><br />此字段仅在 enforcer 包含 "NetworkProxy" 时生效。|
 |allowViolations<br />*bool*|可选字段。AllowViolations 用于决定是否允许违反强制访问控制规则的操作。如果设置了此字段，任何检测到的违规行为都将被允许而不是被阻止。（默认值：false）|
 
 ### AttackProtectionRules
@@ -184,6 +185,7 @@ description: vArmor 的接口规范。
 |-----|------|
 |appArmor<br />*[AppArmorProfile](#apparmorprofile)*|可选字段。AppArmor 为默认拒绝访问控制指定 AppArmor 配置文件和其他自定义规则。|
 |seccomp<br />*[SeccompProfile](#seccompprofile)*|可选字段。Seccomp 为默认拒绝访问控制指定 Seccomp 配置文件和其他自定义规则。|
+|networkProxy<br />*[NetworkProxyRules](#networkproxyrules)*|可选字段。NetworkProxy 用于设置由 NetworkProxy enforcer 通过 sidecar 代理强制执行的网络访问控制规则。这些规则在应用协议层面（L4 域名/SNI 匹配、L7 HTTP 匹配）运行，且独立于 BPF 内核级网络规则。<br /><br />此字段仅在 enforcer 包含 "NetworkProxy" 时生效。|
 |allowViolations<br />*bool*|可选字段。AllowViolations 用于确定是否允许违反强制访问控制规则的操作。如果设置了此字段，任何检测到的违规行为将被允许而非阻止，与此同时会生成并记录一个 `ALLOWED` 动作的审计事件。这可用于收集违规情况，以改进默认拒绝访问控制的配置文件。如果未设置此字段，任何检测到的违规行为将被阻止，并生成和记录一个 `DENIED` 动作的审计事件。(默认值：false)
 
 ### AppArmorProfile
@@ -228,3 +230,51 @@ description: vArmor 的接口规范。
 |lastTransitionTime<br />*Time*|该条件上次从一个状态转换为另一个状态的时间。|
 |reason<br />*string*|该条件上次发生转换的原因。|
 |message<br />*string*|便于人类阅读的消息，用于说明转换的详细信息。|
+
+## NetworkProxyRules
+
+| 字段 | 描述 |
+|-----|------|
+|egress<br />*[NetworkProxyEgress](#networkproxyegress)*|可选字段。Egress 指定出站（egress）访问控制规则。|
+
+### NetworkProxyEgress
+
+| 字段 | 描述 |
+|-----|------|
+|defaultAction<br />*string*|DefaultAction 指定未匹配任何规则的连接的默认动作。可用值：deny, allow|
+|rules<br />*[NetworkProxyEgressRule](#networkproxyegressrule) array*|可选字段。Rules 指定 L4（连接层）出站访问控制规则。|
+|httpRules<br />*[NetworkProxyHTTPRule](#networkproxyhttprule) array*|可选字段。HTTPRules 指定 L7（HTTP 请求层）出站访问控制规则。|
+
+### NetworkProxyEgressRule
+
+| 字段 | 描述 |
+|-----|------|
+|qualifiers<br />*string array*|Qualifiers 决定规则的行为。可用值：allow, deny, audit。|
+|description<br />*string*|可选字段。Description 是规则用途的人类可读描述。|
+|ip<br />*string*|可选字段。IP 指定单个目标 IP 地址。与 cidr 字段互斥。|
+|cidr<br />*string*|可选字段。CIDR 指定目标 IP 范围。与 ip 字段互斥。|
+|ports<br />*[Port](#port) array*|可选字段。Ports 将规则限制为特定的目标端口。如果为空，则匹配所有端口。|
+
+### NetworkProxyHTTPRule
+
+| 字段 | 描述 |
+|-----|------|
+|qualifiers<br />*string array*|Qualifiers 决定规则的行为。可用值：allow, deny, audit。|
+|description<br />*string*|可选字段。Description 是规则用途的人类可读描述。|
+|match<br />*[HTTPMatch](#httpmatch)*|Match 描述 HTTP/HTTPS 流量的匹配条件。|
+
+### HTTPMatch
+
+| 字段 | 描述 |
+|-----|------|
+|hosts<br />*string array*|可选字段。Hosts 指定要匹配的目标服务域名。支持精确匹配（"api.openai.com"）和通配符（"*.openai.com"）。多个值之间为逻辑“或”关系。|
+|ports<br />*[Port](#port) array*|可选字段。Ports 将规则限制为特定的目标端口。|
+|paths<br />*[HTTPPathMatch](#httppathmatch) array*|可选字段。Paths 指定 HTTP 请求路径匹配。对于 HTTPS 流量，路径匹配需要配置 MITM。|
+|methods<br />*string array*|可选字段。Methods 指定要匹配的 HTTP 方法（例如 GET、POST）。对于 HTTPS 流量，方法匹配需要配置 MITM。|
+
+### HTTPPathMatch
+
+| 字段 | 描述 |
+|-----|------|
+|exact<br />*string*|可选字段。Exact 指定要精确匹配的路径字符串。|
+|prefix<br />*string*|可选字段。Prefix 指定要匹配的路径前缀。|
