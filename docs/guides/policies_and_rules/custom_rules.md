@@ -10,7 +10,7 @@ Note:<br />- The syntax supported by BPF enforcer is still under development.
 
 The AppArmor enforcer supports users in customizing policies based on the syntax of AppArmor.
 
-Please refer to the [syntax](https://manpages.ubuntu.com/manpages/jammy/man5/apparmor.d.5.html) of security profiles for AppArmor to set custom rules in the [`.spec.policy.enhanceProtect.appArmorRawRules`](../../getting_started/interface_specification.md) field. Please ensure that each rule ends with a comma.
+Please refer to this [document](https://github.com/opencontainers/runtime-spec/blob/main/config-linux.md#seccomp) to set custom syscalls blocklist rules in the `.spec.policy.enhanceProtect.syscallRawRules` or `.spec.policy.defenseInDepth.seccomp.syscallRawRules` field. Please ensure that each rule ends with a comma.
 
 **Use case:**
 
@@ -45,7 +45,7 @@ policy:
 
 The Seccomp enforcer supports users in customizing policies based on the syntax of OCI specification.
 
-Please refer to this [document](https://github.com/opencontainers/runtime-spec/blob/main/config-linux.md#seccomp) to set custom syscalls blocklist rules in the [`.spec.policy.enhanceProtect.syscallRawRules`](../../getting_started/interface_specification.md) field.
+Please refer to this [document](https://github.com/opencontainers/runtime-spec/blob/main/config-linux.md#seccomp) to set custom syscalls blocklist rules in the `.spec.policy.enhanceProtect.syscallRawRules` or `.spec.policy.defenseInDepth.seccomp.syscallRawRules` field.
 
 **Use case:**
 
@@ -78,7 +78,7 @@ policy:
 
 The BPF enforcer supports users in customizing policies based on the syntax, with an upper limit of 50 rules per rule type. Each node of Kubernetes can enable sandboxing for up to 100 containers.
 
-Please refer to the syntaxes below to set custom rules in the [`.spec.policy.enhanceProtect.bpfRawRules`](../../getting_started/interface_specification.md#bpfrawrules) field.
+Please refer to [BpfRawRules](../../getting_started/interface_specification.md#bpfrawrules) and the syntaxes below to set custom rules in `.spec.policy.enhanceProtect.bpfRawRules`.
 
 ### File Permission
   
@@ -137,4 +137,98 @@ policy:
           - "udp"
           qualifiers:
           - audit
+```
+
+## NetworkProxy enforcer
+
+The NetworkProxy enforcer supports users in customizing network access control rules that operate at the application protocol level via a sidecar proxy.
+
+Unlike BPF network rules which operate at the kernel level, NetworkProxy rules work at L4 (domain/SNI matching) and L7 (HTTP matching). When both BPF and NetworkProxy rules are active, BPF rules execute first at the kernel level; only connections allowed by BPF reach the sidecar proxy for NetworkProxy evaluation.
+
+Please refer to [NetworkProxyRules](../../getting_started/interface_specification.md#networkproxyrules) and the details below to set custom rules in `.spec.policy.enhanceProtect.networkProxyRawRules` or `.spec.policy.defenseInDepth.networkProxy`.
+
+* **L4 Egress Rules**
+
+  Control outbound connections based on destination IP, CIDR, and port. Each rule has qualifiers (`allow`, `deny`, `audit`) that determine its behavior.
+
+* **L7 HTTP Rules**
+
+  Control HTTP/HTTPS traffic at the request level by matching host, path, and method:
+
+  - **hosts**: matched via TLS SNI for HTTPS, or Host header for HTTP. Supports exact match and wildcard (`*.openai.com`).
+  - **paths**: exact or prefix matching for request paths. Requires MITM for HTTPS traffic.
+  - **methods**: HTTP methods to match (e.g., GET, POST). Requires MITM for HTTPS traffic.
+
+  For HTTPS traffic, HTTP rules require TLS MITM to be configured. Without MITM, only host matching applies and path/method rules are ignored.
+
+* **defaultAction**
+
+  The default action for connections that do not match any rule:
+  - `deny`: whitelist mode, only explicitly allowed connections are permitted.
+  - `allow`: blacklist mode, only explicitly denied connections are blocked.
+
+  Deny rules take precedence over allow rules. Connections matching neither are subject to `defaultAction`.
+
+  Note on auditing:
+  - When `defaultAction` is `deny`, blocked requests are audited by default.
+  - When `defaultAction` is `allow`, allowed requests are **not** audited by default.
+
+**Use case:**
+
+```yaml
+policy:
+  enforcer: NetworkProxy
+  mode: EnhanceProtect
+  enhanceProtect:
+    networkProxyRawRules:
+      egress:
+        defaultAction: deny
+        rules:
+        - qualifiers:
+          - allow
+          cidr: 192.168.1.0/24
+          ports:
+          - port: 80
+          - port: 443
+        - qualifiers:
+          - deny
+          - audit
+          ip: 10.0.0.1
+        httpRules:
+        - qualifiers:
+          - allow
+          match:
+            hosts:
+            - api.openai.com
+            - "*.openai.com"
+            ports:
+            - port: 443
+            paths:
+            - prefix: /v1/chat
+            methods:
+            - POST
+        - qualifiers:
+          - deny
+          match:
+            hosts:
+            - internal.example.com
+  networkProxyConfig:
+    proxyUID: 1337
+    proxyPort: 15001
+    proxyAdminPort: 15000
+```
+
+You can also allow all traffic while logging every request for data collection:
+
+```yaml
+policy:
+  enforcer: NetworkProxy
+  mode: EnhanceProtect
+  enhanceProtect:
+    networkProxyRawRules:
+      egress:
+        defaultAction: allow
+        rules:
+        - qualifiers: ["audit"]
+          cidr: "0.0.0.0/0"
 ```

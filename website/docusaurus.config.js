@@ -48,7 +48,7 @@ const config = {
       /** @type {import('@docusaurus/preset-classic').Options} */
       ({
         docs: {
-          lastVersion: 'v0.9',
+          lastVersion: 'v0.10',
           versions: {
             current: {
               label: 'main',
@@ -68,11 +68,16 @@ const config = {
             'v0.8': {
               label: 'v0.8',
               path: 'v0.8',
-              banner: 'none',
+              banner: 'unmaintained',
             },
             'v0.9': {
               label: 'v0.9',
               path: 'v0.9',
+              banner: 'none',
+            },
+            'v0.10': {
+              label: 'v0.10',
+              path: 'v0.10',
               banner: 'none',
             }
           },
