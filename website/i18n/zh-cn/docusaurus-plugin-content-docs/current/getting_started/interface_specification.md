@@ -53,9 +53,9 @@ description: vArmor 的接口规范。
 |appArmorRawRules<br />*[AppArmorRawRules](#apparmorrawrules) array*|可选字段。AppArmorRawRules 用于设置自定义的 AppArmor 规则。|
 |bpfRawRules<br />*[BpfRawRules](#bpfrawrules) array*|可选字段。BpfRawRules 用于设置自定义的 BPF 规则。|
 |syscallRawRules<br />*[LinuxSyscall](https://pkg.go.dev/github.com/opencontainers/runtime-spec@v1.1.0/specs-go#LinuxSyscall) array*|可选字段。SyscallRawRules 用于设置自定义的 Seccomp 规则。请参考 https://github.com/opencontainers/runtime-spec/blob/main/config-linux.md#seccomp。|
+|networkProxyRawRules<br />*[NetworkProxyRules](#networkproxyrules)*|可选字段。NetworkProxyRawRules 用于设置由 NetworkProxy enforcer 通过 sidecar 代理强制执行的网络访问控制规则。这些规则在应用协议层面（L4 域名/SNI 匹配、L7 HTTP 匹配）运行，且独立于 BPF 内核级网络规则。<br /><br />此字段仅在 enforcer 包含 "NetworkProxy" 时生效。|
 |privileged<br />*bool*|可选字段。Privileged 用于确定该策略是否适用于特权容器。如果设置为 false，**EnhanceProtect** 模式将在 **RuntimeDefault** 模式之上构建 AppArmor 或 BPF 配置文件。否则，它将在 **AlwaysAllow** 模式之上构建 AppArmor 或 BPF 配置文件。（默认值：false）<br /><br />请注意，如果设置为 true，vArmor 将不会为目标工作负载构建 Seccomp 配置文件。|
 |auditViolations<br />*bool*|可选字段。AuditViolations 用于决定是否对违反强制访问控制规则的操作进行审计。如果设置了此字段，任何检测到的违规行为都将记录到主机中的 `/var/log/varmor/violations.log` 文件中。若 allowViolations 设为 true，事件动作会被标记为 `AUDIT`。否则，事件动作会被标记为 `DENIED`。<br /><br />请注意，当 allowViolations 字段设置为 false 时，Seccomp 强制访问控制器不支持对违规行为进行审计。（默认值：false）|
-|networkProxyRawRules<br />*[NetworkProxyRules](#networkproxyrules)*|可选字段。NetworkProxyRawRules 用于设置由 NetworkProxy enforcer 通过 sidecar 代理强制执行的网络访问控制规则。这些规则在应用协议层面（L4 域名/SNI 匹配、L7 HTTP 匹配）运行，且独立于 BPF 内核级网络规则。<br /><br />此字段仅在 enforcer 包含 "NetworkProxy" 时生效。|
 |allowViolations<br />*bool*|可选字段。AllowViolations 用于决定是否允许违反强制访问控制规则的操作。如果设置了此字段，任何检测到的违规行为都将被允许而不是被阻止。（默认值：false）|
 
 ### AttackProtectionRules
