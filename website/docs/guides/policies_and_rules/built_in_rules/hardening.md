@@ -6,6 +6,18 @@ description: Rules to reduce the attack surface of system.
 # Hardening
 These rules are used for reduce the attack surface of system, such as blocking common escape vectors for containers has privileges, disabling capabilities, and blocking certain kernel vulnerability exploitation vectors.
 
+You can refer to the following format to define policies:
+
+```yaml
+  policy:
+    enforcer: AppArmorBPFSeccomp
+    mode: EnhanceProtect
+    enhanceProtect:
+      hardeningRules:
+      - disable-cap-net-raw
+      - disallow-create-user-ns
+```
+
 ## Securing Privileged Containers
 
 ### `disallow-write-core-pattern`

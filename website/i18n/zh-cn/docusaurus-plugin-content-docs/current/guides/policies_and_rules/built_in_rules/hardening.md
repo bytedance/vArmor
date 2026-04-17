@@ -4,6 +4,17 @@ description: 减少系统攻击面的规则。
 ---
 
 # 容器加固
+这些规则对容器的权限进行限制，从而减少系统攻击面。您可以参考以下格式定义策略：
+
+```yaml
+  policy:
+    enforcer: AppArmorBPFSeccomp
+    mode: EnhanceProtect
+    enhanceProtect:
+      hardeningRules:
+      - disable-cap-net-raw
+      - disallow-create-user-ns
+```
 
 ## 加固具有特权的容器
 ### `disallow-write-core-pattern`
