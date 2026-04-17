@@ -192,6 +192,81 @@ description: 针对容器环境中渗透手法的规则。
 * BPF
 :::
 
+### `disable-access-passwd`
+
+禁止读写 `/etc/passwd` 文件。
+
+:::note[说明]
+此规则禁止容器进程读写 `/etc/passwd` 文件。`/etc/passwd` 文件包含用户账户信息，攻击者可能会尝试修改该文件以创建新用户进行持久化或权限提升。
+:::
+
+:::info[原理与影响]
+禁止读写 `/etc/passwd` 文件。
+:::
+
+:::tip[支持的强制访问控制器]
+* AppArmor
+* BPF
+:::
+
+### `disable-access-shadow`
+
+禁止读写 `/etc/shadow` 文件。
+
+:::note[说明]
+此规则禁止容器进程读写 `/etc/shadow` 文件。`/etc/shadow` 文件包含加密的用户密码，攻击者可能会尝试读取该文件以获取密码哈希进行离线破解，或修改该文件以更改密码进行权限提升。
+:::
+
+:::info[原理与影响]
+禁止读写 `/etc/shadow` 文件。
+:::
+
+:::tip[支持的强制访问控制器]
+* AppArmor
+* BPF
+:::
+
+### `disable-access-ssh-dir`
+
+禁止读写 `~/.ssh/` 目录。
+
+:::note[说明]
+此规则禁止容器进程读写任何用户的 `.ssh` 目录及其文件。SSH 目录通常包含私钥、authorized_keys 文件和其他敏感的 SSH 配置。攻击者可能会尝试窃取 SSH 密钥进行横向移动或持久化。
+:::
+
+:::info[原理与影响]
+禁止读写任何用户的 `.ssh` 目录及其文件。
+
+**BPF enforcer 注意事项：** 由于 BPF enforcer 的模式匹配限制（不能在单个模式中使用两个 `**` 通配符），此规则仅限制对以下内容的访问：
+- 任意 `.ssh` 目录（`/**/.ssh`）
+- `/root/.ssh/` 目录下的文件（`/root/.ssh/**`）
+
+如果需要保护特定用户目录下的 SSH 密钥，您需要创建具有明确路径的自定义 BPF 规则。
+:::
+
+:::tip[支持的强制访问控制器]
+* AppArmor
+* BPF
+:::
+
+### `disable-write-skills`
+
+禁止写入 `skills` 目录。
+
+:::note[说明]
+此规则禁止容器进程写入任何 `skills` 目录及其文件。这有助于防止攻击者修改或注入恶意代码到应用技能或插件中，这些代码可能被应用程序执行。
+:::
+
+:::info[原理与影响]
+禁止写入任何 `skills` 目录及其文件。
+
+**BPF enforcer 注意事项：** 如果使用 BPF enforcer，需要创建具有 skills 目录绝对路径的自定义 BPF 规则。例如，使用 BPF enforcer 语法保护 `/app/skills/**` 目录下的文件免受写入操作。
+:::
+
+:::tip[支持的强制访问控制器]
+* AppArmor
+:::
+
 ### `disable-busybox`
 
 禁止执行 busybox 命令。

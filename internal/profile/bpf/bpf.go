@@ -553,24 +553,6 @@ func generateAttackProtectionRules(
 			return err
 		}
 		content.Networks = append(content.Networks, *networkContent)
-	case "disallow-access-k8s-sensitive-files":
-		fileContent, err = newBpfPathRule(mode, "**/etc/kubernetes", bpfenforcer.AaMayRead)
-		if err != nil {
-			return err
-		}
-		content.Files = append(content.Files, *fileContent)
-
-		fileContent, err = newBpfPathRule(mode, "**/.kube/config", bpfenforcer.AaMayRead)
-		if err != nil {
-			return err
-		}
-		content.Files = append(content.Files, *fileContent)
-
-		fileContent, err = newBpfPathRule(mode, "**/volumes/kubernetes.io~secret", bpfenforcer.AaMayRead)
-		if err != nil {
-			return err
-		}
-		content.Files = append(content.Files, *fileContent)
 
 	//// 5. Restrict the sensitive operations inside the container
 	case "disable-write-etc":
@@ -629,6 +611,30 @@ func generateAttackProtectionRules(
 		content.Processes = append(content.Processes, *fileContent)
 
 		fileContent, err = newBpfPathRule(mode, "/**/sudo", bpfenforcer.AaMayExec)
+		if err != nil {
+			return err
+		}
+		content.Processes = append(content.Processes, *fileContent)
+	case "disable-access-passwd":
+		fileContent, err = newBpfPathRule(mode, "/etc/passwd", bpfenforcer.AaMayRead|bpfenforcer.AaMayWrite|bpfenforcer.AaMayAppend)
+		if err != nil {
+			return err
+		}
+		content.Processes = append(content.Processes, *fileContent)
+	case "disable-access-shadow":
+		fileContent, err = newBpfPathRule(mode, "/etc/shadow", bpfenforcer.AaMayRead|bpfenforcer.AaMayWrite|bpfenforcer.AaMayAppend)
+		if err != nil {
+			return err
+		}
+		content.Processes = append(content.Processes, *fileContent)
+	case "disable-access-ssh-dir":
+		fileContent, err = newBpfPathRule(mode, "/**/.ssh", bpfenforcer.AaMayRead|bpfenforcer.AaMayWrite|bpfenforcer.AaMayAppend)
+		if err != nil {
+			return err
+		}
+		content.Processes = append(content.Processes, *fileContent)
+
+		fileContent, err = newBpfPathRule(mode, "/root/.ssh/**", bpfenforcer.AaMayRead|bpfenforcer.AaMayWrite|bpfenforcer.AaMayAppend)
 		if err != nil {
 			return err
 		}

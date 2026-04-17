@@ -191,6 +191,82 @@ Disallow writing to the `/etc` directory.
 * BPF
 :::
 
+### `disable-access-passwd`
+
+Prohibit access to read or write the `/etc/passwd` file.
+
+:::note[Description]
+This rule prohibits container processes from reading or writing the `/etc/passwd` file. The `/etc/passwd` file contains user account information, and attackers may attempt to modify it to create new users for persistence or privilege escalation.
+:::
+
+:::info[Principle & Impact]
+Disallow reading and writing the `/etc/passwd` file.
+:::
+
+:::tip[Supported Enforcer]
+* AppArmor
+* BPF
+:::
+
+### `disable-access-shadow`
+
+Prohibit access to read or write the `/etc/shadow` file.
+
+:::note[Description]
+This rule prohibits container processes from reading or writing the `/etc/shadow` file. The `/etc/shadow` file contains encrypted user passwords, and attackers may attempt to read it to obtain password hashes for offline cracking or modify it to change passwords for privilege escalation.
+:::
+
+:::info[Principle & Impact]
+Disallow reading and writing the `/etc/shadow` file.
+:::
+
+:::tip[Supported Enforcer]
+* AppArmor
+* BPF
+:::
+
+### `disable-access-ssh-dir`
+
+Prohibit access to read or write the `~/.ssh/` directory.
+
+:::note[Description]
+This rule prohibits container processes from reading or writing any user's `.ssh` directory and its files. SSH directories typically contain private keys, authorized_keys files, and other sensitive SSH configuration. Attackers may attempt to steal SSH keys for lateral movement or persistence.
+:::
+
+:::info[Principle & Impact]
+Disallow reading and writing any user's `.ssh` directory and its files.
+
+**Note for BPF enforcer:** Due to BPF enforcer's pattern matching limitations (cannot use two `**` wildcards in a single pattern), this rule only restricts access to:
+- Any `.ssh` directory (`/**/.ssh`)
+- Files under the `/root/.ssh/` directory (`/root/.ssh/**`)
+
+If you need to protect SSH keys in specific user directories, you'll need to create custom BPF rules with explicit paths.
+:::
+
+:::tip[Supported Enforcer]
+* AppArmor
+* BPF
+:::
+
+### `disable-write-skills`
+
+Prohibit access to write the `skills` directory.
+
+:::note[Description]
+This rule prohibits container processes from writing to any `skills` directory and its files. This helps prevent attackers from modifying or injecting malicious code into application skills or plugins that could be executed by the application.
+:::
+
+:::info[Principle & Impact]
+Disallow writing to any `skills` directory and its files.
+
+**Note for BPF enforcer:** If using BPF enforcer, you need to create custom BPF rules with the absolute path of the skills directory. For example, use BPF enforcer syntax to protect files under `/app/skills/**` directory from write operations.
+:::
+
+:::tip[Supported Enforcer]
+* AppArmor
+:::
+
+
 ### `disable-busybox`
 
 Prohibit the execution of busybox command.

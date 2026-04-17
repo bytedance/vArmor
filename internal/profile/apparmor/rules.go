@@ -330,6 +330,14 @@ func generateAttackProtectionRules(rule, qualifier string, allowViolations bool)
 			rules += qualifier + "/**/su rx,\n"
 			rules += qualifier + "/**/sudo rx,\n"
 		}
+	case "disable-access-passwd":
+		rules += qualifier + "/etc/passwd rw,\n"
+	case "disable-access-shadow":
+		rules += qualifier + "/etc/shadow rw,\n"
+	case "disable-access-ssh-dir":
+		rules += qualifier + "/**/.ssh/** rw,\n"
+	case "disable-write-skills":
+		rules += qualifier + "/**/skills/** w,\n"
 	//// 6. Others
 	case "disable-network":
 		rules += qualifier + "network,\n"
