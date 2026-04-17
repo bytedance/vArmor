@@ -16,6 +16,7 @@ package webhooks
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -52,13 +53,16 @@ func (ws *WebhookServer) matchAndPatch(request *admissionv1.AdmissionRequest, ke
 
 	enforcer := ""
 	var mode varmor.VarmorPolicyMode
+	var networkProxyConfig *varmor.NetworkProxyConfig
 	if clusterScope {
 		enforcer = ws.policyCacher.ClusterPolicyEnforcer[key]
 		mode = ws.policyCacher.ClusterPolicyMode[key]
 		policyNamespace = varmorconfig.Namespace
+		networkProxyConfig = ws.policyCacher.ClusterPolicyProxyConfig[key]
 	} else {
 		enforcer = ws.policyCacher.PolicyEnforcer[key]
 		mode = ws.policyCacher.PolicyMode[key]
+		networkProxyConfig = ws.policyCacher.PolicyProxyConfig[key]
 	}
 
 	obj, err := ws.deserializeWorkload(request)
@@ -76,7 +80,7 @@ func (ws *WebhookServer) matchAndPatch(request *admissionv1.AdmissionRequest, ke
 	apName := varmorprofile.GenerateArmorProfileName(policyNamespace, policyName, clusterScope)
 	if target.Name != "" && target.Name == m.GetName() {
 		logger.Info("mutating resource", "resource kind", request.Kind.Kind, "resource namespace", request.Namespace, "resource name", request.Name, "profile", apName)
-		patch, err := buildPatch(obj, enforcer, mode, target, apName, ws.bpfExclusiveMode, varmorconfig.AppArmorGA)
+		patch, err := buildPatch(obj, enforcer, mode, target, networkProxyConfig, apName, ws.bpfExclusiveMode, varmorconfig.AppArmorGA)
 		if err != nil {
 			logger.Error(err, "ws.buildPatch()")
 			return nil
@@ -90,7 +94,7 @@ func (ws *WebhookServer) matchAndPatch(request *admissionv1.AdmissionRequest, ke
 		}
 		if selector.Matches(labels.Set(m.GetLabels())) {
 			logger.Info("mutating resource", "resource kind", request.Kind.Kind, "resource namespace", request.Namespace, "resource name", request.Name, "profile", apName)
-			patch, err := buildPatch(obj, enforcer, mode, target, apName, ws.bpfExclusiveMode, varmorconfig.AppArmorGA)
+			patch, err := buildPatch(obj, enforcer, mode, target, networkProxyConfig, apName, ws.bpfExclusiveMode, varmorconfig.AppArmorGA)
 			if err != nil {
 				logger.Error(err, "ws.buildPatch()")
 				return nil
@@ -126,9 +130,11 @@ func (ws *WebhookServer) deserializeWorkload(request *admissionv1.AdmissionReque
 }
 
 func buildPatch(obj interface{}, enforcer string,
-	mode varmor.VarmorPolicyMode, target varmor.Target,
+	mode varmor.VarmorPolicyMode, target varmor.Target, networkProxyConfig *varmor.NetworkProxyConfig,
 	profileName string, bpfExclusiveMode bool, appArmorGA bool) (patch string, err error) {
 	var jsonPatch string
+
+	e := varmortypes.GetEnforcerType(enforcer)
 
 	switch target.Kind {
 	case "Deployment":
@@ -142,12 +148,25 @@ func buildPatch(obj interface{}, enforcer string,
 			jsonPatch += `{"op": "add", "path": "/spec/template/metadata/annotations", "value": {}},`
 		}
 
+		// NetworkProxy
+		if (e & varmortypes.NetworkProxy) != 0 {
+			if _, ok := deploy.Spec.Template.Annotations["pod.networkproxy.security.beta.varmor.org"]; !ok {
+				if len(deploy.Spec.Template.Spec.InitContainers) == 0 {
+					jsonPatch += `{"op": "add", "path": "/spec/template/spec/initContainers", "value": []},`
+				}
+
+				if len(deploy.Spec.Template.Spec.Volumes) == 0 {
+					jsonPatch += `{"op": "add", "path": "/spec/template/spec/volumes", "value": []},`
+				}
+
+				jsonPatch += buildNetworkProxyPatch(profileName, true, networkProxyConfig)
+			}
+		}
+
 		for index, container := range deploy.Spec.Template.Spec.Containers {
 			if len(target.Containers) != 0 && !varmorutils.InStringArray(container.Name, target.Containers) {
 				continue
 			}
-
-			e := varmortypes.GetEnforcerType(enforcer)
 
 			// BPF
 			if (e & varmortypes.BPF) != 0 {
@@ -205,12 +224,25 @@ func buildPatch(obj interface{}, enforcer string,
 			jsonPatch += `{"op": "add", "path": "/spec/template/metadata/annotations", "value": {}},`
 		}
 
+		// NetworkProxy
+		if (e & varmortypes.NetworkProxy) != 0 {
+			if _, ok := statefulSet.Spec.Template.Annotations["pod.networkproxy.security.beta.varmor.org"]; !ok {
+				if len(statefulSet.Spec.Template.Spec.InitContainers) == 0 {
+					jsonPatch += `{"op": "add", "path": "/spec/template/spec/initContainers", "value": []},`
+				}
+
+				if len(statefulSet.Spec.Template.Spec.Volumes) == 0 {
+					jsonPatch += `{"op": "add", "path": "/spec/template/spec/volumes", "value": []},`
+				}
+
+				jsonPatch += buildNetworkProxyPatch(profileName, true, networkProxyConfig)
+			}
+		}
+
 		for index, container := range statefulSet.Spec.Template.Spec.Containers {
 			if len(target.Containers) != 0 && !varmorutils.InStringArray(container.Name, target.Containers) {
 				continue
 			}
-
-			e := varmortypes.GetEnforcerType(enforcer)
 
 			// BPF
 			if (e & varmortypes.BPF) != 0 {
@@ -268,12 +300,23 @@ func buildPatch(obj interface{}, enforcer string,
 			jsonPatch += `{"op": "add", "path": "/spec/template/metadata/annotations", "value": {}},`
 		}
 
+		// NetworkProxy
+		if (e & varmortypes.NetworkProxy) != 0 {
+			if _, ok := daemonSet.Spec.Template.Annotations["pod.networkproxy.security.beta.varmor.org"]; !ok {
+				if len(daemonSet.Spec.Template.Spec.InitContainers) == 0 {
+					jsonPatch += `{"op": "add", "path": "/spec/template/spec/initContainers", "value": []},`
+				}
+				if len(daemonSet.Spec.Template.Spec.Volumes) == 0 {
+					jsonPatch += `{"op": "add", "path": "/spec/template/spec/volumes", "value": []},`
+				}
+				jsonPatch += buildNetworkProxyPatch(profileName, true, networkProxyConfig)
+			}
+		}
+
 		for index, container := range daemonSet.Spec.Template.Spec.Containers {
 			if len(target.Containers) != 0 && !varmorutils.InStringArray(container.Name, target.Containers) {
 				continue
 			}
-
-			e := varmortypes.GetEnforcerType(enforcer)
 
 			// BPF
 			if (e & varmortypes.BPF) != 0 {
@@ -327,12 +370,25 @@ func buildPatch(obj interface{}, enforcer string,
 			jsonPatch += `{"op": "add", "path": "/metadata/annotations", "value": {}},`
 		}
 
+		// NetworkProxy
+		if (e & varmortypes.NetworkProxy) != 0 {
+			if _, ok := pod.Annotations["pod.networkproxy.security.beta.varmor.org"]; !ok {
+				if len(pod.Spec.InitContainers) == 0 {
+					jsonPatch += `{"op": "add", "path": "/spec/initContainers", "value": []},`
+				}
+
+				if len(pod.Spec.Volumes) == 0 {
+					jsonPatch += `{"op": "add", "path": "/spec/volumes", "value": []},`
+				}
+
+				jsonPatch += buildNetworkProxyPatch(profileName, false, networkProxyConfig)
+			}
+		}
+
 		for index, container := range pod.Spec.Containers {
 			if len(target.Containers) != 0 && !varmorutils.InStringArray(container.Name, target.Containers) {
 				continue
 			}
-
-			e := varmortypes.GetEnforcerType(enforcer)
 
 			// BPF
 			if (e & varmortypes.BPF) != 0 {
@@ -496,4 +552,86 @@ func buildSeccompPatch(
 	}
 
 	return jsonPatch
+}
+
+func buildNetworkProxyPatch(profileName string, workloads bool, networkProxyConfig *varmor.NetworkProxyConfig) string {
+	var sb strings.Builder
+
+	pathPrefix := ""
+	if workloads {
+		pathPrefix = "/spec/template"
+	}
+
+	proxyUID := varmorconfig.DefaultProxyUID
+	proxyPort := varmorconfig.DefaultProxyPort
+	proxyAdminPort := varmorconfig.DefaultProxyAdminPort
+	if networkProxyConfig != nil {
+		if networkProxyConfig.ProxyUID != nil {
+			proxyUID = *networkProxyConfig.ProxyUID
+		}
+		if networkProxyConfig.ProxyPort != nil {
+			proxyPort = *networkProxyConfig.ProxyPort
+		}
+		if networkProxyConfig.ProxyAdminPort != nil {
+			proxyAdminPort = *networkProxyConfig.ProxyAdminPort
+		}
+	}
+
+	// --- 1. add annotation ---
+	sb.WriteString(fmt.Sprintf(
+		`{"op": "add", "path": "%s/metadata/annotations/pod.networkproxy.security.beta.varmor.org", "value": "localhost/%s"},`, pathPrefix, profileName,
+	))
+
+	// --- 1. initContainer: varmor-network-proxy-init ---
+	sb.WriteString(fmt.Sprintf(
+		`{"op": "add", "path": "%s/spec/initContainers/-", "value": `+
+			`{"name": "varmor-network-proxy-init", `+
+			`"image": "%s", `+
+			`"securityContext": {"capabilities": {"add": ["NET_ADMIN"]}}, `+
+			`"resources": {"requests": {"cpu": "10m", "memory": "16Mi"}}, `+
+			`"command": ["sh", "-c", %s]}},`,
+		pathPrefix, varmorconfig.ProxyInitImage, iptablesScript(proxyUID, proxyPort, proxyAdminPort),
+	))
+
+	// --- 2. sidecar container: varmor-network-proxy ---
+	sb.WriteString(fmt.Sprintf(
+		`{"op": "add", "path": "%s/spec/containers/-", "value": `+
+			`{"name": "varmor-network-proxy", `+
+			`"image": "%s", `+
+			`"securityContext": {"runAsUser": %d}, `+
+			`"args": ["-c", "/etc/envoy/bootstrap.yaml", "-l", "info"], `+
+			`"readinessProbe": {"httpGet": {"path": "/ready", "port": %d}, "initialDelaySeconds": 2, "periodSeconds": 5}, `+
+			`"resources": {"requests": {"cpu": "50m", "memory": "64Mi"}, "limits": {"cpu": "200m", "memory": "128Mi"}}, `+
+			`"volumeMounts": [`+
+			`{"name": "varmor-network-proxy-config", "mountPath": "/etc/envoy", "readOnly": true}]}}, `,
+		pathPrefix, varmorconfig.ProxyImage, proxyUID, proxyAdminPort,
+	))
+
+	// --- 3. volumes ---
+	sb.WriteString(fmt.Sprintf(
+		`{"op": "add", "path": "%s/spec/volumes/-", "value": `+
+			`{"name": "varmor-network-proxy-config", "configMap": {"name": "%s"}}},`,
+		pathPrefix, profileName,
+	))
+
+	return sb.String()
+}
+
+func iptablesScript(proxyUID int64, proxyPort uint16, proxyAdminPort uint16) string {
+	script := fmt.Sprintf(
+		`set -ex\n`+
+			`ENVOY_UID=%d\n`+
+			`ENVOY_PORT=%d\n`+
+			`ENVOY_ADMIN_PORT=%d\n`+
+			`iptables -t nat -N VARMOR_OUTPUT\n`+
+			`iptables -t nat -N VARMOR_REDIRECT\n`+
+			`iptables -t nat -A OUTPUT -p tcp -j VARMOR_OUTPUT\n`+
+			`iptables -t nat -A VARMOR_OUTPUT -m owner --uid-owner ${ENVOY_UID} -j RETURN\n`+
+			`iptables -t nat -A VARMOR_OUTPUT -d 127.0.0.0/8 -j RETURN\n`+
+			`iptables -t nat -A VARMOR_OUTPUT -p tcp -j VARMOR_REDIRECT\n`+
+			`iptables -t nat -A VARMOR_REDIRECT -p tcp -j REDIRECT --to-ports ${ENVOY_PORT}\n`+
+			`iptables -t filter -A OUTPUT -p tcp --dport ${ENVOY_ADMIN_PORT} -m owner ! --uid-owner ${ENVOY_UID} -j DROP`,
+		proxyUID, proxyPort, proxyAdminPort,
+	)
+	return fmt.Sprintf(`"%s"`, script)
 }

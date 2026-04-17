@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo-7
+  namespace: demo
+  labels:
+    environment: production
+    app: demo-7
+    # This label is required with target workloads. 
+    # You can disable the feature with --set 'manager.args={--webhookMatchLabel=}'
+    sandbox.varmor.org/enable: "true"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: demo-7
+  template:
+    metadata:
+      labels:
+        app: demo-7
+      annotations:
+        # Use this annotation to explicitly disable the protection for the container named c0.
+        # It always takes precedence over the '.spec.target.containers' field of VarmorPolicy 
+        # or VarmorClusterPolicy object.
+        container.apparmor.security.beta.varmor.org/c0: unconfined
+    spec:
+      containers:
+      - name: c0
+        image: elkeid-test-cn-beijing.cr.volces.com/public/curl:8.7.1
+        command: ["/bin/sh", "-c", "sleep infinity"]
+        imagePullPolicy: IfNotPresent

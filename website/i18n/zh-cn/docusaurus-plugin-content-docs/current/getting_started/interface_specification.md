@@ -36,11 +36,12 @@ description: vArmor 的接口规范。
 
 | 字段 | 描述 |
 |-----|------|
-|enforcer<br />*string*|Enforcer 指定使用哪种安全机制进行强制访问控制。 <br />可用值：AppArmor, BPF, Seccomp, AppArmorBPF, AppArmorSeccomp, BPFSeccomp, AppArmorBPFSeccomp|
+|enforcer<br />*string*|Enforcer 指定使用哪种安全机制进行强制访问控制。 <br />可用值：AppArmor, BPF, Seccomp, NetworkProxy, AppArmorBPF, AppArmorSeccomp, BPFSeccomp, BPFNetworkProxy, AppArmorBPFSeccomp|
 |mode<br />*string*|Mode 用于指定防护模式。<br />可用值：AlwaysAllow, RuntimeDefault, EnhanceProtect, BehaviorModeling, DefenseInDepth|
 |enhanceProtect<br />*[EnhanceProtect](#enhanceprotect)*|EnhanceProtect 用于配置 EnhanceProtect 模式。它允许您设置内置规则和自定义规则，以生成保护工作负载的配置文件（即 Profile），并控制配置文件的行为（例如，审计、允许违规行为）。|
 |modelingOptions<br />*[ModelingOptions](#modelingoptions)*|ModelingOptions 用于配置 BehaviorModeling 模式。|
 |defenseInDepth<br />*[DefenseInDepth](#defenseindepth)*|DefenseInDepth 用于配置 DefenseInDepth 模式。
+|networkProxyConfig<br />*[NetworkProxyConfig](#networkproxyconfig)*|NetworkProxyConfig 用于配置 NetworkProxy enforcer 的网络代理边车容器。|
 
 ## EnhanceProtect
 
@@ -200,6 +201,14 @@ description: vArmor 的接口规范。
 |profileType<br />*string*|ProfileType 指明将应用哪种 Seccomp 配置文件。有效选项包括：BehaviorModel - 将使用通过行为建模模式生成的配置文件。Custom - 将使用在 customProfile 字段中定义的自定义配置文件。|
 |customProfile<br />*string*|可选字段。CustomProfile 保存用户定义的 Seccomp 配置文件内容。它必须是符合 Seccomp 语法的有效配置文件。请参考[此文档](https://github.com/opencontainers/runtime-spec/blob/main/config-linux.md#seccomp)创建自定义配置文件。|
 |syscallRawRules<br />*[LinuxSyscall](https://pkg.go.dev/github.com/opencontainers/runtime-spec/specs-go#LinuxSyscall) array*|可选字段。SyscallRawRules 指定自定义 Seccomp 规则。这些规则将添加到您指定的 Seccomp 配置文件末尾。|
+
+## NetworkProxyConfig
+
+| 字段 | 描述 |
+|-----|------|
+|proxyUID<br />**int64*|可选字段。ProxyUID 指定代理边车进程在运行时所使用的用户标识（UID）。该用户标识必须与目标应用程序的用户标识不同，因为 iptables 规则依赖此用户标识进行流量区分。此字段在策略创建后无法修改。（默认值：1337）|
+|proxyPort<br />**uint16*|可选字段。ProxyPort 用于指定代理边车进程所监听的端口。若目标应用的监听端口与其冲突，可另行指定其他端口。该字段在策略创建后无法修改。（默认值：15001）|
+|proxyAdminPort<br />**uint16*|可选字段。ProxyAdminPort 用于指定代理边车进程处理管理请求的监听端口。若目标应用的监听端口与其冲突，可指定其他端口。该字段在策略创建后无法修改。（默认值：15000）|
 
 ## VarmorPolicyStatus
 

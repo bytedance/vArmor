@@ -1,0 +1,63 @@
+apiVersion: crd.varmor.org/v1beta1
+kind: VarmorClusterPolicy
+metadata:
+  name: demo-7
+spec:
+  # Perform a rolling update on existing workloads.
+  # It's disabled by default.
+  updateExistingWorkloads: true
+  target:
+    # The policy protects all the containers by default if the .spec.target.containers is nil.
+    kind: Deployment
+    selector:
+      matchExpressions:
+      - key: environment
+        operator: NotIn
+        values: [dev, qa]
+      matchLabels:
+        app: demo-7
+  policy:
+    enforcer: NetworkProxy
+    mode: EnhanceProtect
+    enhanceProtect:
+      networkProxyRawRules:
+        egress:
+          defaultAction: deny
+          rules:
+          - qualifiers: ["allow"]
+            ip: "10.96.0.1"
+            ports:
+            - port: 443
+          - qualifiers: ["allow"]
+            ip: "10.37.31.68"
+            ports:
+            - port: 6443
+          - qualifiers: ["deny"]
+            cidr: "169.254.0.0/16"
+          httpRules:
+          - qualifiers: ["allow"]
+            match:
+              hosts:
+              - "api.openai.com"
+          # http://phrack.org/news
+          - qualifiers: ["allow"]
+            match:
+              hosts:
+              - "phrack.org"
+              paths:
+              - exact: "/index_latest"
+              - prefix: "/issues/"
+              methods:
+              - "GET"
+          - qualifiers: ["deny"]
+            match:
+              hosts:
+              - "httpforever.com"
+          - qualifiers: ["allow"]
+            match:
+              hosts:
+              - "darksouls.wikidot.com"
+              paths:
+              - exact: "/classes"
+              - exact: "/story"
+              - prefix: "/p"

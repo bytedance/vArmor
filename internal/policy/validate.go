@@ -40,16 +40,19 @@ func ValidateAddPolicy(policy interface{}, behaviorModelingEnabled bool) (bool, 
 	var spec varmor.VarmorPolicySpec
 	var namespace, name string
 	var clusterScope bool
+	var enforcers varmortypes.Enforcer
 
 	switch p := policy.(type) {
 	case *varmor.VarmorPolicy:
 		spec = p.Spec
 		namespace = p.Namespace
 		name = p.Name
+		enforcers = varmortypes.GetEnforcerType(p.Spec.Policy.Enforcer)
 	case *varmor.VarmorClusterPolicy:
 		spec = p.Spec
 		namespace = varmorconfig.Namespace
 		name = p.Name
+		enforcers = varmortypes.GetEnforcerType(p.Spec.Policy.Enforcer)
 		clusterScope = true
 	default:
 		return false, "The policy type is not supported."
@@ -83,6 +86,21 @@ func ValidateAddPolicy(policy interface{}, behaviorModelingEnabled bool) (bool, 
 	// BehaviorModeling mode requires modeling options configuration
 	if behaviorModelingEnabled && spec.Policy.Mode == varmor.BehaviorModelingMode && spec.Policy.ModelingOptions == nil {
 		return false, "The modelingOptions field should be set when the policy runs in the BehaviorModeling mode."
+	}
+
+	// BehaviorModeling mode is not supported when NetworkProxy enforcer is activated.
+	if behaviorModelingEnabled && spec.Policy.Mode == varmor.BehaviorModelingMode && enforcers&varmortypes.NetworkProxy != 0 {
+		return false, "The BehaviorModeling mode is not supported when NetworkProxy enforcer is activated."
+	}
+
+	// DefenseInDepth mode requires specific configuration to function properly
+	if spec.Policy.Mode == varmor.DefenseInDepthMode && spec.Policy.DefenseInDepth == nil {
+		return false, "The defenseInDepth field should be set when the policy runs in the DefenseInDepth mode."
+	}
+
+	// DefenseInDepth mode is not supported when BPF enforcer is activated.
+	if spec.Policy.Mode == varmor.DefenseInDepthMode && enforcers&varmortypes.BPF != 0 {
+		return false, "The DefenseInDepth mode is not supported when BPF enforcer is activated."
 	}
 
 	// Do not exceed the length of a standard Kubernetes name (63 characters)
@@ -142,8 +160,7 @@ func ValidateUpdatePolicy(policy interface{}, oldEnforcer string, oldTarget varm
 
 	// Disallow switching the mode of a policy from BehaviorModeling to others when behavior modeling is still incomplete.
 	// This prevents interrupting ongoing behavior modeling processes and ensures data consistency
-	if newSpec.Policy.Mode != varmor.BehaviorModelingMode &&
-		newStatus.Phase == varmor.VarmorPolicyModeling {
+	if newSpec.Policy.Mode != varmor.BehaviorModelingMode && newStatus.Phase == varmor.VarmorPolicyModeling {
 		return false, "Switching the mode of a policy from BehaviorModeling to others is not allowed when behavior modeling is still incomplete."
 	}
 
@@ -162,16 +179,30 @@ func ValidateUpdatePolicy(policy interface{}, oldEnforcer string, oldTarget varm
 
 	// Make sure the enhanceProtect field has been set when the policy runs in the EnhanceProtect mode.
 	// EnhanceProtect mode requires specific configuration to function properly and provide enhanced protection
-	if newSpec.Policy.Mode == varmor.EnhanceProtectMode &&
-		newSpec.Policy.EnhanceProtect == nil {
+	if newSpec.Policy.Mode == varmor.EnhanceProtectMode && newSpec.Policy.EnhanceProtect == nil {
 		return false, "The enhanceProtect field should be set when the policy runs in the EnhanceProtect mode."
 	}
 
 	// Make sure the modelingOptions field has been set when the policy runs in BehaviorModeling mode.
 	// Behavior modeling requires configuration options to guide the modeling process and define modeling parameters
-	if newSpec.Policy.Mode == varmor.BehaviorModelingMode &&
-		newSpec.Policy.ModelingOptions == nil {
+	if newSpec.Policy.Mode == varmor.BehaviorModelingMode && newSpec.Policy.ModelingOptions == nil {
 		return false, "The modelingOptions field should be set when the policy runs in the BehaviorModeling mode."
+	}
+
+	// Disallow switching the BehaviorModeling mode when NetworkProxy enforcer is activated.
+	if newSpec.Policy.Mode == varmor.BehaviorModelingMode && newEnforcers&varmortypes.NetworkProxy != 0 {
+		return false, "Modifying the policy to switch to BehaviorModeling mode is not allowed when NetworkProxy enforcer is activated."
+	}
+
+	// Make sure the defenseInDepth field has been set when the policy runs in DefenseInDepth mode.
+	// DefenseInDepth mode requires specific configuration to function properly and provide defense-in-depth protection
+	if newSpec.Policy.Mode == varmor.DefenseInDepthMode && newSpec.Policy.DefenseInDepth == nil {
+		return false, "The defenseInDepth field should be set when the policy runs in the DefenseInDepth mode."
+	}
+
+	// DefenseInDepth mode is not supported when BPF enforcer is activated.
+	if newSpec.Policy.Mode == varmor.DefenseInDepthMode && newEnforcers&varmortypes.BPF != 0 {
+		return false, "The DefenseInDepth mode is not supported when BPF enforcer is activated."
 	}
 
 	// All validations passed

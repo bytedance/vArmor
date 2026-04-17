@@ -98,6 +98,10 @@ spec:
           value: "{{ .Values.manager.network.statusPort }}"
         - name: WEBHOOK_SERVICE_PORT
           value: "{{ .Values.manager.network.webhookPort }}"
+        - name: PROXY_INIT_IMAGE
+          value: "{{ .Values.image.registry }}/{{ .Values.image.namespace }}/{{ .Values.networkproxy.image.init.name }}:{{ .Values.networkproxy.image.init.tag }}"
+        - name: PROXY_IMAGE
+          value: "{{ .Values.image.registry }}/{{ .Values.image.namespace }}/{{ .Values.networkproxy.image.proxy.name }}:{{ .Values.networkproxy.image.proxy.tag }}"
         {{- if .Values.metrics.enabled }}
         - name: METRICS_SERVICE_PORT
           value: "{{ .Values.manager.network.metricsPort }}"

@@ -96,6 +96,14 @@ type EnhanceProtect struct {
 	// to create custom rules.
 	// +optional
 	SyscallRawRules []specs.LinuxSyscall `json:"syscallRawRules,omitempty"`
+	// networkProxyRawRules is used to set network access control rules enforced by the
+	// NetworkProxy enforcer via a sidecar proxy. These rules operate at the application
+	// protocol level (L4 domain/SNI matching, L7 HTTP matching) and are independent
+	// of BPF kernel-level network rules.
+	//
+	// This field is only effective when the enforcer includes "NetworkProxy".
+	// +optional
+	NetworkProxyRawRules *NetworkProxyRules `json:"networkProxyRawRules,omitempty"`
 	// privileged is used to identify whether the policy is for the privileged container.
 	// If set to `false`, the EnhanceProtect mode will build AppArmor or BPF profile on
 	// top of the RuntimeDefault mode. Otherwise, it will build AppArmor or BPF profile on top of the AlwaysAllow mode.
@@ -105,7 +113,7 @@ type EnhanceProtect struct {
 	// If set to `true`, vArmor will not build Seccomp profile for the target workloads.
 	// +optional
 	Privileged bool `json:"privileged,omitempty"`
-	// auditViolations determines whether to log the actions that violate the mandatory access control rules.
+	// auditViolations determines whether to log the actions that violate the built-in rules.
 	// If this field is set, any detected violation will be logged to `/var/log/varmor/violations.log` file in
 	// the host. The action of the event will be `AUDIT` if allowViolations is set to `true`, otherwise it will
 	// be `DENIED`. Please note that the Seccomp enforcer does not support auditing violations when the
@@ -114,7 +122,7 @@ type EnhanceProtect struct {
 	// Default is false.
 	// +optional
 	AuditViolations bool `json:"auditViolations,omitempty"`
-	// allowViolations determines whether to allow the actions that are against mandatory access control rules.
+	// allowViolations determines whether to allow the actions that are against the built-in rules.
 	// If this field is set, any detected violation will be allowed rather than blocked.
 	//
 	// Default is false.
@@ -142,11 +150,23 @@ const (
 
 type DefenseInDepth struct {
 	// appArmor specifies the AppArmor profile and additional custom rules for the Deny-by-Default protection.
+	//
+	// This field is only effective when the enforcer includes "AppArmor".
 	// +optional
 	AppArmor *AppArmorProfile `json:"appArmor,omitempty"`
 	// seccomp specifies the Seccomp profile and additional custom rules for the Deny-by-Default protection.
+	//
+	// This field is only effective when the enforcer includes "Seccomp".
 	// +optional
 	Seccomp *SeccompProfile `json:"seccomp,omitempty"`
+	// networkProxy is used to set network access control rules enforced by the
+	// NetworkProxy enforcer via a sidecar proxy. These rules operate at the application
+	// protocol level (L4 domain/SNI matching, L7 HTTP matching) and are independent
+	// of BPF kernel-level network rules.
+	//
+	// This field is only effective when the enforcer includes "NetworkProxy".
+	// +optional
+	NetworkProxy *NetworkProxyRules `json:"networkProxy,omitempty"`
 	// allowViolations determines whether to allow the actions that are against mandatory access control rules.
 	// If this field is set, any detected violation will be allowed rather than blocked, and an audit event with
 	// the `ALLOWED` action will be generated and logged. This can be used to gather violations for improving
@@ -159,8 +179,8 @@ type DefenseInDepth struct {
 }
 
 type Policy struct {
-	// enforcer is used to specify which LSM to use for mandatory access control.
-	// Available values: AppArmor, BPF, Seccomp, AppArmorBPF, AppArmorSeccomp, BPFSeccomp, AppArmorBPFSeccomp
+	// enforcer is used to specify which security mechanisms to use for mandatory access control.
+	// Available values: AppArmor, BPF, Seccomp, NetworkProxy, AppArmorBPF, AppArmorSeccomp, BPFSeccomp, AppArmorBPFSeccomp, NetworkProxyBPFSeccomp
 	Enforcer string `json:"enforcer"`
 	// mode used to specify the protection mode.
 	// Available values: AlwaysAllow, RuntimeDefault, EnhanceProtect, BehaviorModeling, DefenseInDepth
@@ -180,6 +200,9 @@ type Policy struct {
 	// defenseInDepth configures the DefenseInDepth mode.
 	// +optional
 	DefenseInDepth *DefenseInDepth `json:"defenseInDepth,omitempty"`
+	// networkProxyConfig holds the proxy sidecar configuration for the NetworkProxy enforcer.
+	// +optional
+	NetworkProxyConfig *NetworkProxyConfig `json:"networkProxyConfig,omitempty"`
 }
 
 type VarmorPolicySpec struct {
