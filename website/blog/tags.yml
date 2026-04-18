@@ -13,6 +13,11 @@ LLM:
   permalink: /llm
   description: Large Language Models
 
+NetworkProxy:
+  label: Network Proxy
+  permalink: /networkproxy
+  description: Network Proxy
+
 PrivilegedContainer:
   label: Privileged Container
   permalink: /privilegedcontainer
