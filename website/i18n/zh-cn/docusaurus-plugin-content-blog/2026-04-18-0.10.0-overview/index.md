@@ -1,6 +1,6 @@
 ---
 slug: varmor-0.10.0-new-features-overview
-title: vArmor v0.10.0：面向 AI Agent 的网络访问控制
+title: "vArmor v0.10.0: 面向 AI Agent 的网络访问控制"
 authors: [DannyWei]
 tags: [NewFeatures, ReleaseNotes, AIAgent, LLM, NetworkProxy]
 date: 2026-04-19T00:00
