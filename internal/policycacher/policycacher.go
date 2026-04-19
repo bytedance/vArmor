@@ -17,6 +17,7 @@ package policycacher
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/go-logr/logr"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -29,6 +30,7 @@ import (
 )
 
 type PolicyCacher struct {
+	mutex                    sync.RWMutex
 	vcpInformer              varmorinformer.VarmorClusterPolicyInformer
 	vcpLister                varmorlister.VarmorClusterPolicyLister
 	vcpInformerSynced        cache.InformerSynced
@@ -80,6 +82,8 @@ func (c *PolicyCacher) addVarmorClusterPolicy(obj interface{}) {
 		logger.Error(err, "cache.MetaNamespaceKeyFunc()")
 		return
 	}
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
 	c.ClusterPolicyTargets[key] = vcp.Spec.DeepCopy().Target
 	c.ClusterPolicyEnforcer[key] = vcp.Spec.Policy.Enforcer
 	c.ClusterPolicyMode[key] = vcp.Spec.Policy.Mode
@@ -94,6 +98,8 @@ func (c *PolicyCacher) updateVarmorClusterPolicy(oldObj, newObj interface{}) {
 		logger.Error(err, "cache.MetaNamespaceKeyFunc()")
 		return
 	}
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
 	// Don't update the enforcer if the activated AppArmor or Seccomp enforcer was removed.
 	if e, ok := c.ClusterPolicyEnforcer[key]; ok {
 		oldEnforcers := varmortypes.GetEnforcerType(e)
@@ -102,8 +108,10 @@ func (c *PolicyCacher) updateVarmorClusterPolicy(oldObj, newObj interface{}) {
 			return
 		}
 	}
+	c.ClusterPolicyTargets[key] = vcp.Spec.DeepCopy().Target
 	c.ClusterPolicyEnforcer[key] = vcp.Spec.Policy.Enforcer
 	c.ClusterPolicyMode[key] = vcp.Spec.Policy.Mode
+	c.ClusterPolicyProxyConfig[key] = vcp.Spec.Policy.DeepCopy().NetworkProxyConfig
 }
 
 func (c *PolicyCacher) deleteVarmorClusterPolicy(obj interface{}) {
@@ -114,6 +122,8 @@ func (c *PolicyCacher) deleteVarmorClusterPolicy(obj interface{}) {
 		logger.Error(err, "cache.MetaNamespaceKeyFunc()")
 		return
 	}
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
 	delete(c.ClusterPolicyTargets, key)
 	delete(c.ClusterPolicyEnforcer, key)
 	delete(c.ClusterPolicyMode, key)
@@ -128,6 +138,8 @@ func (c *PolicyCacher) addVarmorPolicy(obj interface{}) {
 		logger.Error(err, "cache.MetaNamespaceKeyFunc()")
 		return
 	}
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
 	c.PolicyTargets[key] = vp.Spec.DeepCopy().Target
 	c.PolicyEnforcer[key] = vp.Spec.Policy.Enforcer
 	c.PolicyMode[key] = vp.Spec.Policy.Mode
@@ -142,6 +154,8 @@ func (c *PolicyCacher) updateVarmorPolicy(oldObj, newObj interface{}) {
 		logger.Error(err, "cache.MetaNamespaceKeyFunc()")
 		return
 	}
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
 	// Don't update the enforcer if the activated AppArmor or Seccomp enforcer was removed.
 	if e, ok := c.PolicyEnforcer[key]; ok {
 		oldEnforcers := varmortypes.GetEnforcerType(e)
@@ -150,8 +164,10 @@ func (c *PolicyCacher) updateVarmorPolicy(oldObj, newObj interface{}) {
 			return
 		}
 	}
+	c.PolicyTargets[key] = vp.Spec.DeepCopy().Target
 	c.PolicyEnforcer[key] = vp.Spec.Policy.Enforcer
 	c.PolicyMode[key] = vp.Spec.Policy.Mode
+	c.PolicyProxyConfig[key] = vp.Spec.Policy.DeepCopy().NetworkProxyConfig
 }
 
 func (c *PolicyCacher) deleteVarmorPolicy(obj interface{}) {
@@ -162,10 +178,54 @@ func (c *PolicyCacher) deleteVarmorPolicy(obj interface{}) {
 		logger.Error(err, "cache.MetaNamespaceKeyFunc()")
 		return
 	}
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
 	delete(c.PolicyTargets, key)
 	delete(c.PolicyEnforcer, key)
 	delete(c.PolicyMode, key)
 	delete(c.PolicyProxyConfig, key)
+}
+
+// GetClusterPolicyEntry returns the cached enforcer, mode, and proxy config for a cluster-scoped policy key.
+// It is safe to call from multiple goroutines.
+func (c *PolicyCacher) GetClusterPolicyEntry(key string) (string, varmor.VarmorPolicyMode, *varmor.NetworkProxyConfig) {
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
+	return c.ClusterPolicyEnforcer[key], c.ClusterPolicyMode[key], c.ClusterPolicyProxyConfig[key]
+}
+
+// GetPolicyEntry returns the cached enforcer, mode, and proxy config for a namespace-scoped policy key.
+// It is safe to call from multiple goroutines.
+func (c *PolicyCacher) GetPolicyEntry(key string) (string, varmor.VarmorPolicyMode, *varmor.NetworkProxyConfig) {
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
+	return c.PolicyEnforcer[key], c.PolicyMode[key], c.PolicyProxyConfig[key]
+}
+
+// RangeClusterPolicyTargets iterates over all cluster-scoped policy targets.
+// It is safe to call from multiple goroutines. The lock is held during iteration,
+// so the callback should not block for long.
+func (c *PolicyCacher) RangeClusterPolicyTargets(fn func(key string, target varmor.Target) bool) {
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
+	for key, target := range c.ClusterPolicyTargets {
+		if !fn(key, target) {
+			break
+		}
+	}
+}
+
+// RangePolicyTargets iterates over all namespace-scoped policy targets.
+// It is safe to call from multiple goroutines. The lock is held during iteration,
+// so the callback should not block for long.
+func (c *PolicyCacher) RangePolicyTargets(fn func(key string, target varmor.Target) bool) {
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
+	for key, target := range c.PolicyTargets {
+		if !fn(key, target) {
+			break
+		}
+	}
 }
 
 func (c *PolicyCacher) Run(stopCh <-chan struct{}) {

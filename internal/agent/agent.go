@@ -712,7 +712,7 @@ func (agent *Agent) CleanUp() {
 	}
 
 	if agent.removeAllSeccompProfiles {
-		agent.log.WithName("APPARMOR-ENFORCER").Info("remove all Seccomp profiles")
+		agent.log.WithName("SECCOMP-ENFORCER").Info("remove all Seccomp profiles")
 		varmorseccomp.RemoveAllSeccompProfiles(agent.seccompProfileDir)
 	}
 

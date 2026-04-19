@@ -197,18 +197,36 @@ func (ws *WebhookServer) handlerFunc(handler func(request *admissionv1.Admission
 func (ws *WebhookServer) resourceMutation(request *admissionv1.AdmissionRequest) *admissionv1.AdmissionResponse {
 	logger := ws.log.WithName("resourceMutation()")
 
-	for key, target := range ws.policyCacher.ClusterPolicyTargets {
+	ws.policyCacher.RangeClusterPolicyTargets(func(key string, target varmor.Target) bool {
 		response := ws.matchAndPatch(request, key, target, logger)
 		if response != nil {
-			return response
+			return false
 		}
+		return true
+	})
+	// Note: we need to capture the response from the range callback. Let's restructure:
+	clusterResponse := func() *admissionv1.AdmissionResponse {
+		var resp *admissionv1.AdmissionResponse
+		ws.policyCacher.RangeClusterPolicyTargets(func(key string, target varmor.Target) bool {
+			resp = ws.matchAndPatch(request, key, target, logger)
+			return resp == nil
+		})
+		return resp
+	}()
+	if clusterResponse != nil {
+		return clusterResponse
 	}
 
-	for key, target := range ws.policyCacher.PolicyTargets {
-		response := ws.matchAndPatch(request, key, target, logger)
-		if response != nil {
-			return response
-		}
+	policyResponse := func() *admissionv1.AdmissionResponse {
+		var resp *admissionv1.AdmissionResponse
+		ws.policyCacher.RangePolicyTargets(func(key string, target varmor.Target) bool {
+			resp = ws.matchAndPatch(request, key, target, logger)
+			return resp == nil
+		})
+		return resp
+	}()
+	if policyResponse != nil {
+		return policyResponse
 	}
 
 	logger.V(2).Info("no mutation required")
