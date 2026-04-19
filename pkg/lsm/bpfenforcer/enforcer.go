@@ -257,7 +257,7 @@ func (enforcer *BpfEnforcer) initBPF() error {
 		Program: enforcer.objs.VarmorMoveMount,
 	})
 	if err != nil {
-		return nil
+		return fmt.Errorf("link.AttachLSM(VarmorMoveMount) failed: %v", err)
 	}
 	enforcer.moveMountLink = moveMountLink
 
@@ -266,7 +266,7 @@ func (enforcer *BpfEnforcer) initBPF() error {
 		Program: enforcer.objs.VarmorUmount,
 	})
 	if err != nil {
-		return nil
+		return fmt.Errorf("link.AttachLSM(VarmorUmount) failed: %v", err)
 	}
 	enforcer.umountLink = umountLink
 

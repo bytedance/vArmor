@@ -55,14 +55,10 @@ func (ws *WebhookServer) matchAndPatch(request *admissionv1.AdmissionRequest, ke
 	var mode varmor.VarmorPolicyMode
 	var networkProxyConfig *varmor.NetworkProxyConfig
 	if clusterScope {
-		enforcer = ws.policyCacher.ClusterPolicyEnforcer[key]
-		mode = ws.policyCacher.ClusterPolicyMode[key]
+		enforcer, mode, networkProxyConfig = ws.policyCacher.GetClusterPolicyEntry(key)
 		policyNamespace = varmorconfig.Namespace
-		networkProxyConfig = ws.policyCacher.ClusterPolicyProxyConfig[key]
 	} else {
-		enforcer = ws.policyCacher.PolicyEnforcer[key]
-		mode = ws.policyCacher.PolicyMode[key]
-		networkProxyConfig = ws.policyCacher.PolicyProxyConfig[key]
+		enforcer, mode, networkProxyConfig = ws.policyCacher.GetPolicyEntry(key)
 	}
 
 	obj, err := ws.deserializeWorkload(request)

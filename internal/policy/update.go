@@ -871,7 +871,7 @@ func updateWorkloadAnnotationsAndEnv(
 
 				daemonOld := daemon.DeepCopy()
 				modifyDaemonSetAnnotationsAndEnv(enforcer, mode, target, proxyConfig, daemon, profileName, bpfExclusiveMode)
-				if reflect.DeepEqual(daemonOld, &daemon) {
+				if reflect.DeepEqual(daemonOld, daemon) {
 					return nil
 				}
 				daemon.Spec.Template.Annotations["controller.varmor.org/restartedAt"] = time.Now().Format(time.RFC3339)
