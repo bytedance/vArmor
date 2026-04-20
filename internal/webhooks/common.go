@@ -40,6 +40,7 @@ func bodyToAdmissionReview(request *http.Request, writer http.ResponseWriter, lo
 	if err != nil {
 		logger.Info("failed to read HTTP body", "req", request.URL.String())
 		http.Error(writer, "failed to read HTTP body", http.StatusBadRequest)
+		return nil
 	}
 
 	contentType := request.Header.Get("Content-Type")
