@@ -14,7 +14,7 @@ vArmor v0.10.0 introduces the brand-new **NetworkProxy enforcer**, which impleme
 
 ## Network Security Risks Facing AI Agents
 
-In our previous article "[AI Application Development Platform Security Hardening Practices](./harden-the-AI-application-development-platform)", we demonstrated the security risks of code execution plugins in AI application development platforms and introduced how to use vArmor's BPF enforcer to harden containers. That article primarily focused on **system call level** protection — preventing attackers from further privilege escalation and penetration after escaping the sandbox.
+In our previous article "[AI Application Development Platform Security Hardening Practices](https://varmor.org/blog/harden-the-AI-application-development-platform/)", we demonstrated the security risks of code execution plugins in AI application development platforms and introduced how to use vArmor's BPF enforcer to harden containers. That article primarily focused on **system call level** protection — preventing attackers from further privilege escalation and penetration after escaping the sandbox.
 
 However, as AI Agent architectures evolve, new security challenges are emerging:
 

@@ -1,0 +1,170 @@
+{
+  "homepage.layout.title": {
+    "message": "vArmor",
+    "description": "The title of the homepage"
+  },
+  "homepage.layout.description": {
+    "message": "Kubernetes 云原生容器加固 —— 从系统调用到应用协议，从工作负载到 AI Agent",
+    "description": "The meta description of the homepage"
+  },
+  "homepage.hero.tagline": {
+    "message": "Kubernetes 云原生容器加固 —— 从系统调用到应用协议，从工作负载到 AI Agent",
+    "description": "The hero tagline on the homepage"
+  },
+  "homepage.hero.getStarted": {
+    "message": "快速上手",
+    "description": "The Get Started button on the homepage"
+  },
+  "homepage.features.title": {
+    "message": "核心特性",
+    "description": "The title of the features section"
+  },
+  "homepage.features.subtitle": {
+    "message": "多引擎、灵活策略、开箱即用",
+    "description": "The subtitle of the features section"
+  },
+  "homepage.features.cloudNative.title": {
+    "message": "云原生",
+    "description": "Cloud-Native feature title"
+  },
+  "homepage.features.cloudNative.description": {
+    "message": "遵循 Kubernetes Operator 设计模式，用户可通过操作 CRD API 对特定工作负载进行安全加固。",
+    "description": "Cloud-Native feature description"
+  },
+  "homepage.features.multipleEnforcers.title": {
+    "message": "多引擎",
+    "description": "Multiple Enforcers feature title"
+  },
+  "homepage.features.multipleEnforcers.description": {
+    "message": "提供 AppArmor、BPF、Seccomp、NetworkProxy 四种 enforcer，支持单独或组合使用，对容器的文件访问、进程执行、网络外联、系统调用等进行访问控制。",
+    "description": "Multiple Enforcers feature description"
+  },
+  "homepage.features.networkProxy.title": {
+    "message": "网络代理",
+    "description": "Network Proxy feature title"
+  },
+  "homepage.features.networkProxy.description": {
+    "message": "通过 Envoy Sidecar 透明拦截容器出站流量，支持 L4/L7/TLS SNI 访问控制、审计日志和策略动态更新，无需重启 Pod。",
+    "description": "Network Proxy feature description"
+  },
+  "homepage.features.aiAgent.title": {
+    "message": "AI Agent 防护",
+    "description": "AI Agent Protection feature title"
+  },
+  "homepage.features.aiAgent.description": {
+    "message": "为 AI Agent 工作负载提供纵深防御——从系统调用到网络协议实施访问控制，有效缓解提示词注入诱导的工具滥用和数据外泄风险。",
+    "description": "AI Agent Protection feature description"
+  },
+  "homepage.features.allowByDefault.title": {
+    "message": "默认放行",
+    "description": "Allow-by-Default feature title"
+  },
+  "homepage.features.allowByDefault.description": {
+    "message": "只有显式声明的行为会被阻断，从而有效减少性能损失并增强易用性。",
+    "description": "Allow-by-Default feature description"
+  },
+  "homepage.features.denyByDefault.title": {
+    "message": "默认拒绝",
+    "description": "Deny-by-Default feature title"
+  },
+  "homepage.features.denyByDefault.description": {
+    "message": "实施白名单策略，仅允许显式许可的行为执行，为敏感工作负载提供最强安全保障。",
+    "description": "Deny-by-Default feature description"
+  },
+  "homepage.features.builtinRules.title": {
+    "message": "内置规则",
+    "description": "Built-in Rules feature title"
+  },
+  "homepage.features.builtinRules.description": {
+    "message": "提供一系列开箱即用的内置规则，无需专业的安全配置知识即可使用。",
+    "description": "Built-in Rules feature description"
+  },
+  "homepage.features.behaviorModeling.title": {
+    "message": "行为建模",
+    "description": "Behavior Modeling feature title"
+  },
+  "homepage.features.behaviorModeling.description": {
+    "message": "支持对工作负载进行行为建模，自动生成白名单策略，指导配置遵循最小权限原则。",
+    "description": "Behavior Modeling feature description"
+  },
+  "homepage.architecture.title": {
+    "message": "架构",
+    "description": "Architecture section title"
+  },
+  "homepage.architecture.subtitle": {
+    "message": "vArmor 如何保护你的工作负载",
+    "description": "Architecture section subtitle"
+  },
+  "homepage.architecture.text1": {
+    "message": "vArmor 主要由 Manager 和 Agent 两个组件组成。Manager 负责响应和管理策略对象，Agent 负责管理节点上的 enforcer 和 profile。",
+    "description": "Architecture description paragraph 1"
+  },
+  "homepage.architecture.text2": {
+    "message": "vArmor 还支持 NetworkProxy enforcer，通过 mutation webhook 向目标 Pod 注入 Envoy sidecar 代理和 init 容器。Init 容器通过 iptables 规则将出站流量重定向到 Envoy sidecar，后者根据 Manager 生成并通过 ConfigMap 下发的策略执行 L4/L7 访问控制。",
+    "description": "Architecture description paragraph 2"
+  },
+  "homepage.architecture.text3": {
+    "message": "用户可以通过 VarmorPolicy 或 VarmorClusterPolicy 对象加固特定工作负载，并决定使用哪些 enforcer 和规则。ArmorProfile CR 作为内部接口用于 profile 管理。",
+    "description": "Architecture description paragraph 3"
+  },
+  "homepage.quickStart.title": {
+    "message": "快速开始",
+    "description": "Quick Start section title"
+  },
+  "homepage.quickStart.subtitle": {
+    "message": "几分钟内完成部署",
+    "description": "Quick Start section subtitle"
+  },
+  "homepage.quickStart.step1.title": {
+    "message": "1. 拉取 Chart",
+    "description": "Quick Start step 1 title"
+  },
+  "homepage.quickStart.step2.title": {
+    "message": "2. 安装",
+    "description": "Quick Start step 2 title"
+  },
+  "homepage.quickStart.step3.title": {
+    "message": "3. 应用策略",
+    "description": "Quick Start step 3 title"
+  },
+  "homepage.quickStart.step3.description": {
+    "message": "创建 VarmorPolicy 保护你的工作负载——支持 AppArmor/BPF/Seccomp 规则和 NetworkProxy 出站访问控制",
+    "description": "Quick Start step 3 description"
+  },
+  "homepage.quickStart.viewGuide": {
+    "message": "查看完整指南",
+    "description": "View Full Guide button text"
+  },
+  "homepage.community.title": {
+    "message": "社区",
+    "description": "Community section title"
+  },
+  "homepage.community.subtitle": {
+    "message": "加入 vArmor 社区",
+    "description": "Community section subtitle"
+  },
+  "homepage.community.openSource.title": {
+    "message": "开源",
+    "description": "Open Source subsection title"
+  },
+  "homepage.community.openSource.description": {
+    "message": "vArmor 由字节跳动终端安全团队的 Elkeid Team 研发，项目基于 Apache 2.0 许可证开源，目前仍在积极迭代中。",
+    "description": "Open Source subsection description"
+  },
+  "homepage.community.starOnGithub": {
+    "message": "Star on GitHub",
+    "description": "Star on GitHub button text"
+  },
+  "homepage.community.contribute.title": {
+    "message": "参与贡献",
+    "description": "Contribute subsection title"
+  },
+  "homepage.community.contribute.description": {
+    "message": "我们欢迎社区贡献！无论是报告 Bug、改进文档还是添加新功能，您的帮助都非常重要。",
+    "description": "Contribute subsection description"
+  },
+  "homepage.community.contributionGuide": {
+    "message": "贡献指南",
+    "description": "Contribution Guide button text"
+  }
+}

@@ -15,21 +15,25 @@
 [English](README.md) | 简体中文 | [日本語](README.ja.md)
 
 
-vArmor 是一个云原生容器沙箱系统，它借助 Linux 的 [AppArmor LSM](https://en.wikipedia.org/wiki/AppArmor), [BPF LSM](https://docs.kernel.org/bpf/prog_lsm.html) 和 [Seccomp](https://en.wikipedia.org/wiki/Seccomp) 技术实现强制访问控制器（即 enforcer），从而对容器进行安全加固。它可以用于增强容器隔离性、减少内核攻击面、增加容器逃逸或横行移动攻击的难度与成本。
+vArmor 是一个云原生容器沙箱系统，它借助 Linux 的 [AppArmor LSM](https://en.wikipedia.org/wiki/AppArmor)、[BPF LSM](https://docs.kernel.org/bpf/prog_lsm.html)、[Seccomp](https://en.wikipedia.org/wiki/Seccomp) 以及**网络代理**（基于 [Envoy](https://www.envoyproxy.io/) 的 Sidecar）技术实现强制访问控制器（即 enforcer），从而对容器进行安全加固。它可以用于增强容器隔离性、减少内核攻击面、在 L4/L7 层级实施网络出站访问控制、增加容器逃逸或横向移动攻击的难度与成本。
 
 您可以借助 vArmor 在以下场景对 Kubernetes 集群中的容器进行沙箱防护
 * 业务场景存在多租户（多租户共享同一个集群），由于成本、技术条件等原因无法使用硬件虚拟化容器（如 Kata Container）
 * 想要对关键的业务进行安全加固，增加攻击者权限提升、容器逃逸、横向渗透的难度与成本
 * 当出现高危漏洞，但由于修复难度大、周期长等原因无法立即修复时，可以借助 vArmor 实施漏洞利用缓解（具体取决于漏洞类型或漏洞利用向量。缓解代表阻断利用向量、增加利用难度）
+* 部署 AI Agent 或基于 LLM 的应用，需要精确控制其出站网络访问，防止数据外泄、未授权的 API 调用、或因提示词注入攻击导致的工具滥用
 
 *注意：* 
 *<br />- 安全防御的核心在于平衡风险与收益，通过选择不同类型的安全边界和防御技术，将不可控风险转化为可控成本。*
 *<br />- runc + vArmor 不提供等同硬件虚拟化容器（如 Kata Container 等轻量级虚拟机）的隔离等级。如果您需要高强度的隔离方案，请优先考虑使用硬件虚拟化容器进行计算隔离，并借助 CNI 的 NetworkPolicy 进行网络隔离。*
+*<br />- vArmor 的 NetworkProxy enforcer 进一步补充了 NetworkPolicy 的不足，提供了 L7 访问控制、基于 TLS SNI 的域名过滤以及全面的审计日志能力——这些是 NetworkPolicy 所不具备的。*
 
 
 **vArmor 的特色**
 * **Cloud-Native**. vArmor 遵循 Kubernetes Operator 设计模式，用户可通过操作 [CRD API](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/) 对特定的 Workloads 进行加固。从而以更贴近业务的视角，实现对容器化微服务的沙箱加固。
-* **Multiple Enforcers**. vArmor 将 AppArmor、BPF、Seccomp 抽象为 Enforcer，并支持单独或组合使用，从而对容器的文件访问、进程执行、网络外联、系统调用等进行访问控制。
+* **Multiple Enforcers**. vArmor 将 AppArmor、BPF、Seccomp、NetworkProxy 抽象为 Enforcer，并支持单独或组合使用，从而对容器的文件访问、进程执行、网络外联（L3–L7）、系统调用等进行访问控制。
+* **Network Proxy Enforcer**. vArmor 引入了基于 Sidecar 代理（Envoy）的 enforcer，能够透明拦截并控制容器的网络出站流量，支持 L4（TCP）、L7（HTTP）和 TLS SNI 三个层级的访问控制。它同时支持黑名单和白名单两种策略模式，提供审计日志能力，且策略支持动态更新，无需重启 Pod。
+* **AI Agent 防护**. vArmor 通过内核级强制访问控制（AppArmor/BPF/Seccomp）与应用协议级网络访问控制（NetworkProxy）的组合，为 AI Agent 工作负载提供纵深防御，有效缓解提示词注入诱导工具滥用、未授权数据外泄等风险。
 * **Allow-by-Default**. vArmor 当前重点支持此安全模型，即只有显式声明的行为会被阻断，从而减少性能损失和增加易用性。vArmor 支持对违反访问控制规则的行为进行审计，并支持放行违反访问控制规则的行为。
 * **Built-in Rules**. vArmor 提供了一系列开箱即用的内置规则。这些规则为 Allow-by-Default 安全模型设计，从而极大降低对用户专业知识的要求。
 * **Behavior Modeling**. vArmor 支持对工作负载进行行为建模。这对于制定白名单安全策略、分析哪些内置规则可用于加固应用，或指导工作负载的配置以遵循最小权限原则非常有用。
