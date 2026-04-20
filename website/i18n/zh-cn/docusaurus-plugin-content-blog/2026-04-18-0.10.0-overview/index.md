@@ -14,7 +14,7 @@ vArmor v0.10.0 引入了全新的 **NetworkProxy enforcer**，通过 Sidecar 代
 
 ## AI Agent 面临的网络安全风险
 
-在我们此前的文章《[AI 应用开发平台安全加固实践](./harden-the-AI-application-development-platform)》中，我们演示了 AI 应用开发平台中代码执行插件的安全风险，并介绍了如何使用 vArmor 的 BPF enforcer 对容器进行加固。那篇文章主要关注的是**系统调用级别**的防护——阻止攻击者在沙箱逃逸后进一步提权和渗透。
+在我们此前的文章《[AI 应用开发平台安全加固实践](https://varmor.org/zh-cn/blog/harden-the-AI-application-development-platform)》中，我们演示了 AI 应用开发平台中代码执行插件的安全风险，并介绍了如何使用 vArmor 的 BPF enforcer 对容器进行加固。那篇文章主要关注的是**系统调用级别**的防护——阻止攻击者在沙箱逃逸后进一步提权和渗透。
 
 然而，随着 AI Agent 架构的演进，新的安全挑战正在浮现：
 

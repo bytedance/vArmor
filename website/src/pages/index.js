@@ -5,6 +5,7 @@ import clsx from 'clsx';
 import Layout from '@theme/Layout';
 import styles from './index.module.css';
 import Link from '@docusaurus/Link';
+import Translate, {translate} from '@docusaurus/Translate';
 import { Analytics } from "@vercel/analytics/react";
 import ThemeImage from '@site/src/components/ThemeImage';
 import CodeBlock from '@theme/CodeBlock';
@@ -24,13 +25,15 @@ function HomepageHeader() {
               />
             </div>
             <p className={styles.heroTagline}>
-              Cloud-native container sandbox for Kubernetes
+              <Translate id="homepage.hero.tagline">
+                Cloud-native container hardening for Kubernetes — from syscall to protocol, from workload to AI Agent.
+              </Translate>
             </p>
             <div className={styles.buttons}>
               <Link
                 className={clsx("button button--lg", styles.primaryButton)}
                 to="/docs/main/introduction">
-                Get Started
+                <Translate id="homepage.hero.getStarted">Get Started</Translate>
               </Link>
               <Link
                 className={clsx("button button--lg", styles.primaryButton, "button--black")}
@@ -47,7 +50,7 @@ function HomepageHeader() {
 
 function Feature({ title, description, icon }) {
   return (
-    <div className={clsx('col col--4', styles.featureItem)}>
+    <div className={clsx('col col--3', styles.featureItem)}>
       <div className={styles.featureIcon}>
         {icon ? icon : <div className={styles.iconPlaceholder}></div>}
       </div>
@@ -64,42 +67,51 @@ function HomepageFeatures() {
     <section className={styles.features}>
       <div className="container">
         <div className={styles.sectionTitle}>
-          <h2>Core Features</h2>
-          <p>Powerful capabilities to enhance your container security</p>
+          <h2><Translate id="homepage.features.title">Core Features</Translate></h2>
+          <p><Translate id="homepage.features.subtitle">Multiple enforcers, flexible policies, ready for production</Translate></p>
         </div>
         <div className="row">
           <Feature
-            title="Cloud-Native"
-            description="Follows the Kubernetes Operator design pattern, allowing users to harden specific workloads by manipulating the CRD API."
+            title={<Translate id="homepage.features.cloudNative.title">Cloud-Native</Translate>}
+            description={<Translate id="homepage.features.cloudNative.description">Follows the Kubernetes Operator design pattern, allowing users to harden specific workloads by manipulating the CRD API.</Translate>}
             icon={<img src="/img/icon-cloud.svg" alt="Cloud-Native Icon" className={styles.featureIcon}/>}
           />
-
           <Feature
-            title="Multiple Enforcers"
-            description="Abstracts AppArmor, BPF, and Seccomp as enforcers, supporting their use individually or in combination."
-            icon={<img src="/img/icon-enforcer.svg" alt="Cloud-Native Icon" className={styles.featureIcon}/>}
+            title={<Translate id="homepage.features.multipleEnforcers.title">Multiple Enforcers</Translate>}
+            description={<Translate id="homepage.features.multipleEnforcers.description">Provides AppArmor, BPF, Seccomp, and NetworkProxy enforcers that can be used individually or combined to control file access, process execution, network egress, and syscalls.</Translate>}
+            icon={<img src="/img/icon-enforcer.svg" alt="Multiple Enforcers Icon" className={styles.featureIcon}/>}
           />
           <Feature
-            title="Allow-by-Default"
-            description="Only explicitly declared behaviors will be blocked, which effectively minimizes performance impact and enhances usability."
-            icon={<img src="/img/icon-allow.svg" alt="Cloud-Native Icon" className={styles.featureIcon}/>}
+            title={<Translate id="homepage.features.networkProxy.title">Network Proxy</Translate>}
+            description={<Translate id="homepage.features.networkProxy.description">Transparently intercepts container egress traffic via an Envoy sidecar, enabling L4/L7/TLS SNI access control with audit logging and dynamic policy updates — no Pod restart required.</Translate>}
+            icon={<img src="/img/icon-network-proxy.svg" alt="Network Proxy Icon" className={styles.featureIcon}/>}
+          />
+          <Feature
+            title={<Translate id="homepage.features.aiAgent.title">AI Agent Protection</Translate>}
+            description={<Translate id="homepage.features.aiAgent.description">Defense-in-depth for AI Agent workloads — enforce access control from syscalls to network protocols, mitigating prompt injection-induced tool abuse and data exfiltration.</Translate>}
+            icon={<img src="/img/icon-ai-agent.svg" alt="AI Agent Protection Icon" className={styles.featureIcon}/>}
           />
         </div>
         <div className="row">
           <Feature
-            title="Built-in Rules"
-            description="Features a range of built-in rules ready to use out of the box, eliminating the need for expertise in security profile creation."
-            icon={<img src="/img/icon-rules.svg" alt="Cloud-Native Icon" className={styles.featureIcon}/>}
+            title={<Translate id="homepage.features.allowByDefault.title">Allow-by-Default</Translate>}
+            description={<Translate id="homepage.features.allowByDefault.description">Only explicitly declared behaviors will be blocked, which effectively minimizes performance impact and enhances usability.</Translate>}
+            icon={<img src="/img/icon-allow.svg" alt="Allow-by-Default Icon" className={styles.featureIcon}/>}
           />
           <Feature
-            title="Behavior Modeling"
-            description="Supports behavior modeling for workloads to develop allowlist profiles and guide configurations to adhere to least privilege."
-            icon={<img src="/img/icon-model.svg" alt="Cloud-Native Icon" className={styles.featureIcon}/>}
+            title={<Translate id="homepage.features.denyByDefault.title">Deny-by-Default</Translate>}
+            description={<Translate id="homepage.features.denyByDefault.description">Enforces an allowlist policy where only explicitly permitted behaviors are allowed, providing the strongest security posture for sensitive workloads.</Translate>}
+            icon={<img src="/img/icon-deny.svg" alt="Deny-by-Default Icon" className={styles.featureIcon}/>}
           />
           <Feature
-            title="Deny-by-Default"
-            description="Capable of creating an allowlist profile from behavior models and ensuring only explicitly declared behaviors are permitted."
-            icon={<img src="/img/icon-deny.svg" alt="Cloud-Native Icon" className={styles.featureIcon}/>}
+            title={<Translate id="homepage.features.builtinRules.title">Built-in Rules</Translate>}
+            description={<Translate id="homepage.features.builtinRules.description">Features a range of built-in rules ready to use out of the box, eliminating the need for expertise in security profile creation.</Translate>}
+            icon={<img src="/img/icon-rules.svg" alt="Built-in Rules Icon" className={styles.featureIcon}/>}
+          />
+          <Feature
+            title={<Translate id="homepage.features.behaviorModeling.title">Behavior Modeling</Translate>}
+            description={<Translate id="homepage.features.behaviorModeling.description">Supports behavior modeling for workloads to develop allowlist profiles and guide configurations to adhere to least privilege.</Translate>}
+            icon={<img src="/img/icon-model.svg" alt="Behavior Modeling Icon" className={styles.featureIcon}/>}
           />
         </div>
       </div>
@@ -112,8 +124,8 @@ function Architecture() {
     <section className={styles.architecture}>
       <div className="container">
         <div className={styles.sectionTitle}>
-          <h2>Architecture</h2>
-          <p>How vArmor works to protect your containers</p>
+          <h2><Translate id="homepage.architecture.title">Architecture</Translate></h2>
+          <p><Translate id="homepage.architecture.subtitle">How vArmor protects your workloads</Translate></p>
         </div>
         <div className={styles.architectureContent}>
           <div className={styles.architectureImage}>
@@ -121,19 +133,23 @@ function Architecture() {
               lightSrc="/img/architecture.svg" 
               darkSrc="/img/architecture-dark.svg" 
               alt="vArmor Architecture" 
-              width="80%"
             />
           </div>
           <div className={styles.architectureText}>
             <p>
-              vArmor primarily consists of two components: the Manager and the Agent. 
-              The Manager is responsible for responding to and managing policy objects, 
-              while the Agent handles the management of enforcers and profiles on Nodes.
+              <Translate id="homepage.architecture.text1">
+                vArmor primarily consists of two components: the Manager and the Agent. The Manager is responsible for responding to and managing policy objects, while the Agent handles the management of enforcers and profiles on Nodes.
+              </Translate>
             </p>
             <p>
-              With VarmorPolicy or VarmorClusterPolicy objects, users can harden specific 
-              workloads and decide which enforcers and rules to use. The ArmorProfile CR 
-              acts as an internal interface used for profile management.
+              <Translate id="homepage.architecture.text2">
+                vArmor also supports the NetworkProxy enforcer, which injects an Envoy sidecar proxy and an init container into target Pods via the mutation webhook. The init container sets up iptables rules to redirect egress traffic to the Envoy sidecar, which then enforces L4/L7 access control policies generated by the Manager and delivered via ConfigMap.
+              </Translate>
+            </p>
+            <p>
+              <Translate id="homepage.architecture.text3">
+                With VarmorPolicy or VarmorClusterPolicy objects, users can harden specific workloads and decide which enforcers and rules to use. The ArmorProfile CR acts as an internal interface used for profile management.
+              </Translate>
             </p>
           </div>
         </div>
@@ -147,29 +163,33 @@ function QuickStart() {
     <section className={styles.quickStart}>
       <div className="container">
         <div className={styles.sectionTitle}>
-          <h2>Quick Start</h2>
-          <p>Get up and running in minutes</p>
+          <h2><Translate id="homepage.quickStart.title">Quick Start</Translate></h2>
+          <p><Translate id="homepage.quickStart.subtitle">Get up and running in minutes</Translate></p>
         </div>
         <div className={styles.quickStartSteps}>
           <div className={styles.quickStartStep}>
-            <h3>1. Fetch chart</h3>
+            <h3><Translate id="homepage.quickStart.step1.title">1. Fetch chart</Translate></h3>
             <CodeBlock language="bash">
               helm pull oci://elkeid-ap-southeast-1.cr.volces.com/varmor/varmor --version 0.10.0
             </CodeBlock>
           </div>
           <div className={styles.quickStartStep}>
-            <h3>2. Install</h3>
+            <h3><Translate id="homepage.quickStart.step2.title">2. Install</Translate></h3>
             <CodeBlock language="bash">
               helm install varmor varmor-0.10.0.tgz --namespace varmor --create-namespace --set image.registry="elkeid-ap-southeast-1.cr.volces.com"
             </CodeBlock>
           </div>
           <div className={styles.quickStartStep}>
-            <h3>3. Apply Policy</h3>
-            <p>Create a VarmorPolicy to protect your workloads</p>
+            <h3><Translate id="homepage.quickStart.step3.title">3. Apply Policy</Translate></h3>
+            <p>
+              <Translate id="homepage.quickStart.step3.description">
+                Create a VarmorPolicy to protect your workloads — supports AppArmor/BPF/Seccomp rules and NetworkProxy egress control
+              </Translate>
+            </p>
             <Link
               className="button button--primary"
               to="/docs/main/introduction#quick-start">
-              View Full Guide
+              <Translate id="homepage.quickStart.viewGuide">View Full Guide</Translate>
             </Link>
           </div>
         </div>
@@ -183,32 +203,34 @@ function Community() {
     <section className={styles.community}>
       <div className="container">
         <div className={styles.sectionTitle}>
-          <h2>Community</h2>
-          <p>Join the vArmor community</p>
+          <h2><Translate id="homepage.community.title">Community</Translate></h2>
+          <p><Translate id="homepage.community.subtitle">Join the vArmor community</Translate></p>
         </div>
         <div className={styles.communityContent}>
           <div className={styles.communityItem}>
-            <h3>Open Source</h3>
+            <h3><Translate id="homepage.community.openSource.title">Open Source</Translate></h3>
             <p>
-              vArmor was created by the <strong>Elkeid Team</strong> of the endpoint security department at ByteDance. 
-              The project is licensed under Apache 2.0 and is in active development.
+              <Translate id="homepage.community.openSource.description">
+                vArmor was created by the Elkeid Team of the endpoint security department at ByteDance. The project is licensed under Apache 2.0 and is in active development.
+              </Translate>
             </p>
             <Link
               className="button button--secondary"
               to="https://github.com/bytedance/vArmor">
-              Star on GitHub
+              <Translate id="homepage.community.starOnGithub">Star on GitHub</Translate>
             </Link>
           </div>
           <div className={styles.communityItem}>
-            <h3>Contribute</h3>
+            <h3><Translate id="homepage.community.contribute.title">Contribute</Translate></h3>
             <p>
-              We welcome contributions from the community! Whether it's reporting bugs, 
-              improving documentation, or adding new features, your help is appreciated.
+              <Translate id="homepage.community.contribute.description">
+                We welcome contributions from the community! Whether it's reporting bugs, improving documentation, or adding new features, your help is appreciated.
+              </Translate>
             </p>
             <Link
               className="button button--secondary"
               to="https://github.com/bytedance/vArmor/blob/main/docs/guides/development.md">
-              Contribution Guide
+              <Translate id="homepage.community.contributionGuide">Contribution Guide</Translate>
             </Link>
           </div>
         </div>
@@ -220,8 +242,8 @@ function Community() {
 export default function Home() {
   return (
     <Layout
-      title="vArmor - Container Security"
-      description="Cloud-native container sandbox system designed to enhance container isolation and security in Kubernetes">
+      title={translate({id: 'homepage.layout.title', message: 'vArmor'})}
+      description={translate({id: 'homepage.layout.description', message: 'Cloud-native container hardening for Kubernetes — from syscall to protocol, from workload to AI Agent.'})}>
       <HomepageHeader />
       <main>
         <HomepageFeatures />
