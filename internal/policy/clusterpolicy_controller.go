@@ -135,8 +135,7 @@ func (c *ClusterPolicyController) updateVarmorClusterPolicy(oldObj, newObj inter
 	newVcp := newObj.(*varmor.VarmorClusterPolicy)
 
 	if newVcp.ResourceVersion == oldVcp.ResourceVersion ||
-		reflect.DeepEqual(newVcp.Spec, oldVcp.Spec) ||
-		!reflect.DeepEqual(newVcp.Status, oldVcp.Status) {
+		reflect.DeepEqual(newVcp.Spec, oldVcp.Spec) {
 		logger.V(2).Info("nothing need to be updated")
 	} else {
 		logger.V(2).Info("enqueue VarmorClusterPolicy")
