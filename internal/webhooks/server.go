@@ -197,18 +197,22 @@ func (ws *WebhookServer) handlerFunc(handler func(request *admissionv1.Admission
 func (ws *WebhookServer) resourceMutation(request *admissionv1.AdmissionRequest) *admissionv1.AdmissionResponse {
 	logger := ws.log.WithName("resourceMutation()")
 
-	for key, target := range ws.policyCacher.ClusterPolicyTargets {
-		response := ws.matchAndPatch(request, key, target, logger)
-		if response != nil {
-			return response
-		}
+	var clusterResponse *admissionv1.AdmissionResponse
+	ws.policyCacher.RangeClusterPolicyTargets(func(key string, target varmor.Target) bool {
+		clusterResponse = ws.matchAndPatch(request, key, target, logger)
+		return clusterResponse == nil
+	})
+	if clusterResponse != nil {
+		return clusterResponse
 	}
 
-	for key, target := range ws.policyCacher.PolicyTargets {
-		response := ws.matchAndPatch(request, key, target, logger)
-		if response != nil {
-			return response
-		}
+	var policyResponse *admissionv1.AdmissionResponse
+	ws.policyCacher.RangePolicyTargets(func(key string, target varmor.Target) bool {
+		policyResponse = ws.matchAndPatch(request, key, target, logger)
+		return policyResponse == nil
+	})
+	if policyResponse != nil {
+		return policyResponse
 	}
 
 	logger.V(2).Info("no mutation required")
