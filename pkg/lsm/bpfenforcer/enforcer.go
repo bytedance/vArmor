@@ -167,7 +167,7 @@ func (enforcer *BpfEnforcer) initBPF() error {
 		Program: enforcer.objs.VarmorCapable,
 	})
 	if err != nil {
-		return err
+		return fmt.Errorf("link.AttachLSM(VarmorCapable) failed: %v", err)
 	}
 	enforcer.capableLink = capableLink
 
@@ -176,7 +176,7 @@ func (enforcer *BpfEnforcer) initBPF() error {
 		Program: enforcer.objs.VarmorFileOpen,
 	})
 	if err != nil {
-		return fmt.Errorf("link.AttachLSM() failed: %v", err)
+		return fmt.Errorf("link.AttachLSM(VarmorFileOpen) failed: %v", err)
 	}
 	enforcer.openFileLink = openFileLink
 
@@ -185,7 +185,7 @@ func (enforcer *BpfEnforcer) initBPF() error {
 		Program: enforcer.objs.VarmorPathSymlink,
 	})
 	if err != nil {
-		return err
+		return fmt.Errorf("link.AttachLSM(VarmorPathSymlink) failed: %v", err)
 	}
 	enforcer.pathSymlinkLink = pathSymlinkLink
 
@@ -194,7 +194,7 @@ func (enforcer *BpfEnforcer) initBPF() error {
 		Program: enforcer.objs.VarmorPathLink,
 	})
 	if err != nil {
-		return err
+		return fmt.Errorf("link.AttachLSM(VarmorPathLink) failed: %v", err)
 	}
 	enforcer.pathLinkLink = pathLinkLink
 
@@ -203,7 +203,7 @@ func (enforcer *BpfEnforcer) initBPF() error {
 		Program: enforcer.objs.VarmorPathRename,
 	})
 	if err != nil {
-		return err
+		return fmt.Errorf("link.AttachLSM(VarmorPathRename) failed: %v", err)
 	}
 	enforcer.pathRenameLink = pathRenameLink
 
@@ -212,7 +212,7 @@ func (enforcer *BpfEnforcer) initBPF() error {
 		Program: enforcer.objs.VarmorBprmCheckSecurity,
 	})
 	if err != nil {
-		return fmt.Errorf("link.AttachLSM() failed: %v", err)
+		return fmt.Errorf("link.AttachLSM(VarmorBprmCheckSecurity) failed: %v", err)
 	}
 	enforcer.bprmLink = bprmLink
 
@@ -221,7 +221,7 @@ func (enforcer *BpfEnforcer) initBPF() error {
 		Program: enforcer.objs.VarmorSocketCreate,
 	})
 	if err != nil {
-		return err
+		return fmt.Errorf("link.AttachLSM(VarmorSocketCreate) failed: %v", err)
 	}
 	enforcer.socketLink = socketLink
 
@@ -230,7 +230,7 @@ func (enforcer *BpfEnforcer) initBPF() error {
 		Program: enforcer.objs.VarmorSocketConnect,
 	})
 	if err != nil {
-		return err
+		return fmt.Errorf("link.AttachLSM(VarmorSocketConnect) failed: %v", err)
 	}
 	enforcer.sockConnLink = sockConnLink
 
@@ -239,7 +239,7 @@ func (enforcer *BpfEnforcer) initBPF() error {
 		Program: enforcer.objs.VarmorPtraceAccessCheck,
 	})
 	if err != nil {
-		return err
+		return fmt.Errorf("link.AttachLSM(VarmorPtraceAccessCheck) failed: %v", err)
 	}
 	enforcer.ptraceLink = ptraceLink
 
@@ -248,7 +248,7 @@ func (enforcer *BpfEnforcer) initBPF() error {
 		Program: enforcer.objs.VarmorMount,
 	})
 	if err != nil {
-		return err
+		return fmt.Errorf("link.AttachLSM(VarmorMount) failed: %v", err)
 	}
 	enforcer.mountLink = mountLink
 
