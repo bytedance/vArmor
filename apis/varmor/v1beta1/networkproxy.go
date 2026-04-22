@@ -16,26 +16,91 @@ limitations under the License.
 
 package v1beta1
 
+// SecretKeyRef is a reference to a specific key within a Kubernetes Secret.
+// The referenced Secret must exist in the same namespace as the target workload.
+type SecretKeyRef struct {
+	// name is the name of the Kubernetes Secret.
+	Name string `json:"name"`
+	// key is the key within the Secret's data map.
+	Key string `json:"key"`
+}
+
+// HeaderAction describes a single HTTP header to inject into requests
+// forwarded through the MITM proxy.
+//
+// Exactly one of value or secretRef must be specified:
+//   - value: a literal header value (suitable for non-sensitive headers)
+//   - secretRef: a reference to a Kubernetes Secret key containing the header
+//     value (suitable for API keys and other credentials)
+//
+// The header value is injected as-is. vArmor does NOT prepend "Bearer " or
+// any other authentication scheme prefix — the value (or Secret content)
+// must contain the complete header value ready for injection.
+//
+// Examples:
+//
+//	# Literal value (non-sensitive)
+//	- name: "X-Request-Source"
+//	  value: "varmor-agent"
+//
+//	# Secret reference (sensitive)
+//	# If the Secret data contains "Bearer sk-xxx", the injected header is:
+//	#   Authorization: Bearer sk-xxx
+//	- name: "Authorization"
+//	  secretRef:
+//	    name: "openai-credentials"
+//	    key: "api-key"
+type HeaderAction struct {
+	// name is the HTTP header name (e.g., "Authorization", "x-api-key").
+	Name string `json:"name"`
+	// value is a literal header value. Use this for non-sensitive values.
+	// Mutually exclusive with secretRef.
+	// +optional
+	Value string `json:"value,omitempty"`
+	// secretRef references a Kubernetes Secret key containing the header value.
+	// Use this for sensitive values such as API keys or tokens. The referenced
+	// Secret must be pre-created by the user in the same namespace as the
+	// target workload. The controller reads the Secret value at reconcile time
+	// and inlines it into the Envoy xDS configuration.
+	// Mutually exclusive with value.
+	// +optional
+	SecretRef *SecretKeyRef `json:"secretRef,omitempty"`
+}
+
+// HeaderMutation describes per-domain HTTP header injection rules.
+// When the MITM proxy terminates TLS for the specified domain, these
+// headers are added to every request before forwarding to the upstream.
+type HeaderMutation struct {
+	// domain specifies which MITM domain this mutation applies to.
+	// Must be one of the domains listed in MITMConfig.Domains.
+	Domain string `json:"domain"`
+	// headers is the list of headers to inject for this domain.
+	Headers []HeaderAction `json:"headers"`
+}
+
 // MITMConfig describes TLS Man-in-the-Middle configuration for inspecting
 // encrypted HTTPS traffic at the HTTP level. When configured, the sidecar
-// proxy terminates TLS for the specified domains using a CA certificate,
-// inspects and optionally modifies the plaintext HTTP, then re-encrypts
-// traffic to the upstream server.
+// proxy terminates TLS for the specified domains using an auto-generated
+// CA certificate, inspects and optionally modifies the plaintext HTTP,
+// then re-encrypts traffic to the upstream server.
 //
-// Prerequisites:
-//   - The CA certificate must be trusted by the application container
-//     (added to its trust store).
-//   - A Kubernetes Secret containing the CA certificate and private key
-//     must exist in the same namespace as the policy.
+// vArmor automatically generates a self-signed CA (ECDSA P-256, 10-year
+// validity) per policy and stores the certificate material alongside
+// the xDS configuration in a unified Secret. The CA is injected into
+// application containers via the proxyinit CA bundle mechanism.
 type MITMConfig struct {
 	// domains specifies which TLS connections should be terminated
 	// for L7 inspection. Only connections to these domains will
 	// be decrypted; all other TLS traffic passes through unmodified.
 	Domains []string `json:"domains"`
-	// caSecretRef is the name of the Kubernetes Secret containing the CA
-	// certificate and private key used for signing MITM certificates.
-	// The Secret must contain 'ca.crt' and 'ca.key' data entries.
-	CASecretRef string `json:"caSecretRef"`
+	// headerMutations specifies per-domain HTTP header injection rules.
+	// Each entry's domain must be present in the domains list above.
+	//
+	// This is typically used for injecting API keys or authentication tokens
+	// into requests destined for specific upstream services, enabling
+	// centralized credential management at the proxy layer.
+	// +optional
+	HeaderMutations []HeaderMutation `json:"headerMutations,omitempty"`
 }
 
 type NetworkProxyConfig struct {

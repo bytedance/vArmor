@@ -103,6 +103,13 @@ func ValidateAddPolicy(policy interface{}, behaviorModelingEnabled bool) (bool, 
 		return false, "The DefenseInDepth mode is not supported when BPF enforcer is activated."
 	}
 
+	// Validate MITMConfig
+	if spec.Policy.NetworkProxyConfig != nil && spec.Policy.NetworkProxyConfig.MITM != nil {
+		if ok, msg := validateMITMConfig(spec.Policy.NetworkProxyConfig.MITM); !ok {
+			return false, msg
+		}
+	}
+
 	// Do not exceed the length of a standard Kubernetes name (63 characters)
 	// Note: The advisory length of AppArmor profile name is 100 (See https://bugs.launchpad.net/apparmor/+bug/1499544).
 	profileName := varmorprofile.GenerateArmorProfileName(namespace, name, clusterScope)
@@ -205,6 +212,76 @@ func ValidateUpdatePolicy(policy interface{}, oldEnforcer string, oldTarget varm
 		return false, "The DefenseInDepth mode is not supported when BPF enforcer is activated."
 	}
 
+	// Validate MITMConfig
+	if newSpec.Policy.NetworkProxyConfig != nil && newSpec.Policy.NetworkProxyConfig.MITM != nil {
+		if ok, msg := validateMITMConfig(newSpec.Policy.NetworkProxyConfig.MITM); !ok {
+			return false, msg
+		}
+	}
+
 	// All validations passed
+	return true, ""
+}
+
+// internal/policy/validate.go 中新增
+
+func validateMITMConfig(mitm *varmor.MITMConfig) (bool, string) {
+	if len(mitm.Domains) == 0 {
+		return false, "mitm.domains must contain at least one domain"
+	}
+
+	domainSet := make(map[string]bool, len(mitm.Domains))
+	for _, d := range mitm.Domains {
+		domainSet[d] = true
+	}
+
+	for i, hm := range mitm.HeaderMutations {
+		if !domainSet[hm.Domain] {
+			return false, fmt.Sprintf(
+				"mitm.headerMutations[%d].domain %q is not in mitm.domains",
+				i, hm.Domain)
+		}
+
+		if len(hm.Headers) == 0 {
+			return false, fmt.Sprintf(
+				"mitm.headerMutations[%d].headers must not be empty", i)
+		}
+
+		for j, h := range hm.Headers {
+			if h.Name == "" {
+				return false, fmt.Sprintf(
+					"mitm.headerMutations[%d].headers[%d].name must not be empty",
+					i, j)
+			}
+
+			hasValue := h.Value != ""
+			hasSecretRef := h.SecretRef != nil
+
+			if !hasValue && !hasSecretRef {
+				return false, fmt.Sprintf(
+					"mitm.headerMutations[%d].headers[%d]: one of value or secretRef must be specified",
+					i, j)
+			}
+			if hasValue && hasSecretRef {
+				return false, fmt.Sprintf(
+					"mitm.headerMutations[%d].headers[%d]: value and secretRef are mutually exclusive",
+					i, j)
+			}
+
+			if hasSecretRef {
+				if h.SecretRef.Name == "" {
+					return false, fmt.Sprintf(
+						"mitm.headerMutations[%d].headers[%d].secretRef.name must not be empty",
+						i, j)
+				}
+				if h.SecretRef.Key == "" {
+					return false, fmt.Sprintf(
+						"mitm.headerMutations[%d].headers[%d].secretRef.key must not be empty",
+						i, j)
+				}
+			}
+		}
+	}
+
 	return true, ""
 }
