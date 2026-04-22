@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package networkproxy generates the Envoy xDS resources from the network proxy rules.
-package networkproxy
+// Package profile generates the Envoy xDS resources from the network proxy rules.
+package profile
 
 import (
 	"context"

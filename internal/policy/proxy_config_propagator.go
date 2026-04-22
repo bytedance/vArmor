@@ -28,7 +28,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
-	varmornetworkproxy "github.com/bytedance/vArmor/internal/networkproxy"
+	varmornetworkproxy "github.com/bytedance/vArmor/internal/networkproxy/profile"
 	"github.com/bytedance/vArmor/internal/policycacher"
 	varmortypes "github.com/bytedance/vArmor/internal/types"
 	varmorinterface "github.com/bytedance/vArmor/pkg/client/clientset/versioned/typed/varmor/v1beta1"

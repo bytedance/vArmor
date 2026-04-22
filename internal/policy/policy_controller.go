@@ -36,7 +36,7 @@ import (
 	// informers "k8s.io/client-go/informers/core/v1"
 
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
-	varmornetworkproxy "github.com/bytedance/vArmor/internal/networkproxy"
+	varmornetworkproxy "github.com/bytedance/vArmor/internal/networkproxy/profile"
 	varmorprofile "github.com/bytedance/vArmor/internal/profile"
 	statusmanager "github.com/bytedance/vArmor/internal/status/apis/v1"
 	statuscommon "github.com/bytedance/vArmor/internal/status/common"
