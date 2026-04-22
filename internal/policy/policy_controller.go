@@ -139,8 +139,7 @@ func (c *PolicyController) updateVarmorPolicy(oldObj, newObj interface{}) {
 	newVp := newObj.(*varmor.VarmorPolicy)
 
 	if newVp.ResourceVersion == oldVp.ResourceVersion ||
-		reflect.DeepEqual(newVp.Spec, oldVp.Spec) ||
-		!reflect.DeepEqual(newVp.Status, oldVp.Status) {
+		reflect.DeepEqual(newVp.Spec, oldVp.Spec) {
 		logger.V(2).Info("nothing need to be updated")
 	} else {
 		logger.V(2).Info("enqueue VarmorPolicy")
