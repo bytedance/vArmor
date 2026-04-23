@@ -20,8 +20,10 @@ package v1beta1
 // The referenced Secret must exist in the same namespace as the target workload.
 type SecretKeyRef struct {
 	// name is the name of the Kubernetes Secret.
+	// +kubebuilder:validation:MinLength=1
 	Name string `json:"name"`
 	// key is the key within the Secret's data map.
+	// +kubebuilder:validation:MinLength=1
 	Key string `json:"key"`
 }
 
@@ -32,6 +34,11 @@ type SecretKeyRef struct {
 //   - value: a literal header value (suitable for non-sensitive headers)
 //   - secretRef: a reference to a Kubernetes Secret key containing the header
 //     value (suitable for API keys and other credentials)
+//
+// When multiple HeaderAction entries share the same name on the same domain,
+// or when the upstream request already carries the header, vArmor injects
+// with overwrite if exists or add semantics — the injected value replaces any
+// existing value for that header.
 //
 // The header value is injected as-is. vArmor does NOT prepend "Bearer " or
 // any other authentication scheme prefix — the value (or Secret content)
@@ -52,6 +59,7 @@ type SecretKeyRef struct {
 //	    key: "api-key"
 type HeaderAction struct {
 	// name is the HTTP header name (e.g., "Authorization", "x-api-key").
+	// +kubebuilder:validation:MinLength=1
 	Name string `json:"name"`
 	// value is a literal header value. Use this for non-sensitive values.
 	// Mutually exclusive with secretRef.
@@ -72,9 +80,12 @@ type HeaderAction struct {
 // headers are added to every request before forwarding to the upstream.
 type HeaderMutation struct {
 	// domain specifies which MITM domain this mutation applies to.
-	// Must be one of the domains listed in MITMConfig.Domains.
+	// Must literally equal one of the entries in MITMConfig.Domains
+	// (no wildcard expansion is performed on either side).
+	// +kubebuilder:validation:MinLength=1
 	Domain string `json:"domain"`
 	// headers is the list of headers to inject for this domain.
+	// +kubebuilder:validation:MinItems=1
 	Headers []HeaderAction `json:"headers"`
 }
 
@@ -85,16 +96,29 @@ type HeaderMutation struct {
 // then re-encrypts traffic to the upstream server.
 //
 // vArmor automatically generates a self-signed CA (ECDSA P-256, 10-year
-// validity) per policy and stores the certificate material alongside
-// the xDS configuration in a unified Secret. The CA is injected into
-// application containers via the proxyinit CA bundle mechanism.
+// validity) per policy. The controller appends this CA to an embedded
+// Mozilla trust bundle and publishes the concatenated bundle, together
+// with the xDS configuration and leaf certificate material, in the
+// policy's unified Secret. Application containers consume the bundle via
+// a projected Secret volume (exposed through SSL_CERT_FILE,
+// REQUESTS_CA_BUNDLE, NODE_EXTRA_CA_CERTS and CURL_CA_BUNDLE) so that
+// both the public internet PKI and the MITM CA are trusted. The CA
+// private key is never projected into the application container.
+//
+// Domains are written verbatim into the leaf certificate's SAN list,
+// including wildcard entries such as "*.openai.com". Wildcard matching
+// follows RFC 6125: a wildcard matches exactly one DNS label, and does
+// not match the bare parent domain. Users who need both must list both
+// explicitly in Domains.
 type MITMConfig struct {
 	// domains specifies which TLS connections should be terminated
 	// for L7 inspection. Only connections to these domains will
 	// be decrypted; all other TLS traffic passes through unmodified.
+	// +kubebuilder:validation:MinItems=1
 	Domains []string `json:"domains"`
 	// headerMutations specifies per-domain HTTP header injection rules.
-	// Each entry's domain must be present in the domains list above.
+	// Each entry's domain must be present in the domains list above
+	// (literal equality; no wildcard expansion is performed).
 	//
 	// This is typically used for injecting API keys or authentication tokens
 	// into requests destined for specific upstream services, enabling
