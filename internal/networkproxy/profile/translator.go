@@ -30,12 +30,38 @@ type FilterChain struct {
 	Name             string
 	FilterChainMatch *FilterChainMatch
 	Filters          []NetworkFilter
+	// TransportSocket configures the listener-side TLS termination for a
+	// chain. When set, Envoy will decrypt incoming TLS using the provided
+	// leaf certificate; the HCM then operates on plaintext HTTP. This is
+	// how the MITM chains perform TLS interception.
+	TransportSocket *DownstreamTLSContext
+}
+
+// DownstreamTLSContext is a minimal representation of Envoy's
+// envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext.
+//
+// The translator only produces file-backed tls_certificates because the
+// controller writes the leaf cert/key into the policy's unified Secret
+// and projects them into the sidecar at fixed paths; Envoy's
+// watched_directory picks up rotations in place.
+type DownstreamTLSContext struct {
+	CertPath string
+	KeyPath  string
 }
 
 // FilterChainMatch defines the match criteria for a filter chain.
 type FilterChainMatch struct {
 	TransportProtocol    string
 	ApplicationProtocols []string
+	// ServerNames is the SNI match list, used by MITM TLS chains to
+	// intercept only connections whose TLS ClientHello SNI appears in
+	// MITMConfig.Domains. Literal entries and single-label wildcards
+	// (e.g., "*.openai.com") are supported by Envoy natively.
+	ServerNames []string
+	// PrefixRanges is the destination-IP CIDR match list, used by MITM
+	// IP chains to intercept plain-IP TLS connections (no SNI) whose
+	// destination appears in MITMConfig.Domains as an IP literal.
+	PrefixRanges []string
 }
 
 // NetworkFilter represents a network-level filter in a chain.
@@ -122,6 +148,20 @@ type VirtualHost struct {
 	Name    string
 	Domains []string
 	Routes  []Route
+	// RequestHeadersToAdd carries the MITM-layer header injection plan.
+	// Every entry uses append_action=OVERWRITE_IF_EXISTS_OR_ADD so that
+	// client-supplied values for the same header are unconditionally
+	// replaced by the policy-declared value (this is the required
+	// semantics for API-key injection).
+	RequestHeadersToAdd []HeaderToAdd
+}
+
+// HeaderToAdd is one resolved header injection entry. The controller
+// pre-resolves SecretRef into a literal Value before calling the
+// translator, so the translator itself never touches the kube-apiserver.
+type HeaderToAdd struct {
+	Name  string
+	Value string
 }
 
 type Route struct {
@@ -142,8 +182,17 @@ type RouteAction struct {
 // ============================================================================
 
 const (
+	// clusterName is the passthrough ORIGINAL_DST cluster used by Phase 1
+	// TLS passthrough / plain HTTP / catch-all TCP chains. Envoy forwards
+	// bytes unmodified to the socket's SO_ORIGINAL_DST target.
 	clusterName = "original_dst"
-	listenPort  = 15001
+	// mitmUpstreamClusterName is the TLS-capable ORIGINAL_DST cluster used
+	// exclusively by MITM HCM routes. It carries an UpstreamTlsContext so
+	// that Envoy re-encrypts traffic to the upstream after HTTP inspection.
+	// SNI is derived automatically from the request's :authority header
+	// (auto_sni + auto_san_validation on the route action).
+	mitmUpstreamClusterName = "mitm_upstream"
+	listenPort              = 15001
 )
 
 // ============================================================================
@@ -282,115 +331,58 @@ type TranslateResult struct {
 	CDS string
 }
 
-// TranslateEgressRules converts varmor.NetworkProxyEgress CRD rules into Envoy xDS configuration.
-func TranslateEgressRules(egress *varmor.NetworkProxyEgress, version int64, proxyPort uint16) (*TranslateResult, error) {
+// TranslateEgressRules converts varmor.NetworkProxyEgress CRD rules into
+// Envoy xDS configuration.
+//
+// The optional mitm argument enables TLS MITM + HTTP header injection.
+// When mitm is nil or MITMInput.Enabled() reports false, the emitted
+// listener is identical to the pre-Phase-4 output (three filter chains:
+// TLS passthrough, HTTP, TCP default). When enabled, one or two MITM
+// filter chains are prepended so Envoy's most-specific-match precedence
+// intercepts targeted TLS while other TLS falls through unchanged.
+func TranslateEgressRules(egress *varmor.NetworkProxyEgress, version int64, proxyPort uint16, mitm *MITMInput) (*TranslateResult, error) {
 	if egress == nil {
 		return nil, fmt.Errorf("network proxy egress rules is nil")
 	}
 
-	defaultDeny := strings.ToLower(egress.DefaultAction) == "deny"
+	// Rule classification (deny/allow/shadow buckets + audit config).
+	// Factored into classifyEgress so the 10-row audit matrix lives in
+	// exactly one place.
+	cls := classifyEgress(egress)
 
-	// Classify rules into buckets
-	var (
-		denyEgressRules  []varmor.NetworkProxyEgressRule
-		allowEgressRules []varmor.NetworkProxyEgressRule
+	// Phase 1 chains (TLS passthrough, HTTP, TCP default).
+	tlsChain := buildTLSChain(cls.defaultDeny,
+		cls.denyEgressRules, cls.allowEgressRules,
+		cls.denyHTTPRules, cls.allowHTTPRules,
+		cls.auditCfg)
+	httpChain := buildHTTPChain(cls.defaultDeny,
+		cls.denyEgressRules, cls.allowEgressRules,
+		cls.denyHTTPRules, cls.allowHTTPRules,
+		cls.auditCfg)
+	tcpChain := buildTCPDefaultChain(cls.defaultDeny,
+		cls.denyEgressRules, cls.allowEgressRules,
+		cls.auditCfg)
 
-		denyHTTPRules  []varmor.NetworkProxyHTTPRule
-		allowHTTPRules []varmor.NetworkProxyHTTPRule
-
-		// Shadow rules for audit: computed differently based on defaultAction
-		auditShadowEgressRules []varmor.NetworkProxyEgressRule
-		auditShadowHTTPRules   []varmor.NetworkProxyHTTPRule
-	)
-
-	anyAuditQualifier := false
-
-	for _, r := range egress.Rules {
-		action, audit := classifyRule(r.Qualifiers, defaultDeny)
-		if audit && hasQualifier(r.Qualifiers, "audit") {
-			anyAuditQualifier = true
-		}
-		switch action {
-		case ruleActionDeny:
-			denyEgressRules = append(denyEgressRules, r)
-		case ruleActionAllow:
-			allowEgressRules = append(allowEgressRules, r)
-		}
-
-		// Shadow rules computation differs by defaultAction:
-		// deny-default: only allow+audit needs shadow (deny is auto-captured by CEL deny detection)
-		// allow-default: all rules with explicit "audit" qualifier need shadow
-		if defaultDeny {
-			if action == ruleActionAllow && audit {
-				auditShadowEgressRules = append(auditShadowEgressRules, r)
-			}
-		} else {
-			if hasQualifier(r.Qualifiers, "audit") {
-				auditShadowEgressRules = append(auditShadowEgressRules, r)
-			}
-		}
+	// Optional MITM chains -- prepended to the filter-chain list when
+	// a non-empty MITMInput is supplied.
+	var mitmChains []FilterChain
+	if mitm.Enabled() {
+		mitmChains = buildMITMChains(cls, mitm)
 	}
 
-	for _, r := range egress.HTTPRules {
-		action, audit := classifyRule(r.Qualifiers, defaultDeny)
-		if audit && hasQualifier(r.Qualifiers, "audit") {
-			anyAuditQualifier = true
-		}
-		switch action {
-		case ruleActionDeny:
-			denyHTTPRules = append(denyHTTPRules, r)
-		case ruleActionAllow:
-			allowHTTPRules = append(allowHTTPRules, r)
-		}
+	// Listener-level CEL (Network RBAC deny detection + shadow metadata).
+	// Uses HasShadowRules (both egress and HTTP) because HTTP rules can
+	// generate SNI-based network RBAC shadow rules on the TLS chain.
+	listenerCEL := computeListenerCEL(cls.defaultDeny, cls.auditCfg.HasShadowRules())
 
-		// Shadow rules computation
-		if defaultDeny {
-			if action == ruleActionAllow && audit {
-				auditShadowHTTPRules = append(auditShadowHTTPRules, r)
-			}
-		} else {
-			if hasQualifier(r.Qualifiers, "audit") {
-				auditShadowHTTPRules = append(auditShadowHTTPRules, r)
-			}
-		}
-	}
+	lds := renderListenerYAML(mitmChains, tlsChain, httpChain, tcpChain,
+		version, proxyPort,
+		cls.auditCfg.AccessLogEnabled, listenerCEL)
+	cds := renderClustersYAML(version, mitm.Enabled())
 
-	// Compute accessLogEnabled:
-	// - defaultAction=deny: always (to capture auto-audited denies)
-	// - defaultAction=allow: only if any rule has explicit "audit" qualifier
-	accessLogEnabled := defaultDeny || anyAuditQualifier
-
-	auditCfg := AuditConfig{
-		AccessLogEnabled:       accessLogEnabled,
-		DefaultDeny:            defaultDeny,
-		AuditShadowEgressRules: auditShadowEgressRules,
-		AuditShadowHTTPRules:   auditShadowHTTPRules,
-	}
-
-	// Build 3 filter chains
-	tlsChain := buildTLSChain(defaultDeny, denyEgressRules, allowEgressRules, denyHTTPRules, allowHTTPRules, auditCfg)
-	httpChain := buildHTTPChain(defaultDeny, denyEgressRules, allowEgressRules, denyHTTPRules, allowHTTPRules, auditCfg)
-	tcpChain := buildTCPDefaultChain(defaultDeny, denyEgressRules, allowEgressRules, auditCfg)
-
-	// Compute listener-level CEL expression.
-	// The listener CEL checks connection.termination_details (set by Network RBAC)
-	// and/or network RBAC shadow metadata.
-	//
-	// Note: hasShadowEgressRules is used (not HasShadowRules) because the listener
-	// uses envoy.filters.network.rbac namespace. HTTP shadow rules are handled at HCM level.
-	// However, for TLS chain, HTTP rules generate SNI-based network RBAC shadow rules too,
-	// so we check both egress and HTTP shadow rules for the TLS chain.
-	hasShadowForListener := auditCfg.HasShadowRules()
-	listenerCEL := computeListenerCEL(defaultDeny, hasShadowForListener)
-
-	lds := renderListenerYAML(tlsChain, httpChain, tcpChain, version, proxyPort, accessLogEnabled, listenerCEL)
-	cds := renderClustersYAML(version)
-
-	return &TranslateResult{
-		LDS: lds,
-		CDS: cds,
-	}, nil
+	return &TranslateResult{LDS: lds, CDS: cds}, nil
 }
+
 
 // ============================================================================
 // Chain 1: TLS

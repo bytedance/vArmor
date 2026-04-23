@@ -19,6 +19,8 @@ import (
 	"net"
 	"sort"
 	"strings"
+
+	varmorconfig "github.com/bytedance/vArmor/internal/config"
 )
 
 // ============================================================================
@@ -71,7 +73,7 @@ func yamlCEL(expr string) string {
 	return `"` + escaped + `"`
 }
 
-func renderListenerYAML(tlsChain, httpChain FilterChain, tcpChain FilterChain, version int64, proxyPort uint16, listenerAccessLogEnabled bool, listenerCEL string) string {
+func renderListenerYAML(mitmChains []FilterChain, tlsChain, httpChain FilterChain, tcpChain FilterChain, version int64, proxyPort uint16, listenerAccessLogEnabled bool, listenerCEL string) string {
 	var sb strings.Builder
 
 	sb.WriteString(fmt.Sprintf(`version_info: "%d"
@@ -126,6 +128,14 @@ resources:
 
 	sb.WriteString("\n  filter_chains:\n")
 
+	// MITM chains (optional): listed BEFORE the Phase 1 TLS chain so that
+	// Envoy's most-specific filter_chain_match precedence picks them up
+	// when server_names or prefix_ranges match, while other TLS traffic
+	// falls through to the passthrough TLS chain below.
+	for i := range mitmChains {
+		sb.WriteString(renderFilterChainYAML(&mitmChains[i], 2))
+	}
+
 	// Chain 1: TLS
 	sb.WriteString(renderFilterChainYAML(&tlsChain, 2))
 
@@ -162,8 +172,38 @@ func renderFilterChainYAML(chain *FilterChain, indent int) string {
 			}
 			sb.WriteString("]\n")
 		}
+
+		// MITM by SNI: DNS / wildcard hostnames. Envoy matches server_names
+		// against the ClientHello SNI extension. Wildcards like "*.example.com"
+		// are supported natively.
+		if len(chain.FilterChainMatch.ServerNames) > 0 {
+			sb.WriteString(fmt.Sprintf("%s    server_names:\n", prefix))
+			for _, n := range chain.FilterChainMatch.ServerNames {
+				sb.WriteString(fmt.Sprintf("%s    - \"%s\"\n", prefix, n))
+			}
+		}
+
+		// MITM by destination IP: plain-IP TLS without SNI, expressed as
+		// {address_prefix, prefix_len}. Entries can be "1.2.3.4" or CIDRs
+		// like "10.0.0.0/8"; a bare IP is emitted with /32 (IPv4) or /128.
+		if len(chain.FilterChainMatch.PrefixRanges) > 0 {
+			sb.WriteString(fmt.Sprintf("%s    prefix_ranges:\n", prefix))
+			for _, cidr := range chain.FilterChainMatch.PrefixRanges {
+				addr, plen := cidrToPrefixRange(cidr)
+				sb.WriteString(fmt.Sprintf("%s    - address_prefix: %s\n", prefix, addr))
+				sb.WriteString(fmt.Sprintf("%s      prefix_len: %d\n", prefix, plen))
+			}
+		}
 	} else {
 		sb.WriteString(fmt.Sprintf("%s- ", prefix))
+	}
+
+	// transport_socket (DownstreamTlsContext) -- emitted ONLY for MITM
+	// chains. The leaf cert/key paths are translator inputs (controller
+	// decides where the unified Secret is projected); the renderer never
+	// reaches into internal/config directly.
+	if chain.TransportSocket != nil {
+		sb.WriteString(renderDownstreamTLSContextYAML(chain.TransportSocket, indent+2))
 	}
 
 	sb.WriteString(fmt.Sprintf("%s  filters:\n", prefix))
@@ -171,6 +211,44 @@ func renderFilterChainYAML(chain *FilterChain, indent int) string {
 		sb.WriteString(renderNetworkFilterYAML(&f, indent+2))
 	}
 
+	return sb.String()
+}
+
+// cidrToPrefixRange parses an IPv4/IPv6 CIDR or bare IP string into the
+// (address_prefix, prefix_len) pair required by Envoy's
+// filter_chain_match.prefix_ranges. A bare IPv4 becomes /32, a bare IPv6
+// becomes /128.
+func cidrToPrefixRange(cidr string) (string, int) {
+	if ip, ipNet, err := net.ParseCIDR(cidr); err == nil {
+		ones, _ := ipNet.Mask.Size()
+		return ip.Mask(ipNet.Mask).String(), ones
+	}
+	if ip := net.ParseIP(cidr); ip != nil {
+		if ip.To4() != nil {
+			return ip.String(), 32
+		}
+		return ip.String(), 128
+	}
+	// Malformed input: emit the raw token with /32 so the YAML stays
+	// structurally valid and Envoy rejects it loudly at load time.
+	return cidr, 32
+}
+
+// renderDownstreamTLSContextYAML emits Envoy's listener-side TLS context
+// with file-backed leaf cert/key. Paths come from the translator input.
+func renderDownstreamTLSContextYAML(ctx *DownstreamTLSContext, indent int) string {
+	prefix := strings.Repeat(" ", indent)
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("%stransport_socket:\n", prefix))
+	sb.WriteString(fmt.Sprintf("%s  name: envoy.transport_sockets.tls\n", prefix))
+	sb.WriteString(fmt.Sprintf("%s  typed_config:\n", prefix))
+	sb.WriteString(fmt.Sprintf("%s    \"@type\": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext\n", prefix))
+	sb.WriteString(fmt.Sprintf("%s    common_tls_context:\n", prefix))
+	sb.WriteString(fmt.Sprintf("%s      tls_certificates:\n", prefix))
+	sb.WriteString(fmt.Sprintf("%s      - certificate_chain:\n", prefix))
+	sb.WriteString(fmt.Sprintf("%s          filename: \"%s\"\n", prefix, ctx.CertPath))
+	sb.WriteString(fmt.Sprintf("%s        private_key:\n", prefix))
+	sb.WriteString(fmt.Sprintf("%s          filename: \"%s\"\n", prefix, ctx.KeyPath))
 	return sb.String()
 }
 
@@ -296,6 +374,20 @@ func renderHTTPConnManagerYAML(f *NetworkFilter, indent int) string {
 			sb.WriteString(fmt.Sprintf("%s        domains:\n", prefix))
 			for _, d := range vh.Domains {
 				sb.WriteString(fmt.Sprintf("%s        - \"%s\"\n", prefix, d))
+			}
+			// MITM header injection: OVERWRITE_IF_EXISTS_OR_ADD ensures that
+			// client-supplied values for the same header (e.g., a forged
+			// Authorization) are unconditionally replaced by the policy-
+			// declared value. This is the required semantics for API-key
+			// injection.
+			if len(vh.RequestHeadersToAdd) > 0 {
+				sb.WriteString(fmt.Sprintf("%s        request_headers_to_add:\n", prefix))
+				for _, h := range vh.RequestHeadersToAdd {
+					sb.WriteString(fmt.Sprintf("%s        - header:\n", prefix))
+					sb.WriteString(fmt.Sprintf("%s            key: \"%s\"\n", prefix, h.Name))
+					sb.WriteString(fmt.Sprintf("%s            value: \"%s\"\n", prefix, yamlEscapeHeaderValue(h.Value)))
+					sb.WriteString(fmt.Sprintf("%s          append_action: OVERWRITE_IF_EXISTS_OR_ADD\n", prefix))
+				}
 			}
 			sb.WriteString(fmt.Sprintf("%s        routes:\n", prefix))
 			for _, r := range vh.Routes {
@@ -468,15 +560,54 @@ func renderPermissionRuleYAML(rule PermissionRule, indent int, rbacType string) 
 	return sb.String()
 }
 
-func renderClustersYAML(version int64) string {
-	return fmt.Sprintf(`version_info: "%d"
-resources:
-- "@type": type.googleapis.com/envoy.config.cluster.v3.Cluster
-  name: original_dst
-  type: ORIGINAL_DST
-  lb_policy: CLUSTER_PROVIDED
-  connect_timeout: 10s
-`, version)
+// renderClustersYAML emits the CDS document. It always emits the Phase 1
+// passthrough cluster "original_dst". When mitmEnabled is true, it
+// additionally emits the "mitm_upstream" cluster: an ORIGINAL_DST cluster
+// wrapped in an UpstreamTlsContext so that Envoy re-encrypts traffic to
+// the real upstream after MITM inspection.
+//
+// auto_sni / auto_san_validation on upstream_http_protocol_options ask
+// Envoy to derive the upstream SNI from the request :authority header and
+// to validate the server certificate's SAN against the same hostname,
+// without the translator having to enumerate every domain.
+//
+// The CA bundle at MITMUpstreamTrustedCAPath is the concatenated Mozilla
+// roots + the policy's MITM CA, projected into the Envoy sidecar by the
+// unified policy Secret. The CA is included to keep the file layout
+// symmetric across containers; only the Mozilla portion is relevant for
+// verifying real upstream certificates.
+func renderClustersYAML(version int64, mitmEnabled bool) string {
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("version_info: \"%d\"\n", version))
+	sb.WriteString("resources:\n")
+	sb.WriteString("- \"@type\": type.googleapis.com/envoy.config.cluster.v3.Cluster\n")
+	sb.WriteString("  name: original_dst\n")
+	sb.WriteString("  type: ORIGINAL_DST\n")
+	sb.WriteString("  lb_policy: CLUSTER_PROVIDED\n")
+	sb.WriteString("  connect_timeout: 10s\n")
+	if mitmEnabled {
+		sb.WriteString("- \"@type\": type.googleapis.com/envoy.config.cluster.v3.Cluster\n")
+		sb.WriteString("  name: mitm_upstream\n")
+		sb.WriteString("  type: ORIGINAL_DST\n")
+		sb.WriteString("  lb_policy: CLUSTER_PROVIDED\n")
+		sb.WriteString("  connect_timeout: 10s\n")
+		sb.WriteString("  typed_extension_protocol_options:\n")
+		sb.WriteString("    envoy.extensions.upstreams.http.v3.HttpProtocolOptions:\n")
+		sb.WriteString("      \"@type\": type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions\n")
+		sb.WriteString("      upstream_http_protocol_options:\n")
+		sb.WriteString("        auto_sni: true\n")
+		sb.WriteString("        auto_san_validation: true\n")
+		sb.WriteString("      explicit_http_config:\n")
+		sb.WriteString("        http_protocol_options: {}\n")
+		sb.WriteString("  transport_socket:\n")
+		sb.WriteString("    name: envoy.transport_sockets.tls\n")
+		sb.WriteString("    typed_config:\n")
+		sb.WriteString("      \"@type\": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext\n")
+		sb.WriteString("      common_tls_context:\n")
+		sb.WriteString("        validation_context:\n")
+		sb.WriteString(fmt.Sprintf("          trusted_ca:\n            filename: %s\n", varmorconfig.MITMUpstreamTrustedCAPath))
+	}
+	return sb.String()
 }
 
 func renderAllowAllListenerYAML(version int64, proxyPort uint16) string {
@@ -537,4 +668,13 @@ resources:
         stat_prefix: deny_all
         cluster: original_dst
 `, version, proxyPort)
+}
+
+// yamlEscapeHeaderValue escapes a header value for safe embedding inside a
+// double-quoted YAML scalar. Backslash and double-quote must be escaped;
+// API-key alphabets typically contain neither.
+func yamlEscapeHeaderValue(v string) string {
+	v = strings.ReplaceAll(v, `\`, `\\`)
+	v = strings.ReplaceAll(v, `"`, `\"`)
+	return v
 }

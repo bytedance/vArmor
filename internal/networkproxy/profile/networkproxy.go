@@ -88,7 +88,7 @@ func CreateNetworkProxyConfigMap(
 	clusterScope bool,
 	logger logr.Logger) (err error) {
 
-	cm, err := GenerateEnvoyConfigMaps(obj, namespace, clusterScope)
+	cm, err := GenerateEnvoyConfigMaps(kubeClient, obj, namespace, clusterScope)
 	if err != nil {
 		return fmt.Errorf("generate config map failed: %w, namespace: %s, name: %s", err, cm.Namespace, cm.Name)
 	}
@@ -115,7 +115,7 @@ func UpdateNetworkProxyConfigMap(
 	clusterScope bool,
 	logger logr.Logger) (err error) {
 
-	cm, err := GenerateEnvoyConfigMaps(obj, namespace, clusterScope)
+	cm, err := GenerateEnvoyConfigMaps(kubeClient, obj, namespace, clusterScope)
 	if err != nil {
 		return fmt.Errorf("generate config map failed: %w, namespace: %s, name: %s", err, cm.Namespace, cm.Name)
 	}
@@ -165,7 +165,7 @@ func UpdateNetworkProxyConfigMap(
 	return nil
 }
 
-func GenerateEnvoyConfigMaps(obj interface{}, namespace string, clusterScope bool) (cm *v1.ConfigMap, err error) {
+func GenerateEnvoyConfigMaps(kubeClient *kubernetes.Clientset, obj interface{}, namespace string, clusterScope bool) (cm *v1.ConfigMap, err error) {
 	var name string
 	var lds, cds string
 	var labels map[string]string
@@ -178,7 +178,16 @@ func GenerateEnvoyConfigMaps(obj interface{}, namespace string, clusterScope boo
 	if clusterScope {
 		vcp := obj.(*varmor.VarmorClusterPolicy)
 
-		lds, cds, err = GenerateEnvoyConfig(vcp.Spec.Policy, vcp.Generation)
+		// Resolve MITM config (including any SecretRef lookups) BEFORE
+		// handing the policy to the translator. For cluster-scoped
+		// policies the referenced Secret lives in the workload namespace
+		// (this ConfigMap's target namespace), not the policy's own scope.
+		mitm, err := ResolveMITMInput(kubeClient, namespace, vcp.Spec.Policy.NetworkProxyConfig)
+		if err != nil {
+			return nil, fmt.Errorf("resolve MITM config failed: %w", err)
+		}
+
+		lds, cds, err = GenerateEnvoyConfig(vcp.Spec.Policy, vcp.Generation, mitm)
 		if err != nil {
 			return nil, fmt.Errorf("generate envoy config failed: %w", err)
 		}
@@ -203,7 +212,16 @@ func GenerateEnvoyConfigMaps(obj interface{}, namespace string, clusterScope boo
 	} else {
 		vp := obj.(*varmor.VarmorPolicy)
 
-		lds, cds, err = GenerateEnvoyConfig(vp.Spec.Policy, vp.Generation)
+		// Resolve MITM config (including any SecretRef lookups) BEFORE
+		// handing the policy to the translator. For namespace-scoped
+		// policies the Secret lives in the policy's own namespace, which
+		// is also the ConfigMap's target namespace.
+		mitm, err := ResolveMITMInput(kubeClient, vp.Namespace, vp.Spec.Policy.NetworkProxyConfig)
+		if err != nil {
+			return nil, fmt.Errorf("resolve MITM config failed: %w", err)
+		}
+
+		lds, cds, err = GenerateEnvoyConfig(vp.Spec.Policy, vp.Generation, mitm)
 		if err != nil {
 			return nil, fmt.Errorf("generate envoy config failed: %w", err)
 		}
@@ -248,7 +266,18 @@ func GenerateEnvoyConfigMaps(obj interface{}, namespace string, clusterScope boo
 	return cm, nil
 }
 
-func GenerateEnvoyConfig(policy varmor.Policy, version int64) (lds string, cds string, err error) {
+// GenerateEnvoyConfig renders the Envoy LDS/CDS for the supplied policy.
+//
+// The mitm parameter is optional: when nil (or MITMInput.Enabled() is
+// false) the result is identical to the pre-MITM behaviour. When non-nil,
+// its Domains / HeadersByDomain / leaf paths flow through to
+// TranslateEgressRules so the emitted listener carries the MITM
+// filter chains and per-:authority request_headers_to_add.
+//
+// MITM is ONLY consulted for Egress paths that can actually render MITM
+// chains (EnhanceProtect/DefenseInDepth with concrete egress rules).
+// Allow-all and deny-all short-circuits ignore mitm by construction.
+func GenerateEnvoyConfig(policy varmor.Policy, version int64, mitm *MITMInput) (lds string, cds string, err error) {
 	e := varmortypes.GetEnforcerType(policy.Enforcer)
 
 	if e == varmortypes.Unknown {
@@ -277,7 +306,7 @@ func GenerateEnvoyConfig(policy varmor.Policy, version int64) (lds string, cds s
 		}
 
 		if policy.EnhanceProtect.NetworkProxyRawRules != nil && policy.EnhanceProtect.NetworkProxyRawRules.Egress != nil {
-			return GenerateNetworkProxyEgressRules(policy.EnhanceProtect.NetworkProxyRawRules.Egress, version, proxyPort)
+			return GenerateNetworkProxyEgressRules(policy.EnhanceProtect.NetworkProxyRawRules.Egress, version, proxyPort, mitm)
 		} else {
 			return GenerateAllowAllEgressRules(version, proxyPort)
 		}
@@ -290,7 +319,7 @@ func GenerateEnvoyConfig(policy varmor.Policy, version int64) (lds string, cds s
 		}
 
 		if policy.DefenseInDepth.NetworkProxy != nil && policy.DefenseInDepth.NetworkProxy.Egress != nil {
-			return GenerateNetworkProxyEgressRules(policy.DefenseInDepth.NetworkProxy.Egress, version, proxyPort)
+			return GenerateNetworkProxyEgressRules(policy.DefenseInDepth.NetworkProxy.Egress, version, proxyPort, mitm)
 		} else {
 			return GenerateDenyAllEgressRules(version, proxyPort)
 		}
@@ -300,15 +329,19 @@ func GenerateEnvoyConfig(policy varmor.Policy, version int64) (lds string, cds s
 }
 
 func GenerateAllowAllEgressRules(version int64, proxyPort uint16) (string, string, error) {
-	return renderAllowAllListenerYAML(version, proxyPort), renderClustersYAML(version), nil
+	return renderAllowAllListenerYAML(version, proxyPort), renderClustersYAML(version, false), nil
 }
 
 func GenerateDenyAllEgressRules(version int64, proxyPort uint16) (string, string, error) {
-	return renderDenyAllListenerYAML(version, proxyPort), renderClustersYAML(version), nil
+	return renderDenyAllListenerYAML(version, proxyPort), renderClustersYAML(version, false), nil
 }
 
-func GenerateNetworkProxyEgressRules(egress *varmor.NetworkProxyEgress, version int64, proxyPort uint16) (string, string, error) {
-	result, err := TranslateEgressRules(egress, version, proxyPort)
+// GenerateNetworkProxyEgressRules renders LDS+CDS from an Egress plus an
+// optional MITMInput. When mitm is nil/disabled the output is identical
+// to the pre-MITM implementation, so all pre-existing callers and tests
+// remain behaviorally unchanged.
+func GenerateNetworkProxyEgressRules(egress *varmor.NetworkProxyEgress, version int64, proxyPort uint16, mitm *MITMInput) (string, string, error) {
+	result, err := TranslateEgressRules(egress, version, proxyPort, mitm)
 	if err != nil {
 		return "", "", err
 	}

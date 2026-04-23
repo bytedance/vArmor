@@ -62,7 +62,18 @@ type CACertificate struct {
 //   - NotBefore set to 5 minutes before now (clock skew tolerance)
 //   - KeyUsage: CertSign, CRLSign
 //   - IsCA: true, MaxPathLen: 0 (can only sign leaf certs, not intermediate CAs)
+//
+// GenerateCA is a thin wrapper around GenerateCAAt that uses the wall
+// clock. Tests and any call site that needs deterministic NotBefore /
+// NotAfter values should call GenerateCAAt directly.
 func GenerateCA() (*CACertificate, error) {
+	return GenerateCAAt(time.Now())
+}
+
+// GenerateCAAt is GenerateCA with an explicit "now" anchor. The CA's
+// NotBefore is set to now - 5 minutes (clock skew tolerance) and its
+// NotAfter is set to now + 10 years. All other fields match GenerateCA.
+func GenerateCAAt(now time.Time) (*CACertificate, error) {
 	// Generate ECDSA P-256 private key
 	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
@@ -75,7 +86,6 @@ func GenerateCA() (*CACertificate, error) {
 		return nil, fmt.Errorf("failed to generate CA serial number: %w", err)
 	}
 
-	now := time.Now()
 	template := &x509.Certificate{
 		SerialNumber: serialNumber,
 		Subject: pkix.Name{

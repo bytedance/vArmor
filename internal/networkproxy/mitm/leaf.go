@@ -88,6 +88,14 @@ type MITMMaterial struct {
 // Envoy configuration simple (every MITM filter_chain references the
 // same DownstreamTlsContext cert/key pair).
 func SignLeafCertificate(ca *CACertificate, domains []string) (*LeafCertificate, error) {
+	return SignLeafCertificateAt(ca, domains, time.Now())
+}
+
+// SignLeafCertificateAt is SignLeafCertificate with an explicit "now"
+// anchor. The leaf's NotBefore is set to now - 5 minutes and NotAfter
+// to now + 10 years. Tests use this to obtain deterministic validity
+// windows; production callers use the wall-clock wrapper above.
+func SignLeafCertificateAt(ca *CACertificate, domains []string, now time.Time) (*LeafCertificate, error) {
 	if ca == nil || ca.Cert == nil || ca.Key == nil {
 		return nil, fmt.Errorf("CA certificate and key must not be nil")
 	}
@@ -115,7 +123,6 @@ func SignLeafCertificate(ca *CACertificate, domains []string) (*LeafCertificate,
 		commonName = dnsNames[0]
 	}
 
-	now := time.Now()
 	template := &x509.Certificate{
 		SerialNumber: serialNumber,
 		Subject: pkix.Name{
@@ -169,12 +176,18 @@ func SignLeafCertificate(ca *CACertificate, domains []string) (*LeafCertificate,
 // changes and the CA is still valid, prefer RenewLeaf instead so that
 // the trust bundle seen by application containers does not churn.
 func GenerateMITMMaterial(domains []string) (*MITMMaterial, error) {
-	ca, err := GenerateCA()
+	return GenerateMITMMaterialAt(domains, time.Now())
+}
+
+// GenerateMITMMaterialAt is GenerateMITMMaterial with an explicit "now"
+// anchor so that tests can pin NotBefore/NotAfter deterministically.
+func GenerateMITMMaterialAt(domains []string, now time.Time) (*MITMMaterial, error) {
+	ca, err := GenerateCAAt(now)
 	if err != nil {
 		return nil, fmt.Errorf("generate CA: %w", err)
 	}
 
-	leaf, err := SignLeafCertificate(ca, domains)
+	leaf, err := SignLeafCertificateAt(ca, domains, now)
 	if err != nil {
 		return nil, fmt.Errorf("sign leaf certificate: %w", err)
 	}
@@ -194,10 +207,15 @@ func GenerateMITMMaterial(domains []string) (*MITMMaterial, error) {
 //
 // Use this when MITMConfig.Domains is edited on an existing policy.
 func RenewLeaf(ca *CACertificate, domains []string) (*LeafCertificate, error) {
+	return RenewLeafAt(ca, domains, time.Now())
+}
+
+// RenewLeafAt is RenewLeaf with an explicit "now" anchor.
+func RenewLeafAt(ca *CACertificate, domains []string, now time.Time) (*LeafCertificate, error) {
 	if ca == nil {
 		return nil, fmt.Errorf("existing CA is required to renew the leaf")
 	}
-	return SignLeafCertificate(ca, domains)
+	return SignLeafCertificateAt(ca, domains, now)
 }
 
 // classifyDomains splits the user-supplied SAN inputs into DNS names
