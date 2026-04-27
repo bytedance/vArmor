@@ -402,4 +402,4 @@ networkproxy:
       tag: v0.1
     proxy:
       name: envoy
-      tag: v1.33-latest
+      tag: v1.38-latest
