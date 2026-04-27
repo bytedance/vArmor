@@ -52,7 +52,15 @@ iptables -t nat -A VARMOR_OUTPUT -m owner --uid-owner ${ENVOY_UID} -j RETURN
 iptables -t nat -A VARMOR_OUTPUT -d 127.0.0.0/8 -j RETURN
 iptables -t nat -A VARMOR_OUTPUT -p tcp -j VARMOR_REDIRECT
 iptables -t nat -A VARMOR_REDIRECT -p tcp -j REDIRECT --to-ports ${ENVOY_PORT}
-iptables -t filter -A OUTPUT -p tcp --dport ${ENVOY_ADMIN_PORT} -m owner ! --uid-owner ${ENVOY_UID} -j DROP`
+iptables -t filter -A OUTPUT -p tcp --dport ${ENVOY_ADMIN_PORT} -m owner ! --uid-owner ${ENVOY_UID} -j DROP
+ip6tables -t nat -N VARMOR_OUTPUT
+ip6tables -t nat -N VARMOR_REDIRECT
+ip6tables -t nat -A OUTPUT -p tcp -j VARMOR_OUTPUT
+ip6tables -t nat -A VARMOR_OUTPUT -m owner --uid-owner ${ENVOY_UID} -j RETURN
+ip6tables -t nat -A VARMOR_OUTPUT -d ::1/128 -j RETURN
+ip6tables -t nat -A VARMOR_OUTPUT -p tcp -j VARMOR_REDIRECT
+ip6tables -t nat -A VARMOR_REDIRECT -p tcp -j REDIRECT --to-ports ${ENVOY_PORT}
+ip6tables -t filter -A OUTPUT -p tcp --dport ${ENVOY_ADMIN_PORT} -m owner ! --uid-owner ${ENVOY_UID} -j DROP`
 
 	proxyInitContainer = coreV1.Container{
 		Name:  "varmor-network-proxy-init",

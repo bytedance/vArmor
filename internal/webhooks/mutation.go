@@ -755,7 +755,15 @@ func iptablesScript(proxyUID int64, proxyPort uint16, proxyAdminPort uint16) str
 			`iptables -t nat -A VARMOR_OUTPUT -d 127.0.0.0/8 -j RETURN\n`+
 			`iptables -t nat -A VARMOR_OUTPUT -p tcp -j VARMOR_REDIRECT\n`+
 			`iptables -t nat -A VARMOR_REDIRECT -p tcp -j REDIRECT --to-ports ${ENVOY_PORT}\n`+
-			`iptables -t filter -A OUTPUT -p tcp --dport ${ENVOY_ADMIN_PORT} -m owner ! --uid-owner ${ENVOY_UID} -j DROP`,
+			`iptables -t filter -A OUTPUT -p tcp --dport ${ENVOY_ADMIN_PORT} -m owner ! --uid-owner ${ENVOY_UID} -j DROP\n`+
+			`ip6tables -t nat -N VARMOR_OUTPUT\n`+
+			`ip6tables -t nat -N VARMOR_REDIRECT\n`+
+			`ip6tables -t nat -A OUTPUT -p tcp -j VARMOR_OUTPUT\n`+
+			`ip6tables -t nat -A VARMOR_OUTPUT -m owner --uid-owner ${ENVOY_UID} -j RETURN\n`+
+			`ip6tables -t nat -A VARMOR_OUTPUT -d ::1/128 -j RETURN\n`+
+			`ip6tables -t nat -A VARMOR_OUTPUT -p tcp -j VARMOR_REDIRECT\n`+
+			`ip6tables -t nat -A VARMOR_REDIRECT -p tcp -j REDIRECT --to-ports ${ENVOY_PORT}\n`+
+			`ip6tables -t filter -A OUTPUT -p tcp --dport ${ENVOY_ADMIN_PORT} -m owner ! --uid-owner ${ENVOY_UID} -j DROP`,
 		proxyUID, proxyPort, proxyAdminPort,
 	)
 	return fmt.Sprintf(`"%s"`, script)

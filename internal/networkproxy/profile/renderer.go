@@ -85,7 +85,7 @@ resources:
   name: varmor_outbound
   address:
     socket_address:
-      address: 0.0.0.0
+      address: "::"
       port_value: %d
 
   # --- Listener Filters (connection-level, executed before filter chain matching) ---
@@ -730,7 +730,7 @@ resources:
   name: varmor_outbound
   address:
     socket_address:
-      address: 0.0.0.0
+      address: "::"
       port_value: %d
   listener_filters:
   - name: envoy.filters.listener.original_dst
@@ -754,7 +754,7 @@ resources:
   name: varmor_outbound
   address:
     socket_address:
-      address: 0.0.0.0
+      address: "::"
       port_value: %d
   listener_filters:
   - name: envoy.filters.listener.original_dst
