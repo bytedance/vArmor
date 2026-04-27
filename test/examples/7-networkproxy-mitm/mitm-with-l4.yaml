@@ -1,0 +1,83 @@
+# Scenario: MITM IP + L4 rules coexistence
+#
+# - domains = ["1.1.1.1"], perform TLS MITM + Header injection for 1.1.1.1
+# - L4 egress rules allow port 443 and port range 6443-8000 for 1.1.1.1
+#
+# Chain behavior:
+#   - TLS traffic (curl https://1.1.1.1:6443) → mitm_tls_ip_chain → TLS termination → HCM L7 processing → Header injection → re-encrypt and send to upstream
+#   - L4 rules (ip: "1.1.1.1", ports: [443, 6443-8000]) are written simultaneously
+#
+# Bare IP MITM limitation:
+#   MITM rules based on IP cause plaintext HTTP L7 access control to become ineffective. (Note: L4 rules are defined here, so L4 access control can still be achieved)
+#   - curl http://1.1.1.1:443 (plaintext HTTP) → prefix_ranges eliminates http_chain → mitm_tls_ip_chain's transport_protocol:"tls" does not match → falls into tcp_default_chain and is allowed
+#
+# Verification:
+#   # TLS request — should succeed, with MITM certificate + injected Header visible
+#   kubectl exec -it -n demo deploy/mitm-with-l4 -- curl -vsSLk https://1.1.1.1/cdn-cgi/trace
+#
+#   # Plaintext HTTP — expected to be allowed by tcp_default_chain
+#   kubectl exec -it -n demo deploy/mitm-with-l4 -- curl -v http://1.1.1.1:443/cdn-cgi/trace
+#
+#   # Plaintext HTTP — expected to be denied by tcp_default_chain fallback
+#   kubectl exec -it -n demo deploy/mitm-with-l4 -- curl -v http://1.1.1.1:80/cdn-cgi/trace
+---
+apiVersion: crd.varmor.org/v1beta1
+kind: VarmorPolicy
+metadata:
+  name: mitm-with-l4
+  namespace: demo
+spec:
+  updateExistingWorkloads: true
+  target:
+    kind: Deployment
+    selector:
+      matchLabels:
+        app: mitm-with-l4
+  policy:
+    enforcer: NetworkProxy
+    mode: EnhanceProtect
+    networkProxyConfig:
+      mitm:
+        domains:
+          - 1.1.1.1
+        headerMutations:
+          - domain: 1.1.1.1
+            headers:
+              - name: X-GH-Client
+                value: varmor-proxy
+    enhanceProtect:
+      networkProxyRawRules:
+        egress:
+          defaultAction: deny
+          rules:
+            - qualifiers: ["allow", "audit"]
+              ip: "1.1.1.1"
+              ports:
+                - port: 443
+                - port: 6443
+                  endPort: 8000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mitm-with-l4
+  namespace: demo
+  labels:
+    environment: production
+    app: mitm-with-l4
+    sandbox.varmor.org/enable: "true"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mitm-with-l4
+  template:
+    metadata:
+      labels:
+        app: mitm-with-l4
+    spec:
+      containers:
+        - name: c0
+          image: elkeid-test-cn-beijing.cr.volces.com/public/curl:8.7.1
+          command: ["/bin/sh", "-c", "sleep infinity"]
+          imagePullPolicy: IfNotPresent

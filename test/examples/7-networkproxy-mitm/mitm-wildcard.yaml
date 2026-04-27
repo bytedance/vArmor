@@ -1,0 +1,83 @@
+# Scenario: Wildcard domain MITM
+#
+# - domains = ["*.openai.com"]
+#     RFC 6125: matches only 1 DNS label, does not cover bare openai.com
+# - Injects X-Tenant: varmor-demo
+# - httpRules allow *.openai.com and openai.com
+#
+# Access Log:
+#   - %FILTER_CHAIN_NAME% in the MITM chain's access_log shows mitm_tls_dns_chain
+#   - deny and audit use separate CEL expressions, not combined with ||
+#
+# Manual verification (any subdomain should be subject to MITM):
+#   kubectl exec -it -n demo deploy/mitm-wildcard -- curl -vsSLk https://api.openai.com/v1/models
+#   # Expected: see a certificate issued by vArmor, X-Tenant: varmor-demo header injected, access_log prints mitm_tls_dns_chain
+#
+#   kubectl exec -it -n demo deploy/mitm-wildcard -- curl -vsSLk https://platform.openai.com/
+#   # Expected: same as above
+#
+#   kubectl exec -it -n demo deploy/mitm-wildcard -- curl -vsSLk https://openai.com/
+#   # Expected: request is not subject to MITM, access_log prints tls_chain
+#
+# - The root domain openai.com is not in MITM domains (*.openai.com does not match the bare domain),
+#   but it is in the httpRules hosts; TLS traffic goes through tls_chain's SNI matching
+---
+apiVersion: crd.varmor.org/v1beta1
+kind: VarmorPolicy
+metadata:
+  name: mitm-wildcard
+  namespace: demo
+spec:
+  updateExistingWorkloads: true
+  target:
+    kind: Deployment
+    selector:
+      matchLabels:
+        app: mitm-wildcard
+  policy:
+    enforcer: NetworkProxy
+    mode: EnhanceProtect
+    networkProxyConfig:
+      mitm:
+        domains:
+          - "*.openai.com"
+        headerMutations:
+          - domain: "*.openai.com"
+            headers:
+              - name: X-Tenant
+                value: varmor-demo
+    enhanceProtect:
+      networkProxyRawRules:
+        egress:
+          defaultAction: deny
+          httpRules:
+            - qualifiers: ["allow", "audit"]
+              match:
+                hosts:
+                  - "*.openai.com"
+                  - "openai.com"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mitm-wildcard
+  namespace: demo
+  labels:
+    environment: production
+    app: mitm-wildcard
+    sandbox.varmor.org/enable: "true"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mitm-wildcard
+  template:
+    metadata:
+      labels:
+        app: mitm-wildcard
+    spec:
+      containers:
+        - name: c0
+          image: elkeid-test-cn-beijing.cr.volces.com/public/curl:8.7.1
+          command: ["/bin/sh", "-c", "sleep infinity"]
+          imagePullPolicy: IfNotPresent

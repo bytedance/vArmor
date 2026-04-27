@@ -1,0 +1,72 @@
+# Scenario: Single domain + literal Header injection
+#
+# - domains contains only httpbin.org; the sidecar performs TLS termination on it
+# - All requests going through httpbin.org will have the following header appended:
+#     X-Request-Source: varmor-agent
+# - defaultAction = deny, httpRules only allow httpbin.org
+#
+# Verification:
+#   kubectl exec -it -n demo deploy/mitm-dns-literal -- curl -sSL https://httpbin.org/headers
+#   Expected:
+#     - The X-Request-Source header is visible in the response JSON
+#     - %FILTER_CHAIN_NAME% in access_log shows mitm_tls_dns_chain
+#     - curl -v shows the MITM certificate issued by vArmor
+---
+apiVersion: crd.varmor.org/v1beta1
+kind: VarmorPolicy
+metadata:
+  name: mitm-dns-literal
+  namespace: demo
+spec:
+  updateExistingWorkloads: true
+  target:
+    kind: Deployment
+    selector:
+      matchLabels:
+        app: mitm-dns-literal
+  policy:
+    enforcer: NetworkProxy
+    mode: EnhanceProtect
+    networkProxyConfig:
+      mitm:
+        domains:
+          - httpbin.org
+        headerMutations:
+          - domain: httpbin.org
+            headers:
+              - name: X-Request-Source
+                value: varmor-agent
+    enhanceProtect:
+      networkProxyRawRules:
+        egress:
+          defaultAction: deny
+          httpRules:
+            - qualifiers: ["allow"]
+              match:
+                hosts:
+                  - httpbin.org
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mitm-dns-literal
+  namespace: demo
+  labels:
+    environment: production
+    app: mitm-dns-literal
+    sandbox.varmor.org/enable: "true"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mitm-dns-literal
+  template:
+    metadata:
+      labels:
+        app: mitm-dns-literal
+    spec:
+      containers:
+        - name: c0
+          image: elkeid-test-cn-beijing.cr.volces.com/public/curl:8.7.1
+          command: ["/bin/sh", "-c", "sleep infinity"]
+          imagePullPolicy: IfNotPresent

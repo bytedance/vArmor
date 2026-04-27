@@ -1,0 +1,99 @@
+# Scenario: DNS domain + bare IP + CIDR mixed MITM
+#
+# - domains = ["httpbin.org", "1.1.1.1", "8.8.4.4/32"]
+#     Three types mixed in a single MITM policy
+#
+# Classification and handling (splitMITMDomains):
+#   - "httpbin.org"  → DNS type → enters DNS chain (filter_chain_match.server_names)
+#   - "1.1.1.1"      → IP type  → enters IP chain (filter_chain_match.prefix_ranges, prefix_len=32)
+#   - "8.8.4.4/32"   → IP type  → enters IP chain (filter_chain_match.prefix_ranges, prefix_len=32)
+#
+# VirtualHost generation (buildMITMVirtualHosts):
+#   - "httpbin.org"  → VH{domains: ["httpbin.org", "httpbin.org:*"]}
+#   - "1.1.1.1"      → VH{domains: ["1.1.1.1", "1.1.1.1:*"]}
+#   - "8.8.4.4/32"   → VH{domains: ["8.8.4.4", "8.8.4.4:*"]}  (because /32)
+#
+# Anti-Domain-Fronting:
+#   - DNS chain has 1 VH (httpbin.org), IP chain has 2 VHs (1.1.1.1, 8.8.4.4)
+#   - Neither has a catch-all ("*") VirtualHost
+#   - Entering DNS chain but Host != httpbin.org → 404
+#   - Entering IP chain but Host != 1.1.1.1 and Host != 8.8.4.4 → 404
+#
+# Bare IP MITM / CIDR MITM limitation:
+#   MITM rules based on IP or CIDR cause plaintext HTTP L7 access control to become ineffective (same as mitm-ip-literal, mitm-cidr)
+#
+# Verification:
+#   # DNS domain MITM
+#   kubectl exec -it -n demo deploy/mitm-mixed-ip-dns -- curl -sSL https://httpbin.org/headers
+#   # Expected: 200, access_log shows mitm_tls_dns_chain
+#
+#   # Bare IP MITM
+#   kubectl exec -it -n demo deploy/mitm-mixed-ip-dns -- curl -sSLk https://1.1.1.1/cdn-cgi/trace
+#   # Expected: 200, access_log shows mitm_tls_ip_chain
+#
+#   # /32 CIDR MITM
+#   kubectl exec -it -n demo deploy/mitm-mixed-ip-dns -- curl -sSLk --connect-timeout 5 https://8.8.4.4/ || echo "timed out"
+#   # Expected: MITM certificate issued, SAN includes IP:8.8.4.4, access_log shows mitm_tls_ip_chain
+---
+apiVersion: crd.varmor.org/v1beta1
+kind: VarmorPolicy
+metadata:
+  name: mitm-mixed-ip-dns
+  namespace: demo
+spec:
+  updateExistingWorkloads: true
+  target:
+    kind: Deployment
+    selector:
+      matchLabels:
+        app: mitm-mixed-ip-dns
+  policy:
+    enforcer: NetworkProxy
+    mode: EnhanceProtect
+    networkProxyConfig:
+      mitm:
+        domains:
+          - httpbin.org
+          - "1.1.1.1"
+          - "8.8.4.4/32"
+        headerMutations:
+          - domain: "1.1.1.1"
+            headers:
+              - name: X-Source
+                value: mixed-ip
+    enhanceProtect:
+      networkProxyRawRules:
+        egress:
+          defaultAction: deny
+          httpRules:
+            - qualifiers: ["allow", "audit"]
+              match:
+                hosts:
+                  - httpbin.org
+                  - "1.1.1.1"
+                  - "8.8.4.4"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mitm-mixed-ip-dns
+  namespace: demo
+  labels:
+    environment: production
+    app: mitm-mixed-ip-dns
+    sandbox.varmor.org/enable: "true"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mitm-mixed-ip-dns
+  template:
+    metadata:
+      labels:
+        app: mitm-mixed-ip-dns
+    spec:
+      containers:
+        - name: c0
+          image: elkeid-test-cn-beijing.cr.volces.com/public/curl:8.7.1
+          command: ["/bin/sh", "-c", "sleep infinity"]
+          imagePullPolicy: IfNotPresent

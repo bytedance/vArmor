@@ -1,0 +1,85 @@
+# Scenario: Multiple domains + independent Headers per domain
+#
+# - domains = [httpbin.org, postman-echo.com]
+# - httpbin.org     -> injects X-Env: httpbin-prod, and also injects X-Team: varmor
+# - postman-echo.com-> injects X-Env: postman-prod, and also injects X-Team: varmor
+#
+# Verification:
+#   kubectl exec -it -n demo deploy/mitm-multi-domain -- curl -sSL https://httpbin.org/headers
+#   # Expected: 200, see X-Env=httpbin-prod + X-Team=varmor
+#
+#   kubectl exec -it -n demo deploy/mitm-multi-domain -- curl -sSL https://postman-echo.com/headers
+#   # Expected: 200, see only X-Env=postman-prod + X-Team=varmor
+#
+# Used to verify that per-domain VirtualHost header injection isolation is correct.
+# Both domains enter the same mitm_tls_dns_chain, but each VirtualHost
+# carries its own independent request_headers_to_add.
+---
+apiVersion: crd.varmor.org/v1beta1
+kind: VarmorPolicy
+metadata:
+  name: mitm-multi-domain
+  namespace: demo
+spec:
+  updateExistingWorkloads: true
+  target:
+    kind: Deployment
+    selector:
+      matchLabels:
+        app: mitm-multi-domain
+  policy:
+    enforcer: NetworkProxy
+    mode: EnhanceProtect
+    networkProxyConfig:
+      mitm:
+        domains:
+          - httpbin.org
+          - postman-echo.com
+        headerMutations:
+          - domain: httpbin.org
+            headers:
+              - name: X-Env
+                value: httpbin-prod
+              - name: X-Team
+                value: varmor
+          - domain: postman-echo.com
+            headers:
+              - name: X-Env
+                value: postman-prod
+              - name: X-Team
+                value: varmor
+    enhanceProtect:
+      networkProxyRawRules:
+        egress:
+          defaultAction: deny
+          httpRules:
+            - qualifiers: ["allow", "audit"]
+              match:
+                hosts:
+                  - httpbin.org
+                  - postman-echo.com
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mitm-multi-domain
+  namespace: demo
+  labels:
+    environment: production
+    app: mitm-multi-domain
+    sandbox.varmor.org/enable: "true"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mitm-multi-domain
+  template:
+    metadata:
+      labels:
+        app: mitm-multi-domain
+    spec:
+      containers:
+        - name: c0
+          image: elkeid-test-cn-beijing.cr.volces.com/public/curl:8.7.1
+          command: ["/bin/sh", "-c", "sleep infinity"]
+          imagePullPolicy: IfNotPresent
