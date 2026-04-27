@@ -355,7 +355,7 @@ type TranslateResult struct {
 // TLS passthrough, HTTP, TCP default). When enabled, one or two MITM
 // filter chains are prepended so Envoy's most-specific-match precedence
 // intercepts targeted TLS while other TLS falls through unchanged.
-func TranslateEgressRules(egress *varmor.NetworkProxyEgress, version int64, proxyPort uint16, mitm *MITMInput) (*TranslateResult, error) {
+func TranslateEgressRules(egress *varmor.NetworkProxyEgress, version int64, proxyPort uint16, mitm *MITMInput, ipStack IPStackConfig) (*TranslateResult, error) {
 	if egress == nil {
 		return nil, fmt.Errorf("network proxy egress rules is nil")
 	}
@@ -421,7 +421,7 @@ func TranslateEgressRules(egress *varmor.NetworkProxyEgress, version int64, prox
 
 	lds := renderListenerYAML(mitmChains, tlsChain, httpChain, tcpChain,
 		version, proxyPort,
-		cls.auditCfg.AccessLogEnabled, listenerDenyCEL, listenerShadowCEL)
+		cls.auditCfg.AccessLogEnabled, listenerDenyCEL, listenerShadowCEL, ipStack)
 	cds := renderClustersYAML(version, mitm.Enabled())
 
 	return &TranslateResult{LDS: lds, CDS: cds}, nil

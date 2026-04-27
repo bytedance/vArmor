@@ -21,6 +21,10 @@ import (
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
 )
 
+// testIPStack returns a deterministic IPStackConfig for unit tests.
+// Using IPv4-only ensures test output is stable across CI environments.
+var testIPStack = IPStackConfig{IPv4: true}
+
 // buildTestEgress creates the test case from the user's specification.
 func buildTestEgress() *varmor.NetworkProxyEgress {
 	return &varmor.NetworkProxyEgress{
@@ -56,7 +60,7 @@ func buildTestEgress() *varmor.NetworkProxyEgress {
 
 func TestTranslateBasic(t *testing.T) {
 	egress := buildTestEgress()
-	result, err := TranslateEgressRules(egress, 1, 15001, nil)
+	result, err := TranslateEgressRules(egress, 1, 15001, nil, testIPStack)
 	if err != nil {
 		t.Fatalf("TranslateEgressRules failed: %v", err)
 	}
@@ -73,7 +77,7 @@ func TestTranslateBasic(t *testing.T) {
 }
 
 func TestTranslateNil(t *testing.T) {
-	_, err := TranslateEgressRules(nil, 1, 15001, nil)
+	_, err := TranslateEgressRules(nil, 1, 15001, nil, testIPStack)
 	if err == nil {
 		t.Fatal("expected error for nil egress")
 	}
@@ -85,7 +89,7 @@ func TestTranslateNil(t *testing.T) {
 
 func TestXDSFormat(t *testing.T) {
 	egress := buildTestEgress()
-	result, err := TranslateEgressRules(egress, 1, 15001, nil)
+	result, err := TranslateEgressRules(egress, 1, 15001, nil, testIPStack)
 	if err != nil {
 		t.Fatalf("TranslateEgressRules failed: %v", err)
 	}
@@ -107,7 +111,7 @@ func TestXDSFormat(t *testing.T) {
 
 func TestListenerFilters(t *testing.T) {
 	egress := buildTestEgress()
-	result, err := TranslateEgressRules(egress, 1, 15001, nil)
+	result, err := TranslateEgressRules(egress, 1, 15001, nil, testIPStack)
 	if err != nil {
 		t.Fatalf("TranslateEgressRules failed: %v", err)
 	}
@@ -125,7 +129,7 @@ func TestListenerFilters(t *testing.T) {
 
 func TestTLSChainStructure(t *testing.T) {
 	egress := buildTestEgress()
-	result, err := TranslateEgressRules(egress, 1, 15001, nil)
+	result, err := TranslateEgressRules(egress, 1, 15001, nil, testIPStack)
 	if err != nil {
 		t.Fatalf("TranslateEgressRules failed: %v", err)
 	}
@@ -139,7 +143,7 @@ func TestTLSChainStructure(t *testing.T) {
 
 func TestHTTPChainStructure(t *testing.T) {
 	egress := buildTestEgress()
-	result, err := TranslateEgressRules(egress, 1, 15001, nil)
+	result, err := TranslateEgressRules(egress, 1, 15001, nil, testIPStack)
 	if err != nil {
 		t.Fatalf("TranslateEgressRules failed: %v", err)
 	}
@@ -158,7 +162,7 @@ func TestHTTPChainStructure(t *testing.T) {
 
 func TestTCPDefaultChainStructure(t *testing.T) {
 	egress := buildTestEgress()
-	result, err := TranslateEgressRules(egress, 1, 15001, nil)
+	result, err := TranslateEgressRules(egress, 1, 15001, nil, testIPStack)
 	if err != nil {
 		t.Fatalf("TranslateEgressRules failed: %v", err)
 	}
@@ -169,7 +173,7 @@ func TestTCPDefaultChainStructure(t *testing.T) {
 
 func TestClusterFormat(t *testing.T) {
 	egress := buildTestEgress()
-	result, err := TranslateEgressRules(egress, 1, 15001, nil)
+	result, err := TranslateEgressRules(egress, 1, 15001, nil, testIPStack)
 	if err != nil {
 		t.Fatalf("TranslateEgressRules failed: %v", err)
 	}
@@ -186,7 +190,7 @@ func TestClusterFormat(t *testing.T) {
 
 func TestScenario1_HTTPS_OpenAI_Allow(t *testing.T) {
 	egress := buildTestEgress()
-	result, err := TranslateEgressRules(egress, 1, 15001, nil)
+	result, err := TranslateEgressRules(egress, 1, 15001, nil, testIPStack)
 	if err != nil {
 		t.Fatalf("TranslateEgressRules failed: %v", err)
 	}
@@ -196,7 +200,7 @@ func TestScenario1_HTTPS_OpenAI_Allow(t *testing.T) {
 
 func TestScenario2_HTTPS_Anthropic_SuffixPort_Allow(t *testing.T) {
 	egress := buildTestEgress()
-	result, err := TranslateEgressRules(egress, 1, 15001, nil)
+	result, err := TranslateEgressRules(egress, 1, 15001, nil, testIPStack)
 	if err != nil {
 		t.Fatalf("TranslateEgressRules failed: %v", err)
 	}
@@ -208,7 +212,7 @@ func TestScenario2_HTTPS_Anthropic_SuffixPort_Allow(t *testing.T) {
 
 func TestScenario3_HTTPS_Evil_Deny(t *testing.T) {
 	egress := buildTestEgress()
-	result, err := TranslateEgressRules(egress, 1, 15001, nil)
+	result, err := TranslateEgressRules(egress, 1, 15001, nil, testIPStack)
 	if err != nil {
 		t.Fatalf("TranslateEgressRules failed: %v", err)
 	}
@@ -218,7 +222,7 @@ func TestScenario3_HTTPS_Evil_Deny(t *testing.T) {
 
 func TestScenario4_TLS_KubeAPI_Allow(t *testing.T) {
 	egress := buildTestEgress()
-	result, err := TranslateEgressRules(egress, 1, 15001, nil)
+	result, err := TranslateEgressRules(egress, 1, 15001, nil, testIPStack)
 	if err != nil {
 		t.Fatalf("TranslateEgressRules failed: %v", err)
 	}
@@ -229,7 +233,7 @@ func TestScenario4_TLS_KubeAPI_Allow(t *testing.T) {
 
 func TestScenario5_HTTP_OpenAI_HostHeader_Allow(t *testing.T) {
 	egress := buildTestEgress()
-	result, err := TranslateEgressRules(egress, 1, 15001, nil)
+	result, err := TranslateEgressRules(egress, 1, 15001, nil, testIPStack)
 	if err != nil {
 		t.Fatalf("TranslateEgressRules failed: %v", err)
 	}
@@ -239,7 +243,7 @@ func TestScenario5_HTTP_OpenAI_HostHeader_Allow(t *testing.T) {
 
 func TestScenario6_HTTP_Evil_Deny(t *testing.T) {
 	egress := buildTestEgress()
-	result, err := TranslateEgressRules(egress, 1, 15001, nil)
+	result, err := TranslateEgressRules(egress, 1, 15001, nil, testIPStack)
 	if err != nil {
 		t.Fatalf("TranslateEgressRules failed: %v", err)
 	}
@@ -249,7 +253,7 @@ func TestScenario6_HTTP_Evil_Deny(t *testing.T) {
 
 func TestScenario7_HTTP_MetadataService_CIDRDeny(t *testing.T) {
 	egress := buildTestEgress()
-	result, err := TranslateEgressRules(egress, 1, 15001, nil)
+	result, err := TranslateEgressRules(egress, 1, 15001, nil, testIPStack)
 	if err != nil {
 		t.Fatalf("TranslateEgressRules failed: %v", err)
 	}
@@ -260,7 +264,7 @@ func TestScenario7_HTTP_MetadataService_CIDRDeny(t *testing.T) {
 
 func TestScenario8_TCP_KubeAPI_Allow(t *testing.T) {
 	egress := buildTestEgress()
-	result, err := TranslateEgressRules(egress, 1, 15001, nil)
+	result, err := TranslateEgressRules(egress, 1, 15001, nil, testIPStack)
 	if err != nil {
 		t.Fatalf("TranslateEgressRules failed: %v", err)
 	}
@@ -270,7 +274,7 @@ func TestScenario8_TCP_KubeAPI_Allow(t *testing.T) {
 
 func TestScenario9_TCP_Random_Deny(t *testing.T) {
 	egress := buildTestEgress()
-	result, err := TranslateEgressRules(egress, 1, 15001, nil)
+	result, err := TranslateEgressRules(egress, 1, 15001, nil, testIPStack)
 	if err != nil {
 		t.Fatalf("TranslateEgressRules failed: %v", err)
 	}
@@ -280,7 +284,7 @@ func TestScenario9_TCP_Random_Deny(t *testing.T) {
 
 func TestScenario10_TCP_MetadataService_CIDRDeny(t *testing.T) {
 	egress := buildTestEgress()
-	result, err := TranslateEgressRules(egress, 1, 15001, nil)
+	result, err := TranslateEgressRules(egress, 1, 15001, nil, testIPStack)
 	if err != nil {
 		t.Fatalf("TranslateEgressRules failed: %v", err)
 	}
@@ -299,7 +303,7 @@ func TestDefaultActionAllow(t *testing.T) {
 			{Qualifiers: []string{"deny"}, CIDR: "169.254.0.0/16"},
 		},
 	}
-	result, err := TranslateEgressRules(egress, 1, 15001, nil)
+	result, err := TranslateEgressRules(egress, 1, 15001, nil, testIPStack)
 	if err != nil {
 		t.Fatalf("TranslateEgressRules failed: %v", err)
 	}
@@ -320,7 +324,7 @@ func TestAuditOnlyRule(t *testing.T) {
 			{Qualifiers: []string{"allow"}, IP: "10.0.0.2"},
 		},
 	}
-	result, err := TranslateEgressRules(egress, 1, 15001, nil)
+	result, err := TranslateEgressRules(egress, 1, 15001, nil, testIPStack)
 	if err != nil {
 		t.Fatalf("TranslateEgressRules failed: %v", err)
 	}
@@ -340,7 +344,7 @@ func TestPortRange(t *testing.T) {
 			{Qualifiers: []string{"allow"}, IP: "10.0.0.1", Ports: []varmor.Port{{Port: 8000, EndPort: 9000}}},
 		},
 	}
-	result, err := TranslateEgressRules(egress, 1, 15001, nil)
+	result, err := TranslateEgressRules(egress, 1, 15001, nil, testIPStack)
 	if err != nil {
 		t.Fatalf("TranslateEgressRules failed: %v", err)
 	}
@@ -356,7 +360,7 @@ func TestWildcardDomain(t *testing.T) {
 			{Qualifiers: []string{"allow"}, Match: varmor.HTTPMatch{Hosts: []string{"*.example.com"}}},
 		},
 	}
-	result, err := TranslateEgressRules(egress, 1, 15001, nil)
+	result, err := TranslateEgressRules(egress, 1, 15001, nil, testIPStack)
 	if err != nil {
 		t.Fatalf("TranslateEgressRules failed: %v", err)
 	}
@@ -365,7 +369,7 @@ func TestWildcardDomain(t *testing.T) {
 
 func TestEmptyRules(t *testing.T) {
 	egress := &varmor.NetworkProxyEgress{DefaultAction: "deny"}
-	result, err := TranslateEgressRules(egress, 1, 15001, nil)
+	result, err := TranslateEgressRules(egress, 1, 15001, nil, testIPStack)
 	if err != nil {
 		t.Fatalf("TranslateEgressRules failed: %v", err)
 	}
@@ -383,7 +387,7 @@ func TestMultipleHostsORSemantics(t *testing.T) {
 			{Qualifiers: []string{"allow"}, Match: varmor.HTTPMatch{Hosts: []string{"a.com", "b.com"}}},
 		},
 	}
-	result, err := TranslateEgressRules(egress, 1, 15001, nil)
+	result, err := TranslateEgressRules(egress, 1, 15001, nil, testIPStack)
 	if err != nil {
 		t.Fatalf("TranslateEgressRules failed: %v", err)
 	}
@@ -393,7 +397,7 @@ func TestMultipleHostsORSemantics(t *testing.T) {
 
 func TestChainSelectionIsolation(t *testing.T) {
 	egress := buildTestEgress()
-	result, err := TranslateEgressRules(egress, 1, 15001, nil)
+	result, err := TranslateEgressRules(egress, 1, 15001, nil, testIPStack)
 	if err != nil {
 		t.Fatalf("TranslateEgressRules failed: %v", err)
 	}
@@ -424,7 +428,7 @@ func TestMethodOnlyRule(t *testing.T) {
 			},
 		},
 	}
-	result, err := TranslateEgressRules(egress, 1, 15001, nil)
+	result, err := TranslateEgressRules(egress, 1, 15001, nil, testIPStack)
 	if err != nil {
 		t.Fatalf("TranslateEgressRules failed: %v", err)
 	}
@@ -449,7 +453,7 @@ func TestPathOnlyRule(t *testing.T) {
 			},
 		},
 	}
-	result, err := TranslateEgressRules(egress, 1, 15001, nil)
+	result, err := TranslateEgressRules(egress, 1, 15001, nil, testIPStack)
 	if err != nil {
 		t.Fatalf("TranslateEgressRules failed: %v", err)
 	}
@@ -473,7 +477,7 @@ func TestHostMethodPathCrossProduct(t *testing.T) {
 			},
 		},
 	}
-	result, err := TranslateEgressRules(egress, 1, 15001, nil)
+	result, err := TranslateEgressRules(egress, 1, 15001, nil, testIPStack)
 	if err != nil {
 		t.Fatalf("TranslateEgressRules failed: %v", err)
 	}
@@ -503,7 +507,7 @@ func TestMultiMethodMultiPathCrossProduct(t *testing.T) {
 			},
 		},
 	}
-	result, err := TranslateEgressRules(egress, 1, 15001, nil)
+	result, err := TranslateEgressRules(egress, 1, 15001, nil, testIPStack)
 	if err != nil {
 		t.Fatalf("TranslateEgressRules failed: %v", err)
 	}
@@ -532,7 +536,7 @@ func TestHostPortMethodPathFullCombination(t *testing.T) {
 			},
 		},
 	}
-	result, err := TranslateEgressRules(egress, 1, 15001, nil)
+	result, err := TranslateEgressRules(egress, 1, 15001, nil, testIPStack)
 	if err != nil {
 		t.Fatalf("TranslateEgressRules failed: %v", err)
 	}
@@ -560,7 +564,7 @@ func TestMethodCaseNormalization(t *testing.T) {
 			},
 		},
 	}
-	result, err := TranslateEgressRules(egress, 1, 15001, nil)
+	result, err := TranslateEgressRules(egress, 1, 15001, nil, testIPStack)
 	if err != nil {
 		t.Fatalf("TranslateEgressRules failed: %v", err)
 	}
@@ -583,7 +587,7 @@ func TestMethodPathDenyRule(t *testing.T) {
 			},
 		},
 	}
-	result, err := TranslateEgressRules(egress, 1, 15001, nil)
+	result, err := TranslateEgressRules(egress, 1, 15001, nil, testIPStack)
 	if err != nil {
 		t.Fatalf("TranslateEgressRules failed: %v", err)
 	}
@@ -609,7 +613,7 @@ func TestTLSChainIgnoresMethodsAndPaths(t *testing.T) {
 			},
 		},
 	}
-	result, err := TranslateEgressRules(egress, 1, 15001, nil)
+	result, err := TranslateEgressRules(egress, 1, 15001, nil, testIPStack)
 	if err != nil {
 		t.Fatalf("TranslateEgressRules failed: %v", err)
 	}
@@ -633,7 +637,7 @@ func TestHostWithMethodNoPath(t *testing.T) {
 			},
 		},
 	}
-	result, err := TranslateEgressRules(egress, 1, 15001, nil)
+	result, err := TranslateEgressRules(egress, 1, 15001, nil, testIPStack)
 	if err != nil {
 		t.Fatalf("TranslateEgressRules failed: %v", err)
 	}
@@ -659,7 +663,7 @@ func TestCrossProductCount(t *testing.T) {
 			},
 		},
 	}
-	result, err := TranslateEgressRules(egress, 1, 15001, nil)
+	result, err := TranslateEgressRules(egress, 1, 15001, nil, testIPStack)
 	if err != nil {
 		t.Fatalf("TranslateEgressRules failed: %v", err)
 	}
@@ -694,7 +698,7 @@ func TestDenyDefaultAutoAudit(t *testing.T) {
 			{Qualifiers: []string{"allow"}, IP: "10.0.0.1"},
 		},
 	}
-	result, err := TranslateEgressRules(egress, 1, 15001, nil)
+	result, err := TranslateEgressRules(egress, 1, 15001, nil, testIPStack)
 	if err != nil {
 		t.Fatalf("TranslateEgressRules failed: %v", err)
 	}
@@ -728,7 +732,7 @@ func TestDenyDefaultAllowNoAudit(t *testing.T) {
 			{Qualifiers: []string{"allow"}, IP: "10.0.0.1"},
 		},
 	}
-	result, err := TranslateEgressRules(egress, 1, 15001, nil)
+	result, err := TranslateEgressRules(egress, 1, 15001, nil, testIPStack)
 	if err != nil {
 		t.Fatalf("TranslateEgressRules failed: %v", err)
 	}
@@ -750,7 +754,7 @@ func TestDenyDefaultAllowWithAudit(t *testing.T) {
 			{Qualifiers: []string{"allow", "audit"}, IP: "10.0.0.1"},
 		},
 	}
-	result, err := TranslateEgressRules(egress, 1, 15001, nil)
+	result, err := TranslateEgressRules(egress, 1, 15001, nil, testIPStack)
 	if err != nil {
 		t.Fatalf("TranslateEgressRules failed: %v", err)
 	}
@@ -787,7 +791,7 @@ func TestDenyDefaultAuditOnlyFollowsDefault(t *testing.T) {
 			{Qualifiers: []string{"audit"}, IP: "10.0.0.1"},
 		},
 	}
-	result, err := TranslateEgressRules(egress, 1, 15001, nil)
+	result, err := TranslateEgressRules(egress, 1, 15001, nil, testIPStack)
 	if err != nil {
 		t.Fatalf("TranslateEgressRules failed: %v", err)
 	}
@@ -818,7 +822,7 @@ func TestAllowDefaultNoAccessLog(t *testing.T) {
 			{Qualifiers: []string{"deny"}, CIDR: "169.254.0.0/16"},
 		},
 	}
-	result, err := TranslateEgressRules(egress, 1, 15001, nil)
+	result, err := TranslateEgressRules(egress, 1, 15001, nil, testIPStack)
 	if err != nil {
 		t.Fatalf("TranslateEgressRules failed: %v", err)
 	}
@@ -843,7 +847,7 @@ func TestAllowDefaultDenyWithAudit(t *testing.T) {
 			{Qualifiers: []string{"deny", "audit"}, CIDR: "169.254.0.0/16"},
 		},
 	}
-	result, err := TranslateEgressRules(egress, 1, 15001, nil)
+	result, err := TranslateEgressRules(egress, 1, 15001, nil, testIPStack)
 	if err != nil {
 		t.Fatalf("TranslateEgressRules failed: %v", err)
 	}
@@ -875,7 +879,7 @@ func TestAllowDefaultAuditOnly(t *testing.T) {
 			{Qualifiers: []string{"audit"}, IP: "10.0.0.1"},
 		},
 	}
-	result, err := TranslateEgressRules(egress, 1, 15001, nil)
+	result, err := TranslateEgressRules(egress, 1, 15001, nil, testIPStack)
 	if err != nil {
 		t.Fatalf("TranslateEgressRules failed: %v", err)
 	}
@@ -908,7 +912,7 @@ func TestDenyDefaultDenyWithAuditRedundant(t *testing.T) {
 			{Qualifiers: []string{"allow"}, IP: "10.0.0.1"},
 		},
 	}
-	result, err := TranslateEgressRules(egress, 1, 15001, nil)
+	result, err := TranslateEgressRules(egress, 1, 15001, nil, testIPStack)
 	if err != nil {
 		t.Fatalf("TranslateEgressRules failed: %v", err)
 	}
@@ -944,7 +948,7 @@ func TestAllowDefaultAllowWithAudit(t *testing.T) {
 			},
 		},
 	}
-	result, err := TranslateEgressRules(egress, 1, 15001, nil)
+	result, err := TranslateEgressRules(egress, 1, 15001, nil, testIPStack)
 	if err != nil {
 		t.Fatalf("TranslateEgressRules failed: %v", err)
 	}
@@ -979,7 +983,7 @@ func TestMixedAuditRulesInAllowDefault(t *testing.T) {
 			},
 		},
 	}
-	result, err := TranslateEgressRules(egress, 1, 15001, nil)
+	result, err := TranslateEgressRules(egress, 1, 15001, nil, testIPStack)
 	if err != nil {
 		t.Fatalf("TranslateEgressRules failed: %v", err)
 	}
@@ -1051,7 +1055,7 @@ func TestDenyDefaultFilterStructure(t *testing.T) {
 			{Qualifiers: []string{"allow", "audit"}, IP: "10.0.0.1"},
 		},
 	}
-	result, err := TranslateEgressRules(egress, 1, 15001, nil)
+	result, err := TranslateEgressRules(egress, 1, 15001, nil, testIPStack)
 	if err != nil {
 		t.Fatalf("TranslateEgressRules failed: %v", err)
 	}
@@ -1080,7 +1084,7 @@ func TestAllowDefaultFilterStructure(t *testing.T) {
 			{Qualifiers: []string{"audit"}, IP: "10.0.0.1"},
 		},
 	}
-	result, err := TranslateEgressRules(egress, 1, 15001, nil)
+	result, err := TranslateEgressRules(egress, 1, 15001, nil, testIPStack)
 	if err != nil {
 		t.Fatalf("TranslateEgressRules failed: %v", err)
 	}
@@ -1106,7 +1110,7 @@ func TestTCPProxyNoAccessLog(t *testing.T) {
 			{Qualifiers: []string{"allow", "audit"}, IP: "10.0.0.1"},
 		},
 	}
-	result, err := TranslateEgressRules(egress, 1, 15001, nil)
+	result, err := TranslateEgressRules(egress, 1, 15001, nil, testIPStack)
 	if err != nil {
 		t.Fatalf("TranslateEgressRules failed: %v", err)
 	}
@@ -1135,7 +1139,7 @@ func TestDenyDefaultNoShadowCELDenyOnly(t *testing.T) {
 			},
 		},
 	}
-	result, err := TranslateEgressRules(egress, 1, 15001, nil)
+	result, err := TranslateEgressRules(egress, 1, 15001, nil, testIPStack)
 	if err != nil {
 		t.Fatalf("TranslateEgressRules failed: %v", err)
 	}
@@ -1173,7 +1177,7 @@ func TestAllowDefaultDenyAuditShadowRulesContainsDenyRule(t *testing.T) {
 			{Qualifiers: []string{"deny", "audit"}, CIDR: "169.254.0.0/16"},
 		},
 	}
-	result, err := TranslateEgressRules(egress, 1, 15001, nil)
+	result, err := TranslateEgressRules(egress, 1, 15001, nil, testIPStack)
 	if err != nil {
 		t.Fatalf("TranslateEgressRules failed: %v", err)
 	}
@@ -1205,7 +1209,7 @@ func TestFullSemanticMatrixDenyDefault(t *testing.T) {
 			{Qualifiers: []string{"allow", "audit"}, IP: "10.0.0.5"},
 		},
 	}
-	result, err := TranslateEgressRules(egress, 1, 15001, nil)
+	result, err := TranslateEgressRules(egress, 1, 15001, nil, testIPStack)
 	if err != nil {
 		t.Fatalf("TranslateEgressRules failed: %v", err)
 	}
@@ -1258,7 +1262,7 @@ func TestFullSemanticMatrixAllowDefault(t *testing.T) {
 			{Qualifiers: []string{"deny", "audit"}, IP: "10.0.0.5"},
 		},
 	}
-	result, err := TranslateEgressRules(egress, 1, 15001, nil)
+	result, err := TranslateEgressRules(egress, 1, 15001, nil, testIPStack)
 	if err != nil {
 		t.Fatalf("TranslateEgressRules failed: %v", err)
 	}
@@ -1328,7 +1332,7 @@ func TestListenerAccessLogDenyDefaultCELDeny(t *testing.T) {
 			{Qualifiers: []string{"allow"}, IP: "10.0.0.1"},
 		},
 	}
-	result, err := TranslateEgressRules(egress, 1, 15001, nil)
+	result, err := TranslateEgressRules(egress, 1, 15001, nil, testIPStack)
 	if err != nil {
 		t.Fatalf("TranslateEgressRules failed: %v", err)
 	}
@@ -1381,7 +1385,7 @@ func TestListenerAccessLogAllowDefaultNoShadow(t *testing.T) {
 			{Qualifiers: []string{"deny"}, CIDR: "169.254.0.0/16"},
 		},
 	}
-	result, err := TranslateEgressRules(egress, 1, 15001, nil)
+	result, err := TranslateEgressRules(egress, 1, 15001, nil, testIPStack)
 	if err != nil {
 		t.Fatalf("TranslateEgressRules failed: %v", err)
 	}
@@ -1402,7 +1406,7 @@ func TestListenerAccessLogAllowDefaultWithShadow(t *testing.T) {
 			{Qualifiers: []string{"deny", "audit"}, CIDR: "169.254.0.0/16"},
 		},
 	}
-	result, err := TranslateEgressRules(egress, 1, 15001, nil)
+	result, err := TranslateEgressRules(egress, 1, 15001, nil, testIPStack)
 	if err != nil {
 		t.Fatalf("TranslateEgressRules failed: %v", err)
 	}
@@ -1447,7 +1451,7 @@ func TestListenerAccessLogDenyDefaultWithShadow(t *testing.T) {
 			},
 		},
 	}
-	result, err := TranslateEgressRules(egress, 1, 15001, nil)
+	result, err := TranslateEgressRules(egress, 1, 15001, nil, testIPStack)
 	if err != nil {
 		t.Fatalf("TranslateEgressRules failed: %v", err)
 	}
@@ -1512,7 +1516,7 @@ func TestDenyDefaultNoShadowHCMOnlyCEL(t *testing.T) {
 			},
 		},
 	}
-	result, err := TranslateEgressRules(egress, 1, 15001, nil)
+	result, err := TranslateEgressRules(egress, 1, 15001, nil, testIPStack)
 	if err != nil {
 		t.Fatalf("TranslateEgressRules failed: %v", err)
 	}
@@ -1550,7 +1554,7 @@ func TestDenyDefaultWithShadowHCMCELDenyOrShadow(t *testing.T) {
 			{Qualifiers: []string{"allow", "audit"}, IP: "10.0.0.1"},
 		},
 	}
-	result, err := TranslateEgressRules(egress, 1, 15001, nil)
+	result, err := TranslateEgressRules(egress, 1, 15001, nil, testIPStack)
 	if err != nil {
 		t.Fatalf("TranslateEgressRules failed: %v", err)
 	}
@@ -1588,7 +1592,7 @@ func TestAllowDefaultWithShadowCELOnly(t *testing.T) {
 			{Qualifiers: []string{"deny", "audit"}, CIDR: "169.254.0.0/16"},
 		},
 	}
-	result, err := TranslateEgressRules(egress, 1, 15001, nil)
+	result, err := TranslateEgressRules(egress, 1, 15001, nil, testIPStack)
 	if err != nil {
 		t.Fatalf("TranslateEgressRules failed: %v", err)
 	}
@@ -1637,7 +1641,7 @@ func TestHTTPChainShadowRBACBeforeEnforcement(t *testing.T) {
 			},
 		},
 	}
-	result, err := TranslateEgressRules(egress, 1, 15001, nil)
+	result, err := TranslateEgressRules(egress, 1, 15001, nil, testIPStack)
 	if err != nil {
 		t.Fatalf("TranslateEgressRules failed: %v", err)
 	}
@@ -1716,7 +1720,7 @@ func TestDenyDefaultTCPChainDenyAll(t *testing.T) {
 			{Qualifiers: []string{"allow", "audit"}, Match: varmor.HTTPMatch{Hosts: []string{"api.example.com"}}},
 		},
 	}
-	result, err := TranslateEgressRules(egress, 1, 15001, nil)
+	result, err := TranslateEgressRules(egress, 1, 15001, nil, testIPStack)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1748,7 +1752,7 @@ func TestDenyDefaultNoRulesAtAll(t *testing.T) {
 	egress := &varmor.NetworkProxyEgress{
 		DefaultAction: "deny",
 	}
-	result, err := TranslateEgressRules(egress, 1, 15001, nil)
+	result, err := TranslateEgressRules(egress, 1, 15001, nil, testIPStack)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1782,7 +1786,7 @@ func TestAllowDefaultTCPChainNoRBAC(t *testing.T) {
 			{Qualifiers: []string{"deny"}, Match: varmor.HTTPMatch{Hosts: []string{"evil.com"}}},
 		},
 	}
-	result, err := TranslateEgressRules(egress, 1, 15001, nil)
+	result, err := TranslateEgressRules(egress, 1, 15001, nil, testIPStack)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1824,7 +1828,7 @@ func TestDenyDefaultHTTPOnlyRules(t *testing.T) {
 			},
 		},
 	}
-	result, err := TranslateEgressRules(egress, 1, 15001, nil)
+	result, err := TranslateEgressRules(egress, 1, 15001, nil, testIPStack)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1860,7 +1864,7 @@ func TestDenyDefaultWithL4EgressRulesTCPChainHasAllowRBAC(t *testing.T) {
 			{Qualifiers: []string{"allow"}, IP: "10.0.0.1", Ports: []varmor.Port{{Port: 8900}}},
 		},
 	}
-	result, err := TranslateEgressRules(egress, 1, 15001, nil)
+	result, err := TranslateEgressRules(egress, 1, 15001, nil, testIPStack)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1898,7 +1902,7 @@ func TestMultiPortEgressRuleORSemantics(t *testing.T) {
 			},
 		},
 	}
-	result, err := TranslateEgressRules(egress, 1, 15001, nil)
+	result, err := TranslateEgressRules(egress, 1, 15001, nil, testIPStack)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1952,7 +1956,7 @@ func TestSinglePortEgressRuleStillWorks(t *testing.T) {
 			},
 		},
 	}
-	result, err := TranslateEgressRules(egress, 1, 15001, nil)
+	result, err := TranslateEgressRules(egress, 1, 15001, nil, testIPStack)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1974,7 +1978,7 @@ func TestPortOnlyRuleMultiplePorts(t *testing.T) {
 			},
 		},
 	}
-	result, err := TranslateEgressRules(egress, 1, 15001, nil)
+	result, err := TranslateEgressRules(egress, 1, 15001, nil, testIPStack)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2003,7 +2007,7 @@ func TestIPWithPortRangeAndExactPort(t *testing.T) {
 			},
 		},
 	}
-	result, err := TranslateEgressRules(egress, 1, 15001, nil)
+	result, err := TranslateEgressRules(egress, 1, 15001, nil, testIPStack)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2041,7 +2045,7 @@ func TestAntiDomainFronting_NoCatchAllVirtualHost(t *testing.T) {
 		},
 	}
 
-	result, err := TranslateEgressRules(egress, 1, 15001, mitm)
+	result, err := TranslateEgressRules(egress, 1, 15001, mitm, testIPStack)
 	if err != nil {
 		t.Fatalf("TranslateEgressRules failed: %v", err)
 	}
@@ -2072,7 +2076,7 @@ func TestAntiDomainFronting_SingleDomain(t *testing.T) {
 		HeadersByDomain: map[string][]HeaderToAdd{},
 	}
 
-	result, err := TranslateEgressRules(egress, 1, 15001, mitm)
+	result, err := TranslateEgressRules(egress, 1, 15001, mitm, testIPStack)
 	if err != nil {
 		t.Fatalf("TranslateEgressRules failed: %v", err)
 	}
@@ -2095,7 +2099,7 @@ func TestAntiDomainFronting_IPDomain(t *testing.T) {
 		},
 	}
 
-	result, err := TranslateEgressRules(egress, 1, 15001, mitm)
+	result, err := TranslateEgressRules(egress, 1, 15001, mitm, testIPStack)
 	if err != nil {
 		t.Fatalf("TranslateEgressRules failed: %v", err)
 	}
@@ -2118,7 +2122,7 @@ func TestAntiDomainFronting_CIDRSingleHost(t *testing.T) {
 		},
 	}
 
-	result, err := TranslateEgressRules(egress, 1, 15001, mitm)
+	result, err := TranslateEgressRules(egress, 1, 15001, mitm, testIPStack)
 	if err != nil {
 		t.Fatalf("TranslateEgressRules failed: %v", err)
 	}
@@ -2140,7 +2144,7 @@ func TestAntiDomainFronting_WideCIDRNoVH(t *testing.T) {
 		HeadersByDomain: map[string][]HeaderToAdd{},
 	}
 
-	_, err := TranslateEgressRules(egress, 1, 15001, mitm)
+	_, err := TranslateEgressRules(egress, 1, 15001, mitm, testIPStack)
 	if err == nil {
 		t.Fatal("expected TranslateEgressRules to reject /24 CIDR, got nil error")
 	}
@@ -2170,7 +2174,7 @@ func TestAntiDomainFronting_MixedDomainsAndIPs(t *testing.T) {
 		},
 	}
 
-	result, err := TranslateEgressRules(egress, 1, 15001, mitm)
+	result, err := TranslateEgressRules(egress, 1, 15001, mitm, testIPStack)
 	if err != nil {
 		t.Fatalf("TranslateEgressRules failed: %v", err)
 	}

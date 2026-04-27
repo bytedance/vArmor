@@ -76,18 +76,93 @@ func yamlCEL(expr string) string {
 	return `"` + escaped + `"`
 }
 
-func renderListenerYAML(mitmChains []FilterChain, tlsChain, httpChain FilterChain, tcpChain FilterChain, version int64, proxyPort uint16, listenerAccessLogEnabled bool, listenerDenyCEL, listenerShadowCEL string) string {
+// IPStackConfig describes which IP stacks are available in the current
+// network namespace. Determined at runtime by DetectIPStack().
+type IPStackConfig struct {
+	IPv4 bool
+	IPv6 bool
+}
+
+// DetectIPStack probes the current network namespace to determine which
+// IP stacks are available. It attempts to bind a TCP listener on the
+// loopback address for each stack. This is safe, side-effect-free
+// (listeners are closed immediately), and does not depend on any sysctl
+// settings like net.ipv6.bindv6only.
+func DetectIPStack() IPStackConfig {
+	var cfg IPStackConfig
+	if ln, err := net.Listen("tcp4", "127.0.0.1:0"); err == nil {
+		ln.Close()
+		cfg.IPv4 = true
+	}
+	if ln, err := net.Listen("tcp6", "[::1]:0"); err == nil {
+		ln.Close()
+		cfg.IPv6 = true
+	}
+	// Fallback: if neither stack works (should not happen in practice),
+	// assume IPv4 to avoid generating an empty listener config.
+	if !cfg.IPv4 && !cfg.IPv6 {
+		cfg.IPv4 = true
+	}
+	return cfg
+}
+
+// primaryAddress returns the primary socket_address for the listener
+// based on the detected IP stack.
+func (c IPStackConfig) primaryAddress() string {
+	if c.IPv4 {
+		return "0.0.0.0"
+	}
+	return "::"
+}
+
+// renderListenerAddress emits the address + additional_addresses block for
+// the outbound listener, supporting IPv4-only / dual-stack / IPv6-only
+// without depending on kernel sysctl settings.
+//
+// Dual-stack uses Envoy's additional_addresses (1.25+) with explicit
+// IPV6_V6ONLY=1 on the IPv6 socket to avoid conflict with the IPv4
+// 0.0.0.0 binding. This is NOT a dependency on the system's
+// net.ipv6.bindv6only sysctl — we set it per-socket via Envoy's
+// socket_options, overriding whatever the system default is.
+func renderListenerAddress(ipStack IPStackConfig, port uint16) string {
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf(`  address:
+    socket_address:
+      address: "%s"
+      port_value: %d
+`, ipStack.primaryAddress(), port))
+
+	// Dual-stack: add the secondary stack as additional_addresses with
+	// explicit IPV6_V6ONLY=1 so the IPv6 socket doesn't also grab IPv4.
+	if ipStack.IPv4 && ipStack.IPv6 {
+		sb.WriteString(fmt.Sprintf(`  additional_addresses:
+  - address:
+      socket_address:
+        address: "::"
+        port_value: %d
+    socket_options:
+      socket_options:
+      - description: "IPV6_V6ONLY to avoid binding conflict with IPv4 listener"
+        level: 41
+        name: 26
+        int_value: 1
+        state: STATE_PREBIND
+`, port))
+	}
+
+	return sb.String()
+}
+
+func renderListenerYAML(mitmChains []FilterChain, tlsChain, httpChain FilterChain, tcpChain FilterChain, version int64, proxyPort uint16, listenerAccessLogEnabled bool, listenerDenyCEL, listenerShadowCEL string, ipStack IPStackConfig) string {
 	var sb strings.Builder
 
 	sb.WriteString(fmt.Sprintf(`version_info: "%d"
 resources:
 - "@type": type.googleapis.com/envoy.config.listener.v3.Listener
   name: varmor_outbound
-  address:
-    socket_address:
-      address: "::"
-      port_value: %d
-
+`, version))
+	sb.WriteString(renderListenerAddress(ipStack, proxyPort))
+	sb.WriteString(`
   # --- Listener Filters (connection-level, executed before filter chain matching) ---
   listener_filters:
   - name: envoy.filters.listener.original_dst
@@ -99,7 +174,7 @@ resources:
   - name: envoy.filters.listener.http_inspector
     typed_config:
       "@type": type.googleapis.com/envoy.extensions.filters.listener.http_inspector.v3.HttpInspector
-`, version, proxyPort))
+`)
 
 	// Listener-level access_log: captures connection-level events across ALL filter chains
 	// (TLS chain + TCP default chain). Uses CEL to detect Network RBAC deny events
@@ -723,16 +798,15 @@ func renderClustersYAML(version int64, mitmEnabled bool) string {
 	return sb.String()
 }
 
-func renderAllowAllListenerYAML(version int64, proxyPort uint16) string {
-	return fmt.Sprintf(`version_info: "%d"
+func renderAllowAllListenerYAML(version int64, proxyPort uint16, ipStack IPStackConfig) string {
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf(`version_info: "%d"
 resources:
 - "@type": type.googleapis.com/envoy.config.listener.v3.Listener
   name: varmor_outbound
-  address:
-    socket_address:
-      address: "::"
-      port_value: %d
-  listener_filters:
+`, version))
+	sb.WriteString(renderListenerAddress(ipStack, proxyPort))
+	sb.WriteString(`  listener_filters:
   - name: envoy.filters.listener.original_dst
     typed_config:
       "@type": type.googleapis.com/envoy.extensions.filters.listener.original_dst.v3.OriginalDst
@@ -744,19 +818,19 @@ resources:
         "@type": type.googleapis.com/envoy.extensions.filters.network.tcp_proxy.v3.TcpProxy
         stat_prefix: passthrough
         cluster: original_dst
-`, version, proxyPort)
+`)
+	return sb.String()
 }
 
-func renderDenyAllListenerYAML(version int64, proxyPort uint16) string {
-	return fmt.Sprintf(`version_info: "%d"
+func renderDenyAllListenerYAML(version int64, proxyPort uint16, ipStack IPStackConfig) string {
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf(`version_info: "%d"
 resources:
 - "@type": type.googleapis.com/envoy.config.listener.v3.Listener
   name: varmor_outbound
-  address:
-    socket_address:
-      address: "::"
-      port_value: %d
-  listener_filters:
+`, version))
+	sb.WriteString(renderListenerAddress(ipStack, proxyPort))
+	sb.WriteString(`  listener_filters:
   - name: envoy.filters.listener.original_dst
     typed_config:
       "@type": type.googleapis.com/envoy.extensions.filters.listener.original_dst.v3.OriginalDst
@@ -780,7 +854,8 @@ resources:
         "@type": type.googleapis.com/envoy.extensions.filters.network.tcp_proxy.v3.TcpProxy
         stat_prefix: deny_all
         cluster: original_dst
-`, version, proxyPort)
+`)
+	return sb.String()
 }
 
 // yamlEscapeHeaderValue escapes a header value for safe embedding inside a

@@ -44,7 +44,7 @@ func TestBindingExactHostExactPorts(t *testing.T) {
 		},
 	}
 
-	result, err := TranslateEgressRules(egress, 1, 15001, &MITMInput{})
+	result, err := TranslateEgressRules(egress, 1, 15001, &MITMInput{}, testIPStack)
 	if err != nil {
 		t.Fatalf("Error: %v", err)
 	}
@@ -89,7 +89,7 @@ func TestBindingWildcardHostExactPorts(t *testing.T) {
 		},
 	}
 
-	result, err := TranslateEgressRules(egress, 1, 15001, &MITMInput{})
+	result, err := TranslateEgressRules(egress, 1, 15001, &MITMInput{}, testIPStack)
 	if err != nil {
 		t.Fatalf("Error: %v", err)
 	}
@@ -127,7 +127,7 @@ func TestFallbackExactHostNoPort(t *testing.T) {
 		},
 	}
 
-	result, err := TranslateEgressRules(egress, 1, 15001, &MITMInput{})
+	result, err := TranslateEgressRules(egress, 1, 15001, &MITMInput{}, testIPStack)
 	if err != nil {
 		t.Fatalf("Error: %v", err)
 	}
@@ -165,7 +165,7 @@ func TestFallbackWildcardHostPortRange(t *testing.T) {
 		},
 	}
 
-	result, err := TranslateEgressRules(egress, 1, 15001, &MITMInput{})
+	result, err := TranslateEgressRules(egress, 1, 15001, &MITMInput{}, testIPStack)
 	if err != nil {
 		t.Fatalf("Error: %v", err)
 	}
@@ -200,7 +200,7 @@ func TestMixedHostsExactPorts(t *testing.T) {
 		},
 	}
 
-	result, err := TranslateEgressRules(egress, 1, 15001, &MITMInput{})
+	result, err := TranslateEgressRules(egress, 1, 15001, &MITMInput{}, testIPStack)
 	if err != nil {
 		t.Fatalf("Error: %v", err)
 	}

@@ -35,7 +35,7 @@ func TestMITMChainVHIsolation(t *testing.T) {
 		},
 	}
 
-	result, err := TranslateEgressRules(egress, 3, 15001, mitm)
+	result, err := TranslateEgressRules(egress, 3, 15001, mitm, testIPStack)
 	if err != nil {
 		t.Fatalf("Error: %v", err)
 	}
@@ -207,7 +207,7 @@ func TestMITMChainEgressRuleIsolation(t *testing.T) {
 		},
 	}
 
-	result, err := TranslateEgressRules(egress, 1, 15001, mitm)
+	result, err := TranslateEgressRules(egress, 1, 15001, mitm, testIPStack)
 	if err != nil {
 		t.Fatalf("TranslateEgressRules failed: %v", err)
 	}

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package profile implements Envoy proxy configuration rendering and
+// translation for the vArmor network proxy enforcer.
 package profile
 
 // This file is the public entry point of the profile package. It exposes
@@ -44,7 +46,7 @@ import (
 // MITM is ONLY consulted for Egress paths that can actually render MITM
 // chains (EnhanceProtect/DefenseInDepth with concrete egress rules).
 // Allow-all and deny-all short-circuits ignore mitm by construction.
-func GenerateEnvoyConfig(policy varmor.Policy, version int64, mitm *MITMInput) (lds string, cds string, err error) {
+func GenerateEnvoyConfig(policy varmor.Policy, version int64, mitm *MITMInput, ipStack IPStackConfig) (lds string, cds string, err error) {
 	e := varmortypes.GetEnforcerType(policy.Enforcer)
 
 	if e == varmortypes.Unknown {
@@ -64,18 +66,18 @@ func GenerateEnvoyConfig(policy varmor.Policy, version int64, mitm *MITMInput) (
 
 	switch policy.Mode {
 	case varmor.AlwaysAllowMode:
-		return GenerateAllowAllEgressRules(version, proxyPort)
+		return GenerateAllowAllEgressRules(version, proxyPort, ipStack)
 	case varmor.RuntimeDefaultMode:
-		return GenerateAllowAllEgressRules(version, proxyPort)
+		return GenerateAllowAllEgressRules(version, proxyPort, ipStack)
 	case varmor.EnhanceProtectMode:
 		if policy.EnhanceProtect == nil {
 			return "", "", fmt.Errorf("the policy.enhanceProtect field cannot be nil")
 		}
 
 		if policy.EnhanceProtect.NetworkProxyRawRules != nil && policy.EnhanceProtect.NetworkProxyRawRules.Egress != nil {
-			return GenerateNetworkProxyEgressRules(policy.EnhanceProtect.NetworkProxyRawRules.Egress, version, proxyPort, mitm)
+			return GenerateNetworkProxyEgressRules(policy.EnhanceProtect.NetworkProxyRawRules.Egress, version, proxyPort, mitm, ipStack)
 		} else {
-			return GenerateAllowAllEgressRules(version, proxyPort)
+			return GenerateAllowAllEgressRules(version, proxyPort, ipStack)
 		}
 
 	case varmor.BehaviorModelingMode:
@@ -86,9 +88,9 @@ func GenerateEnvoyConfig(policy varmor.Policy, version int64, mitm *MITMInput) (
 		}
 
 		if policy.DefenseInDepth.NetworkProxy != nil && policy.DefenseInDepth.NetworkProxy.Egress != nil {
-			return GenerateNetworkProxyEgressRules(policy.DefenseInDepth.NetworkProxy.Egress, version, proxyPort, mitm)
+			return GenerateNetworkProxyEgressRules(policy.DefenseInDepth.NetworkProxy.Egress, version, proxyPort, mitm, ipStack)
 		} else {
-			return GenerateDenyAllEgressRules(version, proxyPort)
+			return GenerateDenyAllEgressRules(version, proxyPort, ipStack)
 		}
 	}
 
@@ -98,23 +100,23 @@ func GenerateEnvoyConfig(policy varmor.Policy, version int64, mitm *MITMInput) (
 // GenerateAllowAllEgressRules emits an Envoy configuration that forwards
 // every connection straight through without policy checks, used for the
 // AlwaysAllow and RuntimeDefault modes.
-func GenerateAllowAllEgressRules(version int64, proxyPort uint16) (string, string, error) {
-	return renderAllowAllListenerYAML(version, proxyPort), renderClustersYAML(version, false), nil
+func GenerateAllowAllEgressRules(version int64, proxyPort uint16, ipStack IPStackConfig) (string, string, error) {
+	return renderAllowAllListenerYAML(version, proxyPort, ipStack), renderClustersYAML(version, false), nil
 }
 
 // GenerateDenyAllEgressRules emits an Envoy configuration that rejects
 // every connection, used when DefenseInDepth is enabled but no egress
 // rules have been supplied yet.
-func GenerateDenyAllEgressRules(version int64, proxyPort uint16) (string, string, error) {
-	return renderDenyAllListenerYAML(version, proxyPort), renderClustersYAML(version, false), nil
+func GenerateDenyAllEgressRules(version int64, proxyPort uint16, ipStack IPStackConfig) (string, string, error) {
+	return renderDenyAllListenerYAML(version, proxyPort, ipStack), renderClustersYAML(version, false), nil
 }
 
 // GenerateNetworkProxyEgressRules renders LDS+CDS from an Egress plus an
 // optional MITMInput. When mitm is nil/disabled the output is identical
 // to the pre-MITM implementation, so all pre-existing callers and tests
 // remain behaviorally unchanged.
-func GenerateNetworkProxyEgressRules(egress *varmor.NetworkProxyEgress, version int64, proxyPort uint16, mitm *MITMInput) (string, string, error) {
-	result, err := TranslateEgressRules(egress, version, proxyPort, mitm)
+func GenerateNetworkProxyEgressRules(egress *varmor.NetworkProxyEgress, version int64, proxyPort uint16, mitm *MITMInput, ipStack IPStackConfig) (string, string, error) {
+	result, err := TranslateEgressRules(egress, version, proxyPort, mitm, ipStack)
 	if err != nil {
 		return "", "", err
 	}
