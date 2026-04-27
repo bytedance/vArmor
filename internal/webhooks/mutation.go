@@ -166,7 +166,8 @@ func buildPatch(obj interface{}, enforcer string,
 
 			// NetworkProxy MITM: inject CA bundle volumeMount + env vars
 			// into target containers when MITM is enabled on the policy.
-			if (e&varmortypes.NetworkProxy) != 0 && networkProxyConfig != nil && networkProxyConfig.MITM != nil && len(networkProxyConfig.MITM.Domains) > 0 {
+			if (e&varmortypes.NetworkProxy) != 0 && container.Name != "varmor-network-proxy" &&
+				networkProxyConfig != nil && networkProxyConfig.MITM != nil && len(networkProxyConfig.MITM.Domains) > 0 {
 				jsonPatch += buildNetworkProxyMITMTargetPatch(true, container, index)
 			}
 
@@ -248,7 +249,8 @@ func buildPatch(obj interface{}, enforcer string,
 
 			// NetworkProxy MITM: inject CA bundle volumeMount + env vars
 			// into target containers when MITM is enabled on the policy.
-			if (e&varmortypes.NetworkProxy) != 0 && networkProxyConfig != nil && networkProxyConfig.MITM != nil && len(networkProxyConfig.MITM.Domains) > 0 {
+			if (e&varmortypes.NetworkProxy) != 0 && container.Name != "varmor-network-proxy" &&
+				networkProxyConfig != nil && networkProxyConfig.MITM != nil && len(networkProxyConfig.MITM.Domains) > 0 {
 				jsonPatch += buildNetworkProxyMITMTargetPatch(true, container, index)
 			}
 
@@ -328,7 +330,8 @@ func buildPatch(obj interface{}, enforcer string,
 
 			// NetworkProxy MITM: inject CA bundle volumeMount + env vars
 			// into target containers when MITM is enabled on the policy.
-			if (e&varmortypes.NetworkProxy) != 0 && networkProxyConfig != nil && networkProxyConfig.MITM != nil && len(networkProxyConfig.MITM.Domains) > 0 {
+			if (e&varmortypes.NetworkProxy) != 0 && container.Name != "varmor-network-proxy" &&
+				networkProxyConfig != nil && networkProxyConfig.MITM != nil && len(networkProxyConfig.MITM.Domains) > 0 {
 				jsonPatch += buildNetworkProxyMITMTargetPatch(true, container, index)
 			}
 
@@ -406,7 +409,8 @@ func buildPatch(obj interface{}, enforcer string,
 
 			// NetworkProxy MITM: inject CA bundle volumeMount + env vars
 			// into target containers when MITM is enabled on the policy.
-			if (e&varmortypes.NetworkProxy) != 0 && networkProxyConfig != nil && networkProxyConfig.MITM != nil && len(networkProxyConfig.MITM.Domains) > 0 {
+			if (e&varmortypes.NetworkProxy) != 0 && container.Name != "varmor-network-proxy" &&
+				networkProxyConfig != nil && networkProxyConfig.MITM != nil && len(networkProxyConfig.MITM.Domains) > 0 {
 				jsonPatch += buildNetworkProxyMITMTargetPatch(false, container, index)
 			}
 
