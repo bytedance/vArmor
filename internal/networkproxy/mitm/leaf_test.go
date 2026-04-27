@@ -440,7 +440,6 @@ func TestRenewLeaf_PreservesCAAndBundle(t *testing.T) {
 		t.Fatalf("RenewLeaf() failed: %v", err)
 	}
 
-
 	// The CA identity must be unchanged — RenewLeaf only produces a new
 	// leaf cert+key while reusing the existing CA. Verify by checking that
 	// the CA cert PEM is still what we started with (byte-identical).

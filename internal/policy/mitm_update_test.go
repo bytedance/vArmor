@@ -237,11 +237,11 @@ func Test_applyMITMVolumes(t *testing.T) {
 
 	assert.Equal(t, len(volumes), 3)
 	assert.Equal(t, volumes[1].Name, "varmor-network-proxy-mitm-tls")
-	assert.Equal(t, volumes[1].ConfigMap.Name, profileName)
-	assert.Equal(t, len(volumes[1].ConfigMap.Items), 3)
+	assert.Equal(t, volumes[1].Secret.SecretName, profileName)
+	assert.Equal(t, len(volumes[1].Secret.Items), 3)
 	assert.Equal(t, volumes[2].Name, "varmor-network-proxy-mitm-ca-bundle")
-	assert.Equal(t, volumes[2].ConfigMap.Name, profileName)
-	assert.Equal(t, len(volumes[2].ConfigMap.Items), 1)
+	assert.Equal(t, volumes[2].Secret.SecretName, profileName)
+	assert.Equal(t, len(volumes[2].Secret.Items), 1)
 }
 
 func Test_applyMITMVolumes_DeepCopyIndependence(t *testing.T) {
@@ -251,9 +251,9 @@ func Test_applyMITMVolumes_DeepCopyIndependence(t *testing.T) {
 	applyMITMVolumes(&volumes1, "profile-a")
 	applyMITMVolumes(&volumes2, "profile-b")
 
-	// Each call should produce independent ConfigMap names
-	assert.Equal(t, volumes1[0].ConfigMap.Name, "profile-a")
-	assert.Equal(t, volumes2[0].ConfigMap.Name, "profile-b")
+	// Each call should produce independent Secret names
+	assert.Equal(t, volumes1[0].Secret.SecretName, "profile-a")
+	assert.Equal(t, volumes2[0].Secret.SecretName, "profile-b")
 }
 
 // ---- applyMITMToTargetContainers tests ----
@@ -322,13 +322,13 @@ func Test_MITM_RoundTrip_CleanupThenApply(t *testing.T) {
 		{Name: "app-data"},
 		{Name: "varmor-network-proxy-config"},
 		{Name: "varmor-network-proxy-mitm-tls", VolumeSource: coreV1.VolumeSource{
-			ConfigMap: &coreV1.ConfigMapVolumeSource{
-				LocalObjectReference: coreV1.LocalObjectReference{Name: "old-profile"},
+			Secret: &coreV1.SecretVolumeSource{
+				SecretName: "old-profile",
 			},
 		}},
 		{Name: "varmor-network-proxy-mitm-ca-bundle", VolumeSource: coreV1.VolumeSource{
-			ConfigMap: &coreV1.ConfigMapVolumeSource{
-				LocalObjectReference: coreV1.LocalObjectReference{Name: "old-profile"},
+			Secret: &coreV1.SecretVolumeSource{
+				SecretName: "old-profile",
 			},
 		}},
 	}
@@ -363,9 +363,9 @@ func Test_MITM_RoundTrip_CleanupThenApply(t *testing.T) {
 	cleanupMITMFromTargetContainers(containers, target)
 
 	// Verify cleanup
-	assert.Equal(t, len(volumes), 2) // app-data + proxy-config
+	assert.Equal(t, len(volumes), 2)                    // app-data + proxy-config
 	assert.Equal(t, len(containers[0].VolumeMounts), 1) // app-data only
-	assert.Equal(t, len(containers[0].Env), 1) // MY_VAR only
+	assert.Equal(t, len(containers[0].Env), 1)          // MY_VAR only
 	assert.Equal(t, len(containers[1].VolumeMounts), 1) // proxy-config only
 
 	// Step 2: Re-apply with new profile
@@ -375,8 +375,8 @@ func Test_MITM_RoundTrip_CleanupThenApply(t *testing.T) {
 
 	// Verify apply
 	assert.Equal(t, len(volumes), 4) // app-data + proxy-config + 2 MITM
-	assert.Equal(t, volumes[2].ConfigMap.Name, profileName)
-	assert.Equal(t, volumes[3].ConfigMap.Name, profileName)
+	assert.Equal(t, volumes[2].Secret.SecretName, profileName)
+	assert.Equal(t, volumes[3].Secret.SecretName, profileName)
 
 	// Sidecar should have TLS mount
 	assert.Equal(t, len(containers[1].VolumeMounts), 2)

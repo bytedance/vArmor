@@ -116,7 +116,7 @@ ip6tables -t filter -A OUTPUT -p tcp --dport ${ENVOY_ADMIN_PORT} -m owner ! --ui
 	proxyVolume = coreV1.Volume{
 		Name: "varmor-network-proxy-config",
 		VolumeSource: coreV1.VolumeSource{
-			ConfigMap: &coreV1.ConfigMapVolumeSource{
+			Secret: &coreV1.SecretVolumeSource{
 				// Name set per-policy at runtime.
 				// Items is explicit to avoid projecting MITM key material
 				// (mitm-ca.key, mitm-leaf.key, etc.) into /etc/envoy/.
@@ -134,7 +134,7 @@ ip6tables -t filter -A OUTPUT -p tcp --dport ${ENVOY_ADMIN_PORT} -m owner ! --ui
 	proxyMITMTLSVolume = coreV1.Volume{
 		Name: "varmor-network-proxy-mitm-tls",
 		VolumeSource: coreV1.VolumeSource{
-			ConfigMap: &coreV1.ConfigMapVolumeSource{
+			Secret: &coreV1.SecretVolumeSource{
 				// Name set per-policy at runtime.
 				Items: []coreV1.KeyToPath{
 					{Key: "mitm-leaf.crt", Path: "leaf.crt"},
@@ -150,7 +150,7 @@ ip6tables -t filter -A OUTPUT -p tcp --dport ${ENVOY_ADMIN_PORT} -m owner ! --ui
 	proxyMITMCABundleVolume = coreV1.Volume{
 		Name: "varmor-network-proxy-mitm-ca-bundle",
 		VolumeSource: coreV1.VolumeSource{
-			ConfigMap: &coreV1.ConfigMapVolumeSource{
+			Secret: &coreV1.SecretVolumeSource{
 				// Name set per-policy at runtime.
 				Items: []coreV1.KeyToPath{
 					{Key: "mitm-ca-bundle.crt", Path: "ca-certificates.crt"},
@@ -271,15 +271,15 @@ func applyMITMToSidecar(containers []coreV1.Container) {
 	}
 }
 
-// applyMITMVolumes appends the two MITM volumes and sets their ConfigMap
+// applyMITMVolumes appends the two MITM volumes and sets their SecretName
 // name to profileName.
 func applyMITMVolumes(volumes *[]coreV1.Volume, profileName string) {
 	tlsVol := proxyMITMTLSVolume.DeepCopy()
-	tlsVol.ConfigMap.Name = profileName
+	tlsVol.Secret.SecretName = profileName
 	*volumes = append(*volumes, *tlsVol)
 
 	caVol := proxyMITMCABundleVolume.DeepCopy()
-	caVol.ConfigMap.Name = profileName
+	caVol.Secret.SecretName = profileName
 	*volumes = append(*volumes, *caVol)
 }
 
@@ -425,7 +425,7 @@ func modifyDeploymentAnnotationsAndEnv(
 			proxyContainer.ReadinessProbe.HTTPGet.Port.IntVal = int32(proxyAdminPort)
 			deploy.Spec.Template.Spec.Containers = append(deploy.Spec.Template.Spec.Containers, proxyContainer)
 			// Add a volume
-			proxyVolume.ConfigMap.Name = profileName
+			proxyVolume.Secret.SecretName = profileName
 			deploy.Spec.Template.Spec.Volumes = append(deploy.Spec.Template.Spec.Volumes, proxyVolume)
 
 			// MITM: add TLS volumeMount to sidecar + extra volumes + target container injection
@@ -637,7 +637,7 @@ func modifyStatefulSetAnnotationsAndEnv(
 			proxyContainer.ReadinessProbe.HTTPGet.Port.IntVal = int32(proxyAdminPort)
 			stateful.Spec.Template.Spec.Containers = append(stateful.Spec.Template.Spec.Containers, proxyContainer)
 			// Add a volume
-			proxyVolume.ConfigMap.Name = profileName
+			proxyVolume.Secret.SecretName = profileName
 			stateful.Spec.Template.Spec.Volumes = append(stateful.Spec.Template.Spec.Volumes, proxyVolume)
 
 			// MITM: add TLS volumeMount to sidecar + extra volumes + target container injection
@@ -849,7 +849,7 @@ func modifyDaemonSetAnnotationsAndEnv(
 			proxyContainer.ReadinessProbe.HTTPGet.Port.IntVal = int32(proxyAdminPort)
 			daemon.Spec.Template.Spec.Containers = append(daemon.Spec.Template.Spec.Containers, proxyContainer)
 			// Add a volume
-			proxyVolume.ConfigMap.Name = profileName
+			proxyVolume.Secret.SecretName = profileName
 			daemon.Spec.Template.Spec.Volumes = append(daemon.Spec.Template.Spec.Volumes, proxyVolume)
 
 			// MITM: add TLS volumeMount to sidecar + extra volumes + target container injection

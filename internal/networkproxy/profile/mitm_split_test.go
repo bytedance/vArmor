@@ -181,7 +181,6 @@ func TestMITMValidateRejectsWideCIDR(t *testing.T) {
 	}
 }
 
-
 // TestMITMChainEgressRuleIsolation verifies that egress L4 rules not in
 // mitm.domains are filtered out of MITM chain RBAC. Reproduces the bug
 // where 10.0.0.0/24 leaked into the IP chain that only covers 8.8.8.8/32.

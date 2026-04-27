@@ -117,7 +117,6 @@ func (m *MITMInput) Validate() error {
 	return nil
 }
 
-
 // ============================================================================
 // Rule classification (shared between MITM and non-MITM paths)
 // ============================================================================
@@ -283,6 +282,7 @@ func filterHTTPRulesForDomains(rules []varmor.NetworkProxyHTTPRule, domains []st
 	}
 	return filtered
 }
+
 // filterEgressRulesForDomains returns a copy of egressRules where each rule's
 // IP or CIDR is checked against the given domain set. Rules whose IP/CIDR is
 // not present in the domain set are dropped. This ensures each MITM chain's
@@ -443,8 +443,8 @@ func buildMITMHCMFilter(cls egressClassification, domains []string, headersByDom
 	return NetworkFilter{
 		Name: "envoy.filters.network.http_connection_manager",
 		TypedConfig: &HTTPConnManagerConfig{
-			StatPrefix:       "mitm_outbound",
-			HTTPFilters:      httpFilters,
+			StatPrefix:         "mitm_outbound",
+			HTTPFilters:        httpFilters,
 			AccessLogEnabled:   cls.auditCfg.AccessLogEnabled,
 			AccessLogDenyCEL:   hcmDenyCEL,
 			AccessLogShadowCEL: hcmShadowCEL,

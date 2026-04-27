@@ -427,7 +427,6 @@ func TranslateEgressRules(egress *varmor.NetworkProxyEgress, version int64, prox
 	return &TranslateResult{LDS: lds, CDS: cds}, nil
 }
 
-
 // ============================================================================
 // Chain 1: TLS
 // ============================================================================
@@ -646,8 +645,8 @@ func buildHTTPChain(defaultDeny bool,
 	chain.Filters = append(chain.Filters, NetworkFilter{
 		Name: "envoy.filters.network.http_connection_manager",
 		TypedConfig: &HTTPConnManagerConfig{
-			StatPrefix:       "http_outbound",
-			HTTPFilters:      httpFilters,
+			StatPrefix:         "http_outbound",
+			HTTPFilters:        httpFilters,
 			AccessLogEnabled:   auditCfg.AccessLogEnabled,
 			AccessLogDenyCEL:   hcmDenyCEL,
 			AccessLogShadowCEL: hcmShadowCEL,
@@ -1112,7 +1111,9 @@ func authorityMatcherForHostPort(host string, port uint16) PermissionRule {
 // of port value. Used when ports are ranges or unspecified.
 //
 // For exact hosts: or_rules(exact_match:"host", prefix_match:"host:") --
-//   matches both "host" (default port) and "host:NNN" (any port).
+//
+//	matches both "host" (default port) and "host:NNN" (any port).
+//
 // For wildcard hosts: safe_regex -- only way to handle unknown port suffix.
 func portAgnosticHostRules(hosts []string) []PermissionRule {
 	var rules []PermissionRule
@@ -1152,7 +1153,6 @@ func portAgnosticHostRules(hosts []string) []PermissionRule {
 	}
 	return rules
 }
-
 
 func crossProduct(dimensions [][]PermissionRule) [][]PermissionRule {
 	if len(dimensions) == 0 {

@@ -26,26 +26,26 @@ import (
 )
 
 func Test_buildNetworkProxyPatch_MITMEnabled(t *testing.T) {
-	profileName := "varmor-testns-test"
-	mitmConfig := &varmor.NetworkProxyConfig{
+	profileName := "test-profile"
+	proxyConfig := &varmor.NetworkProxyConfig{
 		MITM: &varmor.MITMConfig{
-			Domains: []string{"example.com", "*.api.internal"},
+			Domains: []string{"example.com"},
 		},
 	}
 
-	patch := buildNetworkProxyPatch(profileName, true, mitmConfig)
+	patch := buildNetworkProxyPatch(profileName, true, proxyConfig)
 
 	// Should contain the sidecar MITM TLS volumeMount
 	assert.Assert(t, strings.Contains(patch, `"name": "varmor-network-proxy-mitm-tls"`),
 		"patch should contain MITM TLS volume mount for sidecar")
 
 	// Should contain both MITM volumes
-	assert.Assert(t, strings.Contains(patch, `"name": "varmor-network-proxy-mitm-tls", "configMap"`),
+	assert.Assert(t, strings.Contains(patch, `"name": "varmor-network-proxy-mitm-tls", "secret": {"secretName"`),
 		"patch should contain MITM TLS volume definition")
-	assert.Assert(t, strings.Contains(patch, `"name": "varmor-network-proxy-mitm-ca-bundle", "configMap"`),
+	assert.Assert(t, strings.Contains(patch, `"name": "varmor-network-proxy-mitm-ca-bundle", "secret": {"secretName"`),
 		"patch should contain MITM CA bundle volume definition")
 
-	// Should reference ConfigMap key mappings
+	// Should reference Secret key mappings
 	assert.Assert(t, strings.Contains(patch, `"key": "mitm-leaf.crt", "path": "leaf.crt"`),
 		"patch should project mitm-leaf.crt as leaf.crt")
 	assert.Assert(t, strings.Contains(patch, `"key": "mitm-leaf.key", "path": "leaf.key"`),
@@ -55,9 +55,9 @@ func Test_buildNetworkProxyPatch_MITMEnabled(t *testing.T) {
 	assert.Assert(t, strings.Contains(patch, `"key": "mitm-ca-bundle.crt", "path": "ca-certificates.crt"`),
 		"patch should project mitm-ca-bundle.crt as ca-certificates.crt for targets")
 
-	// Should reference the profileName in ConfigMap
-	assert.Assert(t, strings.Contains(patch, `"name": "`+profileName+`"`),
-		"patch should reference profileName in ConfigMap volumes")
+	// Should reference the profileName in Secret
+	assert.Assert(t, strings.Contains(patch, `"secretName": "`+profileName+`"`),
+		"patch should reference profileName in Secret volume secretName fields")
 }
 
 func Test_buildNetworkProxyPatch_MITMDisabled(t *testing.T) {

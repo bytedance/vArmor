@@ -153,10 +153,10 @@ func (c *PolicyController) handleDeleteVarmorPolicy(namespace, name string) erro
 
 	apName := varmorprofile.GenerateArmorProfileName(namespace, name, false)
 
-	logger.Info("remove the finalizers of network proxy ConfigMap object if needed")
-	err := varmornetworkproxy.RemoveNetworkProxyConfigMapFinalizers(c.kubeClient, namespace, apName)
+	logger.Info("remove the finalizers of network proxy Secret object if needed")
+	err := varmornetworkproxy.RemoveNetworkProxySecretFinalizers(c.kubeClient, namespace, apName)
 	if err != nil {
-		logger.Error(err, "failed to remove the finalizers of network proxy ConfigMap object")
+		logger.Error(err, "failed to remove the finalizers of network proxy Secret object")
 	}
 
 	logger.Info("retrieve ArmorProfile", "namespace", namespace, "name", apName)
@@ -224,10 +224,10 @@ func (c *PolicyController) handleAddVarmorPolicy(vp *varmor.VarmorPolicy, profil
 		return err
 	}
 
-	logger.Info("create ConfigMap object for the NetworkProxy enforcer if needed")
-	err = varmornetworkproxy.CreateNetworkProxyConfigMap(c.kubeClient, vp, vp.Namespace, false, logger)
+	logger.Info("create Secret object for the NetworkProxy enforcer if needed")
+	err = varmornetworkproxy.CreateNetworkProxySecret(c.kubeClient, vp, vp.Namespace, false, logger)
 	if err != nil {
-		logger.Error(err, "CreateNetworkProxyConfigMap()")
+		logger.Error(err, "CreateNetworkProxySecret()")
 		err = statuscommon.UpdateVarmorPolicyStatus(c.varmorInterface, vp, "", false, varmor.VarmorPolicyError, varmor.VarmorPolicyCreated, apicorev1.ConditionFalse,
 			"Error",
 			err.Error())
@@ -324,11 +324,11 @@ func (c *PolicyController) handleUpdateVarmorPolicy(newVp *varmor.VarmorPolicy, 
 		return err
 	}
 
-	// Second, update ConfigMap object for the NetworkProxy enforcer if needed
-	logger.Info("2. update ConfigMap object for the NetworkProxy enforcer if needed")
-	err = varmornetworkproxy.UpdateNetworkProxyConfigMap(c.kubeClient, newVp, newVp.Namespace, false, logger)
+	// Second, update Secret object for the NetworkProxy enforcer if needed
+	logger.Info("2. update Secret object for the NetworkProxy enforcer if needed")
+	err = varmornetworkproxy.UpdateNetworkProxySecret(c.kubeClient, newVp, newVp.Namespace, false, logger)
 	if err != nil {
-		logger.Error(err, "UpdateNetworkProxyConfigMap()")
+		logger.Error(err, "UpdateNetworkProxySecret()")
 		err = statuscommon.UpdateVarmorPolicyStatus(c.varmorInterface, newVp, "", false, varmor.VarmorPolicyError, varmor.VarmorPolicyUpdated, apicorev1.ConditionFalse,
 			"Error",
 			err.Error())

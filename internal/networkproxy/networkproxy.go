@@ -15,9 +15,8 @@
 // Package networkproxy hosts the Kubernetes-facing orchestration for the
 // NetworkProxy enforcer: it translates a VarmorPolicy / VarmorClusterPolicy
 // into an Envoy xDS profile via internal/networkproxy/profile, then creates
-// and maintains the ConfigMap (and, in a future iteration, Secret) that
-// projects bootstrap / LDS / CDS / MITM material into the proxy sidecar and
-// target container.
+// and maintains the Secret that projects bootstrap / LDS / CDS / MITM material
+// into the proxy sidecar and target container.
 //
 // The file that used to live at internal/networkproxy/profile/networkproxy.go
 // was moved here because its responsibility is orchestration, not rendering:
@@ -44,51 +43,43 @@ import (
 	varmorprofile "github.com/bytedance/vArmor/internal/profile"
 )
 
-// ConfigMap data key names. The xDS keys keep their historic names so the
+// Secret data key names. The xDS keys keep their historic names so the
 // sidecar bootstrap references (/etc/envoy/lds.yaml, /etc/envoy/cds.yaml)
-// remain stable across the ConfigMap -> Secret migration.
+// remain stable.
 //
 // The MITM-prefixed keys are written only when the policy enables MITM.
 // They intentionally sit alongside the xDS keys in the same resource so
 // that a single kubelet volume sync keeps Envoy's watched_directory
 // consistent across LDS/CDS and tls_certificates updates.
 const (
-	// CMKeyBootstrap is the Envoy bootstrap YAML consumed by the sidecar
+	// SecretKeyBootstrap is the Envoy bootstrap YAML consumed by the sidecar
 	// at startup. The path to this key is referenced by the sidecar
 	// command line (-c /etc/envoy/bootstrap.yaml).
-	CMKeyBootstrap = "bootstrap.yaml"
-	// CMKeyLDS is the Listener Discovery Service document; the Envoy
+	SecretKeyBootstrap = "bootstrap.yaml"
+	// SecretKeyLDS is the Listener Discovery Service document; the Envoy
 	// bootstrap points dynamic_resources.lds_config.path_config_source
 	// at /etc/envoy/lds.yaml.
-	CMKeyLDS = "lds.yaml"
-	// CMKeyCDS is the Cluster Discovery Service document, consumed via
+	SecretKeyLDS = "lds.yaml"
+	// SecretKeyCDS is the Cluster Discovery Service document, consumed via
 	// dynamic_resources.cds_config.path_config_source.
-	CMKeyCDS = "cds.yaml"
+	SecretKeyCDS = "cds.yaml"
 
-	// CMKeyMITMCACert holds the per-policy MITM CA certificate (PEM).
+	// SecretKeyMITMCACert holds the per-policy MITM CA certificate (PEM).
 	// It is not directly mounted into any container; the controller
 	// reads it back on subsequent reconciles to reuse the same CA when
 	// re-signing the leaf, so that the CA bundle exposed to application
 	// containers does not churn on every update.
-	CMKeyMITMCACert = "mitm-ca.crt"
-	// CMKeyMITMCAKey holds the MITM CA private key (PEM). Same contract
-	// as CMKeyMITMCACert -- used solely to re-sign the leaf on reconcile.
-	//
-	// KNOWN DEBT (MVP): storing the CA private key in a ConfigMap is a
-	// security compromise accepted to accelerate end-to-end verification
-	// of the TLS MITM pipeline. A follow-up migration (planned in
-	// Phase2.md section 5) will move this material into a Secret with
-	// identical key names, at which point only the write-side code path
-	// changes.
-	CMKeyMITMCAKey = "mitm-ca.key"
-	// CMKeyMITMLeafCert holds the leaf certificate (PEM) presented by
+	SecretKeyMITMCACert = "mitm-ca.crt"
+	// SecretKeyMITMCAKey holds the MITM CA private key (PEM). Same contract
+	// as SecretKeyMITMCACert — used solely to re-sign the leaf on reconcile.
+	SecretKeyMITMCAKey = "mitm-ca.key"
+	// SecretKeyMITMLeafCert holds the leaf certificate (PEM) presented by
 	// Envoy's DownstreamTlsContext when impersonating the upstream.
 	// Mounted into the sidecar at varmorconfig.MITMLeafCertPath.
-	CMKeyMITMLeafCert = "mitm-leaf.crt"
-	// CMKeyMITMLeafKey holds the leaf private key (PEM). Also MVP debt
-	// as described on CMKeyMITMCAKey.
-	CMKeyMITMLeafKey = "mitm-leaf.key"
-	// CMKeyMITMCABundle is the Mozilla trust store with the per-policy
+	SecretKeyMITMLeafCert = "mitm-leaf.crt"
+	// SecretKeyMITMLeafKey holds the leaf private key (PEM).
+	SecretKeyMITMLeafKey = "mitm-leaf.key"
+	// SecretKeyMITMCABundle is the Mozilla trust store with the per-policy
 	// MITM CA appended. Mounted into:
 	//   - the Envoy sidecar at varmorconfig.MITMUpstreamTrustedCAPath
 	//     for UpstreamTlsContext validation_context, and
@@ -96,7 +87,7 @@ const (
 	//     that standard TLS clients pick up the synthetic CA via
 	//     SSL_CERT_FILE / REQUESTS_CA_BUNDLE / NODE_EXTRA_CA_CERTS /
 	//     CURL_CA_BUNDLE.
-	CMKeyMITMCABundle = "mitm-ca-bundle.crt"
+	SecretKeyMITMCABundle = "mitm-ca-bundle.crt"
 )
 
 // envoyBootstrapTemplate is the sidecar's static bootstrap YAML. Only the
@@ -123,8 +114,8 @@ dynamic_resources:
       watched_directory:
         path: /etc/envoy`
 
-func DeleteNetworkProxyConfigMap(kubeClient *kubernetes.Clientset, namespace string, name string) error {
-	err := kubeClient.CoreV1().ConfigMaps(namespace).Delete(context.Background(), name, metav1.DeleteOptions{})
+func DeleteNetworkProxySecret(kubeClient *kubernetes.Clientset, namespace string, name string) error {
+	err := kubeClient.CoreV1().Secrets(namespace).Delete(context.Background(), name, metav1.DeleteOptions{})
 	if err != nil {
 		if k8errors.IsNotFound(err) {
 			return nil
@@ -134,9 +125,9 @@ func DeleteNetworkProxyConfigMap(kubeClient *kubernetes.Clientset, namespace str
 	return nil
 }
 
-func RemoveNetworkProxyConfigMapFinalizers(kubeClient *kubernetes.Clientset, namespace string, name string) error {
+func RemoveNetworkProxySecretFinalizers(kubeClient *kubernetes.Clientset, namespace string, name string) error {
 	removeFinalizers := func() error {
-		cm, err := kubeClient.CoreV1().ConfigMaps(namespace).Get(context.Background(), name, metav1.GetOptions{})
+		cm, err := kubeClient.CoreV1().Secrets(namespace).Get(context.Background(), name, metav1.GetOptions{})
 		if err != nil {
 			if k8errors.IsNotFound(err) {
 				return nil
@@ -144,97 +135,97 @@ func RemoveNetworkProxyConfigMapFinalizers(kubeClient *kubernetes.Clientset, nam
 			return err
 		}
 		cm.Finalizers = []string{}
-		_, err = kubeClient.CoreV1().ConfigMaps(namespace).Update(context.Background(), cm, metav1.UpdateOptions{})
+		_, err = kubeClient.CoreV1().Secrets(namespace).Update(context.Background(), cm, metav1.UpdateOptions{})
 		return err
 	}
 	return retry.RetryOnConflict(retry.DefaultRetry, removeFinalizers)
 }
 
-func CreateNetworkProxyConfigMap(
+func CreateNetworkProxySecret(
 	kubeClient *kubernetes.Clientset,
 	obj interface{},
 	namespace string,
 	clusterScope bool,
 	logger logr.Logger) (err error) {
 
-	cm, err := GenerateEnvoyConfigMaps(kubeClient, obj, namespace, clusterScope)
+	secret, err := GenerateEnvoySecret(kubeClient, obj, namespace, clusterScope)
 	if err != nil {
-		return fmt.Errorf("generate config map failed: %w, namespace: %s, name: %s", err, cm.Namespace, cm.Name)
+		return fmt.Errorf("generate secret failed: %w", err)
 	}
 
-	if cm == nil {
+	if secret == nil {
 		return nil
 	}
 
-	_, err = kubeClient.CoreV1().ConfigMaps(cm.Namespace).Create(context.Background(), cm, metav1.CreateOptions{})
+	_, err = kubeClient.CoreV1().Secrets(secret.Namespace).Create(context.Background(), secret, metav1.CreateOptions{})
 	if err != nil {
 		if k8errors.IsAlreadyExists(err) {
 			return nil
 		}
-		return fmt.Errorf("create config map failed: %w, namespace: %s, name: %s", err, cm.Namespace, cm.Name)
+		return fmt.Errorf("create secret failed: %w, namespace: %s, name: %s", err, secret.Namespace, secret.Name)
 	}
 
 	return nil
 }
 
-func UpdateNetworkProxyConfigMap(
+func UpdateNetworkProxySecret(
 	kubeClient *kubernetes.Clientset,
 	obj interface{},
 	namespace string,
 	clusterScope bool,
 	logger logr.Logger) (err error) {
 
-	cm, err := GenerateEnvoyConfigMaps(kubeClient, obj, namespace, clusterScope)
+	secret, err := GenerateEnvoySecret(kubeClient, obj, namespace, clusterScope)
 	if err != nil {
-		return fmt.Errorf("generate config map failed: %w", err)
+		return fmt.Errorf("generate secret failed: %w", err)
 	}
 
-	if cm == nil {
+	if secret == nil {
 		return nil
 	}
 
-	// Update the config map
-	envoyCm, err := kubeClient.CoreV1().ConfigMaps(cm.Namespace).Get(context.Background(), cm.Name, metav1.GetOptions{})
+	// Update the secret
+	envoySecret, err := kubeClient.CoreV1().Secrets(secret.Namespace).Get(context.Background(), secret.Name, metav1.GetOptions{})
 	if err != nil {
 		if k8errors.IsNotFound(err) {
-			_, err = kubeClient.CoreV1().ConfigMaps(cm.Namespace).Create(context.Background(), cm, metav1.CreateOptions{})
+			_, err = kubeClient.CoreV1().Secrets(secret.Namespace).Create(context.Background(), secret, metav1.CreateOptions{})
 			if err != nil {
-				return fmt.Errorf("create config map failed: %w, namespace: %s, name: %s", err, cm.Namespace, cm.Name)
+				return fmt.Errorf("create secret failed: %w, namespace: %s, name: %s", err, secret.Namespace, secret.Name)
 			}
 			return nil
 		}
-		return fmt.Errorf("get config map failed: %w, namespace: %s, name: %s", err, cm.Namespace, cm.Name)
+		return fmt.Errorf("get secret failed: %w, namespace: %s, name: %s", err, secret.Namespace, secret.Name)
 	}
 
 	regain := false
-	updateEnvoyCm := func() error {
+	updateEnvoySecret := func() error {
 		if regain {
-			envoyCm, err = kubeClient.CoreV1().ConfigMaps(envoyCm.Namespace).Get(context.Background(), envoyCm.Name, metav1.GetOptions{})
+			envoySecret, err = kubeClient.CoreV1().Secrets(envoySecret.Namespace).Get(context.Background(), envoySecret.Name, metav1.GetOptions{})
 			if err != nil {
 				return err
 			}
 			regain = false
 		}
-		envoyCm.Data = cm.Data
-		_, err = kubeClient.CoreV1().ConfigMaps(envoyCm.Namespace).Update(context.Background(), envoyCm, metav1.UpdateOptions{})
+		envoySecret.StringData = secret.StringData
+		_, err = kubeClient.CoreV1().Secrets(envoySecret.Namespace).Update(context.Background(), envoySecret, metav1.UpdateOptions{})
 		if err == nil {
-			logger.Info("the config map has been updated", "namespace", envoyCm.Namespace, "name", envoyCm.Name)
+			logger.Info("the secret has been updated", "namespace", envoySecret.Namespace, "name", envoySecret.Name)
 		} else {
 			regain = true
 		}
 		return err
 	}
 
-	err = retry.RetryOnConflict(retry.DefaultRetry, updateEnvoyCm)
+	err = retry.RetryOnConflict(retry.DefaultRetry, updateEnvoySecret)
 	if err != nil {
-		logger.Error(err, "failed to update the config map", "namespace", envoyCm.Namespace, "name", envoyCm.Name)
+		logger.Error(err, "failed to update the secret", "namespace", envoySecret.Namespace, "name", envoySecret.Name)
 		return err
 	}
 
 	return nil
 }
 
-// GenerateEnvoyConfigMaps assembles the ConfigMap that projects the Envoy
+// GenerateEnvoySecret assembles the Secret that projects the Envoy
 // bootstrap / LDS / CDS documents, and -- when the policy enables MITM --
 // the per-policy CA, leaf certificate, leaf key, and CA bundle into the
 // sidecar (/etc/envoy and /etc/envoy/tls) and target container
@@ -243,12 +234,12 @@ func UpdateNetworkProxyConfigMap(
 // MITM material lifecycle:
 //
 //	On the very first reconcile for a policy the CA is generated from
-//	scratch. On subsequent reconciles the existing ConfigMap is read back
+//	scratch. On subsequent reconciles the existing Secret is read back
 //	and -- if it carries a valid CA pair -- the CA is reused and only the
 //	leaf is re-signed. This keeps the CA bundle projected into the target
 //	container stable across updates so that long-lived TLS connections and
 //	HTTP client caches do not see the trust store churn unnecessarily.
-func GenerateEnvoyConfigMaps(kubeClient *kubernetes.Clientset, obj interface{}, namespace string, clusterScope bool) (cm *v1.ConfigMap, err error) {
+func GenerateEnvoySecret(kubeClient *kubernetes.Clientset, obj interface{}, namespace string, clusterScope bool) (secret *v1.Secret, err error) {
 	var name string
 	var lds, cds string
 	var labels map[string]string
@@ -266,13 +257,14 @@ func GenerateEnvoyConfigMaps(kubeClient *kubernetes.Clientset, obj interface{}, 
 		// Resolve MITM config (including any SecretRef lookups) BEFORE
 		// handing the policy to the translator. For cluster-scoped
 		// policies the referenced Secret lives in the workload namespace
-		// (this ConfigMap's target namespace), not the policy's own scope.
+		// (this Secret's target namespace), not the policy's own scope.
 		mitmInput, err := profile.ResolveMITMInput(kubeClient, namespace, npc)
 		if err != nil {
 			return nil, fmt.Errorf("resolve MITM config failed: %w", err)
 		}
 
-		lds, cds, err = profile.GenerateEnvoyConfig(vcp.Spec.Policy, vcp.Generation, mitmInput)
+		ipStack := profile.DetectIPStack()
+		lds, cds, err = profile.GenerateEnvoyConfig(vcp.Spec.Policy, vcp.Generation, mitmInput, ipStack)
 		if err != nil {
 			return nil, fmt.Errorf("generate envoy config failed: %w", err)
 		}
@@ -301,13 +293,14 @@ func GenerateEnvoyConfigMaps(kubeClient *kubernetes.Clientset, obj interface{}, 
 		// Resolve MITM config (including any SecretRef lookups) BEFORE
 		// handing the policy to the translator. For namespace-scoped
 		// policies the Secret lives in the policy's own namespace, which
-		// is also the ConfigMap's target namespace.
+		// is also the Secret's target namespace.
 		mitmInput, err := profile.ResolveMITMInput(kubeClient, vp.Namespace, npc)
 		if err != nil {
 			return nil, fmt.Errorf("resolve MITM config failed: %w", err)
 		}
 
-		lds, cds, err = profile.GenerateEnvoyConfig(vp.Spec.Policy, vp.Generation, mitmInput)
+		ipStack := profile.DetectIPStack()
+		lds, cds, err = profile.GenerateEnvoyConfig(vp.Spec.Policy, vp.Generation, mitmInput, ipStack)
 		if err != nil {
 			return nil, fmt.Errorf("generate envoy config failed: %w", err)
 		}
@@ -325,8 +318,8 @@ func GenerateEnvoyConfigMaps(kubeClient *kubernetes.Clientset, obj interface{}, 
 			Controller: &controller,
 		})
 		labels = vp.ObjectMeta.DeepCopy().Labels
-		// Note that we only add finalizer to the config map for namespace scoped policy.
-		// Otherwise, the config map for cluster scoped policy will block the deletion of the namespace
+		// Note that we only add finalizer to the secret for namespace scoped policy.
+		// Otherwise, the secret for cluster scoped policy will block the deletion of the namespace
 		finalizers = []string{"varmor.org/ap-protection"}
 
 		if npc != nil && npc.ProxyAdminPort != nil {
@@ -335,9 +328,9 @@ func GenerateEnvoyConfigMaps(kubeClient *kubernetes.Clientset, obj interface{}, 
 	}
 
 	data := map[string]string{
-		CMKeyBootstrap: fmt.Sprintf(envoyBootstrapTemplate, proxyAdminPort),
-		CMKeyLDS:       lds,
-		CMKeyCDS:       cds,
+		SecretKeyBootstrap: fmt.Sprintf(envoyBootstrapTemplate, proxyAdminPort),
+		SecretKeyLDS:       lds,
+		SecretKeyCDS:       cds,
 	}
 
 	// MITM material: inspect the policy directly (rather than the
@@ -352,14 +345,14 @@ func GenerateEnvoyConfigMaps(kubeClient *kubernetes.Clientset, obj interface{}, 
 		if err != nil {
 			return nil, fmt.Errorf("prepare MITM material: %w", err)
 		}
-		data[CMKeyMITMCACert] = string(material.CA.CertPEM)
-		data[CMKeyMITMCAKey] = string(material.CA.KeyPEM)
-		data[CMKeyMITMLeafCert] = string(material.Leaf.CertPEM)
-		data[CMKeyMITMLeafKey] = string(material.Leaf.KeyPEM)
-		data[CMKeyMITMCABundle] = string(material.Bundle)
+		data[SecretKeyMITMCACert] = string(material.CA.CertPEM)
+		data[SecretKeyMITMCAKey] = string(material.CA.KeyPEM)
+		data[SecretKeyMITMLeafCert] = string(material.Leaf.CertPEM)
+		data[SecretKeyMITMLeafKey] = string(material.Leaf.KeyPEM)
+		data[SecretKeyMITMCABundle] = string(material.Bundle)
 	}
 
-	cm = &v1.ConfigMap{
+	secret = &v1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            name,
 			Namespace:       namespace,
@@ -367,14 +360,15 @@ func GenerateEnvoyConfigMaps(kubeClient *kubernetes.Clientset, obj interface{}, 
 			OwnerReferences: ownerReferences,
 			Finalizers:      finalizers,
 		},
-		Data: data,
+		Type:       v1.SecretTypeOpaque,
+		StringData: data,
 	}
 
-	return cm, nil
+	return secret, nil
 }
 
 // buildOrReuseMITMMaterial returns the MITM CA / leaf / bundle tuple that
-// should be projected into the policy's ConfigMap. When a ConfigMap with
+// should be projected into the policy's Secret. When a Secret with
 // a valid CA already exists in the target namespace, the CA is reused and
 // only the leaf is re-signed for the current domain set; otherwise a
 // fresh CA is generated.
@@ -384,17 +378,17 @@ func GenerateEnvoyConfigMaps(kubeClient *kubernetes.Clientset, obj interface{}, 
 // is the user-visible trust store. By pinning the CA across reconciles
 // we limit churn to the leaf material, which is only read by the Envoy
 // sidecar and can be hot-reloaded via Envoy's watched_directory.
-func buildOrReuseMITMMaterial(kubeClient *kubernetes.Clientset, namespace, cmName string, domains []string) (*mitm.MITMMaterial, error) {
+func buildOrReuseMITMMaterial(kubeClient *kubernetes.Clientset, namespace, secretName string, domains []string) (*mitm.MITMMaterial, error) {
 	// Attempt to reuse an existing CA embedded in the policy's
-	// ConfigMap. Any error other than "already carries a valid CA" is
+	// Secret. Any error other than "already carries a valid CA" is
 	// treated as "no reusable CA" and we fall through to generating a
-	// fresh one, so that malformed / partial ConfigMap state
+	// fresh one, so that malformed / partial Secret state
 	// self-heals on the next reconcile.
 	if kubeClient != nil {
-		existing, err := kubeClient.CoreV1().ConfigMaps(namespace).Get(context.Background(), cmName, metav1.GetOptions{})
+		existing, err := kubeClient.CoreV1().Secrets(namespace).Get(context.Background(), secretName, metav1.GetOptions{})
 		if err == nil && existing != nil {
-			certPEM := []byte(existing.Data[CMKeyMITMCACert])
-			keyPEM := []byte(existing.Data[CMKeyMITMCAKey])
+			certPEM := existing.Data[SecretKeyMITMCACert]
+			keyPEM := existing.Data[SecretKeyMITMCAKey]
 			if len(certPEM) > 0 && len(keyPEM) > 0 {
 				ca, parseErr := mitm.ParseCA(certPEM, keyPEM)
 				if parseErr == nil {

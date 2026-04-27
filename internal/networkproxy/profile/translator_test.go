@@ -1579,7 +1579,6 @@ func TestDenyDefaultWithShadowHCMCELDenyOrShadow(t *testing.T) {
 	assertContains(t, lds, "REQ(:METHOD)", "HCM access_log present")
 }
 
-
 // TestAllowDefaultWithShadowCELOnly verifies that allow-default with
 // audit qualifiers uses CEL shadow check only at both listener and HCM levels.
 func TestAllowDefaultWithShadowCELOnly(t *testing.T) {

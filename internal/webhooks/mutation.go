@@ -166,7 +166,7 @@ func buildPatch(obj interface{}, enforcer string,
 
 			// NetworkProxy MITM: inject CA bundle volumeMount + env vars
 			// into target containers when MITM is enabled on the policy.
-			if (e & varmortypes.NetworkProxy) != 0 && networkProxyConfig != nil && networkProxyConfig.MITM != nil && len(networkProxyConfig.MITM.Domains) > 0 {
+			if (e&varmortypes.NetworkProxy) != 0 && networkProxyConfig != nil && networkProxyConfig.MITM != nil && len(networkProxyConfig.MITM.Domains) > 0 {
 				jsonPatch += buildNetworkProxyMITMTargetPatch(true, container, index)
 			}
 
@@ -248,7 +248,7 @@ func buildPatch(obj interface{}, enforcer string,
 
 			// NetworkProxy MITM: inject CA bundle volumeMount + env vars
 			// into target containers when MITM is enabled on the policy.
-			if (e & varmortypes.NetworkProxy) != 0 && networkProxyConfig != nil && networkProxyConfig.MITM != nil && len(networkProxyConfig.MITM.Domains) > 0 {
+			if (e&varmortypes.NetworkProxy) != 0 && networkProxyConfig != nil && networkProxyConfig.MITM != nil && len(networkProxyConfig.MITM.Domains) > 0 {
 				jsonPatch += buildNetworkProxyMITMTargetPatch(true, container, index)
 			}
 
@@ -328,7 +328,7 @@ func buildPatch(obj interface{}, enforcer string,
 
 			// NetworkProxy MITM: inject CA bundle volumeMount + env vars
 			// into target containers when MITM is enabled on the policy.
-			if (e & varmortypes.NetworkProxy) != 0 && networkProxyConfig != nil && networkProxyConfig.MITM != nil && len(networkProxyConfig.MITM.Domains) > 0 {
+			if (e&varmortypes.NetworkProxy) != 0 && networkProxyConfig != nil && networkProxyConfig.MITM != nil && len(networkProxyConfig.MITM.Domains) > 0 {
 				jsonPatch += buildNetworkProxyMITMTargetPatch(true, container, index)
 			}
 
@@ -406,7 +406,7 @@ func buildPatch(obj interface{}, enforcer string,
 
 			// NetworkProxy MITM: inject CA bundle volumeMount + env vars
 			// into target containers when MITM is enabled on the policy.
-			if (e & varmortypes.NetworkProxy) != 0 && networkProxyConfig != nil && networkProxyConfig.MITM != nil && len(networkProxyConfig.MITM.Domains) > 0 {
+			if (e&varmortypes.NetworkProxy) != 0 && networkProxyConfig != nil && networkProxyConfig.MITM != nil && len(networkProxyConfig.MITM.Domains) > 0 {
 				jsonPatch += buildNetworkProxyMITMTargetPatch(false, container, index)
 			}
 
@@ -637,10 +637,10 @@ func buildNetworkProxyPatch(profileName string, workloads bool, networkProxyConf
 	))
 
 	// --- 4. volumes ---
-	// Always-on volume: the shared Envoy config ConfigMap.
+	// Always-on volume: the shared Envoy config Secret.
 	sb.WriteString(fmt.Sprintf(
 		`{"op": "add", "path": "%s/spec/volumes/-", "value": `+
-			`{"name": "varmor-network-proxy-config", "configMap": {"name": "%s", "items": [{"key": "bootstrap.yaml", "path": "bootstrap.yaml"}, {"key": "lds.yaml", "path": "lds.yaml"}, {"key": "cds.yaml", "path": "cds.yaml"}]}}},`,
+			`{"name": "varmor-network-proxy-config", "secret": {"secretName": "%s", "items": [{"key": "bootstrap.yaml", "path": "bootstrap.yaml"}, {"key": "lds.yaml", "path": "lds.yaml"}, {"key": "cds.yaml", "path": "cds.yaml"}]}}},`,
 		pathPrefix, profileName,
 	))
 
@@ -652,7 +652,7 @@ func buildNetworkProxyPatch(profileName string, workloads bool, networkProxyConf
 		// varmorconfig.MITMLeafKeyPath, varmorconfig.MITMUpstreamTrustedCAPath).
 		sb.WriteString(fmt.Sprintf(
 			`{"op": "add", "path": "%s/spec/volumes/-", "value": `+
-				`{"name": "varmor-network-proxy-mitm-tls", "configMap": {"name": "%s", "items": [`+
+				`{"name": "varmor-network-proxy-mitm-tls", "secret": {"secretName": "%s", "items": [`+
 				`{"key": "mitm-leaf.crt", "path": "leaf.crt"}, `+
 				`{"key": "mitm-leaf.key", "path": "leaf.key"}, `+
 				`{"key": "mitm-ca-bundle.crt", "path": "ca-bundle.crt"}]}}},`,
@@ -667,7 +667,7 @@ func buildNetworkProxyPatch(profileName string, workloads bool, networkProxyConf
 		// trust store.
 		sb.WriteString(fmt.Sprintf(
 			`{"op": "add", "path": "%s/spec/volumes/-", "value": `+
-				`{"name": "varmor-network-proxy-mitm-ca-bundle", "configMap": {"name": "%s", "items": [`+
+				`{"name": "varmor-network-proxy-mitm-ca-bundle", "secret": {"secretName": "%s", "items": [`+
 				`{"key": "mitm-ca-bundle.crt", "path": "ca-certificates.crt"}]}}},`,
 			pathPrefix, profileName,
 		))
