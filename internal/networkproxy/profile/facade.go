@@ -24,8 +24,8 @@ package profile
 // DefenseInDepth branch logic themselves.
 //
 // Kept intentionally side-effect-free: no client-go, no time/file I/O.
-// The ConfigMap/Secret plumbing lives one level up so this package can
-// be unit-tested with pure inputs.
+// The Secret plumbing lives one level up so this package can be unit-tested
+// with pure inputs.
 
 import (
 	"fmt"

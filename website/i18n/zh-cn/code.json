@@ -100,7 +100,7 @@
     "description": "Architecture description paragraph 1"
   },
   "homepage.architecture.text2": {
-    "message": "vArmor 还支持 NetworkProxy enforcer，通过 mutation webhook 向目标 Pod 注入 Envoy sidecar 代理和 init 容器。Init 容器通过 iptables 规则将出站流量重定向到 Envoy sidecar，后者根据 Manager 生成并通过 ConfigMap 下发的策略执行 L4/L7 访问控制。",
+    "message": "vArmor 还支持 NetworkProxy enforcer，通过 mutation webhook 向目标 Pod 注入 Envoy sidecar 代理和 init 容器。Init 容器通过 iptables 规则将出站流量重定向到 Envoy sidecar，后者根据 Manager 生成并通过 Secret 下发的策略执行 L4/L7 访问控制。",
     "description": "Architecture description paragraph 2"
   },
   "homepage.architecture.text3": {
