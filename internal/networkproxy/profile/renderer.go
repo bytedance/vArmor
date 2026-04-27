@@ -50,19 +50,22 @@ import (
 // expression simply returns false (no log emitted).
 
 const (
-	// Listener-level CEL: detect Network RBAC denial
+	// Listener-level CEL: detect Network RBAC denial via connection termination details.
 	celListenerDeny = `connection.termination_details.matches("rbac_access_denied.*")`
-	// Listener-level CEL: detect shadow_rules match (network RBAC audit)
+	// Listener-level CEL: detect shadow_rules match (network RBAC audit) via dynamic metadata.
 	celListenerShadow = `'shadow_effective_policy_id' in metadata.filter_metadata['envoy.filters.network.rbac']`
-	// Listener-level CEL: deny OR shadow (deny-default with shadow rules)
-	celListenerDenyOrShadow = `connection.termination_details.matches("rbac_access_denied.*") || 'shadow_effective_policy_id' in metadata.filter_metadata['envoy.filters.network.rbac']`
 
-	// HCM-level CEL: detect HTTP RBAC denial
+	// HCM-level CEL: detect HTTP RBAC denial via response code details.
 	celHCMDeny = `response.code_details.matches("rbac_access_denied.*")`
-	// HCM-level CEL: detect shadow_rules match (HTTP RBAC audit)
+	// HCM-level CEL: detect shadow_rules match (HTTP RBAC audit) via dynamic metadata.
 	celHCMShadow = `'shadow_effective_policy_id' in metadata.filter_metadata['envoy.filters.http.rbac']`
-	// HCM-level CEL: deny OR shadow (deny-default with shadow rules)
-	celHCMDenyOrShadow = `response.code_details.matches("rbac_access_denied.*") || 'shadow_effective_policy_id' in metadata.filter_metadata['envoy.filters.http.rbac']`
+
+	// NOTE: The "DenyOrShadow" combined constants have been intentionally removed.
+	// Envoy's CEL evaluator does NOT properly short-circuit "error || true":
+	// when connection.termination_details is null (allow path), .matches()
+	// produces a CEL error that poisons the entire || expression, preventing
+	// the shadow side from being evaluated. Instead, deny and shadow CEL are
+	// rendered as SEPARATE access_log entries.
 )
 
 // yamlCEL wraps a CEL expression for safe embedding in YAML.
@@ -73,7 +76,7 @@ func yamlCEL(expr string) string {
 	return `"` + escaped + `"`
 }
 
-func renderListenerYAML(mitmChains []FilterChain, tlsChain, httpChain FilterChain, tcpChain FilterChain, version int64, proxyPort uint16, listenerAccessLogEnabled bool, listenerCEL string) string {
+func renderListenerYAML(mitmChains []FilterChain, tlsChain, httpChain FilterChain, tcpChain FilterChain, version int64, proxyPort uint16, listenerAccessLogEnabled bool, listenerDenyCEL, listenerShadowCEL string) string {
 	var sb strings.Builder
 
 	sb.WriteString(fmt.Sprintf(`version_info: "%d"
@@ -102,28 +105,44 @@ resources:
 	// (TLS chain + TCP default chain). Uses CEL to detect Network RBAC deny events
 	// and/or shadow_rules metadata matches.
 	//
-	// The listener-level CEL expression is pre-computed by the translator based on:
-	//   - deny-default + shadow: celListenerDenyOrShadow
-	//   - deny-default only:     celListenerDeny
-	//   - allow-default + shadow: celListenerShadow
-	//   - allow-default only:     (no listener access_log)
+	// IMPORTANT: deny and shadow CEL are rendered as SEPARATE access_log entries
+	// (not combined with ||) because Envoy CEL short-circuit evaluation fails when
+	// connection.termination_details is null (allow path): the .matches() call
+	// produces a CEL error that poisons the entire || expression, preventing the
+	// shadow side from being evaluated.
 	//
 	// HTTP chain events are handled separately at the HCM level, so there is no
 	// namespace conflict between envoy.filters.network.rbac and envoy.filters.http.rbac.
-	if listenerAccessLogEnabled && listenerCEL != "" {
+	if listenerAccessLogEnabled && (listenerDenyCEL != "" || listenerShadowCEL != "") {
 		sb.WriteString("\n  access_log:\n")
-		sb.WriteString("  - name: envoy.access_loggers.stdout\n")
-		sb.WriteString("    filter:\n")
-		sb.WriteString("      extension_filter:\n")
-		sb.WriteString("        name: envoy.access_loggers.extension_filters.cel\n")
-		sb.WriteString("        typed_config:\n")
-		sb.WriteString("          \"@type\": type.googleapis.com/envoy.extensions.access_loggers.filters.cel.v3.ExpressionFilter\n")
-		sb.WriteString(fmt.Sprintf("          expression: %s\n", yamlCEL(listenerCEL)))
-		sb.WriteString("    typed_config:\n")
-		sb.WriteString("      \"@type\": type.googleapis.com/envoy.extensions.access_loggers.stream.v3.StdoutAccessLog\n")
-		sb.WriteString("      log_format:\n")
-		sb.WriteString("        text_format_source:\n")
-		sb.WriteString("          inline_string: \"[%START_TIME%][L4] dst=%DOWNSTREAM_LOCAL_ADDRESS% sni=%REQUESTED_SERVER_NAME% duration=%DURATION%ms reason=%CONNECTION_TERMINATION_DETAILS%\\n\"\n")
+		if listenerDenyCEL != "" {
+			sb.WriteString("  - name: envoy.access_loggers.stdout\n")
+			sb.WriteString("    filter:\n")
+			sb.WriteString("      extension_filter:\n")
+			sb.WriteString("        name: envoy.access_loggers.extension_filters.cel\n")
+			sb.WriteString("        typed_config:\n")
+			sb.WriteString("          \"@type\": type.googleapis.com/envoy.extensions.access_loggers.filters.cel.v3.ExpressionFilter\n")
+			sb.WriteString(fmt.Sprintf("          expression: %s\n", yamlCEL(listenerDenyCEL)))
+			sb.WriteString("    typed_config:\n")
+			sb.WriteString("      \"@type\": type.googleapis.com/envoy.extensions.access_loggers.stream.v3.StdoutAccessLog\n")
+			sb.WriteString("      log_format:\n")
+			sb.WriteString("        text_format_source:\n")
+			sb.WriteString("          inline_string: \"[%START_TIME%][L4][%FILTER_CHAIN_NAME%] dst=%DOWNSTREAM_LOCAL_ADDRESS% sni=%REQUESTED_SERVER_NAME% duration=%DURATION%ms reason=%CONNECTION_TERMINATION_DETAILS%\\n\"\n")
+		}
+		if listenerShadowCEL != "" {
+			sb.WriteString("  - name: envoy.access_loggers.stdout\n")
+			sb.WriteString("    filter:\n")
+			sb.WriteString("      extension_filter:\n")
+			sb.WriteString("        name: envoy.access_loggers.extension_filters.cel\n")
+			sb.WriteString("        typed_config:\n")
+			sb.WriteString("          \"@type\": type.googleapis.com/envoy.extensions.access_loggers.filters.cel.v3.ExpressionFilter\n")
+			sb.WriteString(fmt.Sprintf("          expression: %s\n", yamlCEL(listenerShadowCEL)))
+			sb.WriteString("    typed_config:\n")
+			sb.WriteString("      \"@type\": type.googleapis.com/envoy.extensions.access_loggers.stream.v3.StdoutAccessLog\n")
+			sb.WriteString("      log_format:\n")
+			sb.WriteString("        text_format_source:\n")
+			sb.WriteString("          inline_string: \"[%START_TIME%][L4][%FILTER_CHAIN_NAME%] dst=%DOWNSTREAM_LOCAL_ADDRESS% sni=%REQUESTED_SERVER_NAME% duration=%DURATION%ms reason=%CONNECTION_TERMINATION_DETAILS%\\n\"\n")
+		}
 	}
 
 	sb.WriteString("\n  filter_chains:\n")
@@ -156,7 +175,8 @@ func renderFilterChainYAML(chain *FilterChain, indent int) string {
 	sb.WriteString(fmt.Sprintf("%s# ---- %s ----\n", prefix, chain.Name))
 
 	if chain.FilterChainMatch != nil {
-		sb.WriteString(fmt.Sprintf("%s- filter_chain_match:\n", prefix))
+		sb.WriteString(fmt.Sprintf("%s- name: %s\n", prefix, chain.Name))
+		sb.WriteString(fmt.Sprintf("%s  filter_chain_match:\n", prefix))
 
 		if chain.FilterChainMatch.TransportProtocol != "" {
 			sb.WriteString(fmt.Sprintf("%s    transport_protocol: \"%s\"\n", prefix, chain.FilterChainMatch.TransportProtocol))
@@ -195,7 +215,7 @@ func renderFilterChainYAML(chain *FilterChain, indent int) string {
 			}
 		}
 	} else {
-		sb.WriteString(fmt.Sprintf("%s- ", prefix))
+		sb.WriteString(fmt.Sprintf("%s- name: %s\n", prefix, chain.Name))
 	}
 
 	// transport_socket (DownstreamTlsContext) -- emitted ONLY for MITM
@@ -244,6 +264,12 @@ func renderDownstreamTLSContextYAML(ctx *DownstreamTLSContext, indent int) strin
 	sb.WriteString(fmt.Sprintf("%s  typed_config:\n", prefix))
 	sb.WriteString(fmt.Sprintf("%s    \"@type\": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext\n", prefix))
 	sb.WriteString(fmt.Sprintf("%s    common_tls_context:\n", prefix))
+	// [H2] Advertise h2 and http/1.1 via ALPN so that HTTP/2 and gRPC clients
+	// can negotiate the correct protocol during the TLS handshake. Without
+	// ALPN, clients can only assume HTTP/1.1, breaking gRPC entirely.
+	sb.WriteString(fmt.Sprintf("%s      alpn_protocols:\n", prefix))
+	sb.WriteString(fmt.Sprintf("%s      - h2\n", prefix))
+	sb.WriteString(fmt.Sprintf("%s      - http/1.1\n", prefix))
 	sb.WriteString(fmt.Sprintf("%s      tls_certificates:\n", prefix))
 	sb.WriteString(fmt.Sprintf("%s      - certificate_chain:\n", prefix))
 	sb.WriteString(fmt.Sprintf("%s          filename: \"%s\"\n", prefix, ctx.CertPath))
@@ -257,6 +283,7 @@ func renderDefaultFilterChainBodyYAML(chain *FilterChain, indent int) string {
 	prefix := strings.Repeat(" ", indent)
 
 	sb.WriteString(fmt.Sprintf("%s# ---- %s (fallback for non-TLS, non-HTTP) ----\n", prefix, chain.Name))
+	sb.WriteString(fmt.Sprintf("%sname: %s\n", prefix, chain.Name))
 	sb.WriteString(fmt.Sprintf("%sfilters:\n", prefix))
 	for _, f := range chain.Filters {
 		sb.WriteString(renderNetworkFilterYAML(&f, indent))
@@ -288,6 +315,25 @@ func renderTCPProxyFilterYAML(f *NetworkFilter, indent int) string {
 	sb.WriteString(fmt.Sprintf("%s    \"@type\": type.googleapis.com/envoy.extensions.filters.network.tcp_proxy.v3.TcpProxy\n", prefix))
 	sb.WriteString(fmt.Sprintf("%s    stat_prefix: %s\n", prefix, cfg.StatPrefix))
 	sb.WriteString(fmt.Sprintf("%s    cluster: %s\n", prefix, cfg.Cluster))
+
+	// [M2] Disable TCP connection idle timeout. Envoy default is 1 hour,
+	// which can prematurely close database connection pool idle connections
+	// (MySQL default wait_timeout=8h, Redis has no default timeout).
+	// Setting to 0s means "no timeout" — connection lifecycle is managed
+	// by the application layer (database drivers, connection pools, etc.).
+	sb.WriteString(fmt.Sprintf("%s    idle_timeout: 0s\n", prefix))
+
+	// upstream_connect_mode: ON_DOWNSTREAM_DATA tells tcp_proxy to wait for
+	// downstream data before connecting upstream, allowing preceding network
+	// filters (e.g. RBAC) to evaluate in onData() first.
+	// Without this, tcp_proxy calls readDisable(true) on downstream in
+	// onNewConnection() and immediately connects upstream, preventing RBAC
+	// from ever firing. Requires Envoy >= 1.34.
+	// See https://github.com/envoyproxy/envoy/issues/9023.
+	if cfg.UpstreamConnectMode != "" {
+		sb.WriteString(fmt.Sprintf("%s    upstream_connect_mode: %s\n", prefix, cfg.UpstreamConnectMode))
+		sb.WriteString(fmt.Sprintf("%s    max_early_data_bytes: %d\n", prefix, cfg.MaxEarlyDataBytes))
+	}
 
 	// tcp_proxy access_log is NO LONGER rendered.
 	//
@@ -338,30 +384,52 @@ func renderHTTPConnManagerYAML(f *NetworkFilter, indent int) string {
 	sb.WriteString(fmt.Sprintf("%s    stat_prefix: %s\n", prefix, cfg.StatPrefix))
 	sb.WriteString(fmt.Sprintf("%s    internal_address_config: {}\n", prefix))
 
-	// HCM access_log filter: uses a single CEL expression for ALL scenarios.
-	//
-	// The CEL expression is pre-computed by the translator based on:
-	//   - deny-default + shadow: celHCMDenyOrShadow
-	//   - deny-default only:     celHCMDeny
-	//   - allow-default + shadow: celHCMShadow
-	//   - allow-default only:     (no access_log)
-	//
-	// This replaces the previous mix of response_flag_filter, metadata_filter,
-	// and or_filter with a single, unified CEL expression.
-	if cfg.AccessLogEnabled && cfg.AccessLogCEL != "" {
+	// [H3] Disable stream idle timeout. Envoy default is 5 minutes, which
+	// kills SSE, long-polling, streaming AI inference, and similar long-lived
+	// HTTP streams. Setting to 0s means "no timeout" — the upstream service
+	// and client manage connection lifetime. This is the correct behavior for
+	// a transparent security proxy that should not alter business semantics.
+	sb.WriteString(fmt.Sprintf("%s    stream_idle_timeout: 0s\n", prefix))
+
+	// [M1] Enable path normalization to prevent RBAC path-based rule bypass.
+	// Without these, attackers can use "/api/../admin" or "//api//v1" to
+	// evade path-matching DENY rules. Envoy defaults both to false.
+	sb.WriteString(fmt.Sprintf("%s    normalize_path: true\n", prefix))
+	sb.WriteString(fmt.Sprintf("%s    merge_slashes: true\n", prefix))
+
+	// HCM access_log: SEPARATE entries for deny and shadow CEL.
+	// Same rationale as listener-level: Envoy CEL || does not short-circuit
+	// properly when the left operand produces an evaluation error.
+	if cfg.AccessLogEnabled && (cfg.AccessLogDenyCEL != "" || cfg.AccessLogShadowCEL != "") {
 		sb.WriteString(fmt.Sprintf("%s    access_log:\n", prefix))
-		sb.WriteString(fmt.Sprintf("%s    - name: envoy.access_loggers.stdout\n", prefix))
-		sb.WriteString(fmt.Sprintf("%s      filter:\n", prefix))
-		sb.WriteString(fmt.Sprintf("%s        extension_filter:\n", prefix))
-		sb.WriteString(fmt.Sprintf("%s          name: envoy.access_loggers.extension_filters.cel\n", prefix))
-		sb.WriteString(fmt.Sprintf("%s          typed_config:\n", prefix))
-		sb.WriteString(fmt.Sprintf("%s            \"@type\": type.googleapis.com/envoy.extensions.access_loggers.filters.cel.v3.ExpressionFilter\n", prefix))
-		sb.WriteString(fmt.Sprintf("%s            expression: %s\n", prefix, yamlCEL(cfg.AccessLogCEL)))
-		sb.WriteString(fmt.Sprintf("%s      typed_config:\n", prefix))
-		sb.WriteString(fmt.Sprintf("%s        \"@type\": type.googleapis.com/envoy.extensions.access_loggers.stream.v3.StdoutAccessLog\n", prefix))
-		sb.WriteString(fmt.Sprintf("%s        log_format:\n", prefix))
-		sb.WriteString(fmt.Sprintf("%s          text_format_source:\n", prefix))
-		sb.WriteString(fmt.Sprintf("%s            inline_string: \"[%%START_TIME%%][L7] method=%%REQ(:METHOD)%% uri=%%REQ(:AUTHORITY)%%%%REQ(:PATH)%% code=%%RESPONSE_CODE%% dst=%%DOWNSTREAM_LOCAL_ADDRESS%% duration=%%DURATION%%ms reason=%%RESPONSE_CODE_DETAILS%%\\n\"\n", prefix))
+		if cfg.AccessLogDenyCEL != "" {
+			sb.WriteString(fmt.Sprintf("%s    - name: envoy.access_loggers.stdout\n", prefix))
+			sb.WriteString(fmt.Sprintf("%s      filter:\n", prefix))
+			sb.WriteString(fmt.Sprintf("%s        extension_filter:\n", prefix))
+			sb.WriteString(fmt.Sprintf("%s          name: envoy.access_loggers.extension_filters.cel\n", prefix))
+			sb.WriteString(fmt.Sprintf("%s          typed_config:\n", prefix))
+			sb.WriteString(fmt.Sprintf("%s            \"@type\": type.googleapis.com/envoy.extensions.access_loggers.filters.cel.v3.ExpressionFilter\n", prefix))
+			sb.WriteString(fmt.Sprintf("%s            expression: %s\n", prefix, yamlCEL(cfg.AccessLogDenyCEL)))
+			sb.WriteString(fmt.Sprintf("%s      typed_config:\n", prefix))
+			sb.WriteString(fmt.Sprintf("%s        \"@type\": type.googleapis.com/envoy.extensions.access_loggers.stream.v3.StdoutAccessLog\n", prefix))
+			sb.WriteString(fmt.Sprintf("%s        log_format:\n", prefix))
+			sb.WriteString(fmt.Sprintf("%s          text_format_source:\n", prefix))
+			sb.WriteString(fmt.Sprintf("%s            inline_string: \"[%%START_TIME%%][L7][%%FILTER_CHAIN_NAME%%] method=%%REQ(:METHOD)%% uri=%%REQ(:AUTHORITY)%%%%REQ(:PATH)%% code=%%RESPONSE_CODE%% dst=%%DOWNSTREAM_LOCAL_ADDRESS%% duration=%%DURATION%%ms reason=%%RESPONSE_CODE_DETAILS%%\\n\"\n", prefix))
+		}
+		if cfg.AccessLogShadowCEL != "" {
+			sb.WriteString(fmt.Sprintf("%s    - name: envoy.access_loggers.stdout\n", prefix))
+			sb.WriteString(fmt.Sprintf("%s      filter:\n", prefix))
+			sb.WriteString(fmt.Sprintf("%s        extension_filter:\n", prefix))
+			sb.WriteString(fmt.Sprintf("%s          name: envoy.access_loggers.extension_filters.cel\n", prefix))
+			sb.WriteString(fmt.Sprintf("%s          typed_config:\n", prefix))
+			sb.WriteString(fmt.Sprintf("%s            \"@type\": type.googleapis.com/envoy.extensions.access_loggers.filters.cel.v3.ExpressionFilter\n", prefix))
+			sb.WriteString(fmt.Sprintf("%s            expression: %s\n", prefix, yamlCEL(cfg.AccessLogShadowCEL)))
+			sb.WriteString(fmt.Sprintf("%s      typed_config:\n", prefix))
+			sb.WriteString(fmt.Sprintf("%s        \"@type\": type.googleapis.com/envoy.extensions.access_loggers.stream.v3.StdoutAccessLog\n", prefix))
+			sb.WriteString(fmt.Sprintf("%s        log_format:\n", prefix))
+			sb.WriteString(fmt.Sprintf("%s          text_format_source:\n", prefix))
+			sb.WriteString(fmt.Sprintf("%s            inline_string: \"[%%START_TIME%%][L7][%%FILTER_CHAIN_NAME%%] method=%%REQ(:METHOD)%% uri=%%REQ(:AUTHORITY)%%%%REQ(:PATH)%% code=%%RESPONSE_CODE%% dst=%%DOWNSTREAM_LOCAL_ADDRESS%% duration=%%DURATION%%ms reason=%%RESPONSE_CODE_DETAILS%%\\n\"\n", prefix))
+		}
 	}
 
 	// Route config
@@ -395,6 +463,9 @@ func renderHTTPConnManagerYAML(f *NetworkFilter, indent int) string {
 				sb.WriteString(fmt.Sprintf("%s            prefix: \"%s\"\n", prefix, r.Match.Prefix))
 				sb.WriteString(fmt.Sprintf("%s          route:\n", prefix))
 				sb.WriteString(fmt.Sprintf("%s            cluster: %s\n", prefix, r.Action.Cluster))
+				if r.Action.Timeout != "" {
+					sb.WriteString(fmt.Sprintf("%s            timeout: %s\n", prefix, r.Action.Timeout))
+				}
 			}
 		}
 	}
@@ -541,9 +612,20 @@ func renderPermissionRuleYAML(rule PermissionRule, indent int, rbacType string) 
 		if exact, ok := headerVal["exact_match"]; ok {
 			sb.WriteString(fmt.Sprintf("%s    string_match:\n", prefix))
 			sb.WriteString(fmt.Sprintf("%s      exact: \"%s\"\n", prefix, exact))
+		} else if prefix_, ok := headerVal["prefix_match"]; ok {
+			sb.WriteString(fmt.Sprintf("%s    string_match:\n", prefix))
+			sb.WriteString(fmt.Sprintf("%s      prefix: \"%s\"\n", prefix, prefix_))
 		} else if suffix, ok := headerVal["suffix_match"]; ok {
 			sb.WriteString(fmt.Sprintf("%s    string_match:\n", prefix))
 			sb.WriteString(fmt.Sprintf("%s      suffix: \"%s\"\n", prefix, suffix))
+		} else if safeRegex, ok := headerVal["safe_regex_match"]; ok {
+			sb.WriteString(fmt.Sprintf("%s    string_match:\n", prefix))
+			sb.WriteString(fmt.Sprintf("%s      safe_regex:\n", prefix))
+			// Double backslashes for YAML double-quoted string: the YAML
+			// parser will unescape \\ → \ so Envoy's RE2 sees the
+			// original regex with single backslashes (e.g., \d → \d).
+			yamlSafe := strings.ReplaceAll(safeRegex, "\\", "\\\\")
+			sb.WriteString(fmt.Sprintf("%s        regex: \"%s\"\n", prefix, yamlSafe))
 		}
 
 	case "url_path":
@@ -554,6 +636,14 @@ func renderPermissionRuleYAML(rule PermissionRule, indent int, rbacType string) 
 			sb.WriteString(fmt.Sprintf("%s      exact: \"%s\"\n", prefix, exact))
 		} else if pfx, ok := pathVal["prefix"]; ok {
 			sb.WriteString(fmt.Sprintf("%s      prefix: \"%s\"\n", prefix, pfx))
+		}
+
+	case "or_rules":
+		subRules := rule.Value.([]PermissionRule)
+		sb.WriteString(fmt.Sprintf("%s- or_rules:\n", prefix))
+		sb.WriteString(fmt.Sprintf("%s    rules:\n", prefix))
+		for _, sub := range subRules {
+			sb.WriteString(renderPermissionRuleYAML(sub, indent+4, rbacType))
 		}
 	}
 
@@ -585,20 +675,43 @@ func renderClustersYAML(version int64, mitmEnabled bool) string {
 	sb.WriteString("  type: ORIGINAL_DST\n")
 	sb.WriteString("  lb_policy: CLUSTER_PROVIDED\n")
 	sb.WriteString("  connect_timeout: 10s\n")
+	// [H4] Set high circuit breaker thresholds. Envoy defaults to 1024 for
+	// max_connections / max_pending_requests / max_requests. In a sidecar
+	// proxy scenario these limits are too low for high-throughput services
+	// and can cause spurious 503 errors that look like RBAC rejections.
+	sb.WriteString("  circuit_breakers:\n")
+	sb.WriteString("    thresholds:\n")
+	sb.WriteString("    - max_connections: 1000000\n")
+	sb.WriteString("      max_pending_requests: 1000000\n")
+	sb.WriteString("      max_requests: 1000000\n")
+	sb.WriteString("      max_retries: 3\n")
 	if mitmEnabled {
 		sb.WriteString("- \"@type\": type.googleapis.com/envoy.config.cluster.v3.Cluster\n")
 		sb.WriteString("  name: mitm_upstream\n")
 		sb.WriteString("  type: ORIGINAL_DST\n")
 		sb.WriteString("  lb_policy: CLUSTER_PROVIDED\n")
 		sb.WriteString("  connect_timeout: 10s\n")
+		// [H4] Same high circuit breaker thresholds as original_dst.
+		sb.WriteString("  circuit_breakers:\n")
+		sb.WriteString("    thresholds:\n")
+		sb.WriteString("    - max_connections: 1000000\n")
+		sb.WriteString("      max_pending_requests: 1000000\n")
+		sb.WriteString("      max_requests: 1000000\n")
+		sb.WriteString("      max_retries: 3\n")
 		sb.WriteString("  typed_extension_protocol_options:\n")
 		sb.WriteString("    envoy.extensions.upstreams.http.v3.HttpProtocolOptions:\n")
 		sb.WriteString("      \"@type\": type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions\n")
 		sb.WriteString("      upstream_http_protocol_options:\n")
 		sb.WriteString("        auto_sni: true\n")
 		sb.WriteString("        auto_san_validation: true\n")
-		sb.WriteString("      explicit_http_config:\n")
+		// [H1] Use auto_config instead of explicit_http_config to support both
+		// HTTP/1.1 and HTTP/2 upstream connections. explicit_http_config with
+		// http_protocol_options pins the upstream to HTTP/1.1, breaking gRPC
+		// (which requires HTTP/2). auto_config lets Envoy choose the protocol
+		// based on upstream ALPN negotiation result.
+		sb.WriteString("      auto_config:\n")
 		sb.WriteString("        http_protocol_options: {}\n")
+		sb.WriteString("        http2_protocol_options: {}\n")
 		sb.WriteString("  transport_socket:\n")
 		sb.WriteString("    name: envoy.transport_sockets.tls\n")
 		sb.WriteString("    typed_config:\n")

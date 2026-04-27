@@ -708,7 +708,7 @@ func TestDenyDefaultAutoAudit(t *testing.T) {
 	assertContains(t, lds, "ExpressionFilter", "CEL ExpressionFilter type")
 	assertContains(t, lds, "connection.termination_details", "listener CEL checks termination_details")
 	// Listener-level access_log for denied connections
-	assertContains(t, lds, "[L4] dst=", "listener-level access_log format")
+	assertContains(t, lds, "[L4][%FILTER_CHAIN_NAME%] dst=", "listener-level access_log format")
 	// HCM access_log uses CEL on response.code_details
 	assertContains(t, lds, "REQ(:METHOD)", "HCM access_log format present")
 	assertContains(t, lds, "rbac_access_denied", "CEL matches rbac_access_denied")
@@ -829,6 +829,8 @@ func TestAllowDefaultNoAccessLog(t *testing.T) {
 	assertNotContains(t, lds, "shadow_rules", "no shadow_rules when no audit")
 	// Deny RBAC should still be present
 	assertContains(t, lds, "action: DENY", "DENY RBAC present")
+	assertNotContains(t, lds, "extension_filter", "no CEL filter without audit")
+	assertNotContains(t, lds, "UAEX", "no UAEX without audit")
 }
 
 // TestAllowDefaultDenyWithAudit verifies that deny+audit enables access_log and
@@ -861,25 +863,6 @@ func TestAllowDefaultDenyWithAudit(t *testing.T) {
 	assertNotContains(t, lds, "or_filter", "no or_filter in v4")
 	assertNotContains(t, lds, "metadata_filter", "no metadata_filter in v4")
 	assertNotContains(t, lds, "response_flag_filter", "no response_flag_filter in v4")
-}
-
-// TestAllowDefaultDenyNoAudit verifies that deny without audit doesn't enable
-// access_log when there are no other audit rules.
-func TestAllowDefaultDenyNoAudit(t *testing.T) {
-	egress := &varmor.NetworkProxyEgress{
-		DefaultAction: "allow",
-		Rules: []varmor.NetworkProxyEgressRule{
-			{Qualifiers: []string{"deny"}, CIDR: "169.254.0.0/16"},
-		},
-	}
-	result, err := TranslateEgressRules(egress, 1, 15001, nil)
-	if err != nil {
-		t.Fatalf("TranslateEgressRules failed: %v", err)
-	}
-
-	lds := result.LDS
-	// deny without audit in allow-default → no access_log
-	assertNotContains(t, lds, "access_log", "no access_log for deny without audit in allow-default")
 }
 
 // TestAllowDefaultAuditOnly verifies that "audit" alone in allow-default mode
@@ -1133,7 +1116,7 @@ func TestTCPProxyNoAccessLog(t *testing.T) {
 	// The old "TCP dst=" format should not appear
 	assertNotContains(t, lds, "TCP dst=", "no tcp_proxy access_log in v4")
 	// Listener and HCM should still have access_log
-	assertContains(t, lds, "[L4] dst=", "listener access_log present")
+	assertContains(t, lds, "[L4][%FILTER_CHAIN_NAME%] dst=", "listener access_log present")
 	assertContains(t, lds, "REQ(:METHOD)", "HCM access_log present")
 }
 
@@ -1165,7 +1148,7 @@ func TestDenyDefaultNoShadowCELDenyOnly(t *testing.T) {
 
 	// Listener-level uses CEL deny check
 	assertContains(t, lds, "connection.termination_details", "listener CEL deny check")
-	assertContains(t, lds, "[L4] dst=", "listener-level access_log format")
+	assertContains(t, lds, "[L4][%FILTER_CHAIN_NAME%] dst=", "listener-level access_log format")
 
 	// HCM access_log uses CEL deny check
 	assertContains(t, lds, "extension_filter", "CEL extension_filter")
@@ -1546,7 +1529,7 @@ func TestDenyDefaultNoShadowHCMOnlyCEL(t *testing.T) {
 	assertContains(t, lds, "connection.termination_details", "listener CEL deny check")
 
 	// Access log formats
-	assertContains(t, lds, "[L4] dst=", "listener-level access_log format")
+	assertContains(t, lds, "[L4][%FILTER_CHAIN_NAME%] dst=", "listener-level access_log format")
 	assertContains(t, lds, "REQ(:METHOD)", "HCM access_log format")
 
 	// No legacy filters
@@ -1592,30 +1575,10 @@ func TestDenyDefaultWithShadowHCMCELDenyOrShadow(t *testing.T) {
 	assertNotContains(t, lds, "TCP dst=", "no tcp_proxy access_log in v4")
 
 	// Listener and HCM access_log present
-	assertContains(t, lds, "[L4] dst=", "listener access_log present")
+	assertContains(t, lds, "[L4][%FILTER_CHAIN_NAME%] dst=", "listener access_log present")
 	assertContains(t, lds, "REQ(:METHOD)", "HCM access_log present")
 }
 
-// TestAllowDefaultNoShadowNoAccessLog verifies that allow-default without
-// audit qualifiers produces NO access_log at any level.
-func TestAllowDefaultNoShadowNoAccessLog(t *testing.T) {
-	egress := &varmor.NetworkProxyEgress{
-		DefaultAction: "allow",
-		Rules: []varmor.NetworkProxyEgressRule{
-			{Qualifiers: []string{"deny"}, CIDR: "169.254.0.0/16"},
-			{Qualifiers: []string{"allow"}, IP: "10.0.0.1"},
-		},
-	}
-	result, err := TranslateEgressRules(egress, 1, 15001, nil)
-	if err != nil {
-		t.Fatalf("TranslateEgressRules failed: %v", err)
-	}
-
-	lds := result.LDS
-	assertNotContains(t, lds, "access_log", "no access_log anywhere without audit")
-	assertNotContains(t, lds, "extension_filter", "no CEL filter without audit")
-	assertNotContains(t, lds, "UAEX", "no UAEX")
-}
 
 // TestAllowDefaultWithShadowCELOnly verifies that allow-default with
 // audit qualifiers uses CEL shadow check only at both listener and HCM levels.
@@ -1808,7 +1771,7 @@ func TestDenyDefaultNoRulesAtAll(t *testing.T) {
 	}
 
 	// Listener access_log must exist (defaultAction=deny → auto-audit all denies)
-	assertContains(t, result.LDS, "[L4] dst=", "listener access_log format must be present")
+	assertContains(t, result.LDS, "[L4][%FILTER_CHAIN_NAME%] dst=", "listener access_log format must be present")
 }
 
 // TestAllowDefaultTCPChainNoRBAC verifies that when defaultAction=allow,
@@ -1885,7 +1848,7 @@ func TestDenyDefaultHTTPOnlyRules(t *testing.T) {
 	tlsSection := result.LDS[tlsChainIdx:httpChainIdx]
 	assertContains(t, tlsSection, "tls_allow_rbac", "TLS chain must have allow RBAC")
 	assertContains(t, tlsSection, "ark.cn-beijing.volces.com", "TLS chain must have SNI rules")
-	assertContains(t, tlsSection, "tls_audit_rbac", "TLS chain must have shadow RBAC for audit")
+	assertContains(t, tlsSection, "shadow_rules:", "TLS chain must have shadow_rules merged into enforcement RBAC filter")
 }
 
 // TestDenyDefaultWithL4EgressRulesTCPChainHasAllowRBAC verifies that when
@@ -2051,4 +2014,171 @@ func TestIPWithPortRangeAndExactPort(t *testing.T) {
 	assertContains(t, result.LDS, "destination_port_range:", "must contain port range")
 	assertContains(t, result.LDS, "start: 8000", "port range start")
 	assertContains(t, result.LDS, "end: 9001", "port range end (exclusive)")
+}
+
+// =============================================================================
+// Anti-Domain-Fronting Tests
+// =============================================================================
+
+// TestAntiDomainFronting_NoCatchAllVirtualHost verifies that the MITM chain
+// does NOT emit a catch-all "*" virtual_host. Without it, Envoy's HCM returns
+// 404 when :authority doesn't match any MITM domain — blocking domain fronting
+// attacks where SNI=legitimate but Host=evil.
+func TestAntiDomainFronting_NoCatchAllVirtualHost(t *testing.T) {
+	egress := &varmor.NetworkProxyEgress{
+		DefaultAction: "allow",
+		HTTPRules: []varmor.NetworkProxyHTTPRule{
+			{
+				Qualifiers:  []string{"audit"},
+				Description: "audit openai",
+				Match:       varmor.HTTPMatch{Hosts: []string{"api.openai.com"}},
+			},
+		},
+	}
+	mitm := &MITMInput{
+		Domains: []string{"api.openai.com", "httpbin.org"},
+		HeadersByDomain: map[string][]HeaderToAdd{
+			"api.openai.com": {{Name: "Authorization", Value: "Bearer sk-test"}},
+		},
+	}
+
+	result, err := TranslateEgressRules(egress, 1, 15001, mitm)
+	if err != nil {
+		t.Fatalf("TranslateEgressRules failed: %v", err)
+	}
+
+	// Must NOT contain catch-all VH
+	assertNotContains(t, result.LDS, "mitm_vh_default", "LDS must not contain mitm_vh_default VirtualHost")
+	// Note: we do NOT assert absence of `"*"` globally because the HTTP chain
+	// has its own allow_any VH with domains: ["*"]. The anti-fronting check is
+	// specifically that no MITM VH uses "*" as a domain.
+
+	// Must contain per-domain VHs
+	assertContains(t, result.LDS, "api.openai.com", "LDS must contain api.openai.com VH")
+	assertContains(t, result.LDS, "httpbin.org", "LDS must contain httpbin.org VH")
+
+	// Header injection only on the correct domain
+	assertContains(t, result.LDS, "Authorization", "LDS must contain Authorization header injection")
+	assertContains(t, result.LDS, "Bearer sk-test", "LDS must contain the API key value")
+}
+
+// TestAntiDomainFronting_SingleDomain verifies anti-fronting with a single
+// MITM domain — the simplest configuration.
+func TestAntiDomainFronting_SingleDomain(t *testing.T) {
+	egress := &varmor.NetworkProxyEgress{
+		DefaultAction: "allow",
+	}
+	mitm := &MITMInput{
+		Domains:         []string{"httpbin.org"},
+		HeadersByDomain: map[string][]HeaderToAdd{},
+	}
+
+	result, err := TranslateEgressRules(egress, 1, 15001, mitm)
+	if err != nil {
+		t.Fatalf("TranslateEgressRules failed: %v", err)
+	}
+
+	assertNotContains(t, result.LDS, "mitm_vh_default", "single domain must not have catch-all VH")
+	assertContains(t, result.LDS, "httpbin.org", "must have httpbin.org VH")
+	assertContains(t, result.LDS, `"httpbin.org:*"`, "must have httpbin.org:* for port-variant matching")
+}
+
+// TestAntiDomainFronting_IPDomain verifies that bare IP MITM domains produce
+// a VirtualHost matching the IP as :authority (no catch-all).
+func TestAntiDomainFronting_IPDomain(t *testing.T) {
+	egress := &varmor.NetworkProxyEgress{
+		DefaultAction: "allow",
+	}
+	mitm := &MITMInput{
+		Domains: []string{"10.0.0.1"},
+		HeadersByDomain: map[string][]HeaderToAdd{
+			"10.0.0.1": {{Name: "X-Token", Value: "secret"}},
+		},
+	}
+
+	result, err := TranslateEgressRules(egress, 1, 15001, mitm)
+	if err != nil {
+		t.Fatalf("TranslateEgressRules failed: %v", err)
+	}
+
+	assertNotContains(t, result.LDS, "mitm_vh_default", "IP domain must not have catch-all VH")
+	assertContains(t, result.LDS, "10.0.0.1", "must have VH matching the IP as :authority")
+	assertContains(t, result.LDS, "X-Token", "must inject header for IP domain")
+}
+
+// TestAntiDomainFronting_CIDRSingleHost verifies that a /32 CIDR emits a
+// VirtualHost matching the single IP.
+func TestAntiDomainFronting_CIDRSingleHost(t *testing.T) {
+	egress := &varmor.NetworkProxyEgress{
+		DefaultAction: "allow",
+	}
+	mitm := &MITMInput{
+		Domains: []string{"192.168.1.100/32"},
+		HeadersByDomain: map[string][]HeaderToAdd{
+			"192.168.1.100/32": {{Name: "X-Key", Value: "val"}},
+		},
+	}
+
+	result, err := TranslateEgressRules(egress, 1, 15001, mitm)
+	if err != nil {
+		t.Fatalf("TranslateEgressRules failed: %v", err)
+	}
+
+	assertNotContains(t, result.LDS, "mitm_vh_default", "/32 CIDR must not have catch-all VH")
+	assertContains(t, result.LDS, "192.168.1.100", "must have VH matching the /32 IP")
+}
+
+// TestAntiDomainFronting_WideCIDRNoVH verifies that a wide CIDR (e.g., /24)
+// is rejected at validation time. Wide CIDRs in mitm.domains would silently
+// break all TLS connections in the range (terminated → no VH → 404), so the
+// translator refuses them up front with a clear error message.
+func TestAntiDomainFronting_WideCIDRNoVH(t *testing.T) {
+	egress := &varmor.NetworkProxyEgress{
+		DefaultAction: "allow",
+	}
+	mitm := &MITMInput{
+		Domains:         []string{"10.0.0.0/24"},
+		HeadersByDomain: map[string][]HeaderToAdd{},
+	}
+
+	_, err := TranslateEgressRules(egress, 1, 15001, mitm)
+	if err == nil {
+		t.Fatal("expected TranslateEgressRules to reject /24 CIDR, got nil error")
+	}
+	if !strings.Contains(err.Error(), "/24") {
+		t.Fatalf("expected error mentioning /24, got: %v", err)
+	}
+}
+
+// TestAntiDomainFronting_MixedDomainsAndIPs verifies the anti-fronting
+// behaviour with a mix of DNS names and IP addresses — no catch-all VH,
+// each entry gets its own VH.
+func TestAntiDomainFronting_MixedDomainsAndIPs(t *testing.T) {
+	egress := &varmor.NetworkProxyEgress{
+		DefaultAction: "deny",
+		HTTPRules: []varmor.NetworkProxyHTTPRule{
+			{
+				Qualifiers: []string{"allow"},
+				Match:      varmor.HTTPMatch{Hosts: []string{"api.openai.com"}},
+			},
+		},
+	}
+	mitm := &MITMInput{
+		Domains: []string{"api.openai.com", "10.0.0.1"},
+		HeadersByDomain: map[string][]HeaderToAdd{
+			"api.openai.com": {{Name: "Authorization", Value: "Bearer key1"}},
+			"10.0.0.1":       {{Name: "X-Token", Value: "key2"}},
+		},
+	}
+
+	result, err := TranslateEgressRules(egress, 1, 15001, mitm)
+	if err != nil {
+		t.Fatalf("TranslateEgressRules failed: %v", err)
+	}
+
+	assertNotContains(t, result.LDS, "mitm_vh_default", "mixed config must not have catch-all VH")
+	assertContains(t, result.LDS, "api.openai.com", "must have DNS domain VH")
+	assertContains(t, result.LDS, "10.0.0.1", "must have IP domain VH")
+	assertContains(t, result.LDS, "Authorization", "must inject Authorization for openai")
+	assertContains(t, result.LDS, "X-Token", "must inject X-Token for IP")
 }

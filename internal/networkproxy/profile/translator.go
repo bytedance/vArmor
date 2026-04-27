@@ -74,8 +74,17 @@ type NetworkFilter struct {
 type TCPProxyConfig struct {
 	StatPrefix string
 	Cluster    string
-	// Note: tcp_proxy access_log is no longer rendered in v4 (all-CEL architecture).
-	// All audit logging is handled at listener-level and HCM-level via CEL.
+
+	// UpstreamConnectMode controls when tcp_proxy establishes the upstream connection.
+	// Default (empty/"IMMEDIATE"): connect upstream immediately in onNewConnection().
+	// "ON_DOWNSTREAM_DATA": wait for downstream data before connecting upstream,
+	// allowing preceding network filters (e.g. RBAC) to evaluate in onData() first.
+	// Requires Envoy >= 1.34. See https://github.com/envoyproxy/envoy/issues/9023.
+	UpstreamConnectMode string
+	// MaxEarlyDataBytes is required when UpstreamConnectMode is ON_DOWNSTREAM_DATA.
+	// It specifies the maximum number of bytes to buffer from downstream before
+	// the upstream connection is established.
+	MaxEarlyDataBytes int
 }
 
 // ============================================================================
@@ -129,14 +138,12 @@ type HTTPConnManagerConfig struct {
 	HTTPFilters      []HTTPFilter
 	RouteConfig      *RouteConfig
 	AccessLogEnabled bool
-	// AccessLogCEL is the pre-computed CEL expression for HCM access_log filtering.
-	// Empty string means no access_log should be rendered.
-	// Possible values:
-	//   - celHCMDenyOrShadow: deny-default with shadow rules
-	//   - celHCMDeny: deny-default without shadow rules
-	//   - celHCMShadow: allow-default with shadow rules
-	//   - "": allow-default without shadow rules (no access_log)
-	AccessLogCEL string
+	// AccessLogDenyCEL is the CEL expression for deny detection in HCM access_log.
+	// Empty when defaultAction != deny.
+	AccessLogDenyCEL string
+	// AccessLogShadowCEL is the CEL expression for shadow/audit detection in HCM access_log.
+	// Empty when no shadow rules exist.
+	AccessLogShadowCEL string
 }
 
 type RouteConfig struct {
@@ -175,6 +182,7 @@ type RouteMatch struct {
 
 type RouteAction struct {
 	Cluster string
+	Timeout string // "0s" to disable route timeout; empty = Envoy default (15s)
 }
 
 // ============================================================================
@@ -258,6 +266,13 @@ func wildcardToSuffix(domain string) string {
 	return domain[1:] // "*.openai.com" -> ".openai.com"
 }
 
+// regexEscapeHost escapes regex metacharacters in a hostname or IP so it
+// can be safely embedded in a RE2 safe_regex pattern. The only metachar
+// that appears in valid DNS names and IPv4 literals is '.'.
+func regexEscapeHost(host string) string {
+	return strings.ReplaceAll(host, ".", "\\.")
+}
+
 // ============================================================================
 // AuditConfig carries audit-related information to chain builders.
 // ============================================================================
@@ -296,30 +311,30 @@ func (a *AuditConfig) HasShadowHTTPRules() bool {
 // CEL Expression Selection
 // ============================================================================
 
-// computeListenerCEL returns the CEL expression for listener-level access_log.
-// Returns empty string if no listener access_log is needed.
-func computeListenerCEL(defaultDeny bool, hasShadowEgressRules bool) string {
-	if defaultDeny && hasShadowEgressRules {
-		return celListenerDenyOrShadow
-	} else if defaultDeny {
-		return celListenerDeny
-	} else if hasShadowEgressRules {
-		return celListenerShadow
+// computeListenerCELs returns the deny and shadow CEL expressions for listener-level access_log.
+// Each is returned separately so the renderer can emit them as independent access_log entries,
+// avoiding the CEL || short-circuit failure when connection.termination_details is null.
+func computeListenerCELs(defaultDeny bool, hasShadowEgressRules bool) (denyCEL, shadowCEL string) {
+	if defaultDeny {
+		denyCEL = celListenerDeny
 	}
-	return ""
+	if hasShadowEgressRules {
+		shadowCEL = celListenerShadow
+	}
+	return
 }
 
-// computeHCMCEL returns the CEL expression for HCM-level access_log.
-// Returns empty string if no HCM access_log is needed.
-func computeHCMCEL(defaultDeny bool, hasShadowRules bool) string {
-	if defaultDeny && hasShadowRules {
-		return celHCMDenyOrShadow
-	} else if defaultDeny {
-		return celHCMDeny
-	} else if hasShadowRules {
-		return celHCMShadow
+// computeHCMCELs returns the deny and shadow CEL expressions for HCM-level access_log.
+// Each is returned separately so the renderer can emit them as independent access_log entries,
+// avoiding the CEL || short-circuit failure.
+func computeHCMCELs(defaultDeny bool, hasShadowRules bool) (denyCEL, shadowCEL string) {
+	if defaultDeny {
+		denyCEL = celHCMDeny
 	}
-	return ""
+	if hasShadowRules {
+		shadowCEL = celHCMShadow
+	}
+	return
 }
 
 // ============================================================================
@@ -351,10 +366,34 @@ func TranslateEgressRules(egress *varmor.NetworkProxyEgress, version int64, prox
 	cls := classifyEgress(egress)
 
 	// Phase 1 chains (TLS passthrough, HTTP, TCP default).
+	//
+	// When MITM is enabled, filter out dead rules from tls_chain inputs.
+	// MITM chains (mitm_tls_dns_chain / mitm_tls_ip_chain) use more-specific
+	// filter_chain_match criteria (server_names / prefix_ranges) that steal
+	// TLS traffic from tls_chain for targeted domains/IPs. Any RBAC rules
+	// for those targets in tls_chain would never execute.
+	tlsDenyEgress := cls.denyEgressRules
+	tlsAllowEgress := cls.allowEgressRules
+	tlsDenyHTTP := cls.denyHTTPRules
+	tlsAllowHTTP := cls.allowHTTPRules
+	tlsAuditCfg := cls.auditCfg
+	if mitm.Enabled() {
+		dnsSet, ipSet := buildMITMDomainSet(mitm.Domains)
+		tlsDenyEgress = filterEgressRulesForTLSChain(cls.denyEgressRules, ipSet)
+		tlsAllowEgress = filterEgressRulesForTLSChain(cls.allowEgressRules, ipSet)
+		tlsDenyHTTP = filterHTTPRulesForTLSChain(cls.denyHTTPRules, dnsSet, ipSet)
+		tlsAllowHTTP = filterHTTPRulesForTLSChain(cls.allowHTTPRules, dnsSet, ipSet)
+		tlsAuditCfg = AuditConfig{
+			AccessLogEnabled:       cls.auditCfg.AccessLogEnabled,
+			DefaultDeny:            cls.auditCfg.DefaultDeny,
+			AuditShadowEgressRules: filterEgressRulesForTLSChain(cls.auditCfg.AuditShadowEgressRules, ipSet),
+			AuditShadowHTTPRules:   filterHTTPRulesForTLSChain(cls.auditCfg.AuditShadowHTTPRules, dnsSet, ipSet),
+		}
+	}
 	tlsChain := buildTLSChain(cls.defaultDeny,
-		cls.denyEgressRules, cls.allowEgressRules,
-		cls.denyHTTPRules, cls.allowHTTPRules,
-		cls.auditCfg)
+		tlsDenyEgress, tlsAllowEgress,
+		tlsDenyHTTP, tlsAllowHTTP,
+		tlsAuditCfg)
 	httpChain := buildHTTPChain(cls.defaultDeny,
 		cls.denyEgressRules, cls.allowEgressRules,
 		cls.denyHTTPRules, cls.allowHTTPRules,
@@ -362,6 +401,11 @@ func TranslateEgressRules(egress *varmor.NetworkProxyEgress, version int64, prox
 	tcpChain := buildTCPDefaultChain(cls.defaultDeny,
 		cls.denyEgressRules, cls.allowEgressRules,
 		cls.auditCfg)
+
+	// Validate MITM config before building chains.
+	if err := mitm.Validate(); err != nil {
+		return nil, err
+	}
 
 	// Optional MITM chains -- prepended to the filter-chain list when
 	// a non-empty MITMInput is supplied.
@@ -373,11 +417,11 @@ func TranslateEgressRules(egress *varmor.NetworkProxyEgress, version int64, prox
 	// Listener-level CEL (Network RBAC deny detection + shadow metadata).
 	// Uses HasShadowRules (both egress and HTTP) because HTTP rules can
 	// generate SNI-based network RBAC shadow rules on the TLS chain.
-	listenerCEL := computeListenerCEL(cls.defaultDeny, cls.auditCfg.HasShadowRules())
+	listenerDenyCEL, listenerShadowCEL := computeListenerCELs(cls.defaultDeny, cls.auditCfg.HasShadowRules())
 
 	lds := renderListenerYAML(mitmChains, tlsChain, httpChain, tcpChain,
 		version, proxyPort,
-		cls.auditCfg.AccessLogEnabled, listenerCEL)
+		cls.auditCfg.AccessLogEnabled, listenerDenyCEL, listenerShadowCEL)
 	cds := renderClustersYAML(version, mitm.Enabled())
 
 	return &TranslateResult{LDS: lds, CDS: cds}, nil
@@ -400,57 +444,93 @@ func buildTLSChain(defaultDeny bool,
 		},
 	}
 
-	// Shadow RBAC must be placed before enforcement RBAC in the network filter chain.
-	// If enforcement RBAC denies a connection, subsequent network filters won't execute,
-	// so shadow metadata would never be written. Same reasoning as the HTTP chain.
+	// Compute RBAC rule payloads.
 	auditShadowRBAC := buildNetworkRBACForTLS(RBACActionAllow, auditCfg.AuditShadowEgressRules, auditCfg.AuditShadowHTTPRules)
-	if auditShadowRBAC != nil {
-		chain.Filters = append(chain.Filters, NetworkFilter{
-			Name: "envoy.filters.network.rbac",
-			TypedConfig: &RBACConfig{
-				StatPrefix:  "tls_audit_rbac",
-				ShadowRules: auditShadowRBAC,
-			},
-		})
-	}
-
-	// Deny RBAC
 	denyRBAC := buildNetworkRBACForTLS(RBACActionDeny, denyEgressRules, denyHTTPRules)
-	if denyRBAC != nil {
-		chain.Filters = append(chain.Filters, NetworkFilter{
-			Name: "envoy.filters.network.rbac",
-			TypedConfig: &RBACConfig{
-				StatPrefix: "tls_deny_rbac",
-				Rules:      denyRBAC,
-			},
-		})
-	}
-
-	// Allow RBAC (only when defaultAction=deny)
+	var allowRBAC *RBACRules
 	if defaultDeny {
-		allowRBAC := buildNetworkRBACForTLS(RBACActionAllow, allowEgressRules, allowHTTPRules)
+		allowRBAC = buildNetworkRBACForTLS(RBACActionAllow, allowEgressRules, allowHTTPRules)
 		if allowRBAC == nil {
-			// No allow rules for TLS → deny all TLS (ALLOW with empty policies = deny all)
+			// No allow rules for TLS -> deny all TLS (ALLOW with empty policies = deny all)
 			allowRBAC = &RBACRules{
 				Action:   RBACActionAllow,
 				Policies: map[string]*RBACPolicy{},
 			}
 		}
+	}
+
+	// Merge shadow_rules into enforcement RBAC filter instances.
+	//
+	// Envoy <= v1.33 silently skips all but the first
+	// envoy.filters.network.rbac instance in a filter chain, so we must
+	// minimise the number of RBAC filter instances.
+	//
+	// Strategy:
+	//   deny+allow -> shadow on deny filter (first); allow stays separate
+	//   deny only  -> shadow on deny filter
+	//   allow only -> shadow on allow filter
+	//   shadow only -> permissive rules + shadow_rules in one filter
+	//   nothing    -> no RBAC filter
+	//
+	// Within a single filter instance Envoy always evaluates shadow_rules
+	// before rules, so audit metadata is written even when rules denies.
+	if denyRBAC != nil {
 		chain.Filters = append(chain.Filters, NetworkFilter{
 			Name: "envoy.filters.network.rbac",
 			TypedConfig: &RBACConfig{
-				StatPrefix: "tls_allow_rbac",
-				Rules:      allowRBAC,
+				StatPrefix:  "tls_deny_rbac",
+				Rules:       denyRBAC,
+				ShadowRules: auditShadowRBAC, // may be nil
+			},
+		})
+		if allowRBAC != nil {
+			chain.Filters = append(chain.Filters, NetworkFilter{
+				Name: "envoy.filters.network.rbac",
+				TypedConfig: &RBACConfig{
+					StatPrefix: "tls_allow_rbac",
+					Rules:      allowRBAC,
+				},
+			})
+		}
+	} else if allowRBAC != nil {
+		chain.Filters = append(chain.Filters, NetworkFilter{
+			Name: "envoy.filters.network.rbac",
+			TypedConfig: &RBACConfig{
+				StatPrefix:  "tls_allow_rbac",
+				Rules:       allowRBAC,
+				ShadowRules: auditShadowRBAC, // may be nil
+			},
+		})
+	} else if auditShadowRBAC != nil {
+		// Shadow-only: no enforcement rules at all.
+		// Create a permissive RBAC (ALLOW + allow_all policy) so the filter
+		// executes and writes shadow metadata without blocking any traffic.
+		chain.Filters = append(chain.Filters, NetworkFilter{
+			Name: "envoy.filters.network.rbac",
+			TypedConfig: &RBACConfig{
+				StatPrefix: "tls_audit_rbac",
+				Rules: &RBACRules{
+					Action: RBACActionAllow,
+					Policies: map[string]*RBACPolicy{
+						"allow_all": {
+							Permissions: []Permission{{AndRules: []PermissionRule{{Type: "any", Value: true}}}},
+							Principals:  []Principal{{Any: true}},
+						},
+					},
+				},
+				ShadowRules: auditShadowRBAC,
 			},
 		})
 	}
 
-	// tcp_proxy → original_dst cluster (no access_log — handled at listener level)
+	// tcp_proxy -> original_dst cluster (no access_log -- handled at listener level)
 	chain.Filters = append(chain.Filters, NetworkFilter{
 		Name: "envoy.filters.network.tcp_proxy",
 		TypedConfig: &TCPProxyConfig{
-			StatPrefix: "tls_passthrough",
-			Cluster:    clusterName,
+			StatPrefix:          "tls_passthrough",
+			Cluster:             clusterName,
+			UpstreamConnectMode: "ON_DOWNSTREAM_DATA",
+			MaxEarlyDataBytes:   8192,
 		},
 	})
 
@@ -561,15 +641,16 @@ func buildHTTPChain(defaultDeny bool,
 	})
 
 	// Compute HCM CEL expression
-	hcmCEL := computeHCMCEL(auditCfg.DefaultDeny, hasHTTPShadow)
+	hcmDenyCEL, hcmShadowCEL := computeHCMCELs(auditCfg.DefaultDeny, hasHTTPShadow)
 
 	chain.Filters = append(chain.Filters, NetworkFilter{
 		Name: "envoy.filters.network.http_connection_manager",
 		TypedConfig: &HTTPConnManagerConfig{
 			StatPrefix:       "http_outbound",
 			HTTPFilters:      httpFilters,
-			AccessLogEnabled: auditCfg.AccessLogEnabled,
-			AccessLogCEL:     hcmCEL,
+			AccessLogEnabled:   auditCfg.AccessLogEnabled,
+			AccessLogDenyCEL:   hcmDenyCEL,
+			AccessLogShadowCEL: hcmShadowCEL,
 			RouteConfig: &RouteConfig{
 				Name: "local_route",
 				VirtualHosts: []VirtualHost{{
@@ -577,7 +658,7 @@ func buildHTTPChain(defaultDeny bool,
 					Domains: []string{"*"},
 					Routes: []Route{{
 						Match:  RouteMatch{Prefix: "/"},
-						Action: RouteAction{Cluster: clusterName},
+						Action: RouteAction{Cluster: clusterName, Timeout: "0s"},
 					}},
 				}},
 			},
@@ -638,57 +719,78 @@ func buildTCPDefaultChain(defaultDeny bool,
 		FilterChainMatch: nil,
 	}
 
-	// Shadow RBAC must be placed before enforcement RBAC in the network filter chain.
-	// Same reasoning as TLS chain and HTTP chain: denied connections terminate
-	// before subsequent filters run, so shadow metadata must be written first.
+	// Compute RBAC rule payloads.
 	auditShadowRBAC := buildNetworkRBACForTCP(RBACActionAllow, auditCfg.AuditShadowEgressRules)
-	if auditShadowRBAC != nil {
-		chain.Filters = append(chain.Filters, NetworkFilter{
-			Name: "envoy.filters.network.rbac",
-			TypedConfig: &RBACConfig{
-				StatPrefix:  "tcp_audit_rbac",
-				ShadowRules: auditShadowRBAC,
-			},
-		})
-	}
-
-	// Deny RBAC
 	denyRBAC := buildNetworkRBACForTCP(RBACActionDeny, denyEgressRules)
-	if denyRBAC != nil {
-		chain.Filters = append(chain.Filters, NetworkFilter{
-			Name: "envoy.filters.network.rbac",
-			TypedConfig: &RBACConfig{
-				StatPrefix: "tcp_deny_rbac",
-				Rules:      denyRBAC,
-			},
-		})
-	}
-
-	// Allow RBAC (only when defaultAction=deny)
+	var allowRBAC *RBACRules
 	if defaultDeny {
-		allowRBAC := buildNetworkRBACForTCP(RBACActionAllow, allowEgressRules)
+		allowRBAC = buildNetworkRBACForTCP(RBACActionAllow, allowEgressRules)
 		if allowRBAC == nil {
-			// No L4 allow rules → deny all raw TCP (ALLOW with empty policies = deny all)
+			// No L4 allow rules -> deny all raw TCP (ALLOW with empty policies = deny all)
 			allowRBAC = &RBACRules{
 				Action:   RBACActionAllow,
 				Policies: map[string]*RBACPolicy{},
 			}
 		}
+	}
+
+	// Merge shadow_rules into enforcement RBAC filter instances.
+	// Same strategy as buildTLSChain -- see comments there.
+	if denyRBAC != nil {
 		chain.Filters = append(chain.Filters, NetworkFilter{
 			Name: "envoy.filters.network.rbac",
 			TypedConfig: &RBACConfig{
-				StatPrefix: "tcp_allow_rbac",
-				Rules:      allowRBAC,
+				StatPrefix:  "tcp_deny_rbac",
+				Rules:       denyRBAC,
+				ShadowRules: auditShadowRBAC, // may be nil
+			},
+		})
+		if allowRBAC != nil {
+			chain.Filters = append(chain.Filters, NetworkFilter{
+				Name: "envoy.filters.network.rbac",
+				TypedConfig: &RBACConfig{
+					StatPrefix: "tcp_allow_rbac",
+					Rules:      allowRBAC,
+				},
+			})
+		}
+	} else if allowRBAC != nil {
+		chain.Filters = append(chain.Filters, NetworkFilter{
+			Name: "envoy.filters.network.rbac",
+			TypedConfig: &RBACConfig{
+				StatPrefix:  "tcp_allow_rbac",
+				Rules:       allowRBAC,
+				ShadowRules: auditShadowRBAC, // may be nil
+			},
+		})
+	} else if auditShadowRBAC != nil {
+		// Shadow-only: permissive rules + shadow_rules in one filter.
+		chain.Filters = append(chain.Filters, NetworkFilter{
+			Name: "envoy.filters.network.rbac",
+			TypedConfig: &RBACConfig{
+				StatPrefix: "tcp_audit_rbac",
+				Rules: &RBACRules{
+					Action: RBACActionAllow,
+					Policies: map[string]*RBACPolicy{
+						"allow_all": {
+							Permissions: []Permission{{AndRules: []PermissionRule{{Type: "any", Value: true}}}},
+							Principals:  []Principal{{Any: true}},
+						},
+					},
+				},
+				ShadowRules: auditShadowRBAC,
 			},
 		})
 	}
 
-	// tcp_proxy → original_dst cluster (no access_log — handled at listener level)
+	// tcp_proxy -> original_dst cluster (no access_log -- handled at listener level)
 	chain.Filters = append(chain.Filters, NetworkFilter{
 		Name: "envoy.filters.network.tcp_proxy",
 		TypedConfig: &TCPProxyConfig{
-			StatPrefix: "tcp_passthrough",
-			Cluster:    clusterName,
+			StatPrefix:          "tcp_passthrough",
+			Cluster:             clusterName,
+			UpstreamConnectMode: "ON_DOWNSTREAM_DATA",
+			MaxEarlyDataBytes:   8192,
 		},
 	})
 
@@ -812,29 +914,7 @@ func httpRuleToSNIPermissions(r varmor.NetworkProxyHTTPRule) []Permission {
 }
 
 func httpRuleToHTTPPermissions(r varmor.NetworkProxyHTTPRule) []Permission {
-	var hostRules []PermissionRule
-	for _, host := range r.Match.Hosts {
-		if isWildcardDomain(host) {
-			hostRules = append(hostRules, PermissionRule{
-				Type: "header",
-				Value: map[string]string{
-					"name":         ":authority",
-					"suffix_match": wildcardToSuffix(host),
-				},
-			})
-		} else {
-			hostRules = append(hostRules, PermissionRule{
-				Type: "header",
-				Value: map[string]string{
-					"name":        ":authority",
-					"exact_match": host,
-				},
-			})
-		}
-	}
-
-	portRules := portToPermissionRules(r.Match.Ports)
-
+	// ── Phase 1: Build method & path dimensions (unchanged) ──────────
 	var methodRules []PermissionRule
 	for _, method := range r.Match.Methods {
 		methodRules = append(methodRules, PermissionRule{
@@ -861,31 +941,218 @@ func httpRuleToHTTPPermissions(r varmor.NetworkProxyHTTPRule) []Permission {
 		}
 	}
 
-	dimensions := [][]PermissionRule{}
-	if len(hostRules) > 0 {
-		dimensions = append(dimensions, hostRules)
-	}
-	if len(portRules) > 0 {
-		dimensions = append(dimensions, portRules)
-	}
-	if len(methodRules) > 0 {
-		dimensions = append(dimensions, methodRules)
-	}
-	if len(pathRules) > 0 {
-		dimensions = append(dimensions, pathRules)
+	// ── Phase 2: Build host × port dimension ────────────────────────
+	//
+	// Strategy: when both hosts and exact ports are present, we BIND them
+	// instead of using a Cartesian crossProduct. The binding bakes the
+	// port number into the :authority matcher for non-default ports,
+	// producing zero dead rules and zero regex.
+	//
+	// When ports contain ranges or hosts exist without ports, we fall
+	// back to or_rules (exact host) or safe_regex (wildcard host) so
+	// the matcher handles any port value.
+
+	hosts := r.Match.Hosts
+	ports := r.Match.Ports
+
+	allExactPorts := true
+	for _, p := range ports {
+		if p.EndPort > 0 && p.EndPort != p.Port {
+			allExactPorts = false
+			break
+		}
 	}
 
-	if len(dimensions) == 0 {
+	var hostPortDim [][]PermissionRule // each entry is one OR-branch of and_rules
+
+	if len(hosts) > 0 && len(ports) > 0 && allExactPorts {
+		// ── Binding path: bake port into :authority matcher ──────
+		for _, host := range hosts {
+			for _, p := range ports {
+				portRule := PermissionRule{
+					Type:  "destination_port",
+					Value: p.Port,
+				}
+
+				hostRule := authorityMatcherForHostPort(host, p.Port)
+				hostPortDim = append(hostPortDim, []PermissionRule{hostRule, portRule})
+			}
+		}
+	} else if len(hosts) > 0 {
+		// ── Fallback path: hosts with no ports / port ranges ────
+		// Use or_rules (exact host) or safe_regex (wildcard) so the
+		// matcher is port-agnostic, then cross with port dimension.
+		hostRules := portAgnosticHostRules(hosts)
+		portRules := portToPermissionRules(ports)
+
+		if len(portRules) == 0 {
+			// No ports: each hostRule becomes its own branch
+			for _, hr := range hostRules {
+				hostPortDim = append(hostPortDim, []PermissionRule{hr})
+			}
+		} else {
+			// Cross hostRules × portRules manually
+			for _, hr := range hostRules {
+				for _, pr := range portRules {
+					hostPortDim = append(hostPortDim, []PermissionRule{hr, pr})
+				}
+			}
+		}
+	} else {
+		// ── No hosts: port-only ─────────────────────────────────
+		portRules := portToPermissionRules(ports)
+		for _, pr := range portRules {
+			hostPortDim = append(hostPortDim, []PermissionRule{pr})
+		}
+	}
+
+	// ── Phase 3: Cross host-port branches with method & path ────────
+	otherDimensions := [][]PermissionRule{}
+	if len(methodRules) > 0 {
+		otherDimensions = append(otherDimensions, methodRules)
+	}
+	if len(pathRules) > 0 {
+		otherDimensions = append(otherDimensions, pathRules)
+	}
+
+	if len(hostPortDim) == 0 && len(otherDimensions) == 0 {
 		return nil
 	}
 
-	combos := crossProduct(dimensions)
+	if len(hostPortDim) == 0 {
+		// Only method/path, no host/port
+		combos := crossProduct(otherDimensions)
+		var perms []Permission
+		for _, combo := range combos {
+			perms = append(perms, Permission{AndRules: combo})
+		}
+		return perms
+	}
+
+	if len(otherDimensions) == 0 {
+		// Only host-port, no method/path
+		var perms []Permission
+		for _, hp := range hostPortDim {
+			perms = append(perms, Permission{AndRules: hp})
+		}
+		return perms
+	}
+
+	// Cross each host-port branch with all method/path combos
+	otherCombos := crossProduct(otherDimensions)
 	var perms []Permission
-	for _, combo := range combos {
-		perms = append(perms, Permission{AndRules: combo})
+	for _, hp := range hostPortDim {
+		for _, oc := range otherCombos {
+			combo := make([]PermissionRule, 0, len(hp)+len(oc))
+			combo = append(combo, hp...)
+			combo = append(combo, oc...)
+			perms = append(perms, Permission{AndRules: combo})
+		}
 	}
 	return perms
 }
+
+// isDefaultHTTPPort returns true for ports where HTTP specs do NOT
+// require the port to appear in the Host/:authority header (80, 443).
+func isDefaultHTTPPort(port uint16) bool {
+	return port == 80 || port == 443
+}
+
+// authorityMatcherForHostPort returns a single PermissionRule that matches
+// the :authority header for the given (host, port) combination.
+//
+// For default ports (80, 443): :authority = "host" (no port suffix).
+// For non-default ports:       :authority = "host:port".
+//
+// This eliminates dead rules by binding the port into the matcher value.
+func authorityMatcherForHostPort(host string, port uint16) PermissionRule {
+	if isWildcardDomain(host) {
+		suffix := wildcardToSuffix(host) // "*.openai.com" -> ".openai.com"
+		if isDefaultHTTPPort(port) {
+			return PermissionRule{
+				Type: "header",
+				Value: map[string]string{
+					"name":         ":authority",
+					"suffix_match": suffix,
+				},
+			}
+		}
+		// Non-default port: suffix includes ":port"
+		// e.g., ".openai.com:6443" matches "api.openai.com:6443"
+		return PermissionRule{
+			Type: "header",
+			Value: map[string]string{
+				"name":         ":authority",
+				"suffix_match": fmt.Sprintf("%s:%d", suffix, port),
+			},
+		}
+	}
+
+	// Exact host
+	if isDefaultHTTPPort(port) {
+		return PermissionRule{
+			Type: "header",
+			Value: map[string]string{
+				"name":        ":authority",
+				"exact_match": host,
+			},
+		}
+	}
+	// Non-default port: bake "host:port" into exact_match
+	return PermissionRule{
+		Type: "header",
+		Value: map[string]string{
+			"name":        ":authority",
+			"exact_match": fmt.Sprintf("%s:%d", host, port),
+		},
+	}
+}
+
+// portAgnosticHostRules generates :authority matchers that work regardless
+// of port value. Used when ports are ranges or unspecified.
+//
+// For exact hosts: or_rules(exact_match:"host", prefix_match:"host:") --
+//   matches both "host" (default port) and "host:NNN" (any port).
+// For wildcard hosts: safe_regex -- only way to handle unknown port suffix.
+func portAgnosticHostRules(hosts []string) []PermissionRule {
+	var rules []PermissionRule
+	for _, host := range hosts {
+		if isWildcardDomain(host) {
+			suffix := wildcardToSuffix(host)
+			escapedSuffix := regexEscapeHost(suffix)
+			rules = append(rules, PermissionRule{
+				Type: "header",
+				Value: map[string]string{
+					"name":             ":authority",
+					"safe_regex_match": "^[^:]*" + escapedSuffix + "(:\\d+)?$",
+				},
+			})
+		} else {
+			// or_rules wrapping exact + prefix, treated as atomic unit
+			rules = append(rules, PermissionRule{
+				Type: "or_rules",
+				Value: []PermissionRule{
+					{
+						Type: "header",
+						Value: map[string]string{
+							"name":        ":authority",
+							"exact_match": host,
+						},
+					},
+					{
+						Type: "header",
+						Value: map[string]string{
+							"name":         ":authority",
+							"prefix_match": host + ":",
+						},
+					},
+				},
+			})
+		}
+	}
+	return rules
+}
+
 
 func crossProduct(dimensions [][]PermissionRule) [][]PermissionRule {
 	if len(dimensions) == 0 {

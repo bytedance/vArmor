@@ -164,6 +164,12 @@ func buildPatch(obj interface{}, enforcer string,
 				continue
 			}
 
+			// NetworkProxy MITM: inject CA bundle volumeMount + env vars
+			// into target containers when MITM is enabled on the policy.
+			if (e & varmortypes.NetworkProxy) != 0 && networkProxyConfig != nil && networkProxyConfig.MITM != nil && len(networkProxyConfig.MITM.Domains) > 0 {
+				jsonPatch += buildNetworkProxyMITMTargetPatch(true, container, index)
+			}
+
 			// BPF
 			if (e & varmortypes.BPF) != 0 {
 				key := fmt.Sprintf("container.bpf.security.beta.varmor.org/%s", container.Name)
@@ -240,6 +246,12 @@ func buildPatch(obj interface{}, enforcer string,
 				continue
 			}
 
+			// NetworkProxy MITM: inject CA bundle volumeMount + env vars
+			// into target containers when MITM is enabled on the policy.
+			if (e & varmortypes.NetworkProxy) != 0 && networkProxyConfig != nil && networkProxyConfig.MITM != nil && len(networkProxyConfig.MITM.Domains) > 0 {
+				jsonPatch += buildNetworkProxyMITMTargetPatch(true, container, index)
+			}
+
 			// BPF
 			if (e & varmortypes.BPF) != 0 {
 				key := fmt.Sprintf("container.bpf.security.beta.varmor.org/%s", container.Name)
@@ -314,6 +326,12 @@ func buildPatch(obj interface{}, enforcer string,
 				continue
 			}
 
+			// NetworkProxy MITM: inject CA bundle volumeMount + env vars
+			// into target containers when MITM is enabled on the policy.
+			if (e & varmortypes.NetworkProxy) != 0 && networkProxyConfig != nil && networkProxyConfig.MITM != nil && len(networkProxyConfig.MITM.Domains) > 0 {
+				jsonPatch += buildNetworkProxyMITMTargetPatch(true, container, index)
+			}
+
 			// BPF
 			if (e & varmortypes.BPF) != 0 {
 				key := fmt.Sprintf("container.bpf.security.beta.varmor.org/%s", container.Name)
@@ -384,6 +402,12 @@ func buildPatch(obj interface{}, enforcer string,
 		for index, container := range pod.Spec.Containers {
 			if len(target.Containers) != 0 && !varmorutils.InStringArray(container.Name, target.Containers) {
 				continue
+			}
+
+			// NetworkProxy MITM: inject CA bundle volumeMount + env vars
+			// into target containers when MITM is enabled on the policy.
+			if (e & varmortypes.NetworkProxy) != 0 && networkProxyConfig != nil && networkProxyConfig.MITM != nil && len(networkProxyConfig.MITM.Domains) > 0 {
+				jsonPatch += buildNetworkProxyMITMTargetPatch(false, container, index)
 			}
 
 			// BPF
@@ -573,12 +597,14 @@ func buildNetworkProxyPatch(profileName string, workloads bool, networkProxyConf
 		}
 	}
 
+	mitmEnabled := networkProxyConfig != nil && networkProxyConfig.MITM != nil && len(networkProxyConfig.MITM.Domains) > 0
+
 	// --- 1. add annotation ---
 	sb.WriteString(fmt.Sprintf(
 		`{"op": "add", "path": "%s/metadata/annotations/pod.networkproxy.security.beta.varmor.org", "value": "localhost/%s"},`, pathPrefix, profileName,
 	))
 
-	// --- 1. initContainer: varmor-network-proxy-init ---
+	// --- 2. initContainer: varmor-network-proxy-init ---
 	sb.WriteString(fmt.Sprintf(
 		`{"op": "add", "path": "%s/spec/initContainers/-", "value": `+
 			`{"name": "varmor-network-proxy-init", `+
@@ -589,7 +615,15 @@ func buildNetworkProxyPatch(profileName string, workloads bool, networkProxyConf
 		pathPrefix, varmorconfig.ProxyInitImage, iptablesScript(proxyUID, proxyPort, proxyAdminPort),
 	))
 
-	// --- 2. sidecar container: varmor-network-proxy ---
+	// --- 3. sidecar container: varmor-network-proxy ---
+	// When MITM is enabled, the sidecar additionally mounts the per-policy
+	// leaf/key and upstream CA bundle under /etc/envoy/tls (see
+	// varmorconfig.MITMCertsMountDir). Envoy watches this directory for
+	// leaf rotation and upstream trust store updates.
+	sidecarVolumeMounts := `{"name": "varmor-network-proxy-config", "mountPath": "/etc/envoy", "readOnly": true}`
+	if mitmEnabled {
+		sidecarVolumeMounts += `, {"name": "varmor-network-proxy-mitm-tls", "mountPath": "/etc/envoy/tls", "readOnly": true}`
+	}
 	sb.WriteString(fmt.Sprintf(
 		`{"op": "add", "path": "%s/spec/containers/-", "value": `+
 			`{"name": "varmor-network-proxy", `+
@@ -598,17 +632,112 @@ func buildNetworkProxyPatch(profileName string, workloads bool, networkProxyConf
 			`"args": ["-c", "/etc/envoy/bootstrap.yaml", "-l", "info"], `+
 			`"readinessProbe": {"httpGet": {"path": "/ready", "port": %d}, "initialDelaySeconds": 2, "periodSeconds": 5}, `+
 			`"resources": {"requests": {"cpu": "50m", "memory": "64Mi"}, "limits": {"cpu": "200m", "memory": "128Mi"}}, `+
-			`"volumeMounts": [`+
-			`{"name": "varmor-network-proxy-config", "mountPath": "/etc/envoy", "readOnly": true}]}}, `,
-		pathPrefix, varmorconfig.ProxyImage, proxyUID, proxyAdminPort,
+			`"volumeMounts": [%s]}}, `,
+		pathPrefix, varmorconfig.ProxyImage, proxyUID, proxyAdminPort, sidecarVolumeMounts,
 	))
 
-	// --- 3. volumes ---
+	// --- 4. volumes ---
+	// Always-on volume: the shared Envoy config ConfigMap.
 	sb.WriteString(fmt.Sprintf(
 		`{"op": "add", "path": "%s/spec/volumes/-", "value": `+
-			`{"name": "varmor-network-proxy-config", "configMap": {"name": "%s"}}},`,
+			`{"name": "varmor-network-proxy-config", "configMap": {"name": "%s", "items": [{"key": "bootstrap.yaml", "path": "bootstrap.yaml"}, {"key": "lds.yaml", "path": "lds.yaml"}, {"key": "cds.yaml", "path": "cds.yaml"}]}}},`,
 		pathPrefix, profileName,
 	))
+
+	if mitmEnabled {
+		// MITM-only volume #1: per-policy MITM leaf certificate, leaf
+		// private key and upstream CA bundle. Projected into the Envoy
+		// sidecar at /etc/envoy/tls as leaf.crt / leaf.key /
+		// ca-bundle.crt (see varmorconfig.MITMLeafCertPath,
+		// varmorconfig.MITMLeafKeyPath, varmorconfig.MITMUpstreamTrustedCAPath).
+		sb.WriteString(fmt.Sprintf(
+			`{"op": "add", "path": "%s/spec/volumes/-", "value": `+
+				`{"name": "varmor-network-proxy-mitm-tls", "configMap": {"name": "%s", "items": [`+
+				`{"key": "mitm-leaf.crt", "path": "leaf.crt"}, `+
+				`{"key": "mitm-leaf.key", "path": "leaf.key"}, `+
+				`{"key": "mitm-ca-bundle.crt", "path": "ca-bundle.crt"}]}}},`,
+			pathPrefix, profileName,
+		))
+
+		// MITM-only volume #2: the concatenated Mozilla + vArmor-CA
+		// trust bundle exposed to the application containers as
+		// /etc/varmor/ca-bundle/ca-certificates.crt (see
+		// varmorconfig.MITMCABundlePath). Projected separately (no
+		// private keys) so application containers only see the public
+		// trust store.
+		sb.WriteString(fmt.Sprintf(
+			`{"op": "add", "path": "%s/spec/volumes/-", "value": `+
+				`{"name": "varmor-network-proxy-mitm-ca-bundle", "configMap": {"name": "%s", "items": [`+
+				`{"key": "mitm-ca-bundle.crt", "path": "ca-certificates.crt"}]}}},`,
+			pathPrefix, profileName,
+		))
+	}
+
+	return sb.String()
+}
+
+// buildNetworkProxyMITMTargetPatch emits JSON-Patch operations that inject
+// the vArmor CA bundle into a single application container when TLS MITM
+// is enabled on the policy. The bundle is mounted at
+// varmorconfig.MITMCABundlePath (/etc/varmor/ca-bundle/ca-certificates.crt)
+// and advertised to common TLS runtimes via SSL_CERT_FILE,
+// REQUESTS_CA_BUNDLE, NODE_EXTRA_CA_CERTS and CURL_CA_BUNDLE.
+//
+// The caller is responsible for gating on `(enforcer & NetworkProxy) != 0`
+// and `networkProxyConfig.MITM != nil`.
+func buildNetworkProxyMITMTargetPatch(workloads bool, container corev1.Container, index int) string {
+	var sb strings.Builder
+
+	containerPath := "/spec/containers"
+	if workloads {
+		containerPath = "/spec/template/spec/containers"
+	}
+
+	// Idempotency: skip if the container already has the MITM CA bundle volumeMount.
+	hasMITMMount := false
+	for _, vm := range container.VolumeMounts {
+		if vm.Name == "varmor-network-proxy-mitm-ca-bundle" {
+			hasMITMMount = true
+			break
+		}
+	}
+	if !hasMITMMount {
+		if len(container.VolumeMounts) == 0 {
+			sb.WriteString(fmt.Sprintf(
+				`{"op": "add", "path": "%s/%d/volumeMounts", "value": []},`, containerPath, index,
+			))
+		}
+		sb.WriteString(fmt.Sprintf(
+			`{"op": "add", "path": "%s/%d/volumeMounts/-", "value": `+
+				`{"name": "varmor-network-proxy-mitm-ca-bundle", "mountPath": "%s", "readOnly": true}},`,
+			containerPath, index, varmorconfig.MITMCABundleMountDir,
+		))
+	}
+
+	// Idempotency: only inject env vars that don't already exist.
+	existingEnvs := make(map[string]bool, len(container.Env))
+	for _, ev := range container.Env {
+		existingEnvs[ev.Name] = true
+	}
+	var envVarsToAdd []string
+	for _, name := range []string{"SSL_CERT_FILE", "REQUESTS_CA_BUNDLE", "NODE_EXTRA_CA_CERTS", "CURL_CA_BUNDLE"} {
+		if !existingEnvs[name] {
+			envVarsToAdd = append(envVarsToAdd, name)
+		}
+	}
+	if len(envVarsToAdd) > 0 {
+		if len(container.Env) == 0 {
+			sb.WriteString(fmt.Sprintf(
+				`{"op": "add", "path": "%s/%d/env", "value": []},`, containerPath, index,
+			))
+		}
+		for _, name := range envVarsToAdd {
+			sb.WriteString(fmt.Sprintf(
+				`{"op": "add", "path": "%s/%d/env/-", "value": {"name": "%s", "value": "%s"}},`,
+				containerPath, index, name, varmorconfig.MITMCABundlePath,
+			))
+		}
+	}
 
 	return sb.String()
 }

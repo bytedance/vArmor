@@ -36,7 +36,7 @@ import (
 
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
 	varmorconfig "github.com/bytedance/vArmor/internal/config"
-	varmornetworkproxy "github.com/bytedance/vArmor/internal/networkproxy/profile"
+	varmornetworkproxy "github.com/bytedance/vArmor/internal/networkproxy"
 	varmorprofile "github.com/bytedance/vArmor/internal/profile"
 	statusmanager "github.com/bytedance/vArmor/internal/status/apis/v1"
 	statuscommon "github.com/bytedance/vArmor/internal/status/common"
