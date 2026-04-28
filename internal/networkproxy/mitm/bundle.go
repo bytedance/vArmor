@@ -65,7 +65,14 @@ func BuildCABundle(caCertPEM []byte) ([]byte, error) {
 		return nil, fmt.Errorf("embedded Mozilla CA bundle is empty (build error)")
 	}
 
-	bundle := make([]byte, 0, len(mozillaCABundle)+1+len(caCertPEM))
+	// Guard against integer overflow before allocation.
+	mozLen, caLen := len(mozillaCABundle), len(caCertPEM)
+	total := mozLen + caLen
+	if total < mozLen || total < caLen {
+		return nil, fmt.Errorf("CA bundle size overflow")
+	}
+
+	bundle := make([]byte, 0, total+1)
 	bundle = append(bundle, mozillaCABundle...)
 	if mozillaCABundle[len(mozillaCABundle)-1] != '\n' {
 		bundle = append(bundle, '\n')
