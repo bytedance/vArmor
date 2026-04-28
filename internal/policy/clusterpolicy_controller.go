@@ -309,7 +309,7 @@ func (c *ClusterPolicyController) handleUpdateVarmorClusterPolicy(newVcp *varmor
 
 	logger.Info("VarmorClusterPolicy updated", "name", newVcp.Name, "labels", newVcp.Labels, "target", newVcp.Spec.Target)
 
-	if valid, message := ValidateUpdatePolicy(newVcp, oldAp.Spec.Profile.Enforcer, oldAp.Spec.Target); !valid {
+	if valid, message := ValidateUpdatePolicy(newVcp, oldAp.Spec.Profile.Enforcer, oldAp.Spec.Target, nil); !valid {
 		logger.Info("update the policy status with forbidden info", "message", message)
 		err := statuscommon.UpdateVarmorClusterPolicyStatus(c.varmorInterface, newVcp, "", false, varmor.VarmorPolicyUnchanged, varmor.VarmorPolicyUpdated, apicorev1.ConditionFalse, "Forbidden", message)
 		if err != nil {

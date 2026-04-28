@@ -37,10 +37,16 @@ func (ws *WebhookServer) validatePolicy(request *admissionv1.AdmissionRequest, n
 		case admissionv1.Update:
 			logger.V(2).Info("policy validating", "new", new, "old", old)
 
+			oldClusterPolicy := old.(*varmor.VarmorClusterPolicy)
+			oldClusterProxyConfig := oldClusterPolicy.Spec.Policy.NetworkProxyConfig
+			if oldClusterProxyConfig == nil {
+				oldClusterProxyConfig = &varmor.NetworkProxyConfig{}
+			}
 			valid, message := varmorpolicy.ValidateUpdatePolicy(
 				new,
-				old.(*varmor.VarmorClusterPolicy).Spec.Policy.Enforcer,
-				old.(*varmor.VarmorClusterPolicy).Spec.Target,
+				oldClusterPolicy.Spec.Policy.Enforcer,
+				oldClusterPolicy.Spec.Target,
+				oldClusterProxyConfig,
 			)
 			if !valid {
 				return failureResponse(request.UID, message)
@@ -59,10 +65,16 @@ func (ws *WebhookServer) validatePolicy(request *admissionv1.AdmissionRequest, n
 		case admissionv1.Update:
 			logger.V(2).Info("policy validating", "new", new, "old", old)
 
+			oldPolicy := old.(*varmor.VarmorPolicy)
+			oldProxyConfig := oldPolicy.Spec.Policy.NetworkProxyConfig
+			if oldProxyConfig == nil {
+				oldProxyConfig = &varmor.NetworkProxyConfig{}
+			}
 			valid, message := varmorpolicy.ValidateUpdatePolicy(
 				new,
-				old.(*varmor.VarmorPolicy).Spec.Policy.Enforcer,
-				old.(*varmor.VarmorPolicy).Spec.Target,
+				oldPolicy.Spec.Policy.Enforcer,
+				oldPolicy.Spec.Target,
+				oldProxyConfig,
 			)
 			if !valid {
 				return failureResponse(request.UID, message)

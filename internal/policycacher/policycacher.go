@@ -110,6 +110,11 @@ func (c *PolicyCacher) updateVarmorClusterPolicy(oldObj, newObj interface{}) {
 	}
 	c.ClusterPolicyEnforcer[key] = vcp.Spec.Policy.Enforcer
 	c.ClusterPolicyMode[key] = vcp.Spec.Policy.Mode
+	// Update only mutable proxy config fields (MITM, Resources).
+	// ProxyUID, ProxyPort, ProxyAdminPort are immutable after creation
+	// and must not be overwritten — they are baked into each Pod's
+	// iptables rules at init time.
+	updateProxyConfigMutableFields(c.ClusterPolicyProxyConfig[key], vcp.Spec.Policy.NetworkProxyConfig)
 }
 
 func (c *PolicyCacher) deleteVarmorClusterPolicy(obj interface{}) {
@@ -164,6 +169,8 @@ func (c *PolicyCacher) updateVarmorPolicy(oldObj, newObj interface{}) {
 	}
 	c.PolicyEnforcer[key] = vp.Spec.Policy.Enforcer
 	c.PolicyMode[key] = vp.Spec.Policy.Mode
+	// Update only mutable proxy config fields (MITM, Resources).
+	updateProxyConfigMutableFields(c.PolicyProxyConfig[key], vp.Spec.Policy.NetworkProxyConfig)
 }
 
 func (c *PolicyCacher) deleteVarmorPolicy(obj interface{}) {
@@ -180,6 +187,26 @@ func (c *PolicyCacher) deleteVarmorPolicy(obj interface{}) {
 	delete(c.PolicyEnforcer, key)
 	delete(c.PolicyMode, key)
 	delete(c.PolicyProxyConfig, key)
+}
+
+// updateProxyConfigMutableFields selectively updates only the mutable fields
+// (MITM, Resources) of the cached NetworkProxyConfig from the new spec.
+// Immutable fields (ProxyUID, ProxyPort, ProxyAdminPort) are preserved from
+// the original add-time snapshot.
+func updateProxyConfigMutableFields(cached *varmor.NetworkProxyConfig, updated *varmor.NetworkProxyConfig) {
+	if cached == nil || updated == nil {
+		return
+	}
+	if updated.MITM != nil {
+		cached.MITM = updated.MITM.DeepCopy()
+	} else {
+		cached.MITM = nil
+	}
+	if updated.Resources != nil {
+		cached.Resources = updated.Resources.DeepCopy()
+	} else {
+		cached.Resources = nil
+	}
 }
 
 // GetClusterPolicyEntry returns the cached enforcer, mode, and proxy config for a cluster-scoped policy key.

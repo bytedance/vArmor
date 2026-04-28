@@ -16,6 +16,10 @@ limitations under the License.
 
 package v1beta1
 
+import (
+	corev1 "k8s.io/api/core/v1"
+)
+
 // SecretKeyRef is a reference to a specific key within a Kubernetes Secret.
 // The referenced Secret must exist in the same namespace as the target workload.
 type SecretKeyRef struct {
@@ -127,11 +131,41 @@ type MITMConfig struct {
 	HeaderMutations []HeaderMutation `json:"headerMutations,omitempty"`
 }
 
+// ProxyResourceOverride allows users to override the default CPU and memory
+// resource requests and limits for the proxy sidecar container on a per-policy
+// basis. Only the fields explicitly set are overridden; unset fields retain
+// the built-in defaults (which differ depending on whether MITM is enabled).
+//
+// This enables fine-grained resource tuning without requiring changes to the
+// global vArmor configuration. For example, a policy protecting a high-traffic
+// service with MITM enabled may need higher CPU limits than the default.
+//
+// Built-in defaults:
+//
+//	Non-MITM: requests 50m/64Mi, limits 500m/256Mi
+//	MITM:     requests 100m/128Mi, limits 1000m/512Mi
+type ProxyResourceOverride struct {
+	// requests overrides the resource requests for the proxy sidecar container.
+	// Only the specified resource types (cpu, memory) are overridden.
+	// +optional
+	Requests corev1.ResourceList `json:"requests,omitempty"`
+	// limits overrides the resource limits for the proxy sidecar container.
+	// Only the specified resource types (cpu, memory) are overridden.
+	// +optional
+	Limits corev1.ResourceList `json:"limits,omitempty"`
+}
+
 type NetworkProxyConfig struct {
 	// mitm configures TLS Man-in-the-Middle for inspecting encrypted
 	// HTTPS traffic at the HTTP level.
 	// +optional
 	MITM *MITMConfig `json:"mitm,omitempty"`
+	// resources overrides the default resource requests and limits for
+	// the proxy sidecar container. When MITM is enabled, higher defaults are
+	// used automatically. Use this field to fine-tune resources for specific
+	// workload requirements.
+	// +optional
+	Resources *ProxyResourceOverride `json:"resources,omitempty"`
 	// proxyUID specifies the UID used by the proxy sidecar process at runtime.
 	// This UID must be different from the UID of the target application, as iptables
 	// rules rely on this UID for traffic distinction.

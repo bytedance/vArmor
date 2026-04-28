@@ -445,7 +445,7 @@ func TestValidateUpdatePolicy_ValidUpdate(t *testing.T) {
 		Name: "test-deployment",
 	}
 
-	valid, message := ValidateUpdatePolicy(policy, oldEnforcer, oldTarget)
+	valid, message := ValidateUpdatePolicy(policy, oldEnforcer, oldTarget, nil)
 	assert.True(t, valid, "Valid policy update should pass validation")
 	assert.Equal(t, "", message, "Validation passes when validation passes")
 }
@@ -459,7 +459,7 @@ func TestValidateUpdatePolicy_UnsupportedPolicyType(t *testing.T) {
 		Name: "test-deployment",
 	}
 
-	valid, message := ValidateUpdatePolicy(invalidPolicy, oldEnforcer, oldTarget)
+	valid, message := ValidateUpdatePolicy(invalidPolicy, oldEnforcer, oldTarget, nil)
 	assert.False(t, valid, "Unsupported policy type should fail validation")
 	assert.Equal(t, "The policy type is not supported.", message)
 }
@@ -492,7 +492,7 @@ func TestValidateUpdatePolicy_TargetModified(t *testing.T) {
 		Name: "test-deployment", // Original target name
 	}
 
-	valid, message := ValidateUpdatePolicy(policy, oldEnforcer, oldTarget)
+	valid, message := ValidateUpdatePolicy(policy, oldEnforcer, oldTarget, nil)
 	assert.False(t, valid, "Target field modification should fail validation")
 	assert.Contains(t, message, "Modifying the target field of a policy is not allowed")
 }
@@ -525,7 +525,7 @@ func TestValidateUpdatePolicy_SwitchFromBehaviorModelingIncomplete(t *testing.T)
 		Name: "test-deployment",
 	}
 
-	valid, message := ValidateUpdatePolicy(policy, oldEnforcer, oldTarget)
+	valid, message := ValidateUpdatePolicy(policy, oldEnforcer, oldTarget, nil)
 	assert.False(t, valid, "Switch from BehaviorModeling mode but modeling is not complete should fail validation")
 	assert.Contains(t, message, "Switching the mode of a policy from BehaviorModeling to others is not allowed")
 }
@@ -558,7 +558,7 @@ func TestValidateUpdatePolicy_SwitchFromBehaviorModelingComplete(t *testing.T) {
 		Name: "test-deployment",
 	}
 
-	valid, message := ValidateUpdatePolicy(policy, oldEnforcer, oldTarget)
+	valid, message := ValidateUpdatePolicy(policy, oldEnforcer, oldTarget, nil)
 	assert.True(t, valid, "Switch from BehaviorModeling mode to RuntimeDefault mode should pass validation")
 	assert.Equal(t, "", message, "Validation passes when validation passes")
 }
@@ -591,7 +591,7 @@ func TestValidateUpdatePolicy_EnforcerModifiedDuringModeling(t *testing.T) {
 		Name: "test-deployment",
 	}
 
-	valid, message := ValidateUpdatePolicy(policy, oldEnforcer, oldTarget)
+	valid, message := ValidateUpdatePolicy(policy, oldEnforcer, oldTarget, nil)
 	assert.False(t, valid, "Modification of enforcer field during modeling should fail validation")
 	assert.Contains(t, message, "Modifying the enforcer field of a policy is not allowed when behavior modeling is still incomplete.")
 }
@@ -627,7 +627,7 @@ func TestValidateUpdatePolicy_EnforcerModifiedAfterModeling(t *testing.T) {
 		Name: "test-deployment",
 	}
 
-	valid, message := ValidateUpdatePolicy(policy, oldEnforcer, oldTarget)
+	valid, message := ValidateUpdatePolicy(policy, oldEnforcer, oldTarget, nil)
 	assert.True(t, valid, "Modification of enforcer field after modeling should pass validation")
 	assert.Equal(t, "", message, "Validation passes when validation passes")
 }
@@ -660,7 +660,7 @@ func TestValidateUpdatePolicy_RemoveAppArmorEnforcer(t *testing.T) {
 		Name: "test-deployment",
 	}
 
-	valid, message := ValidateUpdatePolicy(policy, oldEnforcer, oldTarget)
+	valid, message := ValidateUpdatePolicy(policy, oldEnforcer, oldTarget, nil)
 	assert.False(t, valid, "Removal of AppArmor enforcer should fail validation")
 	assert.Contains(t, message, "Modifying a policy to remove the AppArmor or Seccomp enforcer is not allowed")
 }
@@ -694,7 +694,7 @@ func TestValidateUpdatePolicy_EnhanceProtectModeWithoutConfig(t *testing.T) {
 		Name: "test-deployment",
 	}
 
-	valid, message := ValidateUpdatePolicy(policy, oldEnforcer, oldTarget)
+	valid, message := ValidateUpdatePolicy(policy, oldEnforcer, oldTarget, nil)
 	assert.False(t, valid, "EnhanceProtect mode without configuration should fail validation")
 	assert.Contains(t, message, "The enhanceProtect field should be set when the policy runs in the EnhanceProtect mode")
 }
@@ -728,7 +728,7 @@ func TestValidateUpdatePolicy_BehaviorModelingModeWithoutOptions(t *testing.T) {
 		Name: "test-deployment",
 	}
 
-	valid, message := ValidateUpdatePolicy(policy, oldEnforcer, oldTarget)
+	valid, message := ValidateUpdatePolicy(policy, oldEnforcer, oldTarget, nil)
 	assert.False(t, valid, "BehaviorModeling mode without configuration options should fail validation")
 	assert.Contains(t, message, "The modelingOptions field should be set when the policy runs in the BehaviorModeling mode")
 }
@@ -760,7 +760,7 @@ func TestValidateUpdatePolicy_ValidVarmorClusterPolicy(t *testing.T) {
 		Name: "test-deployment",
 	}
 
-	valid, message := ValidateUpdatePolicy(policy, oldEnforcer, oldTarget)
+	valid, message := ValidateUpdatePolicy(policy, oldEnforcer, oldTarget, nil)
 	assert.True(t, valid, "Valid cluster policy update should pass validation")
 	assert.Equal(t, "", message, "Validation passes when validation passes")
 }
@@ -796,7 +796,7 @@ func TestValidateUpdatePolicy_ValidEnhanceProtectMode(t *testing.T) {
 		Name: "test-deployment",
 	}
 
-	valid, message := ValidateUpdatePolicy(policy, oldEnforcer, oldTarget)
+	valid, message := ValidateUpdatePolicy(policy, oldEnforcer, oldTarget, nil)
 	assert.True(t, valid, "Valid EnhanceProtect mode update should pass validation")
 	assert.Equal(t, "", message)
 }
@@ -832,7 +832,7 @@ func TestValidateUpdatePolicy_ValidBehaviorModelingMode(t *testing.T) {
 		Name: "test-deployment",
 	}
 
-	valid, message := ValidateUpdatePolicy(policy, oldEnforcer, oldTarget)
+	valid, message := ValidateUpdatePolicy(policy, oldEnforcer, oldTarget, nil)
 	assert.True(t, valid, "Valid BehaviorModeling mode update should pass validation")
 	assert.Equal(t, "", message)
 }
@@ -868,7 +868,7 @@ func TestValidateUpdatePolicy_ValidDefenseInDepthMode(t *testing.T) {
 		Name: "test-deployment",
 	}
 
-	valid, message := ValidateUpdatePolicy(policy, oldEnforcer, oldTarget)
+	valid, message := ValidateUpdatePolicy(policy, oldEnforcer, oldTarget, nil)
 	assert.True(t, valid, "Valid DefenseInDepth mode update should pass validation")
 	assert.Equal(t, "", message)
 }
@@ -901,7 +901,7 @@ func TestValidateUpdatePolicy_ValidAlwaysAllowMode(t *testing.T) {
 		Name: "test-deployment",
 	}
 
-	valid, message := ValidateUpdatePolicy(policy, oldEnforcer, oldTarget)
+	valid, message := ValidateUpdatePolicy(policy, oldEnforcer, oldTarget, nil)
 	assert.True(t, valid, "Valid AlwaysAllow mode update should pass validation")
 	assert.Equal(t, "", message)
 }
@@ -934,7 +934,7 @@ func TestValidateUpdatePolicy_ValidEnforcerCombination(t *testing.T) {
 		Name: "test-deployment",
 	}
 
-	valid, message := ValidateUpdatePolicy(policy, oldEnforcer, oldTarget)
+	valid, message := ValidateUpdatePolicy(policy, oldEnforcer, oldTarget, nil)
 	assert.True(t, valid, "Valid enforcer combination update should pass validation")
 	assert.Equal(t, "", message)
 }

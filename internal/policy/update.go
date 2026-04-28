@@ -94,16 +94,8 @@ ip6tables -t filter -A OUTPUT -p tcp --dport ${ENVOY_ADMIN_PORT} -m owner ! --ui
 			InitialDelaySeconds: 2,
 			PeriodSeconds:       5,
 		},
-		Resources: coreV1.ResourceRequirements{
-			Requests: coreV1.ResourceList{
-				coreV1.ResourceCPU:    resource.MustParse("50m"),
-				coreV1.ResourceMemory: resource.MustParse("64Mi"),
-			},
-			Limits: coreV1.ResourceList{
-				coreV1.ResourceCPU:    resource.MustParse("200m"),
-				coreV1.ResourceMemory: resource.MustParse("128Mi"),
-			},
-		},
+		// Resources is set at runtime by ResolveProxyResources() based on
+		// MITM status and user overrides — see modifyXxxAnnotationsAndEnv().
 		VolumeMounts: []coreV1.VolumeMount{
 			{
 				Name:      "varmor-network-proxy-config",
@@ -189,6 +181,16 @@ ip6tables -t filter -A OUTPUT -p tcp --dport ${ENVOY_ADMIN_PORT} -m owner ! --ui
 // NetworkProxy policy.
 func isMITMEnabled(proxyConfig *varmor.NetworkProxyConfig) bool {
 	return proxyConfig != nil && proxyConfig.MITM != nil && len(proxyConfig.MITM.Domains) > 0
+}
+
+// proxyResourceOverride extracts the Resources override from the
+// NetworkProxyConfig, returning nil if the config is nil or no override
+// is specified.
+func proxyResourceOverride(proxyConfig *varmor.NetworkProxyConfig) *varmor.ProxyResourceOverride {
+	if proxyConfig == nil {
+		return nil
+	}
+	return proxyConfig.Resources
 }
 
 // cleanupMITMVolumes removes the two MITM-specific volumes from a PodSpec.
@@ -423,6 +425,8 @@ func modifyDeploymentAnnotationsAndEnv(
 			// Add a proxy sidecar container
 			proxyContainer.SecurityContext.RunAsUser = &proxyUID
 			proxyContainer.ReadinessProbe.HTTPGet.Port.IntVal = int32(proxyAdminPort)
+			proxyContainer.Resources = ResolveProxyResources(
+				proxyResourceOverride(proxyConfig), isMITMEnabled(proxyConfig))
 			deploy.Spec.Template.Spec.Containers = append(deploy.Spec.Template.Spec.Containers, proxyContainer)
 			// Add a volume
 			proxyVolume.Secret.SecretName = profileName
@@ -635,6 +639,8 @@ func modifyStatefulSetAnnotationsAndEnv(
 			// Add a proxy sidecar container
 			proxyContainer.SecurityContext.RunAsUser = &proxyUID
 			proxyContainer.ReadinessProbe.HTTPGet.Port.IntVal = int32(proxyAdminPort)
+			proxyContainer.Resources = ResolveProxyResources(
+				proxyResourceOverride(proxyConfig), isMITMEnabled(proxyConfig))
 			stateful.Spec.Template.Spec.Containers = append(stateful.Spec.Template.Spec.Containers, proxyContainer)
 			// Add a volume
 			proxyVolume.Secret.SecretName = profileName
@@ -847,6 +853,8 @@ func modifyDaemonSetAnnotationsAndEnv(
 			// Add a proxy sidecar container
 			proxyContainer.SecurityContext.RunAsUser = &proxyUID
 			proxyContainer.ReadinessProbe.HTTPGet.Port.IntVal = int32(proxyAdminPort)
+			proxyContainer.Resources = ResolveProxyResources(
+				proxyResourceOverride(proxyConfig), isMITMEnabled(proxyConfig))
 			daemon.Spec.Template.Spec.Containers = append(daemon.Spec.Template.Spec.Containers, proxyContainer)
 			// Add a volume
 			proxyVolume.Secret.SecretName = profileName

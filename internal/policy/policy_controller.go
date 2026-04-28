@@ -305,7 +305,7 @@ func (c *PolicyController) handleUpdateVarmorPolicy(newVp *varmor.VarmorPolicy, 
 
 	logger.Info("VarmorPolicy updated", "namespace", newVp.Namespace, "name", newVp.Name, "labels", newVp.Labels, "target", newVp.Spec.Target)
 
-	if valid, message := ValidateUpdatePolicy(newVp, oldAp.Spec.Profile.Enforcer, oldAp.Spec.Target); !valid {
+	if valid, message := ValidateUpdatePolicy(newVp, oldAp.Spec.Profile.Enforcer, oldAp.Spec.Target, nil); !valid {
 		logger.Info("update the policy status with forbidden info", "message", message)
 		err := statuscommon.UpdateVarmorPolicyStatus(c.varmorInterface, newVp, "", false, varmor.VarmorPolicyError, varmor.VarmorPolicyUpdated, apicorev1.ConditionFalse, "Forbidden", message)
 		if err != nil {

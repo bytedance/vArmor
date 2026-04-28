@@ -30,6 +30,7 @@ import (
 
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
 	varmorconfig "github.com/bytedance/vArmor/internal/config"
+	varmorpolicy "github.com/bytedance/vArmor/internal/policy"
 	varmorprofile "github.com/bytedance/vArmor/internal/profile"
 	varmortypes "github.com/bytedance/vArmor/internal/types"
 	varmorutils "github.com/bytedance/vArmor/internal/utils"
@@ -628,6 +629,15 @@ func buildNetworkProxyPatch(profileName string, workloads bool, networkProxyConf
 	if mitmEnabled {
 		sidecarVolumeMounts += `, {"name": "varmor-network-proxy-mitm-tls", "mountPath": "/etc/envoy/tls", "readOnly": true}`
 	}
+
+	// Compute sidecar resource requirements based on MITM status and user overrides.
+	var proxyResourceOverride *varmor.ProxyResourceOverride
+	if networkProxyConfig != nil {
+		proxyResourceOverride = networkProxyConfig.Resources
+	}
+	proxyResources := varmorpolicy.ResolveProxyResources(proxyResourceOverride, mitmEnabled)
+	proxyResourcesJSON := varmorpolicy.MarshalProxyResourcesJSON(proxyResources)
+
 	sb.WriteString(fmt.Sprintf(
 		`{"op": "add", "path": "%s/spec/containers/-", "value": `+
 			`{"name": "varmor-network-proxy", `+
@@ -635,9 +645,9 @@ func buildNetworkProxyPatch(profileName string, workloads bool, networkProxyConf
 			`"securityContext": {"runAsUser": %d}, `+
 			`"args": ["-c", "/etc/envoy/bootstrap.yaml", "-l", "info"], `+
 			`"readinessProbe": {"httpGet": {"path": "/ready", "port": %d}, "initialDelaySeconds": 2, "periodSeconds": 5}, `+
-			`"resources": {"requests": {"cpu": "50m", "memory": "64Mi"}, "limits": {"cpu": "200m", "memory": "128Mi"}}, `+
+			`"resources": %s, `+
 			`"volumeMounts": [%s]}}, `,
-		pathPrefix, varmorconfig.ProxyImage, proxyUID, proxyAdminPort, sidecarVolumeMounts,
+		pathPrefix, varmorconfig.ProxyImage, proxyUID, proxyAdminPort, proxyResourcesJSON, sidecarVolumeMounts,
 	))
 
 	// --- 4. volumes ---
