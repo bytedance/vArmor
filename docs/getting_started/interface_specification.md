@@ -205,9 +205,54 @@ English | [简体中文](interface_specification.zh_CN.md)
 
 | Field | Description |
 |-------|-------------|
+|mitm<br />*[MITMConfig](#mitmconfig)*|Optional. Configures TLS Man-in-the-Middle for inspecting encrypted HTTPS traffic at the HTTP level. vArmor automatically generates a self-signed CA per policy and injects the CA bundle into application containers. |
+|resources<br />*[ProxyResourceOverride](#proxyresourceoverride)*|Optional. Overrides the default resource requests and limits for the proxy sidecar container. When MITM is enabled, higher defaults are used automatically. Use this field to fine-tune resources for specific workload requirements. |
 |proxyUID<br />**int64*|Optional. ProxyUID specifies the UID used by the proxy sidecar process at runtime. This UID must be different from the UID of the target application, as iptables rules rely on this UID for traffic distinction. This field cannot be modified after the policy is created. (Default: 1337)|
 |proxyPort<br />**uint16*|Optional. ProxyPort specifies the listening port on which the proxy sidecar process listens. When the listening port of the target application conflicts with it, a different port can be specified. This field cannot be modified after the policy is created. (Default: 15001)|
 |proxyAdminPort<br />**uint16*|Optional. ProxyAdminPort specifies the listening port on which the proxy sidecar process handles admin requests. When the listening port of the target application conflicts with it, a different port can be specified. This field cannot be modified after the policy is created. (Default: 15000)|
+
+### MITMConfig
+
+| Field | Description |
+|-------|-------------|
+|domains<br />*string array*|Specifies which TLS connections should be terminated for L7 inspection. Only connections to these domains will be decrypted; all other TLS traffic passes through unmodified. Supports exact match ("api.openai.com") and wildcard ("*.openai.com"). Wildcard matching follows RFC 6125. |
+|headerMutations<br />*[HeaderMutation](#headermutation) array*|Optional. Per-domain HTTP header injection rules. Each entry's domain must literally equal one of the entries in `domains` (no wildcard expansion is performed). Typically used for injecting API keys or authentication tokens into requests destined for specific upstream services, enabling centralized credential management at the proxy layer. |
+
+### HeaderMutation
+
+| Field | Description |
+|-------|-------------|
+|domain<br />*string*|Specifies which MITM domain this mutation applies to. Must literally equal one of the entries in `MITMConfig.Domains`. |
+|headers<br />*[HeaderAction](#headeraction) array*|The list of headers to inject for this domain. |
+
+### HeaderAction
+
+| Field | Description |
+|-------|-------------|
+|name<br />*string*|The HTTP header name (e.g., "Authorization", "x-api-key"). |
+|value<br />*string*|Optional. A literal header value. Use this for non-sensitive values. Mutually exclusive with `secretRef`. |
+|secretRef<br />*[SecretKeyRef](#secretkeyref)*|Optional. References a Kubernetes Secret key containing the header value. Use this for sensitive values such as API keys or tokens. The referenced Secret must be pre-created by the user in the same namespace as the target workload. The controller reads the Secret value at reconcile time and inlines it into the Envoy xDS configuration. Mutually exclusive with `value`. |
+
+### SecretKeyRef
+
+| Field | Description |
+|-------|-------------|
+|name<br />*string*|The name of the Kubernetes Secret. |
+|key<br />*string*|The key within the Secret's data map. |
+
+### ProxyResourceOverride
+
+| Field | Description |
+|-------|-------------|
+|requests<br />*ResourceList*|Optional. Overrides the resource requests for the proxy sidecar container. Only the specified resource types (cpu, memory) are overridden; unset fields retain the built-in defaults. |
+|limits<br />*ResourceList*|Optional. Overrides the resource limits for the proxy sidecar container. Only the specified resource types (cpu, memory) are overridden; unset fields retain the built-in defaults. |
+
+Built-in defaults:
+
+| Mode | CPU requests | Memory requests | CPU limits | Memory limits |
+|------|-------------|----------------|-----------|--------------|
+| Non-MITM | 50m | 64Mi | 500m | 256Mi |
+| MITM | 100m | 128Mi | 1000m | 512Mi |
 
 ## VarmorPolicyStatus
 

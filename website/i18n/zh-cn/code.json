@@ -44,7 +44,7 @@
     "description": "Network Proxy feature title"
   },
   "homepage.features.networkProxy.description": {
-    "message": "通过 Envoy Sidecar 透明拦截容器出站流量，支持 L4/L7/TLS SNI 访问控制、审计日志和策略动态更新，无需重启 Pod。",
+    "message": "通过 Envoy Sidecar 透明拦截容器出站流量，支持 L4/L7 访问控制、HTTPS 请求头注入、审计日志和策略动态更新，无需重启 Pod。",
     "description": "Network Proxy feature description"
   },
   "homepage.features.aiAgent.title": {
@@ -52,7 +52,7 @@
     "description": "AI Agent Protection feature title"
   },
   "homepage.features.aiAgent.description": {
-    "message": "为 AI Agent 工作负载提供纵深防御——从系统调用到网络协议实施访问控制，有效缓解提示词注入诱导的工具滥用和数据外泄风险。",
+    "message": "为 AI Agent 提供纵深防御——从系统调用到网络协议实施访问控制，有效缓解提示词注入诱导的工具滥用、密钥泄露和数据外泄风险。",
     "description": "AI Agent Protection feature description"
   },
   "homepage.features.allowByDefault.title": {
@@ -100,7 +100,7 @@
     "description": "Architecture description paragraph 1"
   },
   "homepage.architecture.text2": {
-    "message": "vArmor 还支持 NetworkProxy enforcer，通过 mutation webhook 向目标 Pod 注入 Envoy sidecar 代理和 init 容器。Init 容器通过 iptables 规则将出站流量重定向到 Envoy sidecar，后者根据 Manager 生成并通过 Secret 下发的策略执行 L4/L7 访问控制。",
+    "message": "vArmor 还支持 NetworkProxy enforcer，通过 mutation webhook 向目标 Pod 注入 Envoy sidecar 代理和 init 容器。Init 容器通过 iptables 规则将出站流量重定向到 Envoy sidecar，后者根据 Manager 生成并通过 Secret 下发的策略执行 L4/L7 访问控制，包括 TLS MITM 终止、HTTPS 流量解密检查、HTTP 请求头注入等能力。",
     "description": "Architecture description paragraph 2"
   },
   "homepage.architecture.text3": {
@@ -128,7 +128,7 @@
     "description": "Quick Start step 3 title"
   },
   "homepage.quickStart.step3.description": {
-    "message": "创建 VarmorPolicy 保护你的工作负载——支持 AppArmor/BPF/Seccomp 规则和 NetworkProxy 出站访问控制",
+    "message": "创建 VarmorPolicy 保护你的工作负载——支持 AppArmor/BPF/Seccomp 规则，以及 NetworkProxy 的出站访问控制、TLS MITM 和请求头注入",
     "description": "Quick Start step 3 description"
   },
   "homepage.quickStart.viewGuide": {
