@@ -231,7 +231,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        k8s_version: [ "1.28.13" ]
+        k8s_version: [ "1.32.10" ]
     runs-on:  self-hosted
     env:
       KUBE_VER: ${{ matrix.k8s_version }}
