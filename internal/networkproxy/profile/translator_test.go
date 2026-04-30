@@ -226,7 +226,7 @@ func TestScenario4_TLS_KubeAPI_Allow(t *testing.T) {
 	if err != nil {
 		t.Fatalf("TranslateEgressRules failed: %v", err)
 	}
-	assertContains(t, result.LDS, "address_prefix: 10.96.0.1", "IP match for 10.96.0.1")
+	assertContains(t, result.LDS, `address_prefix: "10.96.0.1"`, "IP match for 10.96.0.1")
 	assertContains(t, result.LDS, "prefix_len: 32", "single IP /32")
 	assertContains(t, result.LDS, "destination_port: 6443", "port 6443")
 }

@@ -285,7 +285,7 @@ func renderFilterChainYAML(chain *FilterChain, indent int) string {
 			sb.WriteString(fmt.Sprintf("%s    prefix_ranges:\n", prefix))
 			for _, cidr := range chain.FilterChainMatch.PrefixRanges {
 				addr, plen := cidrToPrefixRange(cidr)
-				sb.WriteString(fmt.Sprintf("%s    - address_prefix: %s\n", prefix, addr))
+				sb.WriteString(fmt.Sprintf("%s    - address_prefix: \"%s\"\n", prefix, addr))
 				sb.WriteString(fmt.Sprintf("%s      prefix_len: %d\n", prefix, plen))
 			}
 		}
@@ -650,12 +650,12 @@ func renderPermissionRuleYAML(rule PermissionRule, indent int, rbacType string) 
 		ip, cidrNet, err := net.ParseCIDR(ipStr)
 		if err != nil {
 			sb.WriteString(fmt.Sprintf("%s- destination_ip:\n", prefix))
-			sb.WriteString(fmt.Sprintf("%s    address_prefix: %s\n", prefix, ipStr))
+			sb.WriteString(fmt.Sprintf("%s    address_prefix: \"%s\"\n", prefix, ipStr))
 			sb.WriteString(fmt.Sprintf("%s    prefix_len: 32\n", prefix))
 		} else {
 			ones, _ := cidrNet.Mask.Size()
 			sb.WriteString(fmt.Sprintf("%s- destination_ip:\n", prefix))
-			sb.WriteString(fmt.Sprintf("%s    address_prefix: %s\n", prefix, ip.Mask(cidrNet.Mask).String()))
+			sb.WriteString(fmt.Sprintf("%s    address_prefix: \"%s\"\n", prefix, ip.Mask(cidrNet.Mask).String()))
 			sb.WriteString(fmt.Sprintf("%s    prefix_len: %d\n", prefix, ones))
 		}
 
