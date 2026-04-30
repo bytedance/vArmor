@@ -226,13 +226,13 @@ jobs:
         if: always()
         run: ./.github/scripts/kill-and-clean-all.sh
 
-  e2e-test-nri-with-self-hosted-runner:
+  e2e-test-nri-with-ubuntu-runner:
     needs: build
     strategy:
       fail-fast: false
       matrix:
         k8s_version: [ "1.32.10" ]
-    runs-on:  self-hosted
+    runs-on: ubuntu-latest
     env:
       KUBE_VER: ${{ matrix.k8s_version }}
     steps:
@@ -244,6 +244,11 @@ jobs:
       - name: Setup a Kubernetes environment
         run: ./.github/scripts/create-k3s-cluster.sh ${{ matrix.k8s_version }}
       
+      - name: Fix containerd socket path for k3s
+        run: |
+          sudo mkdir -p /run/containerd
+          sudo ln -sf /run/k3s/containerd/containerd.sock /run/containerd/containerd.sock
+
       - name: Download Helm Chart Artifact
         uses: actions/download-artifact@v4
         with:
@@ -302,7 +307,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: e2e-test-nri-results-with-self-hosted-runner
+          name: e2e-test-nri-results-with-ubuntu-runner
           path: test-results/
 
       - name: Cleanup
