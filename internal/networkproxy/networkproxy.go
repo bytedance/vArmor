@@ -90,6 +90,55 @@ const (
 	SecretKeyMITMCABundle = "mitm-ca-bundle.crt"
 )
 
+// Secret size thresholds. Kubernetes imposes a hard 1 MiB (1,048,576 bytes)
+// limit on Secret data. With the Mozilla CA bundle (~226 KB) already
+// consuming a large portion, a policy with many rules could approach the
+// limit. We define two thresholds:
+//   - WarnThreshold: emit a warning log so operators notice before failure.
+//   - MaxThreshold: reject the Secret before attempting the API call; the
+//     100 KB headroom above 900 KB accounts for Kubernetes-internal JSON
+//     encoding overhead and etcd value-size margin.
+const (
+	SecretSizeWarnThreshold = 700 * 1024 // 700 KB
+	SecretSizeMaxThreshold  = 900 * 1024 // 900 KB
+)
+
+// computeSecretDataSize returns the total byte count of all values stored
+// in the Secret (both StringData and Data). This approximates the
+// wire-format size that counts toward the 1 MiB Kubernetes limit.
+func computeSecretDataSize(secret *v1.Secret) int {
+	total := 0
+	for _, v := range secret.StringData {
+		total += len(v)
+	}
+	for _, v := range secret.Data {
+		total += len(v)
+	}
+	return total
+}
+
+// checkSecretSize computes the total data size of the Secret and returns
+// an error if it exceeds MaxThreshold. A warning is logged (but not
+// rejected) when it exceeds WarnThreshold.
+func checkSecretSize(secret *v1.Secret, logger logr.Logger) error {
+	size := computeSecretDataSize(secret)
+	if size > SecretSizeMaxThreshold {
+		return fmt.Errorf(
+			"secret %s/%s data size (%d bytes) exceeds the maximum allowed threshold (%d bytes); "+
+				"reduce the number of egress rules, MITM domains, or header mutations",
+			secret.Namespace, secret.Name, size, SecretSizeMaxThreshold)
+	}
+	if size > SecretSizeWarnThreshold {
+		logger.Info("WARNING: proxy secret size is approaching the Kubernetes 1 MiB limit",
+			"namespace", secret.Namespace,
+			"name", secret.Name,
+			"size_bytes", size,
+			"warn_threshold", SecretSizeWarnThreshold,
+			"max_threshold", SecretSizeMaxThreshold)
+	}
+	return nil
+}
+
 // envoyBootstrapTemplate is the sidecar's static bootstrap YAML. Only the
 // admin port is parameterised; the LDS/CDS paths are fixed to the volume
 // mount point /etc/envoy so the template does not depend on the volume
@@ -157,6 +206,11 @@ func CreateNetworkProxySecret(
 		return nil
 	}
 
+	// Size guard: reject before hitting the Kubernetes 1 MiB hard limit.
+	if err := checkSecretSize(secret, logger); err != nil {
+		return err
+	}
+
 	_, err = kubeClient.CoreV1().Secrets(secret.Namespace).Create(context.Background(), secret, metav1.CreateOptions{})
 	if err != nil {
 		if k8errors.IsAlreadyExists(err) {
@@ -182,6 +236,11 @@ func UpdateNetworkProxySecret(
 
 	if secret == nil {
 		return nil
+	}
+
+	// Size guard: reject before hitting the Kubernetes 1 MiB hard limit.
+	if err := checkSecretSize(secret, logger); err != nil {
+		return err
 	}
 
 	// Update the secret
