@@ -103,6 +103,20 @@ func ValidateAddPolicy(policy interface{}, behaviorModelingEnabled bool) (bool, 
 		return false, "The DefenseInDepth mode is not supported when BPF enforcer is activated."
 	}
 
+	// Validate MITMConfig
+	if spec.Policy.NetworkProxyConfig != nil && spec.Policy.NetworkProxyConfig.MITM != nil {
+		if ok, msg := validateMITMConfig(spec.Policy.NetworkProxyConfig.MITM); !ok {
+			return false, msg
+		}
+	}
+
+	// Validate Resources
+	if spec.Policy.NetworkProxyConfig != nil {
+		if ok, msg := validateProxyResources(spec.Policy.NetworkProxyConfig.Resources); !ok {
+			return false, msg
+		}
+	}
+
 	// Do not exceed the length of a standard Kubernetes name (63 characters)
 	// Note: The advisory length of AppArmor profile name is 100 (See https://bugs.launchpad.net/apparmor/+bug/1499544).
 	profileName := varmorprofile.GenerateArmorProfileName(namespace, name, clusterScope)
@@ -127,11 +141,12 @@ func ValidateAddPolicy(policy interface{}, behaviorModelingEnabled bool) (bool, 
 //   - policy: The updated policy object to validate (can be *varmor.VarmorPolicy or *varmor.VarmorClusterPolicy)
 //   - oldEnforcer: The previous enforcer configuration from the existing policy
 //   - oldTarget: The previous target configuration from the existing policy
+//   - oldProxyConfig: The previous NetworkProxyConfig (nil to skip immutability checks on ProxyUID/Port/AdminPort)
 //
 // Returns:
 //   - bool: true if validation passes, false otherwise
 //   - string: Detailed error message if validation fails, empty string if validation passes
-func ValidateUpdatePolicy(policy interface{}, oldEnforcer string, oldTarget varmor.Target) (bool, string) {
+func ValidateUpdatePolicy(policy interface{}, oldEnforcer string, oldTarget varmor.Target, oldProxyConfig *varmor.NetworkProxyConfig) (bool, string) {
 	// Extract common policy specification fields from different policy types
 	var newEnforcers varmortypes.Enforcer
 	var newSpec varmor.VarmorPolicySpec
@@ -156,6 +171,18 @@ func ValidateUpdatePolicy(policy interface{}, oldEnforcer string, oldTarget varm
 	// Target modifications require policy recreation to ensure proper workload association and security consistency
 	if !reflect.DeepEqual(newSpec.Target, oldTarget) {
 		return false, "Modifying the target field of a policy is not allowed. You need to recreate the policy object."
+	}
+
+	// Disallow modifying immutable proxy config fields (ProxyUID, ProxyPort, ProxyAdminPort).
+	// These values are baked into each Pod's iptables rules at init time and cannot be
+	// hot-reloaded. Changing them would cause a mismatch between the iptables REDIRECT
+	// target and the Envoy listener port in existing Pods.
+	// When oldProxyConfig is nil (controller path), this check is skipped.
+	if oldProxyConfig != nil && newSpec.Policy.NetworkProxyConfig != nil {
+		newPC := newSpec.Policy.NetworkProxyConfig
+		if !proxyConfigImmutableFieldsEqual(oldProxyConfig, newPC) {
+			return false, "Modifying proxyUID, proxyPort, or proxyAdminPort is not allowed after the policy is created. You need to recreate the policy object."
+		}
 	}
 
 	// Disallow switching the mode of a policy from BehaviorModeling to others when behavior modeling is still incomplete.
@@ -205,6 +232,132 @@ func ValidateUpdatePolicy(policy interface{}, oldEnforcer string, oldTarget varm
 		return false, "The DefenseInDepth mode is not supported when BPF enforcer is activated."
 	}
 
+	// Validate MITMConfig
+	if newSpec.Policy.NetworkProxyConfig != nil && newSpec.Policy.NetworkProxyConfig.MITM != nil {
+		if ok, msg := validateMITMConfig(newSpec.Policy.NetworkProxyConfig.MITM); !ok {
+			return false, msg
+		}
+	}
+
+	// Validate Resources
+	if newSpec.Policy.NetworkProxyConfig != nil {
+		if ok, msg := validateProxyResources(newSpec.Policy.NetworkProxyConfig.Resources); !ok {
+			return false, msg
+		}
+	}
+
 	// All validations passed
+	return true, ""
+}
+
+// proxyConfigImmutableFieldsEqual compares the immutable fields of two
+// NetworkProxyConfig values. Returns true if they are equal or both nil.
+func proxyConfigImmutableFieldsEqual(old, new *varmor.NetworkProxyConfig) bool {
+	return ptrInt64Equal(old.ProxyUID, new.ProxyUID) &&
+		ptrUint16Equal(old.ProxyPort, new.ProxyPort) &&
+		ptrUint16Equal(old.ProxyAdminPort, new.ProxyAdminPort)
+}
+
+func ptrInt64Equal(a, b *int64) bool {
+	if a == nil && b == nil {
+		return true
+	}
+	if a == nil || b == nil {
+		return false
+	}
+	return *a == *b
+}
+
+func ptrUint16Equal(a, b *uint16) bool {
+	if a == nil && b == nil {
+		return true
+	}
+	if a == nil || b == nil {
+		return false
+	}
+	return *a == *b
+}
+
+func validateMITMConfig(mitm *varmor.MITMConfig) (bool, string) {
+	if len(mitm.Domains) == 0 {
+		return false, "mitm.domains must contain at least one domain"
+	}
+
+	domainSet := make(map[string]bool, len(mitm.Domains))
+	for _, d := range mitm.Domains {
+		domainSet[d] = true
+	}
+
+	for i, hm := range mitm.HeaderMutations {
+		if !domainSet[hm.Domain] {
+			return false, fmt.Sprintf(
+				"mitm.headerMutations[%d].domain %q is not in mitm.domains",
+				i, hm.Domain)
+		}
+
+		if len(hm.Headers) == 0 {
+			return false, fmt.Sprintf(
+				"mitm.headerMutations[%d].headers must not be empty", i)
+		}
+
+		for j, h := range hm.Headers {
+			if h.Name == "" {
+				return false, fmt.Sprintf(
+					"mitm.headerMutations[%d].headers[%d].name must not be empty",
+					i, j)
+			}
+
+			hasValue := h.Value != ""
+			hasSecretRef := h.SecretRef != nil
+
+			if !hasValue && !hasSecretRef {
+				return false, fmt.Sprintf(
+					"mitm.headerMutations[%d].headers[%d]: one of value or secretRef must be specified",
+					i, j)
+			}
+			if hasValue && hasSecretRef {
+				return false, fmt.Sprintf(
+					"mitm.headerMutations[%d].headers[%d]: value and secretRef are mutually exclusive",
+					i, j)
+			}
+
+			if hasSecretRef {
+				if h.SecretRef.Name == "" {
+					return false, fmt.Sprintf(
+						"mitm.headerMutations[%d].headers[%d].secretRef.name must not be empty",
+						i, j)
+				}
+				if h.SecretRef.Key == "" {
+					return false, fmt.Sprintf(
+						"mitm.headerMutations[%d].headers[%d].secretRef.key must not be empty",
+						i, j)
+				}
+			}
+		}
+	}
+
+	return true, ""
+}
+
+// validateProxyResources validates the ProxyResourceOverride configuration.
+// It ensures that when both requests and limits are specified for the same
+// resource type, limits are not less than requests.
+func validateProxyResources(override *varmor.ProxyResourceOverride) (bool, string) {
+	if override == nil {
+		return true, ""
+	}
+
+	if len(override.Requests) > 0 && len(override.Limits) > 0 {
+		for resourceName, requestVal := range override.Requests {
+			if limitVal, exists := override.Limits[resourceName]; exists {
+				if limitVal.Cmp(requestVal) < 0 {
+					return false, fmt.Sprintf(
+						"networkProxyConfig.resources: limits.%s (%s) must be >= requests.%s (%s)",
+						resourceName, limitVal.String(), resourceName, requestVal.String())
+				}
+			}
+		}
+	}
+
 	return true, ""
 }

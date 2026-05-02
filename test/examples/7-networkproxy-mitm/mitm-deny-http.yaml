@@ -1,0 +1,93 @@
+# Scenario: MITM + HTTP path/method fine-grained control
+#
+# - domains = [httpbin.org]
+# - After MITM decryption, the policy is more granular:
+#     * Allow GET /get and prefix /headers*
+#     * Deny /admin/* and /secret
+#     * Other requests are caught by the defaultAction=deny fallback
+#
+# Access Log:
+#   - Requests blocked by deny rules (/admin/*, /secret):
+#     access_log prints the deny CEL matched log entry, reason field is rbac_access_denied
+#   - Requests allowed by allow+audit rules (GET /get, GET /headers*):
+#     access_log prints the shadow CEL matched audit log entry
+#   - %FILTER_CHAIN_NAME% shows mitm_tls_dns_chain
+#
+# Verification:
+#   kubectl exec -it -n demo deploy/mitm-deny-http -- curl -sSLk https://httpbin.org/get           # -> 200 + injected header
+#   kubectl exec -it -n demo deploy/mitm-deny-http -- curl -sSLk https://httpbin.org/headers       # -> 200 + injected header
+#   kubectl exec -it -n demo deploy/mitm-deny-http -- curl -sSLk https://httpbin.org/admin/login   # -> 403
+#   kubectl exec -it -n demo deploy/mitm-deny-http -- curl -sSLk https://httpbin.org/secret        # -> 403
+#   kubectl exec -it -n demo deploy/mitm-deny-http -- curl -sSLk -XPOST https://httpbin.org/get    # -> 403 (method mismatch)
+---
+apiVersion: crd.varmor.org/v1beta1
+kind: VarmorPolicy
+metadata:
+  name: mitm-deny-http
+  namespace: demo
+spec:
+  updateExistingWorkloads: true
+  target:
+    kind: Deployment
+    selector:
+      matchLabels:
+        app: mitm-deny-http
+  policy:
+    enforcer: NetworkProxy
+    mode: EnhanceProtect
+    networkProxyConfig:
+      mitm:
+        domains:
+          - httpbin.org
+        headerMutations:
+          - domain: httpbin.org
+            headers:
+              - name: X-Request-Source
+                value: varmor-agent
+    enhanceProtect:
+      networkProxyRawRules:
+        egress:
+          defaultAction: deny
+          httpRules:
+            - qualifiers: ["deny"]
+              description: "explicit admin deny (takes precedence)"
+              match:
+                hosts:
+                  - httpbin.org
+                paths:
+                  - prefix: "/admin/"
+                  - exact: "/secret"
+            - qualifiers: ["allow", "audit"]
+              match:
+                hosts:
+                  - httpbin.org
+                paths:
+                  - exact: "/get"
+                  - prefix: "/headers"
+                methods:
+                  - GET
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mitm-deny-http
+  namespace: demo
+  labels:
+    environment: production
+    app: mitm-deny-http
+    sandbox.varmor.org/enable: "true"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mitm-deny-http
+  template:
+    metadata:
+      labels:
+        app: mitm-deny-http
+    spec:
+      containers:
+        - name: c0
+          image: elkeid-test-cn-beijing.cr.volces.com/public/curl:8.7.1
+          command: ["/bin/sh", "-c", "sleep infinity"]
+          imagePullPolicy: IfNotPresent

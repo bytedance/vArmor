@@ -1,0 +1,89 @@
+# Scenario: Bare IP address MITM + Header injection
+#
+# - domains = ["1.1.1.1"]
+#     The bare IP literal goes directly into the MITM IP chain (filter_chain_match.prefix_ranges)
+#     buildMITMVirtualHosts generates a VirtualHost for the bare IP, domains = ["1.1.1.1", "1.1.1.1:*"]
+# - Injects X-Request-Source: varmor-ip-literal
+# - httpRules allow ports 443 and 6443 for 1.1.1.1
+#
+# Bare IP MITM limitation:
+#   MITM rules based on IP cause plaintext HTTP L7 access control to become ineffective
+#   - curl http://1.1.1.1:443 (plaintext HTTP) → prefix_ranges eliminates http_chain → falls into tcp_default_chain and is denied by the fallback rule
+#   - The L7 RBAC rules generated for 1.1.1.1 in http_chain become dead code
+#   - Only affects IP rules, does not affect domain rules
+#
+# Verification:
+#   kubectl exec -it -n demo deploy/mitm-ip-literal -- curl -sSLk https://1.1.1.1/cdn-cgi/trace
+#   Expected:
+#     - TLS is terminated by the sidecar (curl -v shows a certificate issued by vArmor, SAN includes IP:1.1.1.1)
+#     - The injected X-Request-Source header is sent to upstream with the request
+#     - Upstream is Cloudflare, which returns the /cdn-cgi/trace response
+#     - %FILTER_CHAIN_NAME% in access_log shows mitm_tls_ip_chain
+#
+# Technical details:
+#   - splitMITMDomains classifies "1.1.1.1" as IP
+#   - Generates IP chain: filter_chain_match = {prefix_ranges: [{address_prefix: "1.1.1.1", prefix_len: 32}], transport_protocol: "tls"}
+#   - buildMITMVirtualHosts: net.ParseIP("1.1.1.1") != nil → VH{domains: ["1.1.1.1", "1.1.1.1:*"]}
+#   - Leaf certificate SAN includes IP:1.1.1.1
+---
+apiVersion: crd.varmor.org/v1beta1
+kind: VarmorPolicy
+metadata:
+  name: mitm-ip-literal
+  namespace: demo
+spec:
+  updateExistingWorkloads: true
+  target:
+    kind: Deployment
+    selector:
+      matchLabels:
+        app: mitm-ip-literal
+  policy:
+    enforcer: NetworkProxy
+    mode: EnhanceProtect
+    networkProxyConfig:
+      mitm:
+        domains:
+          - "1.1.1.1"
+        headerMutations:
+          - domain: "1.1.1.1"
+            headers:
+              - name: X-Request-Source
+                value: varmor-ip-literal
+    enhanceProtect:
+      networkProxyRawRules:
+        egress:
+          defaultAction: deny
+          httpRules:
+            - qualifiers: ["allow", "audit"]
+              match:
+                hosts:
+                  - "1.1.1.1"
+                ports:
+                - port: 443
+                - port: 6443
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mitm-ip-literal
+  namespace: demo
+  labels:
+    environment: production
+    app: mitm-ip-literal
+    sandbox.varmor.org/enable: "true"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mitm-ip-literal
+  template:
+    metadata:
+      labels:
+        app: mitm-ip-literal
+    spec:
+      containers:
+        - name: c0
+          image: elkeid-test-cn-beijing.cr.volces.com/public/curl:8.7.1
+          command: ["/bin/sh", "-c", "sleep infinity"]
+          imagePullPolicy: IfNotPresent

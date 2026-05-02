@@ -1,0 +1,89 @@
+# Scenario: CIDR MITM (/32 exact match)
+#
+# - domains = ["8.8.8.8/32"]
+#
+# /32 CIDR (8.8.8.8/32):
+#   - splitMITMDomains classifies it as IP (parsed via net.ParseCIDR)
+#   - Generates IP chain: filter_chain_match.prefix_ranges contains {address_prefix: "8.8.8.8", prefix_len: 32}
+#   - buildMITMVirtualHosts: /32 → ones==32 → extracts IP "8.8.8.8" → VH{domains: ["8.8.8.8", "8.8.8.8:*"]}
+#   - Header injection works normally
+#
+# Broad CIDR MITM limitation:
+#   MITMInput.Validate() rejects CIDRs broader than /32 (IPv4) or /128 (IPv6),
+#   so entries like "10.0.0.0/24" cannot be written into mitm.domains.
+#   Broad CIDRs can only appear in L4 egress rules for port-level allow/deny.
+#
+# Bare /32 CIDR MITM limitation:
+#   MITM rules based on /32 CIDR cause plaintext HTTP L7 access control to become ineffective
+#   - Same as mitm-ip-literal, plaintext HTTP to 8.8.8.8 falls into tcp_default_chain
+#   - The L7 RBAC rules generated for 8.8.8.8/32 in http_chain become dead code
+#   - Only affects IP rules, does not affect domain rules
+#
+# Verification:
+#   # /32 — should be able to establish a MITM connection (note: 8.8.8.8:443 is dns.google, may return non-standard response)
+#   kubectl exec -it -n demo deploy/mitm-cidr -- curl -sSLk --connect-timeout 5 https://8.8.8.8/ || echo "Connection timed out or service does not support HTTPS web"
+#
+# Note: the domain in headerMutations must literally equal the value in mitm.domains
+---
+apiVersion: crd.varmor.org/v1beta1
+kind: VarmorPolicy
+metadata:
+  name: mitm-cidr
+  namespace: demo
+spec:
+  updateExistingWorkloads: true
+  target:
+    kind: Deployment
+    selector:
+      matchLabels:
+        app: mitm-cidr
+  policy:
+    enforcer: NetworkProxy
+    mode: EnhanceProtect
+    networkProxyConfig:
+      mitm:
+        domains:
+          - "8.8.8.8/32"
+        headerMutations:
+          - domain: "8.8.8.8/32"
+            headers:
+              - name: X-Request-Source
+                value: varmor-cidr32
+    enhanceProtect:
+      networkProxyRawRules:
+        egress:
+          defaultAction: deny
+          rules:
+            - qualifiers: ["allow", "audit"]
+              cidr: "8.8.8.8/32"
+              ports:
+                - port: 443
+            - qualifiers: ["allow", "audit"]
+              cidr: "10.0.0.0/24"
+              ports:
+                - port: 443
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mitm-cidr
+  namespace: demo
+  labels:
+    environment: production
+    app: mitm-cidr
+    sandbox.varmor.org/enable: "true"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mitm-cidr
+  template:
+    metadata:
+      labels:
+        app: mitm-cidr
+    spec:
+      containers:
+        - name: c0
+          image: elkeid-test-cn-beijing.cr.volces.com/public/curl:8.7.1
+          command: ["/bin/sh", "-c", "sleep infinity"]
+          imagePullPolicy: IfNotPresent

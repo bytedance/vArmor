@@ -107,12 +107,12 @@ func (p *ProxyConfigPropagator) addNamespace(obj interface{}) {
 			continue
 		}
 
-		err = varmornetworkproxy.CreateNetworkProxyConfigMap(p.kubeClient, vcp, ns, true, logger)
+		err = varmornetworkproxy.CreateNetworkProxySecret(p.kubeClient, vcp, ns, true, logger)
 		if err != nil {
-			logger.Error(err, "CreateNetworkProxyConfigMap()")
+			logger.Error(err, "CreateNetworkProxySecret()")
 			continue
 		}
 
-		logger.Info("the config map has been created for the new namespace", "namespace", ns, "name", vcp.Status.ProfileName)
+		logger.Info("the secret has been created for the new namespace", "namespace", ns, "name", vcp.Status.ProfileName)
 	}
 }

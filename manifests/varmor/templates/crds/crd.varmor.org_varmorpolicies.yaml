@@ -1199,12 +1199,6 @@ spec:
                           mitm configures TLS Man-in-the-Middle for inspecting encrypted
                           HTTPS traffic at the HTTP level.
                         properties:
-                          caSecretRef:
-                            description: |-
-                              caSecretRef is the name of the Kubernetes Secret containing the CA
-                              certificate and private key used for signing MITM certificates.
-                              The Secret must contain 'ca.crt' and 'ca.key' data entries.
-                            type: string
                           domains:
                             description: |-
                               domains specifies which TLS connections should be terminated
@@ -1212,9 +1206,104 @@ spec:
                               be decrypted; all other TLS traffic passes through unmodified.
                             items:
                               type: string
+                            minItems: 1
+                            type: array
+                          headerMutations:
+                            description: |-
+                              headerMutations specifies per-domain HTTP header injection rules.
+                              Each entry's domain must be present in the domains list above
+                              (literal equality; no wildcard expansion is performed).
+
+                              This is typically used for injecting API keys or authentication tokens
+                              into requests destined for specific upstream services, enabling
+                              centralized credential management at the proxy layer.
+                            items:
+                              description: |-
+                                HeaderMutation describes per-domain HTTP header injection rules.
+                                When the MITM proxy terminates TLS for the specified domain, these
+                                headers are added to every request before forwarding to the upstream.
+                              properties:
+                                domain:
+                                  description: |-
+                                    domain specifies which MITM domain this mutation applies to.
+                                    Must literally equal one of the entries in MITMConfig.Domains
+                                    (no wildcard expansion is performed on either side).
+                                  minLength: 1
+                                  type: string
+                                headers:
+                                  description: headers is the list of headers to inject
+                                    for this domain.
+                                  items:
+                                    description: "HeaderAction describes a single
+                                      HTTP header to inject into requests\nforwarded
+                                      through the MITM proxy.\n\nExactly one of value
+                                      or secretRef must be specified:\n  - value:
+                                      a literal header value (suitable for non-sensitive
+                                      headers)\n  - secretRef: a reference to a Kubernetes
+                                      Secret key containing the header\n    value
+                                      (suitable for API keys and other credentials)\n\nWhen
+                                      multiple HeaderAction entries share the same
+                                      name on the same domain,\nor when the upstream
+                                      request already carries the header, vArmor injects\nwith
+                                      overwrite if exists or add semantics — the injected
+                                      value replaces any\nexisting value for that
+                                      header.\n\nThe header value is injected as-is.
+                                      vArmor does NOT prepend \"Bearer \" or\nany
+                                      other authentication scheme prefix — the value
+                                      (or Secret content)\nmust contain the complete
+                                      header value ready for injection.\n\nExamples:\n\n\t#
+                                      Literal value (non-sensitive)\n\t- name: \"X-Request-Source\"\n\t
+                                      \ value: \"varmor-agent\"\n\n\t# Secret reference
+                                      (sensitive)\n\t# If the Secret data contains
+                                      \"Bearer sk-xxx\", the injected header is:\n\t#
+                                      \  Authorization: Bearer sk-xxx\n\t- name: \"Authorization\"\n\t
+                                      \ secretRef:\n\t    name: \"openai-credentials\"\n\t
+                                      \   key: \"api-key\""
+                                    properties:
+                                      name:
+                                        description: name is the HTTP header name
+                                          (e.g., "Authorization", "x-api-key").
+                                        minLength: 1
+                                        type: string
+                                      secretRef:
+                                        description: |-
+                                          secretRef references a Kubernetes Secret key containing the header value.
+                                          Use this for sensitive values such as API keys or tokens. The referenced
+                                          Secret must be pre-created by the user in the same namespace as the
+                                          target workload. The controller reads the Secret value at reconcile time
+                                          and inlines it into the Envoy xDS configuration.
+                                          Mutually exclusive with value.
+                                        properties:
+                                          key:
+                                            description: key is the key within the
+                                              Secret's data map.
+                                            minLength: 1
+                                            type: string
+                                          name:
+                                            description: name is the name of the Kubernetes
+                                              Secret.
+                                            minLength: 1
+                                            type: string
+                                        required:
+                                        - key
+                                        - name
+                                        type: object
+                                      value:
+                                        description: |-
+                                          value is a literal header value. Use this for non-sensitive values.
+                                          Mutually exclusive with secretRef.
+                                        type: string
+                                    required:
+                                    - name
+                                    type: object
+                                  minItems: 1
+                                  type: array
+                              required:
+                              - domain
+                              - headers
+                              type: object
                             type: array
                         required:
-                        - caSecretRef
                         - domains
                         type: object
                       proxyAdminPort:
@@ -1242,6 +1331,36 @@ spec:
                           Default: 1337
                         format: int64
                         type: integer
+                      resources:
+                        description: |-
+                          resources overrides the default resource requests and limits for
+                          the proxy sidecar container. When MITM is enabled, higher defaults are
+                          used automatically. Use this field to fine-tune resources for specific
+                          workload requirements.
+                        properties:
+                          limits:
+                            additionalProperties:
+                              anyOf:
+                              - type: integer
+                              - type: string
+                              pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                              x-kubernetes-int-or-string: true
+                            description: |-
+                              limits overrides the resource limits for the proxy sidecar container.
+                              Only the specified resource types (cpu, memory) are overridden.
+                            type: object
+                          requests:
+                            additionalProperties:
+                              anyOf:
+                              - type: integer
+                              - type: string
+                              pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                              x-kubernetes-int-or-string: true
+                            description: |-
+                              requests overrides the resource requests for the proxy sidecar container.
+                              Only the specified resource types (cpu, memory) are overridden.
+                            type: object
+                        type: object
                     type: object
                 required:
                 - enforcer

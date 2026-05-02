@@ -173,6 +173,43 @@ var (
 
 	// DefaultProxyImage is the default image for the proxy sidecar process
 	ProxyImage = os.Getenv("PROXY_IMAGE")
+
+	// MITMCertsMountDir is the in-sidecar directory into which the policy's
+	// unified Secret projects the MITM leaf certificate and private key via
+	// a projected Secret volume. The kubelet performs in-place Secret→file
+	// sync, so updates are picked up by Envoy's watched_directory.
+	MITMCertsMountDir = "/etc/envoy/tls"
+
+	// MITMLeafCertPath is the PEM-encoded MITM leaf certificate file path
+	// consumed by Envoy downstream_tls_context.tls_certificates.
+	MITMLeafCertPath = "/etc/envoy/tls/leaf.crt"
+
+	// MITMLeafKeyPath is the PEM-encoded MITM leaf private key file path
+	// consumed by Envoy downstream_tls_context.tls_certificates.
+	MITMLeafKeyPath = "/etc/envoy/tls/leaf.key"
+
+	// MITMUpstreamTrustedCAPath is the PEM-encoded CA trust bundle file path
+	// consumed by Envoy upstream_tls_context.validation_context for
+	// verifying the real upstream server certificate during MITM
+	// re-encryption. Populated by the policy's unified Secret projection
+	// into the Envoy sidecar (same Secret as the leaf certificate).
+	MITMUpstreamTrustedCAPath = "/etc/envoy/tls/ca-bundle.crt"
+
+	// MITMCABundleMountDir is the in-application-container directory into
+	// which the policy's unified Secret projects the concatenated CA trust
+	// store. A vArmor-proprietary path is used to avoid colliding with the
+	// target image's system CA location (which varies across distros:
+	// Debian/Ubuntu /etc/ssl/certs/ca-certificates.crt, Alpine
+	// /etc/ssl/cert.pem, RHEL /etc/pki/ca-trust/extracted/pem/...).
+	MITMCABundleMountDir = "/etc/varmor/ca-bundle"
+
+	// MITMCABundlePath is the concatenated Mozilla + vArmor-CA trust store
+	// projected into the application container and referenced through the
+	// SSL_CERT_FILE / REQUESTS_CA_BUNDLE / NODE_EXTRA_CA_CERTS /
+	// CURL_CA_BUNDLE environment variables injected by the webhook. It is
+	// NOT written to the system CA path so that the target image's own
+	// system CA store remains untouched.
+	MITMCABundlePath = "/etc/varmor/ca-bundle/ca-certificates.crt"
 )
 
 // CreateClientConfig creates client config and applies rate limit QPS and burst

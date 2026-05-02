@@ -23,7 +23,7 @@ CLASSIFIER_IMAGE_TAG_DEV := $(VARMOR_IMAGE_TAG_DEV)
 PROXYINIT_IMAGE_NAME := proxyinit
 PROXYINIT_IMAGE_TAG := v0.1
 PROXY_IMAGE_NAME:= envoy
-PROXY_IMAGE_TAG := v1.33-latest
+PROXY_IMAGE_TAG := v1.38-latest
 
 VARMOR_IMAGE_AP ?= $(REPO_AP)/$(VARMOR_IMAGE_NAME):$(VARMOR_IMAGE_TAG)
 VARMOR_IMAGE_DEV ?= $(REPO_DEV)/$(VARMOR_IMAGE_NAME):$(VARMOR_IMAGE_TAG_DEV)
@@ -176,7 +176,7 @@ local: ## Build local binary.
           $(PWD)/$(VARMOR_PATH)
 
 .PHONY: build
-build: manifests generate build-ebpf copy-ebpf vet local ## Build local binary when apis or bpf code were modified.
+build: manifests generate update-mozilla-bundle build-ebpf copy-ebpf vet local ## Build local binary when apis or bpf code were modified.
 
 .PHONY: docker-build
 docker-build: docker-build-varmor-amd64 docker-build-varmor-arm64 docker-build-classifier-amd64 docker-build-classifier-arm64 ## Build container images. 
@@ -355,3 +355,31 @@ sync-proxy-images: docker-build-proxyinit ## Sync proxy images to the public rep
 	@echo "----------------------------------------"
 	docker manifest push $(PROXY_IMAGE_AP)
 	
+##@ MITM Certificate Bundle
+
+# Location of the embedded Mozilla CA bundle consumed by the MITM
+# package via go:embed. Regenerated in-place so that go:embed picks up
+# the new content at the next go build.
+MOZILLA_BUNDLE_PATH  ?= internal/networkproxy/mitm/certs/mozilla.pem
+MOZILLA_BUNDLE_URL   ?= https://curl.se/ca/cacert.pem
+MOZILLA_BUNDLE_SHA   ?= https://curl.se/ca/cacert.pem.sha256
+
+# Set SKIP_MOZILLA_BUNDLE_UPDATE=1 to keep the vendored bundle unchanged
+# (offline builds, air-gapped CI, reproducibility pinning).
+SKIP_MOZILLA_BUNDLE_UPDATE ?=
+
+.PHONY: update-mozilla-bundle
+update-mozilla-bundle: ## Refresh the embedded Mozilla CA bundle used by the MITM package.
+ifeq ($(strip $(SKIP_MOZILLA_BUNDLE_UPDATE)),)
+	@echo "[+] Refreshing Mozilla CA bundle from $(MOZILLA_BUNDLE_URL)"
+	@tmpdir=$$(mktemp -d) ; \
+	 trap 'rm -rf "$$tmpdir"' EXIT ; \
+	 curl -fsSL --retry 3 --retry-delay 2 -o "$$tmpdir/cacert.pem"        "$(MOZILLA_BUNDLE_URL)" ; \
+	 curl -fsSL --retry 3 --retry-delay 2 -o "$$tmpdir/cacert.pem.sha256" "$(MOZILLA_BUNDLE_SHA)" ; \
+	 ( cd "$$tmpdir" && sha256sum -c cacert.pem.sha256 ) ; \
+	 install -m 0644 "$$tmpdir/cacert.pem" "$(MOZILLA_BUNDLE_PATH)" ; \
+	 sha256sum "$(MOZILLA_BUNDLE_PATH)" | awk '{print $$1}' > "$(MOZILLA_BUNDLE_PATH).sha256" ; \
+	 echo "[+] Updated $(MOZILLA_BUNDLE_PATH)"
+else
+	@echo "[=] SKIP_MOZILLA_BUNDLE_UPDATE set, keeping existing $(MOZILLA_BUNDLE_PATH)"
+endif

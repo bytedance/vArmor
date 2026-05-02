@@ -16,26 +16,143 @@ limitations under the License.
 
 package v1beta1
 
+import (
+	corev1 "k8s.io/api/core/v1"
+)
+
+// SecretKeyRef is a reference to a specific key within a Kubernetes Secret.
+// The referenced Secret must exist in the same namespace as the target workload.
+type SecretKeyRef struct {
+	// name is the name of the Kubernetes Secret.
+	// +kubebuilder:validation:MinLength=1
+	Name string `json:"name"`
+	// key is the key within the Secret's data map.
+	// +kubebuilder:validation:MinLength=1
+	Key string `json:"key"`
+}
+
+// HeaderAction describes a single HTTP header to inject into requests
+// forwarded through the MITM proxy.
+//
+// Exactly one of value or secretRef must be specified:
+//   - value: a literal header value (suitable for non-sensitive headers)
+//   - secretRef: a reference to a Kubernetes Secret key containing the header
+//     value (suitable for API keys and other credentials)
+//
+// When multiple HeaderAction entries share the same name on the same domain,
+// or when the upstream request already carries the header, vArmor injects
+// with overwrite if exists or add semantics — the injected value replaces any
+// existing value for that header.
+//
+// The header value is injected as-is. vArmor does NOT prepend "Bearer " or
+// any other authentication scheme prefix — the value (or Secret content)
+// must contain the complete header value ready for injection.
+//
+// Examples:
+//
+//	# Literal value (non-sensitive)
+//	- name: "X-Request-Source"
+//	  value: "varmor-agent"
+//
+//	# Secret reference (sensitive)
+//	# If the Secret data contains "Bearer sk-xxx", the injected header is:
+//	#   Authorization: Bearer sk-xxx
+//	- name: "Authorization"
+//	  secretRef:
+//	    name: "openai-credentials"
+//	    key: "api-key"
+type HeaderAction struct {
+	// name is the HTTP header name (e.g., "Authorization", "x-api-key").
+	// +kubebuilder:validation:MinLength=1
+	Name string `json:"name"`
+	// value is a literal header value. Use this for non-sensitive values.
+	// Mutually exclusive with secretRef.
+	// +optional
+	Value string `json:"value,omitempty"`
+	// secretRef references a Kubernetes Secret key containing the header value.
+	// Use this for sensitive values such as API keys or tokens. The referenced
+	// Secret must be pre-created by the user in the same namespace as the
+	// target workload. The controller reads the Secret value at reconcile time
+	// and inlines it into the Envoy xDS configuration.
+	// Mutually exclusive with value.
+	// +optional
+	SecretRef *SecretKeyRef `json:"secretRef,omitempty"`
+}
+
+// HeaderMutation describes per-domain HTTP header injection rules.
+// When the MITM proxy terminates TLS for the specified domain, these
+// headers are added to every request before forwarding to the upstream.
+type HeaderMutation struct {
+	// domain specifies which MITM domain this mutation applies to.
+	// Must literally equal one of the entries in MITMConfig.Domains
+	// (no wildcard expansion is performed on either side).
+	// +kubebuilder:validation:MinLength=1
+	Domain string `json:"domain"`
+	// headers is the list of headers to inject for this domain.
+	// +kubebuilder:validation:MinItems=1
+	Headers []HeaderAction `json:"headers"`
+}
+
 // MITMConfig describes TLS Man-in-the-Middle configuration for inspecting
 // encrypted HTTPS traffic at the HTTP level. When configured, the sidecar
-// proxy terminates TLS for the specified domains using a CA certificate,
-// inspects and optionally modifies the plaintext HTTP, then re-encrypts
-// traffic to the upstream server.
+// proxy terminates TLS for the specified domains using an auto-generated
+// CA certificate, inspects and optionally modifies the plaintext HTTP,
+// then re-encrypts traffic to the upstream server.
 //
-// Prerequisites:
-//   - The CA certificate must be trusted by the application container
-//     (added to its trust store).
-//   - A Kubernetes Secret containing the CA certificate and private key
-//     must exist in the same namespace as the policy.
+// vArmor automatically generates a self-signed CA (ECDSA P-256, 10-year
+// validity) per policy. The controller appends this CA to an embedded
+// Mozilla trust bundle and publishes the concatenated bundle, together
+// with the xDS configuration and leaf certificate material, in the
+// policy's unified Secret. Application containers consume the bundle via
+// a projected Secret volume (exposed through SSL_CERT_FILE,
+// REQUESTS_CA_BUNDLE, NODE_EXTRA_CA_CERTS and CURL_CA_BUNDLE) so that
+// both the public internet PKI and the MITM CA are trusted. The CA
+// private key is never projected into the application container.
+//
+// Domains are written verbatim into the leaf certificate's SAN list,
+// including wildcard entries such as "*.openai.com". Wildcard matching
+// follows RFC 6125: a wildcard matches exactly one DNS label, and does
+// not match the bare parent domain. Users who need both must list both
+// explicitly in Domains.
 type MITMConfig struct {
 	// domains specifies which TLS connections should be terminated
 	// for L7 inspection. Only connections to these domains will
 	// be decrypted; all other TLS traffic passes through unmodified.
+	// +kubebuilder:validation:MinItems=1
 	Domains []string `json:"domains"`
-	// caSecretRef is the name of the Kubernetes Secret containing the CA
-	// certificate and private key used for signing MITM certificates.
-	// The Secret must contain 'ca.crt' and 'ca.key' data entries.
-	CASecretRef string `json:"caSecretRef"`
+	// headerMutations specifies per-domain HTTP header injection rules.
+	// Each entry's domain must be present in the domains list above
+	// (literal equality; no wildcard expansion is performed).
+	//
+	// This is typically used for injecting API keys or authentication tokens
+	// into requests destined for specific upstream services, enabling
+	// centralized credential management at the proxy layer.
+	// +optional
+	HeaderMutations []HeaderMutation `json:"headerMutations,omitempty"`
+}
+
+// ProxyResourceOverride allows users to override the default CPU and memory
+// resource requests and limits for the proxy sidecar container on a per-policy
+// basis. Only the fields explicitly set are overridden; unset fields retain
+// the built-in defaults (which differ depending on whether MITM is enabled).
+//
+// This enables fine-grained resource tuning without requiring changes to the
+// global vArmor configuration. For example, a policy protecting a high-traffic
+// service with MITM enabled may need higher CPU limits than the default.
+//
+// Built-in defaults:
+//
+//	Non-MITM: requests 50m/64Mi, limits 500m/256Mi
+//	MITM:     requests 100m/128Mi, limits 1000m/512Mi
+type ProxyResourceOverride struct {
+	// requests overrides the resource requests for the proxy sidecar container.
+	// Only the specified resource types (cpu, memory) are overridden.
+	// +optional
+	Requests corev1.ResourceList `json:"requests,omitempty"`
+	// limits overrides the resource limits for the proxy sidecar container.
+	// Only the specified resource types (cpu, memory) are overridden.
+	// +optional
+	Limits corev1.ResourceList `json:"limits,omitempty"`
 }
 
 type NetworkProxyConfig struct {
@@ -43,6 +160,12 @@ type NetworkProxyConfig struct {
 	// HTTPS traffic at the HTTP level.
 	// +optional
 	MITM *MITMConfig `json:"mitm,omitempty"`
+	// resources overrides the default resource requests and limits for
+	// the proxy sidecar container. When MITM is enabled, higher defaults are
+	// used automatically. Use this field to fine-tune resources for specific
+	// workload requirements.
+	// +optional
+	Resources *ProxyResourceOverride `json:"resources,omitempty"`
 	// proxyUID specifies the UID used by the proxy sidecar process at runtime.
 	// This UID must be different from the UID of the target application, as iptables
 	// rules rely on this UID for traffic distinction.

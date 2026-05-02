@@ -208,9 +208,54 @@ description: vArmor 的接口规范。
 
 | 字段 | 描述 |
 |-----|------|
+|mitm<br />*[MITMConfig](#mitmconfig)*|可选字段。配置 TLS Man-in-the-Middle，用于在 HTTP 层面检查加密的 HTTPS 流量。vArmor 自动为每个策略生成自签名 CA，并将 CA bundle 注入应用容器。|
+|resources<br />*[ProxyResourceOverride](#proxyresourceoverride)*|可选字段。覆盖代理边车容器的默认资源请求和限制。启用 MITM 时，会自动使用更高的默认值。使用此字段可为特定工作负载需求微调资源配额。|
 |proxyUID<br />**int64*|可选字段。ProxyUID 指定代理边车进程在运行时所使用的用户标识（UID）。该用户标识必须与目标应用程序的用户标识不同，因为 iptables 规则依赖此用户标识进行流量区分。此字段在策略创建后无法修改。（默认值：1337）|
 |proxyPort<br />**uint16*|可选字段。ProxyPort 用于指定代理边车进程所监听的端口。若目标应用的监听端口与其冲突，可另行指定其他端口。该字段在策略创建后无法修改。（默认值：15001）|
 |proxyAdminPort<br />**uint16*|可选字段。ProxyAdminPort 用于指定代理边车进程处理管理请求的监听端口。若目标应用的监听端口与其冲突，可指定其他端口。该字段在策略创建后无法修改。（默认值：15000）|
+
+### MITMConfig
+
+| 字段 | 描述 |
+|-----|------|
+|domains<br />*string array*|指定哪些 TLS 连接应被终止以进行 L7 检查。只有到这些域名的连接才会被解密；所有其他 TLS 流量原样通过。支持精确匹配（"api.openai.com"）和通配符（"*.openai.com"）。通配符匹配遵循 RFC 6125。|
+|headerMutations<br />*[HeaderMutation](#headermutation) array*|可选字段。逐域名的 HTTP 头部注入规则。每个条目的 domain 必须字面等于 `domains` 中的某一项（不执行通配符展开）。通常用于向特定上游服务的请求中注入 API 密钥或认证令牌，实现代理层的集中式凭证管理。|
+
+### HeaderMutation
+
+| 字段 | 描述 |
+|-----|------|
+|domain<br />*string*|指定此变异应用于哪个 MITM 域名。必须字面等于 `MITMConfig.Domains` 中的某一项。|
+|headers<br />*[HeaderAction](#headeraction) array*|要为此域名注入的头部列表。|
+
+### HeaderAction
+
+| 字段 | 描述 |
+|-----|------|
+|name<br />*string*|HTTP 头部名称（例如 "Authorization"、"x-api-key"）。|
+|value<br />*string*|可选字段。字面头部值。用于非敏感值。与 `secretRef` 互斥。|
+|secretRef<br />*[SecretKeyRef](#secretkeyref)*|可选字段。引用一个 Kubernetes Secret 键，该键包含头部值。用于 API 密钥或令牌等敏感值。被引用的 Secret 必须由用户在目标工作负载所在的同一命名空间中预先创建。控制器在 reconcile 时读取 Secret 值，并将其内联到 Envoy xDS 配置中。与 `value` 互斥。|
+
+### SecretKeyRef
+
+| 字段 | 描述 |
+|-----|------|
+|name<br />*string*|Kubernetes Secret 的名称。|
+|key<br />*string*|Secret 数据映射中的键。|
+
+### ProxyResourceOverride
+
+| 字段 | 描述 |
+|-----|------|
+|requests<br />*ResourceList*|可选字段。覆盖代理边车容器的资源请求。仅覆盖指定的资源类型（cpu、memory）；未设置的字段保留内置默认值。|
+|limits<br />*ResourceList*|可选字段。覆盖代理边车容器的资源限制。仅覆盖指定的资源类型（cpu、memory）；未设置的字段保留内置默认值。|
+
+内置默认值：
+
+| 模式 | CPU requests | Memory requests | CPU limits | Memory limits |
+|------|-------------|----------------|-----------|--------------|
+| 非 MITM | 50m | 64Mi | 500m | 256Mi |
+| MITM | 100m | 128Mi | 1000m | 512Mi |
 
 ## NetworkProxyRules
 

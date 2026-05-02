@@ -152,9 +152,9 @@ func (c *ClusterPolicyController) handleDeleteVarmorClusterPolicy(name string) e
 	namespaces, err := c.kubeClient.CoreV1().Namespaces().List(context.Background(), metav1.ListOptions{})
 	if err == nil {
 		for _, namespace := range namespaces.Items {
-			err = varmornetworkproxy.DeleteNetworkProxyConfigMap(c.kubeClient, namespace.Name, apName)
+			err = varmornetworkproxy.DeleteNetworkProxySecret(c.kubeClient, namespace.Name, apName)
 			if err != nil {
-				logger.Error(err, "DeleteNetworkProxyConfigMap()")
+				logger.Error(err, "DeleteNetworkProxySecret()")
 			}
 		}
 	}
@@ -223,13 +223,13 @@ func (c *ClusterPolicyController) handleAddVarmorClusterPolicy(vcp *varmor.Varmo
 		return err
 	}
 
-	logger.Info("create ConfigMap objects in all namespaces for the NetworkProxy enforcer if needed")
+	logger.Info("create Secret objects in all namespaces for the NetworkProxy enforcer if needed")
 	namespaces, err := c.kubeClient.CoreV1().Namespaces().List(context.Background(), metav1.ListOptions{})
 	if err == nil {
 		for _, namespace := range namespaces.Items {
-			err = varmornetworkproxy.CreateNetworkProxyConfigMap(c.kubeClient, vcp, namespace.Name, true, logger)
+			err = varmornetworkproxy.CreateNetworkProxySecret(c.kubeClient, vcp, namespace.Name, true, logger)
 			if err != nil {
-				logger.Error(err, "CreateNetworkProxyConfigMap()")
+				logger.Error(err, "CreateNetworkProxySecret()")
 				err = statuscommon.UpdateVarmorClusterPolicyStatus(c.varmorInterface, vcp, "", false, varmor.VarmorPolicyError, varmor.VarmorPolicyCreated, apicorev1.ConditionFalse,
 					"Error",
 					err.Error())
@@ -309,7 +309,7 @@ func (c *ClusterPolicyController) handleUpdateVarmorClusterPolicy(newVcp *varmor
 
 	logger.Info("VarmorClusterPolicy updated", "name", newVcp.Name, "labels", newVcp.Labels, "target", newVcp.Spec.Target)
 
-	if valid, message := ValidateUpdatePolicy(newVcp, oldAp.Spec.Profile.Enforcer, oldAp.Spec.Target); !valid {
+	if valid, message := ValidateUpdatePolicy(newVcp, oldAp.Spec.Profile.Enforcer, oldAp.Spec.Target, nil); !valid {
 		logger.Info("update the policy status with forbidden info", "message", message)
 		err := statuscommon.UpdateVarmorClusterPolicyStatus(c.varmorInterface, newVcp, "", false, varmor.VarmorPolicyUnchanged, varmor.VarmorPolicyUpdated, apicorev1.ConditionFalse, "Forbidden", message)
 		if err != nil {
@@ -328,14 +328,14 @@ func (c *ClusterPolicyController) handleUpdateVarmorClusterPolicy(newVcp *varmor
 		return err
 	}
 
-	// Second, update ConfigMap objects in all namespaces for the NetworkProxy enforcer if needed
-	logger.Info("2. update ConfigMap objects in all namespaces for the NetworkProxy enforcer if needed")
+	// Second, update Secret objects in all namespaces for the NetworkProxy enforcer if needed
+	logger.Info("2. update Secret objects in all namespaces for the NetworkProxy enforcer if needed")
 	namespaces, err := c.kubeClient.CoreV1().Namespaces().List(context.Background(), metav1.ListOptions{})
 	if err == nil {
 		for _, namespace := range namespaces.Items {
-			err = varmornetworkproxy.UpdateNetworkProxyConfigMap(c.kubeClient, newVcp, namespace.Name, true, logger)
+			err = varmornetworkproxy.UpdateNetworkProxySecret(c.kubeClient, newVcp, namespace.Name, true, logger)
 			if err != nil {
-				logger.Error(err, "UpdateNetworkProxyConfigMap()")
+				logger.Error(err, "UpdateNetworkProxySecret()")
 				err = statuscommon.UpdateVarmorClusterPolicyStatus(c.varmorInterface, newVcp, "", false, varmor.VarmorPolicyError, varmor.VarmorPolicyUpdated, apicorev1.ConditionFalse,
 					"Error",
 					err.Error())

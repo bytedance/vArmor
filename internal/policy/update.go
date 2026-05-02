@@ -52,7 +52,15 @@ iptables -t nat -A VARMOR_OUTPUT -m owner --uid-owner ${ENVOY_UID} -j RETURN
 iptables -t nat -A VARMOR_OUTPUT -d 127.0.0.0/8 -j RETURN
 iptables -t nat -A VARMOR_OUTPUT -p tcp -j VARMOR_REDIRECT
 iptables -t nat -A VARMOR_REDIRECT -p tcp -j REDIRECT --to-ports ${ENVOY_PORT}
-iptables -t filter -A OUTPUT -p tcp --dport ${ENVOY_ADMIN_PORT} -m owner ! --uid-owner ${ENVOY_UID} -j DROP`
+iptables -t filter -A OUTPUT -p tcp --dport ${ENVOY_ADMIN_PORT} -m owner ! --uid-owner ${ENVOY_UID} -j DROP
+ip6tables -t nat -N VARMOR_OUTPUT
+ip6tables -t nat -N VARMOR_REDIRECT
+ip6tables -t nat -A OUTPUT -p tcp -j VARMOR_OUTPUT
+ip6tables -t nat -A VARMOR_OUTPUT -m owner --uid-owner ${ENVOY_UID} -j RETURN
+ip6tables -t nat -A VARMOR_OUTPUT -d ::1/128 -j RETURN
+ip6tables -t nat -A VARMOR_OUTPUT -p tcp -j VARMOR_REDIRECT
+ip6tables -t nat -A VARMOR_REDIRECT -p tcp -j REDIRECT --to-ports ${ENVOY_PORT}
+ip6tables -t filter -A OUTPUT -p tcp --dport ${ENVOY_ADMIN_PORT} -m owner ! --uid-owner ${ENVOY_UID} -j DROP`
 
 	proxyInitContainer = coreV1.Container{
 		Name:  "varmor-network-proxy-init",
@@ -86,16 +94,8 @@ iptables -t filter -A OUTPUT -p tcp --dport ${ENVOY_ADMIN_PORT} -m owner ! --uid
 			InitialDelaySeconds: 2,
 			PeriodSeconds:       5,
 		},
-		Resources: coreV1.ResourceRequirements{
-			Requests: coreV1.ResourceList{
-				coreV1.ResourceCPU:    resource.MustParse("50m"),
-				coreV1.ResourceMemory: resource.MustParse("64Mi"),
-			},
-			Limits: coreV1.ResourceList{
-				coreV1.ResourceCPU:    resource.MustParse("200m"),
-				coreV1.ResourceMemory: resource.MustParse("128Mi"),
-			},
-		},
+		// Resources is set at runtime by ResolveProxyResources() based on
+		// MITM status and user overrides — see modifyXxxAnnotationsAndEnv().
 		VolumeMounts: []coreV1.VolumeMount{
 			{
 				Name:      "varmor-network-proxy-config",
@@ -108,10 +108,198 @@ iptables -t filter -A OUTPUT -p tcp --dport ${ENVOY_ADMIN_PORT} -m owner ! --uid
 	proxyVolume = coreV1.Volume{
 		Name: "varmor-network-proxy-config",
 		VolumeSource: coreV1.VolumeSource{
-			ConfigMap: &coreV1.ConfigMapVolumeSource{}, // Set name with profileName
+			Secret: &coreV1.SecretVolumeSource{
+				// Name set per-policy at runtime.
+				// Items is explicit to avoid projecting MITM key material
+				// (mitm-ca.key, mitm-leaf.key, etc.) into /etc/envoy/.
+				Items: []coreV1.KeyToPath{
+					{Key: "bootstrap.yaml", Path: "bootstrap.yaml"},
+					{Key: "lds.yaml", Path: "lds.yaml"},
+					{Key: "cds.yaml", Path: "cds.yaml"},
+				},
+			},
 		},
 	}
+
+	// proxyMITMTLSVolume projects the per-policy MITM leaf cert, leaf key
+	// and upstream CA bundle into the Envoy sidecar at /etc/envoy/tls.
+	proxyMITMTLSVolume = coreV1.Volume{
+		Name: "varmor-network-proxy-mitm-tls",
+		VolumeSource: coreV1.VolumeSource{
+			Secret: &coreV1.SecretVolumeSource{
+				// Name set per-policy at runtime.
+				Items: []coreV1.KeyToPath{
+					{Key: "mitm-leaf.crt", Path: "leaf.crt"},
+					{Key: "mitm-leaf.key", Path: "leaf.key"},
+					{Key: "mitm-ca-bundle.crt", Path: "ca-bundle.crt"},
+				},
+			},
+		},
+	}
+
+	// proxyMITMCABundleVolume projects the concatenated Mozilla + vArmor-CA
+	// trust bundle into application containers at /etc/varmor/ca-bundle.
+	proxyMITMCABundleVolume = coreV1.Volume{
+		Name: "varmor-network-proxy-mitm-ca-bundle",
+		VolumeSource: coreV1.VolumeSource{
+			Secret: &coreV1.SecretVolumeSource{
+				// Name set per-policy at runtime.
+				Items: []coreV1.KeyToPath{
+					{Key: "mitm-ca-bundle.crt", Path: "ca-certificates.crt"},
+				},
+			},
+		},
+	}
+
+	// proxyMITMTLSVolumeMount is appended to the Envoy sidecar container
+	// when MITM is enabled.
+	proxyMITMTLSVolumeMount = coreV1.VolumeMount{
+		Name:      "varmor-network-proxy-mitm-tls",
+		MountPath: "/etc/envoy/tls",
+		ReadOnly:  true,
+	}
+
+	// proxyMITMCABundleVolumeMount is injected into each target container
+	// when MITM is enabled.
+	proxyMITMCABundleVolumeMount = coreV1.VolumeMount{
+		Name:      "varmor-network-proxy-mitm-ca-bundle",
+		MountPath: varmorconfig.MITMCABundleMountDir,
+		ReadOnly:  true,
+	}
+
+	// mitmCABundleEnvVars are injected into each target container so that
+	// common TLS runtimes trust the vArmor MITM CA automatically.
+	mitmCABundleEnvVars = []coreV1.EnvVar{
+		{Name: "SSL_CERT_FILE", Value: varmorconfig.MITMCABundlePath},
+		{Name: "REQUESTS_CA_BUNDLE", Value: varmorconfig.MITMCABundlePath},
+		{Name: "NODE_EXTRA_CA_CERTS", Value: varmorconfig.MITMCABundlePath},
+		{Name: "CURL_CA_BUNDLE", Value: varmorconfig.MITMCABundlePath},
+	}
 )
+
+// isMITMEnabled returns true when MITM TLS interception is configured on the
+// NetworkProxy policy.
+func isMITMEnabled(proxyConfig *varmor.NetworkProxyConfig) bool {
+	return proxyConfig != nil && proxyConfig.MITM != nil && len(proxyConfig.MITM.Domains) > 0
+}
+
+// proxyResourceOverride extracts the Resources override from the
+// NetworkProxyConfig, returning nil if the config is nil or no override
+// is specified.
+func proxyResourceOverride(proxyConfig *varmor.NetworkProxyConfig) *varmor.ProxyResourceOverride {
+	if proxyConfig == nil {
+		return nil
+	}
+	return proxyConfig.Resources
+}
+
+// cleanupMITMVolumes removes the two MITM-specific volumes from a PodSpec.
+// It is called during the cleanup phase of each modify*AnnotationsAndEnv
+// function to ensure idempotent reconciliation.
+func cleanupMITMVolumes(volumes *[]coreV1.Volume) {
+	mitmVolumeNames := map[string]bool{
+		proxyMITMTLSVolume.Name:      true,
+		proxyMITMCABundleVolume.Name: true,
+	}
+	filtered := (*volumes)[:0]
+	for _, v := range *volumes {
+		if !mitmVolumeNames[v.Name] {
+			filtered = append(filtered, v)
+		}
+	}
+	*volumes = filtered
+}
+
+// cleanupMITMFromSidecar removes the MITM TLS volumeMount from the Envoy
+// sidecar container if present.
+func cleanupMITMFromSidecar(containers []coreV1.Container) {
+	for i := range containers {
+		if containers[i].Name != proxyContainer.Name {
+			continue
+		}
+		filtered := containers[i].VolumeMounts[:0]
+		for _, vm := range containers[i].VolumeMounts {
+			if vm.Name != proxyMITMTLSVolumeMount.Name {
+				filtered = append(filtered, vm)
+			}
+		}
+		containers[i].VolumeMounts = filtered
+		break
+	}
+}
+
+// cleanupMITMFromTargetContainers removes the MITM CA bundle volumeMount and
+// the four TLS env vars from each target container. Non-target containers
+// (determined by target.Containers) are left untouched.
+func cleanupMITMFromTargetContainers(containers []coreV1.Container, target varmor.Target) {
+	for i := range containers {
+		if containers[i].Name == proxyContainer.Name || containers[i].Name == proxyInitContainer.Name {
+			continue
+		}
+		if len(target.Containers) != 0 && !varmorutils.InStringArray(containers[i].Name, target.Containers) {
+			continue
+		}
+		// Remove MITM volumeMount
+		filtered := containers[i].VolumeMounts[:0]
+		for _, vm := range containers[i].VolumeMounts {
+			if vm.Name != proxyMITMCABundleVolumeMount.Name {
+				filtered = append(filtered, vm)
+			}
+		}
+		containers[i].VolumeMounts = filtered
+		// Remove MITM env vars
+		mitmEnvNames := map[string]bool{
+			"SSL_CERT_FILE": true, "REQUESTS_CA_BUNDLE": true,
+			"NODE_EXTRA_CA_CERTS": true, "CURL_CA_BUNDLE": true,
+		}
+		filteredEnv := containers[i].Env[:0]
+		for _, ev := range containers[i].Env {
+			if !mitmEnvNames[ev.Name] {
+				filteredEnv = append(filteredEnv, ev)
+			}
+		}
+		containers[i].Env = filteredEnv
+	}
+}
+
+// applyMITMToSidecar appends the MITM TLS volumeMount to the Envoy sidecar
+// container.
+func applyMITMToSidecar(containers []coreV1.Container) {
+	for i := range containers {
+		if containers[i].Name == proxyContainer.Name {
+			containers[i].VolumeMounts = append(containers[i].VolumeMounts, proxyMITMTLSVolumeMount)
+			break
+		}
+	}
+}
+
+// applyMITMVolumes appends the two MITM volumes and sets their SecretName
+// name to profileName.
+func applyMITMVolumes(volumes *[]coreV1.Volume, profileName string) {
+	tlsVol := proxyMITMTLSVolume.DeepCopy()
+	tlsVol.Secret.SecretName = profileName
+	*volumes = append(*volumes, *tlsVol)
+
+	caVol := proxyMITMCABundleVolume.DeepCopy()
+	caVol.Secret.SecretName = profileName
+	*volumes = append(*volumes, *caVol)
+}
+
+// applyMITMToTargetContainers injects the CA bundle volumeMount and four
+// TLS env vars into each target container.
+func applyMITMToTargetContainers(containers []coreV1.Container, target varmor.Target) []coreV1.Container {
+	for i := range containers {
+		if containers[i].Name == proxyContainer.Name || containers[i].Name == proxyInitContainer.Name {
+			continue
+		}
+		if len(target.Containers) != 0 && !varmorutils.InStringArray(containers[i].Name, target.Containers) {
+			continue
+		}
+		containers[i].VolumeMounts = append(containers[i].VolumeMounts, proxyMITMCABundleVolumeMount)
+		containers[i].Env = append(containers[i].Env, mitmCABundleEnvVars...)
+	}
+	return containers
+}
 
 func modifyDeploymentAnnotationsAndEnv(
 	enforcer string,
@@ -150,6 +338,10 @@ func modifyDeploymentAnnotationsAndEnv(
 					break
 				}
 			}
+			// Clean up MITM volumes, sidecar mount, and target container mounts/env
+			cleanupMITMVolumes(&deploy.Spec.Template.Spec.Volumes)
+			cleanupMITMFromSidecar(deploy.Spec.Template.Spec.Containers)
+			cleanupMITMFromTargetContainers(deploy.Spec.Template.Spec.Containers, target)
 		}
 		// BPF
 		if strings.HasPrefix(key, "container.bpf.security.beta.varmor.org/") && value != "unconfined" {
@@ -233,10 +425,19 @@ func modifyDeploymentAnnotationsAndEnv(
 			// Add a proxy sidecar container
 			proxyContainer.SecurityContext.RunAsUser = &proxyUID
 			proxyContainer.ReadinessProbe.HTTPGet.Port.IntVal = int32(proxyAdminPort)
+			proxyContainer.Resources = ResolveProxyResources(
+				proxyResourceOverride(proxyConfig), isMITMEnabled(proxyConfig))
 			deploy.Spec.Template.Spec.Containers = append(deploy.Spec.Template.Spec.Containers, proxyContainer)
 			// Add a volume
-			proxyVolume.ConfigMap.Name = profileName
+			proxyVolume.Secret.SecretName = profileName
 			deploy.Spec.Template.Spec.Volumes = append(deploy.Spec.Template.Spec.Volumes, proxyVolume)
+
+			// MITM: add TLS volumeMount to sidecar + extra volumes + target container injection
+			if isMITMEnabled(proxyConfig) {
+				applyMITMToSidecar(deploy.Spec.Template.Spec.Containers)
+				applyMITMVolumes(&deploy.Spec.Template.Spec.Volumes, profileName)
+				deploy.Spec.Template.Spec.Containers = applyMITMToTargetContainers(deploy.Spec.Template.Spec.Containers, target)
+			}
 		}
 	}
 
@@ -351,6 +552,10 @@ func modifyStatefulSetAnnotationsAndEnv(
 					break
 				}
 			}
+			// Clean up MITM volumes, sidecar mount, and target container mounts/env
+			cleanupMITMVolumes(&stateful.Spec.Template.Spec.Volumes)
+			cleanupMITMFromSidecar(stateful.Spec.Template.Spec.Containers)
+			cleanupMITMFromTargetContainers(stateful.Spec.Template.Spec.Containers, target)
 		}
 		// BPF
 		if strings.HasPrefix(key, "container.bpf.security.beta.varmor.org/") && value != "unconfined" {
@@ -434,10 +639,19 @@ func modifyStatefulSetAnnotationsAndEnv(
 			// Add a proxy sidecar container
 			proxyContainer.SecurityContext.RunAsUser = &proxyUID
 			proxyContainer.ReadinessProbe.HTTPGet.Port.IntVal = int32(proxyAdminPort)
+			proxyContainer.Resources = ResolveProxyResources(
+				proxyResourceOverride(proxyConfig), isMITMEnabled(proxyConfig))
 			stateful.Spec.Template.Spec.Containers = append(stateful.Spec.Template.Spec.Containers, proxyContainer)
 			// Add a volume
-			proxyVolume.ConfigMap.Name = profileName
+			proxyVolume.Secret.SecretName = profileName
 			stateful.Spec.Template.Spec.Volumes = append(stateful.Spec.Template.Spec.Volumes, proxyVolume)
+
+			// MITM: add TLS volumeMount to sidecar + extra volumes + target container injection
+			if isMITMEnabled(proxyConfig) {
+				applyMITMToSidecar(stateful.Spec.Template.Spec.Containers)
+				applyMITMVolumes(&stateful.Spec.Template.Spec.Volumes, profileName)
+				stateful.Spec.Template.Spec.Containers = applyMITMToTargetContainers(stateful.Spec.Template.Spec.Containers, target)
+			}
 		}
 	}
 
@@ -552,6 +766,10 @@ func modifyDaemonSetAnnotationsAndEnv(
 					break
 				}
 			}
+			// Clean up MITM volumes, sidecar mount, and target container mounts/env
+			cleanupMITMVolumes(&daemon.Spec.Template.Spec.Volumes)
+			cleanupMITMFromSidecar(daemon.Spec.Template.Spec.Containers)
+			cleanupMITMFromTargetContainers(daemon.Spec.Template.Spec.Containers, target)
 		}
 		// BPF
 		if strings.HasPrefix(key, "container.bpf.security.beta.varmor.org/") && value != "unconfined" {
@@ -635,10 +853,19 @@ func modifyDaemonSetAnnotationsAndEnv(
 			// Add a proxy sidecar container
 			proxyContainer.SecurityContext.RunAsUser = &proxyUID
 			proxyContainer.ReadinessProbe.HTTPGet.Port.IntVal = int32(proxyAdminPort)
+			proxyContainer.Resources = ResolveProxyResources(
+				proxyResourceOverride(proxyConfig), isMITMEnabled(proxyConfig))
 			daemon.Spec.Template.Spec.Containers = append(daemon.Spec.Template.Spec.Containers, proxyContainer)
 			// Add a volume
-			proxyVolume.ConfigMap.Name = profileName
+			proxyVolume.Secret.SecretName = profileName
 			daemon.Spec.Template.Spec.Volumes = append(daemon.Spec.Template.Spec.Volumes, proxyVolume)
+
+			// MITM: add TLS volumeMount to sidecar + extra volumes + target container injection
+			if isMITMEnabled(proxyConfig) {
+				applyMITMToSidecar(daemon.Spec.Template.Spec.Containers)
+				applyMITMVolumes(&daemon.Spec.Template.Spec.Volumes, profileName)
+				daemon.Spec.Template.Spec.Containers = applyMITMToTargetContainers(daemon.Spec.Template.Spec.Containers, target)
+			}
 		}
 	}
 
