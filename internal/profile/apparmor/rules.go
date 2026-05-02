@@ -376,6 +376,8 @@ func generateVulMitigationRules(rule, qualifier string) (rules string) {
 		rules += qualifier + "/**/devices/**/tasks w,\n"
 	case "runc-override-mitigation":
 		rules += qualifier + "/**/runc w,\n"
+	case "copy-fail-mitigation":
+		rules += qualifier + "network alg,\n"
 	}
 	return rules
 }
