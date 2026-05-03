@@ -1,6 +1,6 @@
 ---
 slug: varmor-0.10.1-new-features-overview
-title: "vArmor v0.10.1: TLS MITM 深度 HTTPS 检测与快速 CVE 响应"
+title: "vArmor v0.10.1: 看穿 HTTPS — AI Agent 流量检测、密钥注入与 CVE-2026-31431 缓解"
 authors: [DannyWei]
 tags: [NewFeatures, ReleaseNotes, AIAgent, LLM, NetworkProxy, TLSMITM]
 date: 2026-05-02T00:00
