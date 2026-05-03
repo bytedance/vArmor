@@ -1,6 +1,6 @@
 ---
 slug: varmor-0.10.1-new-features-overview
-title: "vArmor v0.10.1: See Inside HTTPS — AI Agent Traffic Inspection, Key Injection, and CVE-2026-31431 Mitigation"
+title: "vArmor v0.10.1: AI Agent Traffic Inspection, Key Injection, and CVE-2026-31431 Mitigation"
 authors: [DannyWei]
 tags: [NewFeatures, ReleaseNotes, AIAgent, LLM, NetworkProxy, TLSMITM]
 date: 2026-05-02T00:00
