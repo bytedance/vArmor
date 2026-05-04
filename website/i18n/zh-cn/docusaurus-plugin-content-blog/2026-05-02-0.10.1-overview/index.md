@@ -60,14 +60,17 @@ MITM 还支持**自动 HTTP 请求头注入**，通过策略 CRD 中的 Kubernet
 networkProxyConfig:
   mitm:
     domains:
-    - "*.openai.com"
+    - ark.cn-beijing.volces.com
     headerMutations:
-    - domain: "*.openai.com"
+    - domain: ark.cn-beijing.volces.com
       headers:
       - name: Authorization
+        # 引用一个包含 API Key 的 Secret 进行注入，此字段与 value 互斥。
         secretRef:
-          name: openai-credentials
+          name: ark-credentials
           key: api-key
+        # 直接在策略中配置 API Key，此字段与 secretRef 互斥。
+        # value: Bearer xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 enhanceProtect:
   networkProxyRawRules:
     egress:
@@ -76,7 +79,7 @@ enhanceProtect:
       - qualifiers: ["allow", "audit"]
         match:
           hosts:
-          - "*.openai.com"
+          - "ark.cn-beijing.volces.com"
 ```
 
 ## IPv6 双栈支持

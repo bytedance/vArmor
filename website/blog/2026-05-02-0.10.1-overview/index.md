@@ -65,9 +65,13 @@ networkProxyConfig:
     - domain: "*.openai.com"
       headers:
       - name: Authorization
+        # Reference a Secret containing an API Key for injection.
+        # This field is mutually exclusive with value.
         secretRef:
           name: openai-credentials
           key: api-key
+        # Configure the API Key for injection in the policy.
+        # value: Bearer xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 enhanceProtect:
   networkProxyRawRules:
     egress:
