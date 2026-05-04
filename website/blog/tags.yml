@@ -42,3 +42,8 @@ ReleaseNotes:
   label: Release Notes
   permalink: /releasenotes
   description: Release Notes
+
+TLSMITM:
+  label: TLS MITM
+  permalink: /tlsmitm
+  description: TLS Man-in-the-Middle
