@@ -433,6 +433,12 @@ func generateVulMitigationRules(
 				egressInfo.ToServices = append(egressInfo.ToServices, *service)
 			}
 		}
+	case "copy-fail-mitigation":
+		networkContent, err := newBpfNetworkCreateRule(mode, 1<<unix.AF_ALG, 0, 0)
+		if err != nil {
+			return err
+		}
+		content.Networks = append(content.Networks, *networkContent)
 	}
 	return nil
 }
