@@ -36,7 +36,7 @@
     "description": "Multiple Enforcers feature title"
   },
   "homepage.features.multipleEnforcers.description": {
-    "message": "提供 AppArmor、BPF、Seccomp、NetworkProxy 四种 enforcer，支持单独或组合使用，对容器的文件访问、进程执行、网络外联、系统调用等进行访问控制。",
+    "message": "提供 AppArmor, BPF, Seccomp, NetworkProxy 四种 enforcer，支持单独或组合使用，对容器的文件访问、进程执行、网络外联、系统调用等进行访问控制。",
     "description": "Multiple Enforcers feature description"
   },
   "homepage.features.networkProxy.title": {
