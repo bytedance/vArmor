@@ -141,10 +141,10 @@ vArmor's architecture is designed for **rapid security response**. When CVE-2026
 This example demonstrates several core strengths of vArmor:
 
 - **Observability**: The `audit` qualifier logs every blocked AF_ALG socket attempt, giving security teams immediate visibility into potential exploit activity across the cluster. It also helps identify whether any legitimate workloads actually depend on AF_ALG — allowing teams to assess the blast radius before switching from audit to hard deny.
-- **Dynamic policy management**: Policies can be created, updated, and rolled out to workloads in real-time — no Pod restarts, no node reboots, no maintenance windows required.
+- **Dynamic policy management**: Policies can be updated and rolled out to workloads in real-time — no Pod restarts, no node reboots, no maintenance windows required.
 - **Custom rule flexibility**: The `appArmorRawRules` and `bpfRawRules` interfaces allow security teams to express arbitrary kernel-level restrictions, turning any CVE analysis into an enforceable policy within minutes.
 
-To further simplify this workflow, vArmor v0.10.1 also ships the **[`copy-fail-mitigation`](http://localhost:3000/docs/v0.10/guides/policies_and_rules/built_in_rules/vulnerability_mitigation#copy-fail-mitigation)** built-in rule, so users can enable the same protection with a single rule name — no manual policy authoring required:
+To further simplify this workflow, vArmor v0.10.1 also ships the **[`copy-fail-mitigation`](https://www.varmor.org/docs/v0.10/guides/policies_and_rules/built_in_rules/vulnerability_mitigation/#copy-fail-mitigation)** built-in rule, so users can enable the same protection with a single rule name — no manual policy authoring required:
 
 | Enforcer | Mechanism |
 |---|---|
