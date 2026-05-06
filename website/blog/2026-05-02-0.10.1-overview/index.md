@@ -3,12 +3,12 @@ slug: varmor-0.10.1-new-features-overview
 title: "vArmor v0.10.1: AI Agent Traffic Inspection, Key Injection, and CVE-2026-31431 Mitigation"
 authors: [DannyWei]
 tags: [NewFeatures, ReleaseNotes, AIAgent, LLM, NetworkProxy, TLSMITM]
-date: 2026-05-02T00:00
+date: 2026-05-05T00:00
 ---
 
 In vArmor v0.10.0, we introduced the **NetworkProxy enforcer** — a sidecar-based transparent proxy that brings L4/L7 network access control to Kubernetes workloads. While v0.10.0 could already enforce allow/deny policies on plaintext HTTP and TLS SNI, **HTTPS encrypted traffic remained a black box**: the proxy could see the destination domain via SNI, but could not inspect request paths, headers, or response bodies.
 
-vArmor v0.10.1 completes the **Phase 2** of the NetworkProxy enforcer by adding **TLS Man-in-the-Middle (MITM)** capabilities, unlocking deep HTTPS inspection, automatic header injection, and anti-Domain-Fronting protection. This release also introduces **IPv6 dual-stack support**, **configurable sidecar resource quotas**, a **ConfigMap-to-Secret migration** for improved security, and demonstrates **rapid CVE response** capabilities through the CVE-2026-31431 mitigation case study.
+vArmor v0.10.1 completes the Phase 2 of the NetworkProxy enforcer by adding **TLS Man-in-the-Middle (MITM)** capabilities, unlocking deep HTTPS inspection, automatic header injection, and anti-Domain-Fronting protection. This release also introduces **IPv6 dual-stack support**, **configurable sidecar resource quotas**, a **ConfigMap-to-Secret migration** for improved security, and demonstrates **rapid CVE response** capabilities through the CVE-2026-31431 mitigation case study.
 
 <!--truncate-->
 
@@ -31,7 +31,7 @@ vArmor v0.10.1 implements **fully automatic, per-policy CA certificate managemen
 
 1. When a `VarmorPolicy` or `VarmorClusterPolicy` enables MITM, the vArmor Manager automatically generates a dedicated **ECDSA P-256 CA key pair** for that policy.
 2. The CA certificate and key, along with all Envoy xDS configurations, are stored in a **unified Kubernetes Secret** (one per policy), replacing the previous ConfigMap-based approach.
-3. The CA certificate is injected into the target Pod as a **trusted root** via environment variables (`SSL_CERT_FILE`, `REQUESTS_CA_BUNDLE`, `NODE_EXTRA_CA_CERTS`, `CURL_CA_BUNDLE`), alongside the **Mozilla CA bundle** (embedded via Go `go:embed`).
+3. The CA certificate is injected into the target Pod as a **trusted root** via environment variables (SSL_CERT_FILE, REQUESTS_CA_BUNDLE, NODE_EXTRA_CA_CERTS, CURL_CA_BUNDLE), alongside the **Mozilla CA bundle**.
 4. For each intercepted TLS connection, the Envoy sidecar generates a **leaf certificate** on-the-fly with multi-SAN support, signed by the policy-specific CA.
 
 ### Secret-Based Configuration
@@ -50,7 +50,7 @@ Three projected volumes with **key-level isolation** ensure that the Envoy sidec
 
 ### Anti-Domain-Fronting
 
-When MITM is enabled, the Envoy sidecar terminates the client TLS connection and has access to the plaintext HTTP request. vArmor automatically enforces **SNI-Host consistency**: if the TLS SNI does not match the HTTP `Host` header, the request is rejected with a `404` response. This effectively blocks Domain Fronting attacks, where an adversary hides the true destination behind a trusted domain's SNI.
+When MITM is enabled, the Envoy sidecar terminates the client TLS connection and has access to the plaintext HTTP request. vArmor automatically enforces **SNI-Host consistency**: if the TLS SNI does not match the HTTP `Host` header, the request is rejected with a `403` response. This effectively blocks Domain Fronting attacks, where an adversary hides the true destination behind a trusted domain's SNI.
 
 ### Header Injection via SecretRef
 
@@ -89,7 +89,7 @@ vArmor v0.10.1 adds full **IPv6 dual-stack support** for the NetworkProxy enforc
 
 - **Automatic detection**: The controller detects whether the cluster runs single-stack (IPv4 or IPv6) or dual-stack, and configures listeners and iptables rules accordingly.
 - **Dedicated listeners**: Separate Envoy listeners are created for IPv4 and IPv6 traffic, ensuring correct transparent proxy behavior on dual-stack clusters.
-- **iptables integration**: The init container always sets up both `iptables` and `ip6tables` redirect rules by default, ensuring correct behavior regardless of cluster network configuration.
+- **iptables integration**: The init container always sets up both iptables and ip6tables redirect rules by default, ensuring correct behavior regardless of cluster network configuration.
 
 This ensures that vArmor's network protection works seamlessly in modern Kubernetes clusters that have adopted IPv6.
 
@@ -116,7 +116,7 @@ spec:
 
 ## Rapid CVE Response: CVE-2026-31431 as a Case Study
 
-**CVE-2026-31431** is a critical vulnerability where a malicious container can exploit the `AF_ALG` socket family combined with `splice()` to corrupt the kernel page cache of read-only files. In Kubernetes environments, this enables **full container escape** — an unprivileged pod can corrupt shared container image layer pages (e.g., a binary in the kube-proxy image), and when a privileged DaemonSet next executes that binary, the attacker's payload runs with host-level root privileges. This makes the vulnerability particularly dangerous for AI Agent workloads running on shared Kubernetes clusters.
+**CVE-2026-31431** is a critical vulnerability where a malicious container can exploit the AF_ALG socket family combined with splice() to corrupt the kernel page cache of read-only files. In Kubernetes environments, this enables **full container escape** — an unprivileged pod can corrupt shared container image layer pages (e.g., a binary in the kube-proxy image), and when a privileged DaemonSet next executes that binary, the attacker's payload runs with host-level root privileges. This makes the vulnerability particularly dangerous for AI Agent workloads running on shared Kubernetes clusters.
 
 vArmor's architecture is designed for **rapid security response**. When CVE-2026-31431 was disclosed, vArmor users could immediately craft and deploy mitigation policies using the **custom rule interface** and **audit mode** of the AppArmor and BPF enforcers — without waiting for any software update:
 
@@ -125,7 +125,7 @@ vArmor's architecture is designed for **rapid security response**. When CVE-2026
     enforcer: AppArmorBPF
     mode: EnhanceProtect
     enhanceProtect:
-      # Disable creating socket with AF_ALG domain (AF_ALG: Interface to kernel crypto API)
+      # Disable creating socket with AF_ALG domain
       # For AppArmor enforcer
       appArmorRawRules:
       - rules: |
@@ -140,34 +140,34 @@ vArmor's architecture is designed for **rapid security response**. When CVE-2026
 
 This example demonstrates several core strengths of vArmor:
 
-- **Observability**: The `audit` qualifier logs every blocked `AF_ALG` socket attempt, giving security teams immediate visibility into potential exploit activity across the cluster. It also helps identify whether any legitimate workloads actually depend on `AF_ALG` — allowing teams to assess the blast radius before switching from audit to hard deny.
+- **Observability**: The `audit` qualifier logs every blocked AF_ALG socket attempt, giving security teams immediate visibility into potential exploit activity across the cluster. It also helps identify whether any legitimate workloads actually depend on AF_ALG — allowing teams to assess the blast radius before switching from audit to hard deny.
 - **Dynamic policy management**: Policies can be created, updated, and rolled out to workloads in real-time — no Pod restarts, no node reboots, no maintenance windows required.
 - **Custom rule flexibility**: The `appArmorRawRules` and `bpfRawRules` interfaces allow security teams to express arbitrary kernel-level restrictions, turning any CVE analysis into an enforceable policy within minutes.
 
-To further simplify this workflow, vArmor v0.10.1 also ships the **`copy-fail-mitigation` built-in rule**, so users can enable the same protection with a single rule name — no manual policy authoring required:
+To further simplify this workflow, vArmor v0.10.1 also ships the **[`copy-fail-mitigation`](http://localhost:3000/docs/v0.10/guides/policies_and_rules/built_in_rules/vulnerability_mitigation#copy-fail-mitigation)** built-in rule, so users can enable the same protection with a single rule name — no manual policy authoring required:
 
 | Enforcer | Mechanism |
 |---|---|
-| **AppArmor** | Denies `network alg` to block `AF_ALG` socket creation |
-| **BPF** | Blocks socket creation with `AF_ALG` family at the syscall level |
+| **AppArmor** | Block AF_ALG socket creation |
+| **BPF** | Block AF_ALG socket creation |
 
-> **Note on Seccomp**: Although Seccomp can technically block `AF_ALG` socket creation, it is intentionally not included as a built-in enforcer for this rule. Seccomp profiles are applied at container creation time and cannot be dynamically updated or relaxed while the container is running, unlike AppArmor and BPF enforcers which support runtime policy updates. A manual Seccomp configuration example via `syscallRawRules` is provided in the documentation for users who still prefer it.
+> **Note on Seccomp**: Although Seccomp can technically block AF_ALG socket creation, it is intentionally not included as a built-in enforcer for this rule. Seccomp profiles are applied at container creation time and cannot be dynamically updated or relaxed while the container is running, unlike AppArmor and BPF enforcers which support runtime policy updates. A manual Seccomp configuration example via `syscallRawRules` is provided in the documentation for users who still prefer it.
+
 ## Other Improvements
 
 - **Envoy upgrade**: Sidecar Envoy upgraded to v1.38-latest with upstream performance improvements and bug fixes.
 - **Code reorganization**: NetworkProxy translator and renderer refactored with dedicated MITM translation logic and MITM-aware filter chain construction.
 - **11 new example YAMLs**: Covering MITM-enabled policies, header injection, IPv6, and resource quota customization.
 
-
 ## Known Limitations
 
 **IP-based MITM + plaintext HTTP**
 
-When a target IP address (not a domain name) is configured as a TLS MITM object, **plaintext HTTP traffic** destined to that IP will not match the `http_chain`, and its L7 access control rules will not take effect. This is an inherent behavior of Envoy's filter chain matching algorithm — `prefix_ranges` matching takes precedence and eliminates less specific chains. If your workloads need both TLS MITM and plaintext HTTP L7 access control for the same target, configure rules using domain names rather than IP addresses.
+When a target IP address (not a domain name) is configured as a TLS MITM object, **plaintext HTTP traffic** destined for this IP cannot be subject to L7 access control. This is an inherent behavior of Envoy's filter chain matching algorithm — `prefix_ranges` matching takes precedence and eliminates less specific chains. If your workloads need both TLS MITM and plaintext HTTP L7 access control for the same target, configure rules using domain names rather than IP addresses.
 
 **CA bundle overrides container-native CA list**
 
-The `SSL_CERT_FILE` and similar environment variables cause the runtime to **ignore** the container image's original CA list (e.g., `/etc/ssl/certs/ca-certificates.crt`). Custom CAs added to the container image will be lost. If the user has already set these environment variables, vArmor's injection is skipped (idempotent check), and users need to manually append the vArmor CA to their custom bundle.
+The `SSL_CERT_FILE` and similar environment variables cause the runtime to **ignore** the container image's original CA list (e.g., `/etc/ssl/certs/ca-certificates.crt`). Custom CAs added to the container image will be lost.
 
 **Java (JKS) incompatibility**
 
@@ -187,9 +187,7 @@ With Phase 2 complete, the NetworkProxy enforcer now provides a comprehensive se
 
 - **User-provided CA (`CASecretRef`)**: Allow users to supply their own CA certificate and private key for MITM leaf certificate signing, supporting enterprise PKI integration and compliance requirements. This will also resolve the "CA bundle override" limitation by merging the user-provided CA, Mozilla bundle, and MITM CA into a three-way bundle.
 - **Global sidecar resource quota management**: Cluster-level default resource configuration via `varmor-config` ConfigMap, allowing administrators to set unified sidecar resource quotas without per-policy configuration, with a three-tier merge chain (per-policy > global config > built-in defaults).
-- **Automatic SecretRef watch**: Watch referenced API Key Secrets and automatically trigger re-reconcile when their data changes, eliminating the current "create new Secret + update policy" rotation workflow.
 - **Intelligent policy generation**: Leveraging LLM technology to automatically recommend minimum-privilege network access policies based on observed Agent behavior patterns.
-- **Deeper protocol support**: While gRPC (HTTP/2) and WebSocket already pass through the current MITM pipeline (as they are built on HTTP/1.1 upgrade or HTTP/2 CONNECT), future releases will add protocol-aware L7 inspection — e.g., gRPC service/method-level RBAC rules and WebSocket frame-level auditing.
 
 ## Conclusion
 
@@ -197,4 +195,4 @@ vArmor v0.10.1 marks the completion of the NetworkProxy enforcer's TLS MITM capa
 
 Whether you're operating an AI application platform, deploying autonomous AI Agents, or managing LLM workloads in multi-tenant Kubernetes clusters, vArmor v0.10.1 gives you the tools to enforce fine-grained, protocol-aware security policies — ensuring that your Agents can only do what they're authorized to do.
 
-Upgrade to vArmor v0.10.1 today, and share your feedback on [GitHub](https://github.com/bytedance/vArmor)! For full details, see the [Release Notes](https://github.com/bytedance/vArmor/releases).
+Upgrade to vArmor v0.10.1 today, and share your feedback on [GitHub](https://github.com/bytedance/vArmor)! For full details, see the [Release Notes](https://github.com/bytedance/vArmor/releases/tag/v0.10.1).
