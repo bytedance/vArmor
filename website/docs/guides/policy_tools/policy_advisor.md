@@ -1,33 +1,26 @@
 ---
-slug: /guides/policy_advisor
-sidebar_position: 3
-description: 使用策略顾问生成策略模版。
+slug: /guides/policy_tools/policy_advisor
+sidebar_position: 1
+description: Generate a policy template with policy advisor.
 ---
 
-# 策略顾问
+# Policy Advisor
+This program can help you generate a [`policy`](../getting_started/interface_specification.md#varmorpolicyspec--varmorclusterpolicyspec) template in the **EnhanceProtect** mode with built-in rules. The template can be a good start to craft the final policy. You can provide the context information and the behavior data of the target application to make the template more precise. 
 
-:::tip
-欢迎体验在线版[策略顾问](/policy-advisor)。
-:::
-
-此功能可协助您使用内置策略生成以一个策略模版，您可以基于此模版来构造最终的策略。建议您尽可能多地提供目标工作负载的上下文信息、行为数据，从而使生成的模版更加精准。
-
-请使用 `-f FEATURES` 和 `-c CAPABILITIES` 参数来指定上下文信息。其中，`-f FEATURES` 参数用于显式地描述应用的特性，`-c CAPABILITIES` 参数用于显式地描述应用所需的能力。行为数据则通过 `-m BEHAVIOR_DATA` 参数传递，您可以使用 **[BehaviorModeling 模式](policies_and_rules/policy_modes/behavior_modeling.md)** 为目标应用生成 ArmorProfileModel 然后将其导出。
+Please use the `-f FEATURES` and `-c CAPABILITIES` arguments to specify the context information. The `-f FEATURES` argument used to describe the application features. The `-c CAPABILITIES` argument used to describe the capabilities required by application explicitly. The behavior data is passed by the `-m BEHAVIOR_DATA` argument. It's an ArmorProfileModel object that is generated with the **[BehaviorModeling mode](policies_and_rules/policy_modes/behavior_modeling.md)**.
 
 
-## 示例
-
-使用内置规则，为需要 sys_admin,net_admin,kill 能力，且共享 PID 命名空间的容器生成策略模版。
+## Use cases
+Generate a policy template that runs in EnhanceProtect mode with built-in rules supported by AppArmor and BPF enforcers.
 
 `policy-advisor.py AppArmor,BPF -f share-containers-pid-ns -c sys_admin,net_admin,kill`
 
-使用行为数据过滤掉与之冲突的内置规则，从而使策略模版更加精准。
+Filter out the conflicted built-in rules with behavior data to make the policy template more precise.
 
 `policy-advisor.py AppArmor,BPF -f share-containers-pid-ns -c sys_admin,net_admin,kill -m data.json`
 
 
-## 用法
-
+## Usage
 ```
 policy-advisor.py [-h] [-f FEATURES] [-c CAPABILITIES]
                   [-m BEHAVIOR_DATA] [-d]
