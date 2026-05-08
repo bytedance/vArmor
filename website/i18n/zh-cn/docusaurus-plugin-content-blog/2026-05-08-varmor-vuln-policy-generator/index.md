@@ -37,7 +37,7 @@ date: 2026-05-08T00:00
 5. **策略生成** — 产出多层级缓解策略，直接引用 vArmor 的 Go API 类型定义确保语法正确
 6. **部署指引** — 提供观察-拦截分阶段上线方案
 
-Skill 覆盖所有漏洞类型：内核 LPE、应用层 RCE（如 [IngressNightmare](https://www.varmor.org/docs/v0.10/guides/policies_and_rules/built_in_rules/vulnerability_mitigation#ingress-nightmare-mitigation)）、容器运行时逃逸、供应链攻击等。
+Skill 覆盖所有漏洞类型：内核 LPE、应用层 RCE（如 [IngressNightmare](https://www.varmor.org/zh-cn/docs/v0.10/guides/policies_and_rules/built_in_rules/vulnerability_mitigation/#ingress-nightmare-mitigation)）、容器运行时逃逸、供应链攻击等。
 
 ### 影响输出质量的因素
 
