@@ -551,7 +551,7 @@ policy:
 
 ## Deployment Guidance: Observe Mode and Enforce Mode
 
-After generating the policy template, recommend users follow a phased rollout to avoid impacting business:
+After generating the policy template, recommend users follow a phased rollout to avoid impacting business. Users should decide on a case-by-case basis whether an observe phase is needed and how long to observe — for rules with confirmed zero business impact (e.g., blocking AF_RXRPC), they can go straight to enforce mode; for rules that may affect some applications, an observation period is recommended before switching:
 
 ### Phase 1: Observe Mode (verify rules don't conflict with business)
 
