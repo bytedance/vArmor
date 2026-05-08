@@ -198,9 +198,10 @@ spec:
 
 ### Additional Recommendations
 
-- **Kernel upgrade**: Apply the upstream patch when available
-- **Module blacklist**: Add `af_rxrpc` to the kernel module blacklist (eliminates RxRPC variant entirely)
-- **Sysctl hardening**: `kernel.unprivileged_userns_clone=0` where supported (eliminates ESP variant)
+- **Disable kernel modules**: If the related modules are not statically compiled into the kernel, disable `esp4`, `esp6`, and `rxrpc` via modprobe rules to eliminate the attack surface entirely. Check with `grep -E "CONFIG_INET_ESP|CONFIG_INET6_ESP|CONFIG_AF_RXRPC" /boot/config-$(uname -r)`, then blacklist with `printf 'install esp4 /bin/false\ninstall esp6 /bin/false\ninstall rxrpc /bin/false\n' > /etc/modprobe.d/dirtyfrag.conf`
+- **Sysctl hardening**: Set `kernel.unprivileged_userns_clone=0` or `user.max_user_namespaces=0` to disable unprivileged user namespace creation at the kernel level (eliminates ESP variant)
+- **Default seccomp profile**: Apply Kubernetes' default seccomp profile (`RuntimeDefault`) to containers, which disables the `unshare` syscall by default
+- **vArmor Seccomp rule**: Use the built-in rule `disallow-create-user-ns` with the Seccomp enforcer to block `unshare` — note this requires a container restart to take effect
 - **Image layer isolation**: Use separate base images for privileged DaemonSets to break the page-cache escape chain
 
 ## Getting the Skill

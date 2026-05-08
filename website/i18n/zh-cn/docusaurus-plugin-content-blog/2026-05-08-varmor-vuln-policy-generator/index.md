@@ -198,9 +198,10 @@ spec:
 
 ### 其他缓解建议
 
-- **内核升级**：可用时应用上游补丁
-- **模块黑名单**：将 `af_rxrpc` 加入内核模块黑名单（完全消除 RxRPC 变体）
-- **Sysctl 加固**：`kernel.unprivileged_userns_clone=0`（消除 ESP 变体）
+- **禁用内核模块**：如果相关模块不是静态编译到内核中的，可以通过 modprobe 规则禁用 `esp4`、`esp6` 和 `rxrpc`，从根本上消除攻击面。先检查 `grep -E "CONFIG_INET_ESP|CONFIG_INET6_ESP|CONFIG_AF_RXRPC" /boot/config-$(uname -r)`，然后 `printf 'install esp4 /bin/false\ninstall esp6 /bin/false\ninstall rxrpc /bin/false\n' > /etc/modprobe.d/dirtyfrag.conf`
+- **Sysctl 加固**：设置 `kernel.unprivileged_userns_clone=0` 或 `user.max_user_namespaces=0`，在内核层面禁用非特权 user namespace 创建（消除 ESP 变体）
+- **默认 seccomp profile**：为容器配置 Kubernetes 默认 seccomp profile（`RuntimeDefault`），默认禁用 `unshare` 系统调用
+- **vArmor Seccomp 规则**：使用 Seccomp enforcer 的内置规则 `disallow-create-user-ns` 阻止 `unshare` 系统调用——注意 Seccomp 规则需要重启容器才能生效
 - **镜像层隔离**：为特权 DaemonSet 使用独立基础镜像，打断 page-cache 逃逸链路
 
 ## 获取 Skill
