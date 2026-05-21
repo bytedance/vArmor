@@ -86,9 +86,8 @@ ip6tables -t filter -A OUTPUT -p tcp --dport ${ENVOY_ADMIN_PORT} -m owner ! --ui
 		Args:            []string{"-c", "/etc/envoy/bootstrap.yaml", "-l", "info"},
 		ReadinessProbe: &coreV1.Probe{
 			ProbeHandler: coreV1.ProbeHandler{
-				HTTPGet: &coreV1.HTTPGetAction{
-					Path: "/ready",
-					Port: intstr.IntOrString{Type: intstr.Int, IntVal: 0}, // Set IntVal with ProxyAdminPort
+				TCPSocket: &coreV1.TCPSocketAction{
+					Port: intstr.IntOrString{Type: intstr.Int, IntVal: 0}, // Set IntVal with ProxyPort
 				},
 			},
 			InitialDelaySeconds: 2,
@@ -424,7 +423,7 @@ func modifyDeploymentAnnotationsAndEnv(
 			deploy.Spec.Template.Spec.InitContainers = append(deploy.Spec.Template.Spec.InitContainers, proxyInitContainer)
 			// Add a proxy sidecar container
 			proxyContainer.SecurityContext.RunAsUser = &proxyUID
-			proxyContainer.ReadinessProbe.HTTPGet.Port.IntVal = int32(proxyAdminPort)
+			proxyContainer.ReadinessProbe.TCPSocket.Port.IntVal = int32(proxyPort)
 			proxyContainer.Resources = ResolveProxyResources(
 				proxyResourceOverride(proxyConfig), isMITMEnabled(proxyConfig))
 			deploy.Spec.Template.Spec.Containers = append(deploy.Spec.Template.Spec.Containers, proxyContainer)
@@ -638,7 +637,7 @@ func modifyStatefulSetAnnotationsAndEnv(
 			stateful.Spec.Template.Spec.InitContainers = append(stateful.Spec.Template.Spec.InitContainers, proxyInitContainer)
 			// Add a proxy sidecar container
 			proxyContainer.SecurityContext.RunAsUser = &proxyUID
-			proxyContainer.ReadinessProbe.HTTPGet.Port.IntVal = int32(proxyAdminPort)
+			proxyContainer.ReadinessProbe.TCPSocket.Port.IntVal = int32(proxyPort)
 			proxyContainer.Resources = ResolveProxyResources(
 				proxyResourceOverride(proxyConfig), isMITMEnabled(proxyConfig))
 			stateful.Spec.Template.Spec.Containers = append(stateful.Spec.Template.Spec.Containers, proxyContainer)
@@ -852,7 +851,7 @@ func modifyDaemonSetAnnotationsAndEnv(
 			daemon.Spec.Template.Spec.InitContainers = append(daemon.Spec.Template.Spec.InitContainers, proxyInitContainer)
 			// Add a proxy sidecar container
 			proxyContainer.SecurityContext.RunAsUser = &proxyUID
-			proxyContainer.ReadinessProbe.HTTPGet.Port.IntVal = int32(proxyAdminPort)
+			proxyContainer.ReadinessProbe.TCPSocket.Port.IntVal = int32(proxyPort)
 			proxyContainer.Resources = ResolveProxyResources(
 				proxyResourceOverride(proxyConfig), isMITMEnabled(proxyConfig))
 			daemon.Spec.Template.Spec.Containers = append(daemon.Spec.Template.Spec.Containers, proxyContainer)
