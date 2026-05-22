@@ -938,3 +938,215 @@ func TestValidateUpdatePolicy_ValidEnforcerCombination(t *testing.T) {
 	assert.True(t, valid, "Valid enforcer combination update should pass validation")
 	assert.Equal(t, "", message)
 }
+
+// =============================================================================
+// Tests for containsYAMLUnsafeChars - YAML injection prevention
+// =============================================================================
+
+func TestContainsYAMLUnsafeChars(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected bool
+	}{
+		// Safe strings
+		{name: "normal domain", input: "api.openai.com", expected: false},
+		{name: "wildcard domain", input: "*.openai.com", expected: false},
+		{name: "IPv6", input: "2001:db8::1", expected: false},
+		{name: "domain with port", input: "example.com:443", expected: false},
+		{name: "URI path", input: "/api/v1/users", expected: false},
+		{name: "path with query", input: "/search?q=test&page=1", expected: false},
+		{name: "HTTP method", input: "GET", expected: false},
+		{name: "CIDR", input: "10.0.0.0/8", expected: false},
+		{name: "space is safe", input: "hello world", expected: false},
+		{name: "empty string", input: "", expected: false},
+		{name: "Base64 value", input: "dGVzdA==+/abc", expected: false},
+
+		// Unsafe: C0 control characters
+		{name: "contains newline", input: "evil\ninjection", expected: true},
+		{name: "contains CR", input: "evil\rinjection", expected: true},
+		{name: "contains tab", input: "evil\tinjection", expected: true},
+		{name: "contains null", input: "evil\x00injection", expected: true},
+		{name: "contains SOH", input: "evil\x01injection", expected: true},
+		{name: "contains ESC", input: "evil\x1binjection", expected: true},
+		{name: "contains US", input: "evil\x1finjection", expected: true},
+
+		// Unsafe: YAML structural characters
+		{name: "contains double quote", input: "evil\"injection", expected: true},
+		{name: "contains backslash", input: `evil\injection`, expected: true},
+
+		// Unsafe: DEL and YAML 1.1 line breaks
+		{name: "contains DEL", input: "evil\x7finjection", expected: true},
+		{name: "contains NEL U+0085", input: "evil\xc2\x85injection", expected: true},
+		{name: "contains LS U+2028", input: "evil\xe2\x80\xa8injection", expected: true},
+		{name: "contains PS U+2029", input: "evil\xe2\x80\xa9injection", expected: true},
+
+		// Attack patterns
+		{name: "YAML injection via quote+newline", input: "evil\"\nnew_key: true", expected: true},
+		{name: "YAML injection via LS", input: "evil\xe2\x80\xa8new_key: true", expected: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := containsYAMLUnsafeChars(tt.input)
+			if got != tt.expected {
+				t.Errorf("containsYAMLUnsafeChars(%q) = %v, want %v", tt.input, got, tt.expected)
+			}
+		})
+	}
+}
+
+// =============================================================================
+// Tests for ValidateNetworkProxyEgress - webhook validation
+// =============================================================================
+
+func TestValidateNetworkProxyEgress_Nil(t *testing.T) {
+	valid, msg := ValidateNetworkProxyEgress(nil)
+	assert.True(t, valid)
+	assert.Equal(t, "", msg)
+}
+
+func TestValidateNetworkProxyEgress_ValidInput(t *testing.T) {
+	egress := &varmor.NetworkProxyEgress{
+		HTTPRules: []varmor.NetworkProxyHTTPRule{
+			{
+				Match: varmor.HTTPMatch{
+					Hosts:   []string{"api.openai.com", "*.example.com"},
+					Methods: []string{"GET", "POST"},
+					Paths: []varmor.HTTPPathMatch{
+						{Exact: "/api/v1/users"},
+						{Prefix: "/api/v2/"},
+					},
+				},
+			},
+		},
+		Rules: []varmor.NetworkProxyEgressRule{
+			{
+				IP:   "10.0.0.1",
+				CIDR: "192.168.0.0/16",
+			},
+		},
+	}
+	valid, msg := ValidateNetworkProxyEgress(egress)
+	assert.True(t, valid, "Valid egress should pass: %s", msg)
+}
+
+func TestValidateNetworkProxyEgress_UnsafeHost(t *testing.T) {
+	egress := &varmor.NetworkProxyEgress{
+		HTTPRules: []varmor.NetworkProxyHTTPRule{
+			{
+				Match: varmor.HTTPMatch{
+					Hosts: []string{"evil\"\ninjection: true"},
+				},
+			},
+		},
+	}
+	valid, msg := ValidateNetworkProxyEgress(egress)
+	assert.False(t, valid)
+	assert.Contains(t, msg, "unsafe characters")
+}
+
+func TestValidateNetworkProxyEgress_UnsafePath(t *testing.T) {
+	egress := &varmor.NetworkProxyEgress{
+		HTTPRules: []varmor.NetworkProxyHTTPRule{
+			{
+				Match: varmor.HTTPMatch{
+					Paths: []varmor.HTTPPathMatch{
+						{Exact: "/api\ninjection"},
+					},
+				},
+			},
+		},
+	}
+	valid, msg := ValidateNetworkProxyEgress(egress)
+	assert.False(t, valid)
+	assert.Contains(t, msg, "unsafe characters")
+}
+
+func TestValidateNetworkProxyEgress_UnsafeMethod(t *testing.T) {
+	egress := &varmor.NetworkProxyEgress{
+		HTTPRules: []varmor.NetworkProxyHTTPRule{
+			{
+				Match: varmor.HTTPMatch{
+					Methods: []string{"GET\"\ninjection"},
+				},
+			},
+		},
+	}
+	valid, msg := ValidateNetworkProxyEgress(egress)
+	assert.False(t, valid)
+	assert.Contains(t, msg, "unsafe characters")
+}
+
+func TestValidateNetworkProxyEgress_UnsafeIP(t *testing.T) {
+	egress := &varmor.NetworkProxyEgress{
+		Rules: []varmor.NetworkProxyEgressRule{
+			{
+				IP: "10.0.0.1\"\ninjection: true",
+			},
+		},
+	}
+	valid, msg := ValidateNetworkProxyEgress(egress)
+	assert.False(t, valid)
+	assert.Contains(t, msg, "unsafe characters")
+}
+
+func TestValidateNetworkProxyEgress_UnsafeCIDR(t *testing.T) {
+	egress := &varmor.NetworkProxyEgress{
+		Rules: []varmor.NetworkProxyEgressRule{
+			{
+				CIDR: "10.0.0.0/8\"\ninjection",
+			},
+		},
+	}
+	valid, msg := ValidateNetworkProxyEgress(egress)
+	assert.False(t, valid)
+	assert.Contains(t, msg, "unsafe characters")
+}
+
+func TestValidateNetworkProxyEgress_UnsafeNEL(t *testing.T) {
+	egress := &varmor.NetworkProxyEgress{
+		HTTPRules: []varmor.NetworkProxyHTTPRule{
+			{
+				Match: varmor.HTTPMatch{
+					Hosts: []string{"evil\xc2\x85injection"},
+				},
+			},
+		},
+	}
+	valid, msg := ValidateNetworkProxyEgress(egress)
+	assert.False(t, valid)
+	assert.Contains(t, msg, "unsafe characters")
+}
+
+func TestValidateNetworkProxyEgress_UnsafeLS(t *testing.T) {
+	egress := &varmor.NetworkProxyEgress{
+		HTTPRules: []varmor.NetworkProxyHTTPRule{
+			{
+				Match: varmor.HTTPMatch{
+					Hosts: []string{"evil\xe2\x80\xa8injection"},
+				},
+			},
+		},
+	}
+	valid, msg := ValidateNetworkProxyEgress(egress)
+	assert.False(t, valid)
+	assert.Contains(t, msg, "unsafe characters")
+}
+
+func TestValidateNetworkProxyEgress_UnsafePathPrefix(t *testing.T) {
+	egress := &varmor.NetworkProxyEgress{
+		HTTPRules: []varmor.NetworkProxyHTTPRule{
+			{
+				Match: varmor.HTTPMatch{
+					Paths: []varmor.HTTPPathMatch{
+						{Prefix: "/api\"\ninjection"},
+					},
+				},
+			},
+		},
+	}
+	valid, msg := ValidateNetworkProxyEgress(egress)
+	assert.False(t, valid)
+	assert.Contains(t, msg, "unsafe characters")
+}

@@ -644,10 +644,10 @@ func buildNetworkProxyPatch(profileName string, workloads bool, networkProxyConf
 			`"image": "%s", `+
 			`"securityContext": {"runAsUser": %d}, `+
 			`"args": ["-c", "/etc/envoy/bootstrap.yaml", "-l", "info"], `+
-			`"readinessProbe": {"httpGet": {"path": "/ready", "port": %d}, "initialDelaySeconds": 2, "periodSeconds": 5}, `+
+			`"readinessProbe": {"tcpSocket": {"port": %d}, "initialDelaySeconds": 2, "periodSeconds": 5}, `+
 			`"resources": %s, `+
 			`"volumeMounts": [%s]}}, `,
-		pathPrefix, varmorconfig.ProxyImage, proxyUID, proxyAdminPort, proxyResourcesJSON, sidecarVolumeMounts,
+		pathPrefix, varmorconfig.ProxyImage, proxyUID, proxyPort, proxyResourcesJSON, sidecarVolumeMounts,
 	))
 
 	// --- 4. volumes ---

@@ -69,11 +69,8 @@ const (
 )
 
 // yamlCEL wraps a CEL expression for safe embedding in YAML.
-// Uses double-quoted YAML string, escaping internal double quotes and backslashes.
 func yamlCEL(expr string) string {
-	escaped := strings.ReplaceAll(expr, `\`, `\\`)
-	escaped = strings.ReplaceAll(escaped, `"`, `\"`)
-	return `"` + escaped + `"`
+	return `"` + yamlEscapeScalar(expr) + `"`
 }
 
 // IPStackConfig describes which IP stacks are available in the current
@@ -274,7 +271,7 @@ func renderFilterChainYAML(chain *FilterChain, indent int) string {
 		if len(chain.FilterChainMatch.ServerNames) > 0 {
 			sb.WriteString(fmt.Sprintf("%s    server_names:\n", prefix))
 			for _, n := range chain.FilterChainMatch.ServerNames {
-				sb.WriteString(fmt.Sprintf("%s    - \"%s\"\n", prefix, n))
+				sb.WriteString(fmt.Sprintf("%s    - \"%s\"\n", prefix, yamlEscapeScalar(n)))
 			}
 		}
 
@@ -516,7 +513,7 @@ func renderHTTPConnManagerYAML(f *NetworkFilter, indent int) string {
 			sb.WriteString(fmt.Sprintf("%s      - name: %s\n", prefix, vh.Name))
 			sb.WriteString(fmt.Sprintf("%s        domains:\n", prefix))
 			for _, d := range vh.Domains {
-				sb.WriteString(fmt.Sprintf("%s        - \"%s\"\n", prefix, d))
+				sb.WriteString(fmt.Sprintf("%s        - \"%s\"\n", prefix, yamlEscapeScalar(d)))
 			}
 			// MITM header injection: OVERWRITE_IF_EXISTS_OR_ADD ensures that
 			// client-supplied values for the same header (e.g., a forged
@@ -527,8 +524,8 @@ func renderHTTPConnManagerYAML(f *NetworkFilter, indent int) string {
 				sb.WriteString(fmt.Sprintf("%s        request_headers_to_add:\n", prefix))
 				for _, h := range vh.RequestHeadersToAdd {
 					sb.WriteString(fmt.Sprintf("%s        - header:\n", prefix))
-					sb.WriteString(fmt.Sprintf("%s            key: \"%s\"\n", prefix, h.Name))
-					sb.WriteString(fmt.Sprintf("%s            value: \"%s\"\n", prefix, yamlEscapeHeaderValue(h.Value)))
+					sb.WriteString(fmt.Sprintf("%s            key: \"%s\"\n", prefix, yamlEscapeScalar(h.Name)))
+					sb.WriteString(fmt.Sprintf("%s            value: \"%s\"\n", prefix, yamlEscapeScalar(h.Value)))
 					sb.WriteString(fmt.Sprintf("%s          append_action: OVERWRITE_IF_EXISTS_OR_ADD\n", prefix))
 				}
 			}
@@ -650,7 +647,7 @@ func renderPermissionRuleYAML(rule PermissionRule, indent int, rbacType string) 
 		ip, cidrNet, err := net.ParseCIDR(ipStr)
 		if err != nil {
 			sb.WriteString(fmt.Sprintf("%s- destination_ip:\n", prefix))
-			sb.WriteString(fmt.Sprintf("%s    address_prefix: \"%s\"\n", prefix, ipStr))
+			sb.WriteString(fmt.Sprintf("%s    address_prefix: \"%s\"\n", prefix, yamlEscapeScalar(ipStr)))
 			sb.WriteString(fmt.Sprintf("%s    prefix_len: 32\n", prefix))
 		} else {
 			ones, _ := cidrNet.Mask.Size()
@@ -673,34 +670,30 @@ func renderPermissionRuleYAML(rule PermissionRule, indent int, rbacType string) 
 		sniVal := rule.Value.(map[string]string)
 		if exact, ok := sniVal["exact"]; ok {
 			sb.WriteString(fmt.Sprintf("%s- requested_server_name:\n", prefix))
-			sb.WriteString(fmt.Sprintf("%s    exact: \"%s\"\n", prefix, exact))
+			sb.WriteString(fmt.Sprintf("%s    exact: \"%s\"\n", prefix, yamlEscapeScalar(exact)))
 		} else if suffix, ok := sniVal["suffix"]; ok {
 			sb.WriteString(fmt.Sprintf("%s- requested_server_name:\n", prefix))
-			sb.WriteString(fmt.Sprintf("%s    suffix: \"%s\"\n", prefix, suffix))
+			sb.WriteString(fmt.Sprintf("%s    suffix: \"%s\"\n", prefix, yamlEscapeScalar(suffix)))
 		}
 
 	case "header":
 		headerVal := rule.Value.(map[string]string)
 		name := headerVal["name"]
 		sb.WriteString(fmt.Sprintf("%s- header:\n", prefix))
-		sb.WriteString(fmt.Sprintf("%s    name: \"%s\"\n", prefix, name))
+		sb.WriteString(fmt.Sprintf("%s    name: \"%s\"\n", prefix, yamlEscapeScalar(name)))
 		if exact, ok := headerVal["exact_match"]; ok {
 			sb.WriteString(fmt.Sprintf("%s    string_match:\n", prefix))
-			sb.WriteString(fmt.Sprintf("%s      exact: \"%s\"\n", prefix, exact))
+			sb.WriteString(fmt.Sprintf("%s      exact: \"%s\"\n", prefix, yamlEscapeScalar(exact)))
 		} else if prefix_, ok := headerVal["prefix_match"]; ok {
 			sb.WriteString(fmt.Sprintf("%s    string_match:\n", prefix))
-			sb.WriteString(fmt.Sprintf("%s      prefix: \"%s\"\n", prefix, prefix_))
+			sb.WriteString(fmt.Sprintf("%s      prefix: \"%s\"\n", prefix, yamlEscapeScalar(prefix_)))
 		} else if suffix, ok := headerVal["suffix_match"]; ok {
 			sb.WriteString(fmt.Sprintf("%s    string_match:\n", prefix))
-			sb.WriteString(fmt.Sprintf("%s      suffix: \"%s\"\n", prefix, suffix))
+			sb.WriteString(fmt.Sprintf("%s      suffix: \"%s\"\n", prefix, yamlEscapeScalar(suffix)))
 		} else if safeRegex, ok := headerVal["safe_regex_match"]; ok {
 			sb.WriteString(fmt.Sprintf("%s    string_match:\n", prefix))
 			sb.WriteString(fmt.Sprintf("%s      safe_regex:\n", prefix))
-			// Double backslashes for YAML double-quoted string: the YAML
-			// parser will unescape \\ → \ so Envoy's RE2 sees the
-			// original regex with single backslashes (e.g., \d → \d).
-			yamlSafe := strings.ReplaceAll(safeRegex, "\\", "\\\\")
-			sb.WriteString(fmt.Sprintf("%s        regex: \"%s\"\n", prefix, yamlSafe))
+			sb.WriteString(fmt.Sprintf("%s        regex: \"%s\"\n", prefix, yamlEscapeScalar(safeRegex)))
 		}
 
 	case "url_path":
@@ -708,9 +701,9 @@ func renderPermissionRuleYAML(rule PermissionRule, indent int, rbacType string) 
 		sb.WriteString(fmt.Sprintf("%s- url_path:\n", prefix))
 		sb.WriteString(fmt.Sprintf("%s    path:\n", prefix))
 		if exact, ok := pathVal["exact"]; ok {
-			sb.WriteString(fmt.Sprintf("%s      exact: \"%s\"\n", prefix, exact))
+			sb.WriteString(fmt.Sprintf("%s      exact: \"%s\"\n", prefix, yamlEscapeScalar(exact)))
 		} else if pfx, ok := pathVal["prefix"]; ok {
-			sb.WriteString(fmt.Sprintf("%s      prefix: \"%s\"\n", prefix, pfx))
+			sb.WriteString(fmt.Sprintf("%s      prefix: \"%s\"\n", prefix, yamlEscapeScalar(pfx)))
 		}
 
 	case "or_rules":
@@ -856,13 +849,4 @@ resources:
         cluster: original_dst
 `)
 	return sb.String()
-}
-
-// yamlEscapeHeaderValue escapes a header value for safe embedding inside a
-// double-quoted YAML scalar. Backslash and double-quote must be escaped;
-// API-key alphabets typically contain neither.
-func yamlEscapeHeaderValue(v string) string {
-	v = strings.ReplaceAll(v, `\`, `\\`)
-	v = strings.ReplaceAll(v, `"`, `\"`)
-	return v
 }

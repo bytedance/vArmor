@@ -114,7 +114,8 @@ type bpfProgramSpecs struct {
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type bpfMapSpecs struct {
-	FileProgs     *ebpf.MapSpec `ebpf:"file_progs"`
+	LinkProgs     *ebpf.MapSpec `ebpf:"link_progs"`
+	RenameProgs   *ebpf.MapSpec `ebpf:"rename_progs"`
 	V_auditRb     *ebpf.MapSpec `ebpf:"v_audit_rb"`
 	V_bprmOuter   *ebpf.MapSpec `ebpf:"v_bprm_outer"`
 	V_buffer      *ebpf.MapSpec `ebpf:"v_buffer"`
@@ -155,7 +156,8 @@ func (o *bpfObjects) Close() error {
 //
 // It can be passed to loadBpfObjects or ebpf.CollectionSpec.LoadAndAssign.
 type bpfMaps struct {
-	FileProgs     *ebpf.Map `ebpf:"file_progs"`
+	LinkProgs     *ebpf.Map `ebpf:"link_progs"`
+	RenameProgs   *ebpf.Map `ebpf:"rename_progs"`
 	V_auditRb     *ebpf.Map `ebpf:"v_audit_rb"`
 	V_bprmOuter   *ebpf.Map `ebpf:"v_bprm_outer"`
 	V_buffer      *ebpf.Map `ebpf:"v_buffer"`
@@ -170,7 +172,8 @@ type bpfMaps struct {
 
 func (m *bpfMaps) Close() error {
 	return _BpfClose(
-		m.FileProgs,
+		m.LinkProgs,
+		m.RenameProgs,
 		m.V_auditRb,
 		m.V_bprmOuter,
 		m.V_buffer,
