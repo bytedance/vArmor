@@ -368,7 +368,12 @@ func (enforcer *BpfEnforcer) eventHandler(stopCh <-chan struct{}) {
 				// apply the BPF profile for the target container
 				err = enforcer.applyProfile(enforceID.mntNsID, profile.mode, profile.bpfContent)
 				if err != nil {
-					logger.Error(err, "applyProfile() failed")
+					logger.Error(err, "applyProfile() failed, cleaning up partial writes")
+					// applyProfile's defer already rolled back its own writes.
+					// Clean up setPodIps entry that was written before applyProfile.
+					if len(enforceID.ips) > 0 {
+						enforcer.removePodIps(enforceID.mntNsID)
+					}
 					break
 				}
 
@@ -439,6 +444,7 @@ func (enforcer *BpfEnforcer) eventHandler(stopCh <-chan struct{}) {
 }
 
 func (enforcer *BpfEnforcer) Run(stopCh <-chan struct{}) {
+	enforcer.startupGC()
 	enforcer.eventHandler(stopCh)
 }
 

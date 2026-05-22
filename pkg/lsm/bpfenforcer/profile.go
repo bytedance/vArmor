@@ -316,6 +316,18 @@ func (enforcer *BpfEnforcer) applyMountRules(nsID uint32, mounts []varmor.MountC
 
 func (enforcer *BpfEnforcer) applyProfile(nsID uint32, mode varmor.ProfileMode, bpfContent varmor.BpfContent) (err error) {
 
+	// Defensive pre-cleanup: remove any stale entries for this nsID to prevent
+	// map entry leaks from previous partial writes (idempotent operation).
+	enforcer.deleteProfile(nsID)
+
+	// Ensure partial writes are rolled back on failure.
+	success := false
+	defer func() {
+		if !success {
+			enforcer.deleteProfile(nsID)
+		}
+	}()
+
 	switch mode {
 	case varmor.ProfileModeEnforce:
 		err = enforcer.SetProfileMode(nsID, EnforceMode)
@@ -359,6 +371,7 @@ func (enforcer *BpfEnforcer) applyProfile(nsID uint32, mode varmor.ProfileMode, 
 		return err
 	}
 
+	success = true
 	return nil
 }
 
