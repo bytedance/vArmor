@@ -19,7 +19,7 @@ import "golang.org/x/sys/unix"
 const (
 	// MaxTargetContainerCountForBpfLsm is the maximum count of target containers for BPF LSM,
 	// it's equal to the OUTER_MAP_ENTRIES_MAX of BPF code
-	MaxTargetContainerCountForBpfLsm int = 110
+	MaxTargetContainerCountForBpfLsm int = 256
 
 	// MaxBpfFileRuleCount is the maximum rule count of file operation primitive.
 	MaxBpfFileRuleCount = 50
