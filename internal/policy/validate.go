@@ -115,6 +115,15 @@ func ValidateAddPolicy(policy interface{}, behaviorModelingEnabled bool) (bool, 
 		if ok, msg := validateProxyResources(spec.Policy.NetworkProxyConfig.Resources); !ok {
 			return false, msg
 		}
+		if spec.Policy.NetworkProxyConfig.ProxyPort != nil &&
+			spec.Policy.NetworkProxyConfig.ProxyAdminPort != nil &&
+			*spec.Policy.NetworkProxyConfig.ProxyPort == *spec.Policy.NetworkProxyConfig.ProxyAdminPort {
+			return false, "proxyPort and proxyAdminPort must be different"
+		}
+	}
+
+	if ok, msg := validateNetworkProxyEgressForSpec(&spec); !ok {
+		return false, msg
 	}
 
 	// Do not exceed the length of a standard Kubernetes name (63 characters)
@@ -244,6 +253,15 @@ func ValidateUpdatePolicy(policy interface{}, oldEnforcer string, oldTarget varm
 		if ok, msg := validateProxyResources(newSpec.Policy.NetworkProxyConfig.Resources); !ok {
 			return false, msg
 		}
+		if newSpec.Policy.NetworkProxyConfig.ProxyPort != nil &&
+			newSpec.Policy.NetworkProxyConfig.ProxyAdminPort != nil &&
+			*newSpec.Policy.NetworkProxyConfig.ProxyPort == *newSpec.Policy.NetworkProxyConfig.ProxyAdminPort {
+			return false, "proxyPort and proxyAdminPort must be different"
+		}
+	}
+
+	if ok, msg := validateNetworkProxyEgressForSpec(&newSpec); !ok {
+		return false, msg
 	}
 
 	// All validations passed
@@ -256,6 +274,26 @@ func proxyConfigImmutableFieldsEqual(old, new *varmor.NetworkProxyConfig) bool {
 	return ptrInt64Equal(old.ProxyUID, new.ProxyUID) &&
 		ptrUint16Equal(old.ProxyPort, new.ProxyPort) &&
 		ptrUint16Equal(old.ProxyAdminPort, new.ProxyAdminPort)
+}
+
+// validateNetworkProxyEgressForSpec validates NetworkProxy egress rules
+// for both EnhanceProtect and DefenseInDepth paths.
+func validateNetworkProxyEgressForSpec(spec *varmor.VarmorPolicySpec) (bool, string) {
+	if spec.Policy.EnhanceProtect != nil &&
+		spec.Policy.EnhanceProtect.NetworkProxyRawRules != nil &&
+		spec.Policy.EnhanceProtect.NetworkProxyRawRules.Egress != nil {
+		if ok, msg := ValidateNetworkProxyEgress(spec.Policy.EnhanceProtect.NetworkProxyRawRules.Egress); !ok {
+			return false, msg
+		}
+	}
+	if spec.Policy.DefenseInDepth != nil &&
+		spec.Policy.DefenseInDepth.NetworkProxy != nil &&
+		spec.Policy.DefenseInDepth.NetworkProxy.Egress != nil {
+		if ok, msg := ValidateNetworkProxyEgress(spec.Policy.DefenseInDepth.NetworkProxy.Egress); !ok {
+			return false, msg
+		}
+	}
+	return true, ""
 }
 
 func ptrInt64Equal(a, b *int64) bool {
@@ -278,13 +316,42 @@ func ptrUint16Equal(a, b *uint16) bool {
 	return *a == *b
 }
 
+// containsYAMLUnsafeChars reports whether s contains any character that is
+// illegal in network identifiers (domains, header names, HTTP paths, IPs)
+// and could cause YAML injection if interpolated into a double-quoted scalar.
+//
+// NOTE: This must stay in sync with needsYAMLEscape in
+// internal/networkproxy/profile/yaml_escape.go so that the webhook rejects
+// exactly the same characters the renderer would escape.
+func containsYAMLUnsafeChars(s string) bool {
+	for _, c := range s {
+		if c < 0x20 || c == 0x7F || c == '\\' || c == '"' ||
+			c == 0x85 || c == 0x2028 || c == 0x2029 {
+			return true
+		}
+	}
+	return false
+}
+
+// validateNoYAMLUnsafeChars checks whether value contains YAML-unsafe characters
+// and returns a formatted error message if it does.
+func validateNoYAMLUnsafeChars(field string, value string) (bool, string) {
+	if containsYAMLUnsafeChars(value) {
+		return false, fmt.Sprintf("%s %q contains control characters or YAML-unsafe characters", field, value)
+	}
+	return true, ""
+}
+
 func validateMITMConfig(mitm *varmor.MITMConfig) (bool, string) {
 	if len(mitm.Domains) == 0 {
 		return false, "mitm.domains must contain at least one domain"
 	}
 
 	domainSet := make(map[string]bool, len(mitm.Domains))
-	for _, d := range mitm.Domains {
+	for i, d := range mitm.Domains {
+		if ok, msg := validateNoYAMLUnsafeChars(fmt.Sprintf("mitm.domains[%d]", i), d); !ok {
+			return false, msg
+		}
 		domainSet[d] = true
 	}
 
@@ -305,6 +372,11 @@ func validateMITMConfig(mitm *varmor.MITMConfig) (bool, string) {
 				return false, fmt.Sprintf(
 					"mitm.headerMutations[%d].headers[%d].name must not be empty",
 					i, j)
+			}
+
+			field := fmt.Sprintf("mitm.headerMutations[%d].headers[%d].name", i, j)
+			if ok, msg := validateNoYAMLUnsafeChars(field, h.Name); !ok {
+				return false, msg
 			}
 
 			hasValue := h.Value != ""
@@ -355,6 +427,67 @@ func validateProxyResources(override *varmor.ProxyResourceOverride) (bool, strin
 						"networkProxyConfig.resources: limits.%s (%s) must be >= requests.%s (%s)",
 						resourceName, limitVal.String(), resourceName, requestVal.String())
 				}
+			}
+		}
+	}
+
+	return true, ""
+}
+
+// ValidateNetworkProxyEgress validates string fields in NetworkProxyEgress
+// that will be interpolated into Envoy xDS YAML. This prevents YAML injection
+// attacks where malicious characters in user-supplied fields could break out
+// of YAML quoted scalars.
+//
+// This function is called from the webhook admission controller and provides
+// defense-in-depth alongside the renderer's yamlEscapeScalar function.
+func ValidateNetworkProxyEgress(egress *varmor.NetworkProxyEgress) (bool, string) {
+	if egress == nil {
+		return true, ""
+	}
+
+	// Validate HTTP rules
+	for i, rule := range egress.HTTPRules {
+		for j, host := range rule.Match.Hosts {
+			field := fmt.Sprintf("httpRules[%d].match.hosts[%d]", i, j)
+			if ok, msg := validateNoYAMLUnsafeChars(field, host); !ok {
+				return false, msg
+			}
+		}
+		for j, path := range rule.Match.Paths {
+			if path.Exact != "" {
+				field := fmt.Sprintf("httpRules[%d].match.paths[%d].exact", i, j)
+				if ok, msg := validateNoYAMLUnsafeChars(field, path.Exact); !ok {
+					return false, msg
+				}
+			}
+			if path.Prefix != "" {
+				field := fmt.Sprintf("httpRules[%d].match.paths[%d].prefix", i, j)
+				if ok, msg := validateNoYAMLUnsafeChars(field, path.Prefix); !ok {
+					return false, msg
+				}
+			}
+		}
+		for j, method := range rule.Match.Methods {
+			field := fmt.Sprintf("httpRules[%d].match.methods[%d]", i, j)
+			if ok, msg := validateNoYAMLUnsafeChars(field, method); !ok {
+				return false, msg
+			}
+		}
+	}
+
+	// Validate L4 egress rules (IP/CIDR fields)
+	for i, rule := range egress.Rules {
+		if rule.IP != "" {
+			field := fmt.Sprintf("rules[%d].ip", i)
+			if ok, msg := validateNoYAMLUnsafeChars(field, rule.IP); !ok {
+				return false, msg
+			}
+		}
+		if rule.CIDR != "" {
+			field := fmt.Sprintf("rules[%d].cidr", i)
+			if ok, msg := validateNoYAMLUnsafeChars(field, rule.CIDR); !ok {
+				return false, msg
 			}
 		}
 	}
