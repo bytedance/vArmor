@@ -31,7 +31,7 @@ const (
 	MaxBpfNetworkRuleCount = 64
 
 	// MaxBpfMountRuleCount is the maximum rule count of mount operation primitive.
-	MaxBpfMountRuleCount = 64
+	MaxBpfMountRuleCount = 50
 
 	// MaxFilePathPatternLength is the maximum length of path pattern,
 	// it's equal to FILE_PATH_PATTERN_SIZE_MAX in BPF code
