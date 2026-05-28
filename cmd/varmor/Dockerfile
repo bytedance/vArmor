@@ -58,6 +58,8 @@ COPY --from=varmor-ebpf-builder /varmor/vArmor-ebpf/pkg/processtracer/bpf_bpfel.
 COPY --from=varmor-ebpf-builder /varmor/vArmor-ebpf/pkg/processtracer/bpf_bpfel.o /varmor/pkg/processtracer
 COPY --from=varmor-ebpf-builder /varmor/vArmor-ebpf/pkg/bpfenforcer/bpf_bpfel.go /varmor/pkg/lsm/bpfenforcer
 COPY --from=varmor-ebpf-builder /varmor/vArmor-ebpf/pkg/bpfenforcer/bpf_bpfel.o /varmor/pkg/lsm/bpfenforcer
+COPY --from=varmor-ebpf-builder /varmor/vArmor-ebpf/pkg/bpfenforcer/bpfloop_bpfel.go /varmor/pkg/lsm/bpfenforcer
+COPY --from=varmor-ebpf-builder /varmor/vArmor-ebpf/pkg/bpfenforcer/bpfloop_bpfel.o /varmor/pkg/lsm/bpfenforcer
 
 RUN apt-get update
 RUN apt-get install -y libseccomp2 libseccomp-dev

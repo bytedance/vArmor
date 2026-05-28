@@ -279,9 +279,9 @@ func (enforcer *BpfEnforcer) applyPtraceRule(nsID uint32, ptrace *varmor.PtraceC
 }
 
 func (enforcer *BpfEnforcer) applyMountRules(nsID uint32, mounts []varmor.MountContent) error {
-	if len(mounts) > MaxBpfMountRuleCount {
+	if len(mounts) > int(enforcer.maxMountRuleCount) {
 		return fmt.Errorf("mount rules count %d exceeds inner map capacity %d",
-			len(mounts), MaxBpfMountRuleCount)
+			len(mounts), enforcer.maxMountRuleCount)
 	}
 
 	if len(mounts) != 0 {
@@ -291,7 +291,7 @@ func (enforcer *BpfEnforcer) applyMountRules(nsID uint32, mounts []varmor.MountC
 			Type:       ebpf.Hash,
 			KeySize:    4,
 			ValueSize:  MountRuleSize,
-			MaxEntries: MaxBpfMountRuleCount,
+			MaxEntries: enforcer.maxMountRuleCount,
 		}
 		innerMap, err := ebpf.NewMap(&innerMapSpec)
 		if err != nil {
