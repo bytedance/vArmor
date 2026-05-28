@@ -64,6 +64,11 @@ func (enforcer *BpfEnforcer) applyCapabilityRule(nsID uint32, capabilities *varm
 }
 
 func (enforcer *BpfEnforcer) applyFileRules(nsID uint32, files []varmor.FileContent) error {
+	if len(files) > MaxBpfFileRuleCount {
+		return fmt.Errorf("file rules count %d exceeds inner map capacity %d",
+			len(files), MaxBpfFileRuleCount)
+	}
+
 	if len(files) != 0 {
 		mapName := fmt.Sprintf("v_file_inner_%d", nsID)
 		innerMapSpec := ebpf.MapSpec{
@@ -114,6 +119,11 @@ func (enforcer *BpfEnforcer) applyFileRules(nsID uint32, files []varmor.FileCont
 }
 
 func (enforcer *BpfEnforcer) applyProcessRules(nsID uint32, processes []varmor.FileContent) error {
+	if len(processes) > MaxBpfBprmRuleCount {
+		return fmt.Errorf("process rules count %d exceeds inner map capacity %d",
+			len(processes), MaxBpfBprmRuleCount)
+	}
+
 	if len(processes) != 0 {
 		mapName := fmt.Sprintf("v_bprm_inner_%d", nsID)
 		innerMapSpec := ebpf.MapSpec{
@@ -164,6 +174,11 @@ func (enforcer *BpfEnforcer) applyProcessRules(nsID uint32, processes []varmor.F
 }
 
 func (enforcer *BpfEnforcer) applyNetworkRules(nsID uint32, networks []varmor.NetworkContent) error {
+	if len(networks) > MaxBpfNetworkRuleCount {
+		return fmt.Errorf("network rules count %d exceeds inner map capacity %d",
+			len(networks), MaxBpfNetworkRuleCount)
+	}
+
 	if len(networks) != 0 {
 		mapName := fmt.Sprintf("v_net_inner_%d", nsID)
 		innerMapSpec := ebpf.MapSpec{
@@ -264,6 +279,11 @@ func (enforcer *BpfEnforcer) applyPtraceRule(nsID uint32, ptrace *varmor.PtraceC
 }
 
 func (enforcer *BpfEnforcer) applyMountRules(nsID uint32, mounts []varmor.MountContent) error {
+	if len(mounts) > int(enforcer.maxMountRuleCount) {
+		return fmt.Errorf("mount rules count %d exceeds inner map capacity %d",
+			len(mounts), enforcer.maxMountRuleCount)
+	}
+
 	if len(mounts) != 0 {
 		mapName := fmt.Sprintf("v_mount_inner_%d", nsID)
 		innerMapSpec := ebpf.MapSpec{
@@ -271,7 +291,7 @@ func (enforcer *BpfEnforcer) applyMountRules(nsID uint32, mounts []varmor.MountC
 			Type:       ebpf.Hash,
 			KeySize:    4,
 			ValueSize:  MountRuleSize,
-			MaxEntries: MaxBpfMountRuleCount,
+			MaxEntries: enforcer.maxMountRuleCount,
 		}
 		innerMap, err := ebpf.NewMap(&innerMapSpec)
 		if err != nil {
@@ -332,43 +352,43 @@ func (enforcer *BpfEnforcer) applyProfile(nsID uint32, mode varmor.ProfileMode, 
 	case varmor.ProfileModeEnforce:
 		err = enforcer.SetProfileMode(nsID, EnforceMode)
 		if err != nil {
-			return err
+			return fmt.Errorf("SetProfileMode(enforce): %w", err)
 		}
 	case varmor.ProfileModeComplain:
 		err = enforcer.SetProfileMode(nsID, ComplainMode)
 		if err != nil {
-			return err
+			return fmt.Errorf("SetProfileMode(complain): %w", err)
 		}
 	}
 
 	err = enforcer.applyCapabilityRule(nsID, bpfContent.Capabilities)
 	if err != nil {
-		return err
+		return fmt.Errorf("applyCapabilityRule: %w", err)
 	}
 
 	err = enforcer.applyFileRules(nsID, bpfContent.Files)
 	if err != nil {
-		return err
+		return fmt.Errorf("applyFileRules(count=%d): %w", len(bpfContent.Files), err)
 	}
 
 	err = enforcer.applyProcessRules(nsID, bpfContent.Processes)
 	if err != nil {
-		return err
+		return fmt.Errorf("applyProcessRules(count=%d): %w", len(bpfContent.Processes), err)
 	}
 
 	err = enforcer.applyNetworkRules(nsID, bpfContent.Networks)
 	if err != nil {
-		return err
+		return fmt.Errorf("applyNetworkRules(count=%d): %w", len(bpfContent.Networks), err)
 	}
 
 	err = enforcer.applyPtraceRule(nsID, bpfContent.Ptrace)
 	if err != nil {
-		return err
+		return fmt.Errorf("applyPtraceRule: %w", err)
 	}
 
 	err = enforcer.applyMountRules(nsID, bpfContent.Mounts)
 	if err != nil {
-		return err
+		return fmt.Errorf("applyMountRules(count=%d): %w", len(bpfContent.Mounts), err)
 	}
 
 	success = true

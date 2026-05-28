@@ -141,6 +141,8 @@ copy-ebpf: ## Copy the ebpf code and lib.
 	cp vArmor-ebpf/pkg/processtracer/bpf_bpfel.o pkg/processtracer
 	cp vArmor-ebpf/pkg/bpfenforcer/bpf_bpfel.go pkg/lsm/bpfenforcer
 	cp vArmor-ebpf/pkg/bpfenforcer/bpf_bpfel.o pkg/lsm/bpfenforcer
+	cp vArmor-ebpf/pkg/bpfenforcer/bpfloop_bpfel.go pkg/lsm/bpfenforcer
+	cp vArmor-ebpf/pkg/bpfenforcer/bpfloop_bpfel.o pkg/lsm/bpfenforcer
 
 .PHONY: fmt
 fmt: ## Run go fmt against code.

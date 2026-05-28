@@ -22,6 +22,8 @@ import (
 	"reflect"
 
 	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/asm"
+	"github.com/cilium/ebpf/features"
 	"github.com/cilium/ebpf/link"
 	"github.com/cilium/ebpf/rlimit"
 	"github.com/go-logr/logr"
@@ -60,8 +62,9 @@ type BpfEnforcer struct {
 	ptraceLink       link.Link
 	mountLink        link.Link
 	moveMountLink    link.Link
-	umountLink       link.Link
-	bpfProfileCache  map[string]bpfProfile // <profileName: bpfProfile>
+	umountLink        link.Link
+	maxMountRuleCount uint32
+	bpfProfileCache   map[string]bpfProfile // <profileName: bpfProfile>
 	containerCache   map[string]enforceID  // global cache <containerID: enforceID>
 	log              logr.Logger
 }
@@ -96,9 +99,31 @@ func (enforcer *BpfEnforcer) initBPF() error {
 
 	// Parse the ebpf program
 	enforcer.log.Info("parses the ebpf program into a CollectionSpec")
-	collectionSpec, err := loadBpf()
+	var (
+		collectionSpec *ebpf.CollectionSpec
+		variant        string
+	)
+	// Detect bpf_loop helper availability (kernel >= 5.17).
+	// NOTE: cilium/ebpf v0.20 HaveProgramHelper does not set AttachType for
+	// LSM/Tracing program types, which makes the probe fail with EINVAL.
+	// Use Kprobe as the probe target since helper availability is kernel-wide.
+	if features.HaveProgramHelper(ebpf.Kprobe, asm.FnLoop) == nil {
+		collectionSpec, err = loadBpfLoop()
+		variant = "bpf_loop"
+	} else {
+		collectionSpec, err = loadBpf()
+		variant = "unrolled"
+	}
 	if err != nil {
 		return err
+	}
+	enforcer.log.Info("selected bpf variant", "variant", variant)
+
+	// Set mount rule count based on BPF variant
+	if variant == "bpf_loop" {
+		enforcer.maxMountRuleCount = MaxBpfMountRuleCountBpfLoop
+	} else {
+		enforcer.maxMountRuleCount = MaxBpfMountRuleCountUnrolled
 	}
 
 	// Create a mock inner map for the file rules
@@ -136,7 +161,7 @@ func (enforcer *BpfEnforcer) initBPF() error {
 		Type:       ebpf.Hash,
 		KeySize:    4,
 		ValueSize:  MountRuleSize,
-		MaxEntries: MaxBpfMountRuleCount,
+		MaxEntries: enforcer.maxMountRuleCount,
 	}
 	collectionSpec.Maps["v_mount_outer"].InnerMap = &mountInnerMap
 

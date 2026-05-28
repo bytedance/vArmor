@@ -46,8 +46,8 @@ type bpfMountRule struct {
 	Mode              uint32
 	MountFlags        uint32
 	ReverseMountFlags uint32
-	Fstype            [MaxFileSystemTypeLength]byte
 	Pattern           pathPattern
+	Fstype            [MaxFileSystemTypeLength]byte
 }
 
 // EventType is the type of bpf event

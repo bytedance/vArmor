@@ -22,16 +22,25 @@ const (
 	MaxTargetContainerCountForBpfLsm int = 256
 
 	// MaxBpfFileRuleCount is the maximum rule count of file operation primitive.
-	MaxBpfFileRuleCount = 50
+	MaxBpfFileRuleCount = 64
 
 	// MaxBpfBprmRuleCount is the maximum rule count of execution file primitive.
-	MaxBpfBprmRuleCount = 50
+	MaxBpfBprmRuleCount = 64
 
 	// MaxBpfNetworkRuleCount is the maximum rule count of network access primitive.
-	MaxBpfNetworkRuleCount = 50
+	MaxBpfNetworkRuleCount = 64
 
 	// MaxBpfMountRuleCount is the maximum rule count of mount operation primitive.
-	MaxBpfMountRuleCount = 50
+	// Used by the control plane for profile validation (must be the largest supported value).
+	MaxBpfMountRuleCount = 64
+
+	// MaxBpfMountRuleCountUnrolled is the mount rule limit for the unrolled BPF variant
+	// (kernels < 5.17 that do not support bpf_loop).
+	MaxBpfMountRuleCountUnrolled = 50
+
+	// MaxBpfMountRuleCountBpfLoop is the mount rule limit for the bpf_loop variant
+	// (kernels >= 5.17).
+	MaxBpfMountRuleCountBpfLoop = 64
 
 	// MaxFilePathPatternLength is the maximum length of path pattern,
 	// it's equal to FILE_PATH_PATTERN_SIZE_MAX in BPF code
