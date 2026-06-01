@@ -19,7 +19,7 @@ Options:
 }
 
 clean() {
-    for image_id in $(docker images | grep $NAMESPACE | awk '{print $3}')
+    for image_id in $(docker images | grep $NAMESPACE | awk '{print $2}')
     do
         echo "[+] Delete $image_id"
         docker rmi -f $image_id;
