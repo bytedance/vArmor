@@ -79,12 +79,6 @@ spec:
               ports:
               - port: 80
                 endPort: 8080
-            toPods:
-            - qualifiers:
-              - audit
-              podSelector:
-                matchLabels:
-                  app: demo-3
             toServices:
             - qualifiers:
               - audit
