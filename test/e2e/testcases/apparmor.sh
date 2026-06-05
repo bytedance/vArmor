@@ -15,6 +15,7 @@
 # limitations under the License.
 
 # AppArmor enforcement test case configuration
+# No-op comment used for CI approval-path validation.
 
 # Test name
 TEST_NAME="apparmor-sa-token-protection"
