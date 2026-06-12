@@ -47,26 +47,26 @@ type bpfProfile struct {
 }
 
 type BpfEnforcer struct {
-	TaskStartCh      chan varmortypes.ContainerInfo
-	TaskDeleteCh     chan varmortypes.ContainerInfo
-	TaskDeleteSyncCh chan bool
-	objs             bpfObjects
-	capableLink      link.Link
-	openFileLink     link.Link
-	pathSymlinkLink  link.Link
-	pathLinkLink     link.Link
-	pathRenameLink   link.Link
-	bprmLink         link.Link
-	sockConnLink     link.Link
-	socketLink       link.Link
-	ptraceLink       link.Link
-	mountLink        link.Link
-	moveMountLink    link.Link
+	TaskStartCh       chan varmortypes.ContainerInfo
+	TaskDeleteCh      chan varmortypes.ContainerInfo
+	TaskDeleteSyncCh  chan bool
+	objs              bpfObjects
+	capableLink       link.Link
+	openFileLink      link.Link
+	pathSymlinkLink   link.Link
+	pathLinkLink      link.Link
+	pathRenameLink    link.Link
+	bprmLink          link.Link
+	sockConnLink      link.Link
+	socketLink        link.Link
+	ptraceLink        link.Link
+	mountLink         link.Link
+	moveMountLink     link.Link
 	umountLink        link.Link
 	maxMountRuleCount uint32
 	bpfProfileCache   map[string]bpfProfile // <profileName: bpfProfile>
-	containerCache   map[string]enforceID  // global cache <containerID: enforceID>
-	log              logr.Logger
+	containerCache    map[string]enforceID  // global cache <containerID: enforceID>
+	log               logr.Logger
 }
 
 // NewBpfEnforcer creates a BpfEnforcer, and initialize the BPF settings and resources

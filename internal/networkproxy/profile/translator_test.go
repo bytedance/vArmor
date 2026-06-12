@@ -2185,3 +2185,141 @@ func TestAntiDomainFronting_MixedDomainsAndIPs(t *testing.T) {
 	assertContains(t, result.LDS, "Authorization", "must inject Authorization for openai")
 	assertContains(t, result.LDS, "X-Token", "must inject X-Token for IP")
 }
+
+// TestWildcardHostMatchAll verifies that a catch-all host "*" is translated
+// into a match-any RBAC rule (any: true) in BOTH the TLS (SNI) chain and the
+// HTTP (:authority) chain, rather than a literal exact:"*" string matcher.
+//
+// Regression for: a bare "*" host produced `requested_server_name: {exact: "*"}`
+// in the TLS chain RBAC shadow_rules. Envoy treats that as a literal string
+// comparison against the SNI, which never matches a real server name, so
+// catch-all audit/enforce rules silently produced no shadow metadata and no
+// audit logs for TLS traffic.
+func TestWildcardHostMatchAll(t *testing.T) {
+	cases := []struct {
+		name          string
+		defaultAction string
+		qualifiers    []string
+	}{
+		{"allow_default_audit", "allow", []string{"audit"}},
+		{"deny_default_allow_audit", "deny", []string{"allow", "audit"}},
+		{"allow_default_deny_audit", "allow", []string{"deny", "audit"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			egress := &varmor.NetworkProxyEgress{
+				DefaultAction: tc.defaultAction,
+				HTTPRules: []varmor.NetworkProxyHTTPRule{
+					{
+						Qualifiers: tc.qualifiers,
+						Match:      varmor.HTTPMatch{Hosts: []string{"*"}},
+					},
+				},
+			}
+			result, err := TranslateEgressRules(egress, 1, 15001, nil, testIPStack)
+			if err != nil {
+				t.Fatalf("TranslateEgressRules failed: %v", err)
+			}
+			// A literal exact:"*" SNI matcher never matches a real server name.
+			assertNotContains(t, result.LDS, `exact: "*"`,
+				"catch-all host must not become a literal exact:\"*\" matcher")
+			// The catch-all must materialize as a match-any rule.
+			assertContains(t, result.LDS, "any: true",
+				"catch-all host must produce a match-any (any: true) rule")
+		})
+	}
+}
+
+// TestWildcardHostMatchAllWithPort verifies the catch-all host "*" combined
+// with an explicit port still avoids the literal exact:"*" matcher and binds
+// the port via destination_port while keeping the authority match as any:true.
+func TestWildcardHostMatchAllWithPort(t *testing.T) {
+	egress := &varmor.NetworkProxyEgress{
+		DefaultAction: "allow",
+		HTTPRules: []varmor.NetworkProxyHTTPRule{
+			{
+				Qualifiers: []string{"audit"},
+				Match: varmor.HTTPMatch{
+					Hosts: []string{"*"},
+					Ports: []varmor.Port{{Port: 8443}},
+				},
+			},
+		},
+	}
+	result, err := TranslateEgressRules(egress, 1, 15001, nil, testIPStack)
+	if err != nil {
+		t.Fatalf("TranslateEgressRules failed: %v", err)
+	}
+	assertNotContains(t, result.LDS, `exact: "*"`,
+		"catch-all host with port must not become a literal exact:\"*\" matcher")
+	assertContains(t, result.LDS, "destination_port: 8443",
+		"explicit port must still be enforced via destination_port")
+}
+
+// TestMITMWildcardHostAudit verifies that a catch-all host "*" audit rule is
+// preserved on MITM filter chains. When a domain is BOTH a MITM target and
+// covered by a "*" httpRule, the MITM chain steals the traffic by SNI, so the
+// audit rule must survive filterHTTPRulesForDomains and materialize as a
+// shadow RBAC + access_log inside the MITM HCM.
+//
+// Regression for: filterHTTPRulesForDomains did an exact domainSet lookup on
+// each host. The literal "*" was never in the MITM domain set, so the whole
+// audit rule was dropped, the MITM HCM emitted no shadow RBAC / access_log,
+// and MITM'd domains (e.g. httpbin.org) produced no audit records.
+func TestMITMWildcardHostAudit(t *testing.T) {
+	egress := &varmor.NetworkProxyEgress{
+		DefaultAction: "allow",
+		HTTPRules: []varmor.NetworkProxyHTTPRule{
+			{
+				Qualifiers: []string{"audit"},
+				Match:      varmor.HTTPMatch{Hosts: []string{"*"}},
+			},
+		},
+	}
+	mitm := &MITMInput{
+		Domains: []string{"httpbin.org", "api.kimi.com"},
+		HeadersByDomain: map[string][]HeaderToAdd{
+			"httpbin.org": {{Name: "X-Request-Source", Value: "varmor-audit"}},
+		},
+	}
+	result, err := TranslateEgressRules(egress, 1, 15001, mitm, testIPStack)
+	if err != nil {
+		t.Fatalf("TranslateEgressRules failed: %v", err)
+	}
+
+	dnsChain := extractChain(result.LDS, "---- mitm_tls_dns_chain ----", "---- tls_chain ----")
+	if dnsChain == "" {
+		t.Fatal("mitm_tls_dns_chain not found in LDS")
+	}
+	assertContains(t, dnsChain, "envoy.filters.http.rbac",
+		"MITM chain must carry shadow RBAC for catch-all audit rule")
+	assertContains(t, dnsChain, "shadow_rules",
+		"MITM chain RBAC must be shadow_rules (audit, non-blocking)")
+	assertContains(t, dnsChain, "access_log",
+		"MITM chain must emit access_log so audit records are written")
+	assertContains(t, dnsChain, "any: true",
+		"catch-all host must produce a match-any rule inside MITM chain")
+	assertNotContains(t, dnsChain, `exact: "*"`,
+		"catch-all host must not become a literal exact:\"*\" matcher")
+}
+
+// extractChain returns the substring of lds between the start marker
+// (inclusive) and the end marker (exclusive). Returns "" if start not found.
+func extractChain(lds, startMarker, endMarker string) string {
+	lines := strings.Split(lds, "\n")
+	var b strings.Builder
+	in := false
+	for _, l := range lines {
+		if strings.Contains(l, startMarker) {
+			in = true
+		}
+		if endMarker != "" && strings.Contains(l, endMarker) && !strings.Contains(l, startMarker) {
+			in = false
+		}
+		if in {
+			b.WriteString(l)
+			b.WriteString("\n")
+		}
+	}
+	return b.String()
+}

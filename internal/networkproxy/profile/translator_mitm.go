@@ -268,7 +268,14 @@ func filterHTTPRulesForDomains(rules []varmor.NetworkProxyHTTPRule, domains []st
 		}
 		var keepHosts []string
 		for _, h := range r.Match.Hosts {
-			if domainSet[h] {
+			// A catch-all "*" host matches every domain, so it is reachable
+			// via every MITM chain. Keep it verbatim; downstream
+			// httpRuleToHTTPPermissions converts "*" into a match-any
+			// (any: true) :authority rule. Without this, "*" would fail the
+			// exact domainSet lookup, the whole rule would be dropped, and
+			// the MITM chain would emit no shadow RBAC / access_log -- so
+			// MITM'd domains produced no audit records for catch-all rules.
+			if isMatchAllHost(h) || domainSet[h] {
 				keepHosts = append(keepHosts, h)
 			}
 		}

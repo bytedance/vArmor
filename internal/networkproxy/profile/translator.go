@@ -262,6 +262,16 @@ func isWildcardDomain(domain string) bool {
 	return strings.HasPrefix(domain, "*.")
 }
 
+// isMatchAllHost reports whether host is the catch-all wildcard "*", meaning
+// "match any host". This is distinct from a suffix wildcard like
+// "*.example.com" (handled by isWildcardDomain). A bare "*" must be rendered
+// as a match-any matcher (any: true); rendering it as a literal exact/prefix
+// string matcher would never match real SNI or :authority values, silently
+// disabling enforcement and audit for catch-all rules.
+func isMatchAllHost(host string) bool {
+	return host == "*"
+}
+
 func wildcardToSuffix(domain string) string {
 	return domain[1:] // "*.openai.com" -> ".openai.com"
 }
@@ -880,12 +890,16 @@ func httpRuleToSNIPermissions(r varmor.NetworkProxyHTTPRule) []Permission {
 
 	var sniRules []PermissionRule
 	for _, host := range r.Match.Hosts {
-		if isWildcardDomain(host) {
+		switch {
+		case isMatchAllHost(host):
+			// Catch-all "*": match any SNI. A literal exact:"*" never matches.
+			sniRules = append(sniRules, PermissionRule{Type: "any", Value: true})
+		case isWildcardDomain(host):
 			sniRules = append(sniRules, PermissionRule{
 				Type:  "requested_server_name",
 				Value: map[string]string{"suffix": wildcardToSuffix(host)},
 			})
-		} else {
+		default:
 			sniRules = append(sniRules, PermissionRule{
 				Type:  "requested_server_name",
 				Value: map[string]string{"exact": host},
@@ -1065,6 +1079,12 @@ func isDefaultHTTPPort(port uint16) bool {
 //
 // This eliminates dead rules by binding the port into the matcher value.
 func authorityMatcherForHostPort(host string, port uint16) PermissionRule {
+	if isMatchAllHost(host) {
+		// Catch-all "*": match any :authority. The TCP port is enforced
+		// separately via the destination_port rule, so the authority
+		// matcher is match-any. A literal exact/prefix on "*" never matches.
+		return PermissionRule{Type: "any", Value: true}
+	}
 	if isWildcardDomain(host) {
 		suffix := wildcardToSuffix(host) // "*.openai.com" -> ".openai.com"
 		if isDefaultHTTPPort(port) {
@@ -1118,6 +1138,11 @@ func authorityMatcherForHostPort(host string, port uint16) PermissionRule {
 func portAgnosticHostRules(hosts []string) []PermissionRule {
 	var rules []PermissionRule
 	for _, host := range hosts {
+		if isMatchAllHost(host) {
+			// Catch-all "*": match any :authority regardless of port.
+			rules = append(rules, PermissionRule{Type: "any", Value: true})
+			continue
+		}
 		if isWildcardDomain(host) {
 			suffix := wildcardToSuffix(host)
 			escapedSuffix := regexEscapeHost(suffix)
