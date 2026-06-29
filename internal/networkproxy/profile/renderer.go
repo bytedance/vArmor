@@ -187,33 +187,42 @@ resources:
 	// namespace conflict between envoy.filters.network.rbac and envoy.filters.http.rbac.
 	if listenerAccessLogEnabled && (listenerDenyCEL != "" || listenerShadowCEL != "") {
 		sb.WriteString("\n  access_log:\n")
-		if listenerDenyCEL != "" {
-			sb.WriteString("  - name: envoy.access_loggers.stdout\n")
-			sb.WriteString("    filter:\n")
-			sb.WriteString("      extension_filter:\n")
-			sb.WriteString("        name: envoy.access_loggers.extension_filters.cel\n")
-			sb.WriteString("        typed_config:\n")
-			sb.WriteString("          \"@type\": type.googleapis.com/envoy.extensions.access_loggers.filters.cel.v3.ExpressionFilter\n")
-			sb.WriteString(fmt.Sprintf("          expression: %s\n", yamlCEL(listenerDenyCEL)))
-			sb.WriteString("    typed_config:\n")
-			sb.WriteString("      \"@type\": type.googleapis.com/envoy.extensions.access_loggers.stream.v3.StdoutAccessLog\n")
-			sb.WriteString("      log_format:\n")
-			sb.WriteString("        text_format_source:\n")
-			sb.WriteString("          inline_string: \"[%START_TIME%][L4][%FILTER_CHAIN_NAME%] dst=%DOWNSTREAM_LOCAL_ADDRESS% sni=%REQUESTED_SERVER_NAME% duration=%DURATION%ms reason=%CONNECTION_TERMINATION_DETAILS%\\n\"\n")
-		}
-		if listenerShadowCEL != "" {
-			sb.WriteString("  - name: envoy.access_loggers.stdout\n")
-			sb.WriteString("    filter:\n")
-			sb.WriteString("      extension_filter:\n")
-			sb.WriteString("        name: envoy.access_loggers.extension_filters.cel\n")
-			sb.WriteString("        typed_config:\n")
-			sb.WriteString("          \"@type\": type.googleapis.com/envoy.extensions.access_loggers.filters.cel.v3.ExpressionFilter\n")
-			sb.WriteString(fmt.Sprintf("          expression: %s\n", yamlCEL(listenerShadowCEL)))
-			sb.WriteString("    typed_config:\n")
-			sb.WriteString("      \"@type\": type.googleapis.com/envoy.extensions.access_loggers.stream.v3.StdoutAccessLog\n")
-			sb.WriteString("      log_format:\n")
-			sb.WriteString("        text_format_source:\n")
-			sb.WriteString("          inline_string: \"[%START_TIME%][L4][%FILTER_CHAIN_NAME%] dst=%DOWNSTREAM_LOCAL_ADDRESS% sni=%REQUESTED_SERVER_NAME% duration=%DURATION%ms reason=%CONNECTION_TERMINATION_DETAILS%\\n\"\n")
+		if audit.usesGRPCALS() {
+			if listenerDenyCEL != "" {
+				renderALSAccessLogEntry(&sb, "  ", listenerDenyCEL, audit.denyLogName(), audit.clusterName(), "", false)
+			}
+			if listenerShadowCEL != "" {
+				renderALSAccessLogEntry(&sb, "  ", listenerShadowCEL, audit.auditLogName(), audit.clusterName(), "", false)
+			}
+		} else {
+			if listenerDenyCEL != "" {
+				sb.WriteString("  - name: envoy.access_loggers.stdout\n")
+				sb.WriteString("    filter:\n")
+				sb.WriteString("      extension_filter:\n")
+				sb.WriteString("        name: envoy.access_loggers.extension_filters.cel\n")
+				sb.WriteString("        typed_config:\n")
+				sb.WriteString("          \"@type\": type.googleapis.com/envoy.extensions.access_loggers.filters.cel.v3.ExpressionFilter\n")
+				sb.WriteString(fmt.Sprintf("          expression: %s\n", yamlCEL(listenerDenyCEL)))
+				sb.WriteString("    typed_config:\n")
+				sb.WriteString("      \"@type\": type.googleapis.com/envoy.extensions.access_loggers.stream.v3.StdoutAccessLog\n")
+				sb.WriteString("      log_format:\n")
+				sb.WriteString("        text_format_source:\n")
+				sb.WriteString("          inline_string: \"[%START_TIME%][L4][%FILTER_CHAIN_NAME%] dst=%DOWNSTREAM_LOCAL_ADDRESS% sni=%REQUESTED_SERVER_NAME% duration=%DURATION%ms reason=%CONNECTION_TERMINATION_DETAILS%\\n\"\n")
+			}
+			if listenerShadowCEL != "" {
+				sb.WriteString("  - name: envoy.access_loggers.stdout\n")
+				sb.WriteString("    filter:\n")
+				sb.WriteString("      extension_filter:\n")
+				sb.WriteString("        name: envoy.access_loggers.extension_filters.cel\n")
+				sb.WriteString("        typed_config:\n")
+				sb.WriteString("          \"@type\": type.googleapis.com/envoy.extensions.access_loggers.filters.cel.v3.ExpressionFilter\n")
+				sb.WriteString(fmt.Sprintf("          expression: %s\n", yamlCEL(listenerShadowCEL)))
+				sb.WriteString("    typed_config:\n")
+				sb.WriteString("      \"@type\": type.googleapis.com/envoy.extensions.access_loggers.stream.v3.StdoutAccessLog\n")
+				sb.WriteString("      log_format:\n")
+				sb.WriteString("        text_format_source:\n")
+				sb.WriteString("          inline_string: \"[%START_TIME%][L4][%FILTER_CHAIN_NAME%] dst=%DOWNSTREAM_LOCAL_ADDRESS% sni=%REQUESTED_SERVER_NAME% duration=%DURATION%ms reason=%CONNECTION_TERMINATION_DETAILS%\\n\"\n")
+			}
 		}
 	}
 
@@ -474,33 +483,43 @@ func renderHTTPConnManagerYAML(f *NetworkFilter, indent int) string {
 	// properly when the left operand produces an evaluation error.
 	if cfg.AccessLogEnabled && (cfg.AccessLogDenyCEL != "" || cfg.AccessLogShadowCEL != "") {
 		sb.WriteString(fmt.Sprintf("%s    access_log:\n", prefix))
-		if cfg.AccessLogDenyCEL != "" {
-			sb.WriteString(fmt.Sprintf("%s    - name: envoy.access_loggers.stdout\n", prefix))
-			sb.WriteString(fmt.Sprintf("%s      filter:\n", prefix))
-			sb.WriteString(fmt.Sprintf("%s        extension_filter:\n", prefix))
-			sb.WriteString(fmt.Sprintf("%s          name: envoy.access_loggers.extension_filters.cel\n", prefix))
-			sb.WriteString(fmt.Sprintf("%s          typed_config:\n", prefix))
-			sb.WriteString(fmt.Sprintf("%s            \"@type\": type.googleapis.com/envoy.extensions.access_loggers.filters.cel.v3.ExpressionFilter\n", prefix))
-			sb.WriteString(fmt.Sprintf("%s            expression: %s\n", prefix, yamlCEL(cfg.AccessLogDenyCEL)))
-			sb.WriteString(fmt.Sprintf("%s      typed_config:\n", prefix))
-			sb.WriteString(fmt.Sprintf("%s        \"@type\": type.googleapis.com/envoy.extensions.access_loggers.stream.v3.StdoutAccessLog\n", prefix))
-			sb.WriteString(fmt.Sprintf("%s        log_format:\n", prefix))
-			sb.WriteString(fmt.Sprintf("%s          text_format_source:\n", prefix))
-			sb.WriteString(fmt.Sprintf("%s            inline_string: \"[%%START_TIME%%][L7][%%FILTER_CHAIN_NAME%%] method=%%REQ(:METHOD)%% uri=%%REQ(:AUTHORITY)%%%%REQ(:PATH)%% code=%%RESPONSE_CODE%% dst=%%DOWNSTREAM_LOCAL_ADDRESS%% duration=%%DURATION%%ms reason=%%RESPONSE_CODE_DETAILS%%\\n\"\n", prefix))
-		}
-		if cfg.AccessLogShadowCEL != "" {
-			sb.WriteString(fmt.Sprintf("%s    - name: envoy.access_loggers.stdout\n", prefix))
-			sb.WriteString(fmt.Sprintf("%s      filter:\n", prefix))
-			sb.WriteString(fmt.Sprintf("%s        extension_filter:\n", prefix))
-			sb.WriteString(fmt.Sprintf("%s          name: envoy.access_loggers.extension_filters.cel\n", prefix))
-			sb.WriteString(fmt.Sprintf("%s          typed_config:\n", prefix))
-			sb.WriteString(fmt.Sprintf("%s            \"@type\": type.googleapis.com/envoy.extensions.access_loggers.filters.cel.v3.ExpressionFilter\n", prefix))
-			sb.WriteString(fmt.Sprintf("%s            expression: %s\n", prefix, yamlCEL(cfg.AccessLogShadowCEL)))
-			sb.WriteString(fmt.Sprintf("%s      typed_config:\n", prefix))
-			sb.WriteString(fmt.Sprintf("%s        \"@type\": type.googleapis.com/envoy.extensions.access_loggers.stream.v3.StdoutAccessLog\n", prefix))
-			sb.WriteString(fmt.Sprintf("%s        log_format:\n", prefix))
-			sb.WriteString(fmt.Sprintf("%s          text_format_source:\n", prefix))
-			sb.WriteString(fmt.Sprintf("%s            inline_string: \"[%%START_TIME%%][L7][%%FILTER_CHAIN_NAME%%] method=%%REQ(:METHOD)%% uri=%%REQ(:AUTHORITY)%%%%REQ(:PATH)%% code=%%RESPONSE_CODE%% dst=%%DOWNSTREAM_LOCAL_ADDRESS%% duration=%%DURATION%%ms reason=%%RESPONSE_CODE_DETAILS%%\\n\"\n", prefix))
+		if cfg.AuditSink.usesGRPCALS() {
+			listPrefix := prefix + "    "
+			if cfg.AccessLogDenyCEL != "" {
+				renderALSAccessLogEntry(&sb, listPrefix, cfg.AccessLogDenyCEL, cfg.AuditSink.denyLogName(), cfg.AuditSink.clusterName(), cfg.FilterChainName, true)
+			}
+			if cfg.AccessLogShadowCEL != "" {
+				renderALSAccessLogEntry(&sb, listPrefix, cfg.AccessLogShadowCEL, cfg.AuditSink.auditLogName(), cfg.AuditSink.clusterName(), cfg.FilterChainName, true)
+			}
+		} else {
+			if cfg.AccessLogDenyCEL != "" {
+				sb.WriteString(fmt.Sprintf("%s    - name: envoy.access_loggers.stdout\n", prefix))
+				sb.WriteString(fmt.Sprintf("%s      filter:\n", prefix))
+				sb.WriteString(fmt.Sprintf("%s        extension_filter:\n", prefix))
+				sb.WriteString(fmt.Sprintf("%s          name: envoy.access_loggers.extension_filters.cel\n", prefix))
+				sb.WriteString(fmt.Sprintf("%s          typed_config:\n", prefix))
+				sb.WriteString(fmt.Sprintf("%s            \"@type\": type.googleapis.com/envoy.extensions.access_loggers.filters.cel.v3.ExpressionFilter\n", prefix))
+				sb.WriteString(fmt.Sprintf("%s            expression: %s\n", prefix, yamlCEL(cfg.AccessLogDenyCEL)))
+				sb.WriteString(fmt.Sprintf("%s      typed_config:\n", prefix))
+				sb.WriteString(fmt.Sprintf("%s        \"@type\": type.googleapis.com/envoy.extensions.access_loggers.stream.v3.StdoutAccessLog\n", prefix))
+				sb.WriteString(fmt.Sprintf("%s        log_format:\n", prefix))
+				sb.WriteString(fmt.Sprintf("%s          text_format_source:\n", prefix))
+				sb.WriteString(fmt.Sprintf("%s            inline_string: \"[%%START_TIME%%][L7][%%FILTER_CHAIN_NAME%%] method=%%REQ(:METHOD)%% uri=%%REQ(:AUTHORITY)%%%%REQ(:PATH)%% code=%%RESPONSE_CODE%% dst=%%DOWNSTREAM_LOCAL_ADDRESS%% duration=%%DURATION%%ms reason=%%RESPONSE_CODE_DETAILS%%\\n\"\n", prefix))
+			}
+			if cfg.AccessLogShadowCEL != "" {
+				sb.WriteString(fmt.Sprintf("%s    - name: envoy.access_loggers.stdout\n", prefix))
+				sb.WriteString(fmt.Sprintf("%s      filter:\n", prefix))
+				sb.WriteString(fmt.Sprintf("%s        extension_filter:\n", prefix))
+				sb.WriteString(fmt.Sprintf("%s          name: envoy.access_loggers.extension_filters.cel\n", prefix))
+				sb.WriteString(fmt.Sprintf("%s          typed_config:\n", prefix))
+				sb.WriteString(fmt.Sprintf("%s            \"@type\": type.googleapis.com/envoy.extensions.access_loggers.filters.cel.v3.ExpressionFilter\n", prefix))
+				sb.WriteString(fmt.Sprintf("%s            expression: %s\n", prefix, yamlCEL(cfg.AccessLogShadowCEL)))
+				sb.WriteString(fmt.Sprintf("%s      typed_config:\n", prefix))
+				sb.WriteString(fmt.Sprintf("%s        \"@type\": type.googleapis.com/envoy.extensions.access_loggers.stream.v3.StdoutAccessLog\n", prefix))
+				sb.WriteString(fmt.Sprintf("%s        log_format:\n", prefix))
+				sb.WriteString(fmt.Sprintf("%s          text_format_source:\n", prefix))
+				sb.WriteString(fmt.Sprintf("%s            inline_string: \"[%%START_TIME%%][L7][%%FILTER_CHAIN_NAME%%] method=%%REQ(:METHOD)%% uri=%%REQ(:AUTHORITY)%%%%REQ(:PATH)%% code=%%RESPONSE_CODE%% dst=%%DOWNSTREAM_LOCAL_ADDRESS%% duration=%%DURATION%%ms reason=%%RESPONSE_CODE_DETAILS%%\\n\"\n", prefix))
+			}
 		}
 	}
 
@@ -788,6 +807,9 @@ func renderClustersYAML(version int64, mitmEnabled bool, audit AuditSinkConfig) 
 		sb.WriteString("        validation_context:\n")
 		sb.WriteString(fmt.Sprintf("          trusted_ca:\n            filename: %s\n", varmorconfig.MITMUpstreamTrustedCAPath))
 	}
+	if audit.usesGRPCALS() {
+		renderALSClusterYAML(&sb, audit)
+	}
 	return sb.String()
 }
 
@@ -849,4 +871,73 @@ resources:
         cluster: original_dst
 `)
 	return sb.String()
+}
+
+// alsGRPCConfigType returns the typed_config @type URL for the gRPC ALS access
+// logger. L7 (HTTP connection manager) uses HttpGrpcAccessLogConfig; L4
+// (listener-level TCP) uses TcpGrpcAccessLogConfig.
+func alsGRPCConfigType(l7 bool) string {
+	if l7 {
+		return "type.googleapis.com/envoy.extensions.access_loggers.grpc.v3.HttpGrpcAccessLogConfig"
+	}
+	return "type.googleapis.com/envoy.extensions.access_loggers.grpc.v3.TcpGrpcAccessLogConfig"
+}
+
+// renderALSAccessLogEntry renders a single gRPC ALS access_log list item gated
+// by a CEL expression filter, mirroring the stdout entry structure but routing
+// records to the gRPC ALS cluster over UDS.
+//
+// itemPrefix is the indentation of the leading "- " list marker. For L7 entries
+// a custom_tags entry carrying the filter_chain name is emitted so the agent can
+// attribute records to a specific filter chain; L4 listener-level access_log is
+// shared across passthrough chains, so filterChain is passed empty and no tag is
+// emitted.
+func renderALSAccessLogEntry(sb *strings.Builder, itemPrefix, celExpr, logName, clusterName, filterChain string, l7 bool) {
+	b := itemPrefix + "  "
+	sb.WriteString(itemPrefix + "- name: envoy.access_loggers.grpc\n")
+	sb.WriteString(b + "filter:\n")
+	sb.WriteString(b + "  extension_filter:\n")
+	sb.WriteString(b + "    name: envoy.access_loggers.extension_filters.cel\n")
+	sb.WriteString(b + "    typed_config:\n")
+	sb.WriteString(b + "      \"@type\": type.googleapis.com/envoy.extensions.access_loggers.filters.cel.v3.ExpressionFilter\n")
+	sb.WriteString(b + "      expression: " + yamlCEL(celExpr) + "\n")
+	sb.WriteString(b + "typed_config:\n")
+	sb.WriteString(b + "  \"@type\": " + alsGRPCConfigType(l7) + "\n")
+	sb.WriteString(b + "  common_config:\n")
+	sb.WriteString(b + "    log_name: \"" + yamlEscapeScalar(logName) + "\"\n")
+	sb.WriteString(b + "    transport_api_version: V3\n")
+	sb.WriteString(b + "    grpc_service:\n")
+	sb.WriteString(b + "      envoy_grpc:\n")
+	sb.WriteString(b + "        cluster_name: " + clusterName + "\n")
+	if filterChain != "" {
+		sb.WriteString(b + "    custom_tags:\n")
+		sb.WriteString(b + "    - tag: " + ALSFilterChainTagKey + "\n")
+		sb.WriteString(b + "      literal:\n")
+		sb.WriteString(b + "        value: \"" + yamlEscapeScalar(filterChain) + "\"\n")
+	}
+}
+
+// renderALSClusterYAML emits the STATIC CDS cluster that the gRPC ALS access
+// loggers dial over a Unix domain socket. It uses HTTP/2 (required by the ALS
+// gRPC streaming protocol) and points at the agent's UDS pipe path.
+func renderALSClusterYAML(sb *strings.Builder, audit AuditSinkConfig) {
+	name := audit.clusterName()
+	sb.WriteString("- \"@type\": type.googleapis.com/envoy.config.cluster.v3.Cluster\n")
+	sb.WriteString("  name: " + name + "\n")
+	sb.WriteString("  type: STATIC\n")
+	sb.WriteString("  connect_timeout: 1s\n")
+	sb.WriteString("  lb_policy: ROUND_ROBIN\n")
+	sb.WriteString("  typed_extension_protocol_options:\n")
+	sb.WriteString("    envoy.extensions.upstreams.http.v3.HttpProtocolOptions:\n")
+	sb.WriteString("      \"@type\": type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions\n")
+	sb.WriteString("      explicit_http_config:\n")
+	sb.WriteString("        http2_protocol_options: {}\n")
+	sb.WriteString("  load_assignment:\n")
+	sb.WriteString("    cluster_name: " + name + "\n")
+	sb.WriteString("    endpoints:\n")
+	sb.WriteString("    - lb_endpoints:\n")
+	sb.WriteString("      - endpoint:\n")
+	sb.WriteString("          address:\n")
+	sb.WriteString("            pipe:\n")
+	sb.WriteString("              path: \"" + yamlEscapeScalar(audit.ALSUDSPath) + "\"\n")
 }
