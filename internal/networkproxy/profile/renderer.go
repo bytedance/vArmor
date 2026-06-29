@@ -150,7 +150,7 @@ func renderListenerAddress(ipStack IPStackConfig, port uint16) string {
 	return sb.String()
 }
 
-func renderListenerYAML(mitmChains []FilterChain, tlsChain, httpChain FilterChain, tcpChain FilterChain, version int64, proxyPort uint16, listenerAccessLogEnabled bool, listenerDenyCEL, listenerShadowCEL string, ipStack IPStackConfig) string {
+func renderListenerYAML(mitmChains []FilterChain, tlsChain, httpChain FilterChain, tcpChain FilterChain, version int64, proxyPort uint16, listenerAccessLogEnabled bool, listenerDenyCEL, listenerShadowCEL string, ipStack IPStackConfig, audit AuditSinkConfig) string {
 	var sb strings.Builder
 
 	sb.WriteString(fmt.Sprintf(`version_info: "%d"
@@ -734,7 +734,7 @@ func renderPermissionRuleYAML(rule PermissionRule, indent int, rbacType string) 
 // unified policy Secret. The CA is included to keep the file layout
 // symmetric across containers; only the Mozilla portion is relevant for
 // verifying real upstream certificates.
-func renderClustersYAML(version int64, mitmEnabled bool) string {
+func renderClustersYAML(version int64, mitmEnabled bool, audit AuditSinkConfig) string {
 	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf("version_info: \"%d\"\n", version))
 	sb.WriteString("resources:\n")

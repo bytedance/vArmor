@@ -323,7 +323,11 @@ func GenerateEnvoySecret(kubeClient *kubernetes.Clientset, obj interface{}, name
 		}
 
 		ipStack := profile.DetectIPStack()
-		lds, cds, err = profile.GenerateEnvoyConfig(vcp.Spec.Policy, vcp.Generation, mitmInput, ipStack)
+		// Audit sink defaults to stdout (zero value): this commit only wires
+		// the AuditSinkConfig plumbing through the translator chain; the gRPC
+		// ALS sink is selected by a later commit. The stdout default renders
+		// byte-for-byte identically to the pre-audit output.
+		lds, cds, err = profile.GenerateEnvoyConfig(vcp.Spec.Policy, vcp.Generation, mitmInput, ipStack, profile.AuditSinkConfig{})
 		if err != nil {
 			return nil, fmt.Errorf("generate envoy config failed: %w", err)
 		}
@@ -359,7 +363,9 @@ func GenerateEnvoySecret(kubeClient *kubernetes.Clientset, obj interface{}, name
 		}
 
 		ipStack := profile.DetectIPStack()
-		lds, cds, err = profile.GenerateEnvoyConfig(vp.Spec.Policy, vp.Generation, mitmInput, ipStack)
+		// Audit sink defaults to stdout (zero value); see the cluster-policy
+		// branch above for rationale.
+		lds, cds, err = profile.GenerateEnvoyConfig(vp.Spec.Policy, vp.Generation, mitmInput, ipStack, profile.AuditSinkConfig{})
 		if err != nil {
 			return nil, fmt.Errorf("generate envoy config failed: %w", err)
 		}

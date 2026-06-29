@@ -144,6 +144,15 @@ type HTTPConnManagerConfig struct {
 	// AccessLogShadowCEL is the CEL expression for shadow/audit detection in HCM access_log.
 	// Empty when no shadow rules exist.
 	AccessLogShadowCEL string
+	// AuditSink selects the access_log sink (stdout default or gRPC ALS) and
+	// carries the ALS cluster/UDS/profile parameters. The zero value renders
+	// the stdout sink, so the pre-audit output is unchanged.
+	AuditSink AuditSinkConfig
+	// FilterChainName is the name of the Envoy filter chain this HCM belongs
+	// to (e.g. "http_chain", "mitm_tls_dns_chain"). It is emitted as the
+	// gRPC ALS "filter_chain" custom_tag so the auditor can attribute an L7
+	// event to its originating chain. Unused by the stdout sink.
+	FilterChainName string
 }
 
 type RouteConfig struct {
@@ -365,7 +374,7 @@ type TranslateResult struct {
 // TLS passthrough, HTTP, TCP default). When enabled, one or two MITM
 // filter chains are prepended so Envoy's most-specific-match precedence
 // intercepts targeted TLS while other TLS falls through unchanged.
-func TranslateEgressRules(egress *varmor.NetworkProxyEgress, version int64, proxyPort uint16, mitm *MITMInput, ipStack IPStackConfig) (*TranslateResult, error) {
+func TranslateEgressRules(egress *varmor.NetworkProxyEgress, version int64, proxyPort uint16, mitm *MITMInput, ipStack IPStackConfig, audit AuditSinkConfig) (*TranslateResult, error) {
 	if egress == nil {
 		return nil, fmt.Errorf("network proxy egress rules is nil")
 	}
@@ -407,7 +416,7 @@ func TranslateEgressRules(egress *varmor.NetworkProxyEgress, version int64, prox
 	httpChain := buildHTTPChain(cls.defaultDeny,
 		cls.denyEgressRules, cls.allowEgressRules,
 		cls.denyHTTPRules, cls.allowHTTPRules,
-		cls.auditCfg)
+		cls.auditCfg, audit)
 	tcpChain := buildTCPDefaultChain(cls.defaultDeny,
 		cls.denyEgressRules, cls.allowEgressRules,
 		cls.auditCfg)
@@ -421,7 +430,7 @@ func TranslateEgressRules(egress *varmor.NetworkProxyEgress, version int64, prox
 	// a non-empty MITMInput is supplied.
 	var mitmChains []FilterChain
 	if mitm.Enabled() {
-		mitmChains = buildMITMChains(cls, mitm)
+		mitmChains = buildMITMChains(cls, mitm, audit)
 	}
 
 	// Listener-level CEL (Network RBAC deny detection + shadow metadata).
@@ -431,8 +440,8 @@ func TranslateEgressRules(egress *varmor.NetworkProxyEgress, version int64, prox
 
 	lds := renderListenerYAML(mitmChains, tlsChain, httpChain, tcpChain,
 		version, proxyPort,
-		cls.auditCfg.AccessLogEnabled, listenerDenyCEL, listenerShadowCEL, ipStack)
-	cds := renderClustersYAML(version, mitm.Enabled())
+		cls.auditCfg.AccessLogEnabled, listenerDenyCEL, listenerShadowCEL, ipStack, audit)
+	cds := renderClustersYAML(version, mitm.Enabled(), audit)
 
 	return &TranslateResult{LDS: lds, CDS: cds}, nil
 }
@@ -447,7 +456,7 @@ func buildTLSChain(defaultDeny bool,
 	auditCfg AuditConfig,
 ) FilterChain {
 	chain := FilterChain{
-		Name: "tls_chain",
+		Name: FilterChainNameTLS,
 		FilterChainMatch: &FilterChainMatch{
 			TransportProtocol: "tls",
 		},
@@ -591,10 +600,10 @@ func buildNetworkRBACForTLS(action RBACAction, egressRules []varmor.NetworkProxy
 func buildHTTPChain(defaultDeny bool,
 	denyEgressRules, allowEgressRules []varmor.NetworkProxyEgressRule,
 	denyHTTPRules, allowHTTPRules []varmor.NetworkProxyHTTPRule,
-	auditCfg AuditConfig,
+	auditCfg AuditConfig, audit AuditSinkConfig,
 ) FilterChain {
 	chain := FilterChain{
-		Name: "http_chain",
+		Name: FilterChainNameHTTP,
 		FilterChainMatch: &FilterChainMatch{
 			ApplicationProtocols: []string{"http/1.0", "http/1.1", "h2c"},
 		},
@@ -660,6 +669,8 @@ func buildHTTPChain(defaultDeny bool,
 			AccessLogEnabled:   auditCfg.AccessLogEnabled,
 			AccessLogDenyCEL:   hcmDenyCEL,
 			AccessLogShadowCEL: hcmShadowCEL,
+			AuditSink:          audit,
+			FilterChainName:    FilterChainNameHTTP,
 			RouteConfig: &RouteConfig{
 				Name: "local_route",
 				VirtualHosts: []VirtualHost{{
@@ -724,7 +735,7 @@ func buildTCPDefaultChain(defaultDeny bool,
 	auditCfg AuditConfig,
 ) FilterChain {
 	chain := FilterChain{
-		Name:             "tcp_default_chain",
+		Name:             FilterChainNameTCPDefault,
 		FilterChainMatch: nil,
 	}
 
