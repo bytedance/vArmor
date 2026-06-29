@@ -210,6 +210,41 @@ var (
 	// NOT written to the system CA path so that the target image's own
 	// system CA store remains untouched.
 	MITMCABundlePath = "/etc/varmor/ca-bundle/ca-certificates.crt"
+
+	// AuditNetworkProxySink selects the Envoy access_log sink used for
+	// NetworkProxy violation auditing across the whole installation. It is a
+	// manager-wide switch (NOT per-policy): "stdout" keeps the legacy
+	// behaviour (violations only land in the sidecar's stdout) while
+	// "grpc_als" makes the sidecar stream access logs over a Unix domain
+	// socket to the node-local agent's ALS server.
+	//
+	// It defaults to "stdout" so that, until the deployment wiring lands, no
+	// node-level UDS sharing surface is exposed and the injected sidecar is
+	// byte-for-byte identical to the pre-audit one. A later commit makes this
+	// configurable from the Helm chart / environment and flips the default to
+	// "grpc_als".
+	AuditNetworkProxySink = "stdout"
+
+	// AuditNetworkProxySocketDir is the directory that holds the ALS Unix
+	// domain socket. It is shared between the node-local agent (which owns
+	// and listens on the socket) and every injected proxy sidecar on the
+	// node (which connects to it as an Envoy gRPC ALS client). The agent
+	// mounts the parent gate directory (/run/varmor/audit) while the sidecar
+	// only mounts this leaf directory, so the socket path resolves to the
+	// same absolute path on both sides. Mounting the directory (not the
+	// socket file) lets the sidecar reconnect after the agent recreates the
+	// socket inode on restart.
+	AuditNetworkProxySocketDir = "/run/varmor/audit/als"
+
+	// AuditNetworkProxySocketPath is the ALS Unix domain socket path as seen
+	// inside the sidecar; it equals the Envoy CDS cluster pipe.path and the
+	// agent's listen path.
+	AuditNetworkProxySocketPath = "/run/varmor/audit/als/als.sock"
+
+	// AuditNetworkProxyVolumeName is the name of the hostPath volume that
+	// projects AuditNetworkProxySocketDir into the proxy sidecar. It is only
+	// injected when AuditNetworkProxySink == "grpc_als".
+	AuditNetworkProxyVolumeName = "varmor-network-proxy-audit-als"
 )
 
 // CreateClientConfig creates client config and applies rate limit QPS and burst
