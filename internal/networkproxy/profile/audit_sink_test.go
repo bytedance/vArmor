@@ -75,8 +75,8 @@ func TestAuditSinkConfig_LogNames(t *testing.T) {
 }
 
 // TestAuditSinkConfig_SharedConstants pins the wire-level constants that MUST
-// stay byte-compatible with the guard (VigilArmor) renderer over the shared
-// gRPC ALS protocol. A change here is a protocol break.
+// stay byte-compatible across the shared gRPC ALS protocol. A change here is
+// a protocol break.
 func TestAuditSinkConfig_SharedConstants(t *testing.T) {
 	cases := map[string]string{
 		AuditSinkStdout:       "stdout",

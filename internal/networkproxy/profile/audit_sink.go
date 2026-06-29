@@ -26,9 +26,8 @@ package profile
 // output, so every existing snapshot test passes unchanged. The gRPC ALS
 // render branch is added in a subsequent commit.
 //
-// The type, constants and helper methods deliberately mirror the guard
-// (VigilArmor) implementation so the two projects' renderers stay
-// byte-compatible over the shared gRPC ALS protocol.
+// The type, constants and helper methods follow the shared gRPC ALS
+// protocol so the renderer and the agent's auditor stay byte-compatible.
 
 const (
 	// AuditSinkStdout routes Envoy access_log audit events to the sidecar's
@@ -41,16 +40,15 @@ const (
 	AuditSinkGRPCALS = "grpc_als"
 
 	// DefaultALSClusterName is the CDS cluster name of the gRPC ALS endpoint.
-	// It is a fixed, shared convention (identical in guard) so the two
-	// projects' renderers stay byte-compatible. Mirrors §4.3 of the
-	// NetworkProxy audit protocol design.
+	// It is a fixed, shared convention so the renderer and the agent's
+	// auditor stay byte-compatible.
 	DefaultALSClusterName = "varmor_audit_als"
 
 	// LogNameClassDeny / LogNameClassAudit are the two log_name classes the
 	// renderer embeds (as "<class>:<profileName>") into each gRPC ALS
 	// access_log entry. The auditor parses the class to map an event to an
 	// action: deny -> DENIED, audit -> AUDIT. This is a shared convention
-	// (identical in guard); see §6.1 of the audit protocol design.
+	// between the renderer and the agent's auditor.
 	LogNameClassDeny  = "varmor_np_deny"
 	LogNameClassAudit = "varmor_np_audit"
 

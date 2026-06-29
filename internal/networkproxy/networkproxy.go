@@ -140,12 +140,22 @@ func checkSecretSize(secret *v1.Secret, logger logr.Logger) error {
 }
 
 // envoyBootstrapTemplate is the sidecar's static bootstrap YAML. Only the
-// admin port is parameterised; the LDS/CDS paths are fixed to the volume
-// mount point /etc/envoy so the template does not depend on the volume
-// layout emitted by buildNetworkProxyPatch / proxyVolume.
+// admin port is parameterised via fmt.Sprintf; the LDS/CDS paths are fixed to
+// the volume mount point /etc/envoy so the template does not depend on the
+// volume layout emitted by buildNetworkProxyPatch / proxyVolume.
+//
+// node.metadata carries the Pod identity (pod_name / pod_namespace) so the
+// audit agent can attribute ALS records to a precise Pod via the ALS
+// Identifier.Node.Metadata. The values are resolved at Envoy startup from the
+// sidecar environment variables POD_NAME / POD_NAMESPACE (injected through the
+// Kubernetes Downward API). The "%%ENV(...)%%" tokens are escaped percent signs
+// so fmt.Sprintf leaves a literal "%ENV(...)%" for Envoy's own env expansion.
 var envoyBootstrapTemplate = `node:
   id: varmor-network-proxy
   cluster: varmor-network-proxy
+  metadata:
+    pod_name: "%%ENV(POD_NAME)%%"
+    pod_namespace: "%%ENV(POD_NAMESPACE)%%"
 admin:
   address:
     socket_address:
@@ -323,11 +333,14 @@ func GenerateEnvoySecret(kubeClient *kubernetes.Clientset, obj interface{}, name
 		}
 
 		ipStack := profile.DetectIPStack()
-		// Audit sink defaults to stdout (zero value): this commit only wires
-		// the AuditSinkConfig plumbing through the translator chain; the gRPC
-		// ALS sink is selected by a later commit. The stdout default renders
+		// Compute the profile name BEFORE rendering so it can be embedded in the
+		// per-class gRPC ALS log_name (varmor_np_deny:<profile> /
+		// varmor_np_audit:<profile>). The audit sink still defaults to stdout
+		// (zero value, only ProfileName is filled); the gRPC ALS sink is
+		// selected by a later commit, so the stdout default renders
 		// byte-for-byte identically to the pre-audit output.
-		lds, cds, err = profile.GenerateEnvoyConfig(vcp.Spec.Policy, vcp.Generation, mitmInput, ipStack, profile.AuditSinkConfig{})
+		name = varmorprofile.GenerateArmorProfileName(varmorconfig.Namespace, vcp.Name, clusterScope)
+		lds, cds, err = profile.GenerateEnvoyConfig(vcp.Spec.Policy, vcp.Generation, mitmInput, ipStack, profile.AuditSinkConfig{ProfileName: name})
 		if err != nil {
 			return nil, fmt.Errorf("generate envoy config failed: %w", err)
 		}
@@ -336,7 +349,6 @@ func GenerateEnvoySecret(kubeClient *kubernetes.Clientset, obj interface{}, name
 			return nil, nil
 		}
 
-		name = varmorprofile.GenerateArmorProfileName(varmorconfig.Namespace, vcp.Name, clusterScope)
 		ownerReferences = append(ownerReferences, metav1.OwnerReference{
 			APIVersion: "crd.varmor.org/v1beta1",
 			Kind:       "VarmorClusterPolicy",
@@ -363,9 +375,11 @@ func GenerateEnvoySecret(kubeClient *kubernetes.Clientset, obj interface{}, name
 		}
 
 		ipStack := profile.DetectIPStack()
-		// Audit sink defaults to stdout (zero value); see the cluster-policy
-		// branch above for rationale.
-		lds, cds, err = profile.GenerateEnvoyConfig(vp.Spec.Policy, vp.Generation, mitmInput, ipStack, profile.AuditSinkConfig{})
+		// Compute the profile name before rendering so it can be embedded in the
+		// per-class gRPC ALS log_name; see the cluster-policy branch above for
+		// rationale. Audit sink defaults to stdout (only ProfileName is filled).
+		name = varmorprofile.GenerateArmorProfileName(vp.Namespace, vp.Name, clusterScope)
+		lds, cds, err = profile.GenerateEnvoyConfig(vp.Spec.Policy, vp.Generation, mitmInput, ipStack, profile.AuditSinkConfig{ProfileName: name})
 		if err != nil {
 			return nil, fmt.Errorf("generate envoy config failed: %w", err)
 		}
@@ -374,7 +388,6 @@ func GenerateEnvoySecret(kubeClient *kubernetes.Clientset, obj interface{}, name
 			return nil, nil
 		}
 
-		name = varmorprofile.GenerateArmorProfileName(vp.Namespace, vp.Name, clusterScope)
 		ownerReferences = append(ownerReferences, metav1.OwnerReference{
 			APIVersion: "crd.varmor.org/v1beta1",
 			Kind:       "VarmorPolicy",
