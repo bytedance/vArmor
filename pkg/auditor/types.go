@@ -39,16 +39,14 @@ type BpfCapabilityEvent struct {
 }
 
 type BpfNetworkSocket struct {
-	Operation string `json:"operation"`
-	Domain    string `json:"domain"`
-	Type      string `json:"type"`
-	Protocol  string `json:"protocol"`
+	Domain   string `json:"domain"`
+	Type     string `json:"type"`
+	Protocol string `json:"protocol"`
 }
 
 type BpfNetworkSockAddr struct {
-	Operation string `json:"operation"`
-	IP        string `json:"ip"`
-	Port      uint16 `json:"port"`
+	IP   string `json:"ip"`
+	Port uint16 `json:"port"`
 }
 
 type BpfNetworkEvent struct {
