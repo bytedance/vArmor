@@ -214,6 +214,23 @@ func parsePodIdentity(node *corev3.Node) podIdentity {
 // resolved from node.metadata. ALLOWED events are not produced: the CEL filters
 // only select deny and shadow entries.
 func (auditor *Auditor) recordNetworkProxyViolation(action, profileName string, pod podIdentity, eventTime time.Time, event NetworkProxyEvent) {
+	auditor.log.V(2).Info("audit event",
+		"pod uid", pod.podUID,
+		"pod name", pod.podName,
+		"pod namespace", pod.podNamespace,
+		"enforcer", enforcerNetworkProxy,
+		"action", action,
+		"profile", profileName,
+		"layer", event.Layer,
+		"filter chain", event.FilterChain,
+		"dst address", event.DstAddress,
+		"sni", event.SNI,
+		"authority", event.Authority,
+		"method", event.Method,
+		"path", event.Path,
+		"response code", event.ResponseCode,
+		"duration ms", event.DurationMs)
+
 	var eventTimestamp uint64
 	if !eventTime.IsZero() {
 		eventTimestamp = uint64(eventTime.Unix())
