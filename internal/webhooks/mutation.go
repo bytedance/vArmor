@@ -670,6 +670,12 @@ func buildNetworkProxyPatch(profileName string, workloads bool, networkProxyConf
 			`{"name": "varmor-network-proxy", `+
 			`"image": "%s", `+
 			`"securityContext": {"runAsUser": %d}, `+
+			// codeql[go/unsafe-quote-injection]: false positive. The token spliced
+			// here is the json.Marshal output above (a fully-quoted, escaped JSON
+			// string literal), NOT the raw overlay — hence no surrounding quotes.
+			// Any " inside the overlay is already escaped to \", so it cannot break
+			// out of the enclosing string. The value is also a compile-time const,
+			// not external input.
 			`"args": ["-c", "/etc/envoy/bootstrap.yaml", "--config-yaml", `+auditNodeMetadataOverlayJSON+`, "-l", "info"], `+
 			`"readinessProbe": {"tcpSocket": {"port": %d}, "initialDelaySeconds": 2, "periodSeconds": 5}, `+
 			`"resources": %s, `+
