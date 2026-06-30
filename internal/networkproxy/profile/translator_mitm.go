@@ -346,7 +346,7 @@ func filterEgressRulesForDomains(rules []varmor.NetworkProxyEgressRule, domains 
 // Sharing a single HCM between both chains would produce unreachable
 // VirtualHosts and RBAC rules (e.g., IP VHs in a DNS chain that only
 // matches by server_names).
-func buildMITMChains(cls egressClassification, mitm *MITMInput) []FilterChain {
+func buildMITMChains(cls egressClassification, mitm *MITMInput, audit AuditSinkConfig) []FilterChain {
 	dnsNames, ipPrefixes := splitMITMDomains(mitm.Domains)
 
 	certPath := mitm.LeafCertPath
@@ -361,9 +361,9 @@ func buildMITMChains(cls egressClassification, mitm *MITMInput) []FilterChain {
 
 	var chains []FilterChain
 	if len(dnsNames) > 0 {
-		dnsHCM := buildMITMHCMFilter(cls, dnsNames, mitm.HeadersByDomain)
+		dnsHCM := buildMITMHCMFilter(cls, dnsNames, mitm.HeadersByDomain, audit, FilterChainNameMITMTLSDNS)
 		chains = append(chains, FilterChain{
-			Name: "mitm_tls_dns_chain",
+			Name: FilterChainNameMITMTLSDNS,
 			FilterChainMatch: &FilterChainMatch{
 				TransportProtocol: "tls",
 				ServerNames:       dnsNames,
@@ -373,9 +373,9 @@ func buildMITMChains(cls egressClassification, mitm *MITMInput) []FilterChain {
 		})
 	}
 	if len(ipPrefixes) > 0 {
-		ipHCM := buildMITMHCMFilter(cls, ipPrefixes, mitm.HeadersByDomain)
+		ipHCM := buildMITMHCMFilter(cls, ipPrefixes, mitm.HeadersByDomain, audit, FilterChainNameMITMTLSIP)
 		chains = append(chains, FilterChain{
-			Name: "mitm_tls_ip_chain",
+			Name: FilterChainNameMITMTLSIP,
 			FilterChainMatch: &FilterChainMatch{
 				TransportProtocol: "tls",
 				PrefixRanges:      ipPrefixes,
@@ -392,7 +392,7 @@ func buildMITMChains(cls egressClassification, mitm *MITMInput) []FilterChain {
 // RBAC filter ordering as the non-MITM HTTP chain (shadow then deny then
 // allow then router) so that the 10-row audit semantic matrix applies
 // uniformly to plaintext HTTP, MITM'd HTTPS by DNS, and MITM'd HTTPS by IP.
-func buildMITMHCMFilter(cls egressClassification, domains []string, headersByDomain map[string][]HeaderToAdd) NetworkFilter {
+func buildMITMHCMFilter(cls egressClassification, domains []string, headersByDomain map[string][]HeaderToAdd, audit AuditSinkConfig, chainName string) NetworkFilter {
 	// Filter both HTTP rules and L4 egress rules to only contain entries
 	// reachable via this chain. Without this, an egress rule for a CIDR
 	// not in mitm.domains (e.g., 10.0.0.0/24) would leak into the MITM
@@ -455,6 +455,8 @@ func buildMITMHCMFilter(cls egressClassification, domains []string, headersByDom
 			AccessLogEnabled:   cls.auditCfg.AccessLogEnabled,
 			AccessLogDenyCEL:   hcmDenyCEL,
 			AccessLogShadowCEL: hcmShadowCEL,
+			AuditSink:          audit,
+			FilterChainName:    chainName,
 			RouteConfig: &RouteConfig{
 				Name:         "mitm_route",
 				VirtualHosts: buildMITMVirtualHosts(domains, headersByDomain),

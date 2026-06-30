@@ -103,6 +103,21 @@ const (
 	SecretSizeMaxThreshold  = 900 * 1024 // 900 KB
 )
 
+// auditSinkConfig assembles the AuditSinkConfig handed to the renderer from the
+// installation-wide audit configuration. The profile name is the only
+// per-policy field; the in-sidecar UDS path and the Envoy ALS buffer bounds are
+// global (resolved from internal/config, which the Helm chart wires through the
+// manager's environment). NetworkProxy violation auditing always streams over
+// gRPC ALS.
+func auditSinkConfig(profileName string) profile.AuditSinkConfig {
+	return profile.AuditSinkConfig{
+		ProfileName:            profileName,
+		ALSUDSPath:             varmorconfig.AuditNetworkProxySocketPath,
+		ALSBufferFlushInterval: varmorconfig.AuditNetworkProxyALSBufferFlushInterval,
+		ALSBufferSizeBytes:     varmorconfig.AuditNetworkProxyALSBufferSizeBytes,
+	}
+}
+
 // computeSecretDataSize returns the total byte count of all values stored
 // in the Secret (both StringData and Data). This approximates the
 // wire-format size that counts toward the 1 MiB Kubernetes limit.
@@ -140,9 +155,20 @@ func checkSecretSize(secret *v1.Secret, logger logr.Logger) error {
 }
 
 // envoyBootstrapTemplate is the sidecar's static bootstrap YAML. Only the
-// admin port is parameterised; the LDS/CDS paths are fixed to the volume
-// mount point /etc/envoy so the template does not depend on the volume
-// layout emitted by buildNetworkProxyPatch / proxyVolume.
+// admin port is parameterised via fmt.Sprintf; the LDS/CDS paths are fixed to
+// the volume mount point /etc/envoy so the template does not depend on the
+// volume layout emitted by buildNetworkProxyPatch / proxyVolume.
+//
+// node.metadata (the Pod identity the audit agent reads from the ALS
+// Identifier.Node.Metadata to attribute records to a precise Pod) is NOT set
+// here. Envoy does not perform "%ENV()%" substitution inside node.metadata at
+// bootstrap load -- that command operator is only valid in access-log format
+// strings -- so embedding the tokens here would forward them to the agent
+// unexpanded. The metadata is instead supplied at startup through an Envoy
+// "--config-yaml" overlay whose $(POD_*) references Kubernetes expands from the
+// sidecar's Downward API env vars before Envoy runs; Envoy then merges the
+// overlay node onto this one. See proxyContainer / AuditNodeMetadataOverlay in
+// internal/policy and the equivalent admission patch in internal/webhooks.
 var envoyBootstrapTemplate = `node:
   id: varmor-network-proxy
   cluster: varmor-network-proxy
@@ -323,7 +349,12 @@ func GenerateEnvoySecret(kubeClient *kubernetes.Clientset, obj interface{}, name
 		}
 
 		ipStack := profile.DetectIPStack()
-		lds, cds, err = profile.GenerateEnvoyConfig(vcp.Spec.Policy, vcp.Generation, mitmInput, ipStack)
+		// Compute the profile name BEFORE rendering so it can be embedded in the
+		// per-class gRPC ALS log_name (varmor_np_deny:<profile> /
+		// varmor_np_audit:<profile>). The UDS path and buffer bounds are
+		// resolved from the installation config by auditSinkConfig.
+		name = varmorprofile.GenerateArmorProfileName(varmorconfig.Namespace, vcp.Name, clusterScope)
+		lds, cds, err = profile.GenerateEnvoyConfig(vcp.Spec.Policy, vcp.Generation, mitmInput, ipStack, auditSinkConfig(name))
 		if err != nil {
 			return nil, fmt.Errorf("generate envoy config failed: %w", err)
 		}
@@ -332,7 +363,6 @@ func GenerateEnvoySecret(kubeClient *kubernetes.Clientset, obj interface{}, name
 			return nil, nil
 		}
 
-		name = varmorprofile.GenerateArmorProfileName(varmorconfig.Namespace, vcp.Name, clusterScope)
 		ownerReferences = append(ownerReferences, metav1.OwnerReference{
 			APIVersion: "crd.varmor.org/v1beta1",
 			Kind:       "VarmorClusterPolicy",
@@ -359,7 +389,12 @@ func GenerateEnvoySecret(kubeClient *kubernetes.Clientset, obj interface{}, name
 		}
 
 		ipStack := profile.DetectIPStack()
-		lds, cds, err = profile.GenerateEnvoyConfig(vp.Spec.Policy, vp.Generation, mitmInput, ipStack)
+		// Compute the profile name before rendering so it can be embedded in the
+		// per-class gRPC ALS log_name; see the cluster-policy branch above for
+		// rationale. The UDS path and buffer bounds are resolved from the
+		// installation config.
+		name = varmorprofile.GenerateArmorProfileName(vp.Namespace, vp.Name, clusterScope)
+		lds, cds, err = profile.GenerateEnvoyConfig(vp.Spec.Policy, vp.Generation, mitmInput, ipStack, auditSinkConfig(name))
 		if err != nil {
 			return nil, fmt.Errorf("generate envoy config failed: %w", err)
 		}
@@ -368,7 +403,6 @@ func GenerateEnvoySecret(kubeClient *kubernetes.Clientset, obj interface{}, name
 			return nil, nil
 		}
 
-		name = varmorprofile.GenerateArmorProfileName(vp.Namespace, vp.Name, clusterScope)
 		ownerReferences = append(ownerReferences, metav1.OwnerReference{
 			APIVersion: "crd.varmor.org/v1beta1",
 			Kind:       "VarmorPolicy",

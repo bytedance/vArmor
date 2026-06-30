@@ -210,6 +210,39 @@ var (
 	// NOT written to the system CA path so that the target image's own
 	// system CA store remains untouched.
 	MITMCABundlePath = "/etc/varmor/ca-bundle/ca-certificates.crt"
+
+	// AuditNetworkProxySocketDir is the directory that holds the ALS Unix
+	// domain socket. It is shared between the node-local agent (which owns
+	// and listens on the socket) and every injected proxy sidecar on the
+	// node (which connects to it as an Envoy gRPC ALS client). The agent
+	// mounts the parent gate directory (/var/run/varmor/audit) while the sidecar
+	// only mounts this leaf directory, so the socket path resolves to the
+	// same absolute path on both sides. Mounting the directory (not the
+	// socket file) lets the sidecar reconnect after the agent recreates the
+	// socket inode on restart.
+	AuditNetworkProxySocketDir = "/var/run/varmor/audit/als"
+
+	// AuditNetworkProxySocketPath is the ALS Unix domain socket path as seen
+	// inside the sidecar; it equals the Envoy CDS cluster pipe.path and the
+	// agent's listen path.
+	AuditNetworkProxySocketPath = "/var/run/varmor/audit/als/als.sock"
+
+	// AuditNetworkProxyVolumeName is the name of the hostPath volume that
+	// projects AuditNetworkProxySocketDir into the proxy sidecar.
+	AuditNetworkProxyVolumeName = "varmor-network-proxy-audit-als"
+
+	// AuditNetworkProxyALSBufferFlushInterval bounds how long the injected
+	// sidecar's Envoy buffers gRPC access-log entries before flushing them to
+	// the agent's ALS server (e.g. "1s"). It is read by the renderer and
+	// emitted into each access_log common_config. An empty value omits the
+	// field so Envoy applies its own default.
+	AuditNetworkProxyALSBufferFlushInterval = os.Getenv("AUDIT_NETWORK_PROXY_ALS_BUFFER_FLUSH_INTERVAL")
+
+	// AuditNetworkProxyALSBufferSizeBytes bounds the sidecar's in-memory
+	// access-log buffer. Once exceeded Envoy flushes (or drops) rather than
+	// growing without bound, so audit load can never back-pressure egress
+	// forwarding. A zero value omits the field.
+	AuditNetworkProxyALSBufferSizeBytes = getAuditNetworkProxyALSBufferSizeBytes()
 )
 
 // CreateClientConfig creates client config and applies rate limit QPS and burst
@@ -325,4 +358,21 @@ func loadAuditEventMetadata() map[string]interface{} {
 	}
 	metadata["varmorNamespace"] = getPodNamespace()
 	return metadata
+}
+
+// getAuditNetworkProxyALSBufferSizeBytes reads the optional ALS buffer size
+// (AUDIT_NETWORK_PROXY_ALS_BUFFER_SIZE_BYTES) wired from
+// audit.networkProxy.envoyAlsBuffer.bufferSizeBytes. A missing, malformed or
+// non-positive value yields 0, which makes the renderer omit the field and let
+// Envoy apply its own default.
+func getAuditNetworkProxyALSBufferSizeBytes() uint32 {
+	s := os.Getenv("AUDIT_NETWORK_PROXY_ALS_BUFFER_SIZE_BYTES")
+	if s == "" {
+		return 0
+	}
+	v, err := strconv.ParseUint(s, 10, 32)
+	if err != nil {
+		return 0
+	}
+	return uint32(v)
 }

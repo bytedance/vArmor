@@ -52,6 +52,32 @@ auditEventMetadata:
   # clusterName: "production-cluster-1"
   # region: "cn-beijing"
 
+# NetworkProxy enforcer audit-log reporting. The injected Envoy sidecar always
+# streams its deny/shadow access logs over a Unix domain socket to the
+# node-local agent's ALS server, which normalises them into the shared
+# violations.log pipeline.
+audit:
+  networkProxy:
+    # envoyAlsBuffer bounds the sidecar's in-memory gRPC access-log buffer so
+    # audit load can never back-pressure egress forwarding (drop, never block).
+    # Conservative defaults favour dropping over unbounded buffering. Tune up
+    # for large rule sets / high violation rates.
+    envoyAlsBuffer:
+      # flushInterval is the max time Envoy buffers entries before flushing
+      # them to the agent (Envoy duration string, e.g. "1s"). Empty omits the
+      # field and lets Envoy use its own default.
+      flushInterval: "1s"
+      # bufferSizeBytes caps the in-memory buffer, per access_log entry. Once
+      # exceeded Envoy flushes early (before flushInterval); under sustained
+      # overload it drops rather than growing without bound. 0 omits the field.
+      # A sidecar renders one entry per deny/shadow log per chain (4 entries
+      # without MITM, 8 with MITM), so the worst-case total buffer is
+      # entries x bufferSizeBytes (~0.5Mi at 64Ki with MITM) -- ~0.1% of the
+      # sidecar memory limit, hence negligible. Default 64Ki holds roughly a
+      # hundred-plus records per entry; raise for large rule sets / high
+      # violation rates (calibrate against the sidecar memory limit).
+      bufferSizeBytes: 65536
+
 image:
   registry: ""
   namespace: varmor
@@ -259,10 +285,10 @@ agent:
     resources:
       limits:
         cpu: "1"
-        memory: "100Mi"
+        memory: "300Mi"
       requests:
         cpu: "100m"
-        memory: "40Mi"
+        memory: "100Mi"
 
   bpfLsmEnforcer:
     args:
@@ -270,7 +296,7 @@ agent:
     resources:
       limits:
         cpu: "1"
-        memory: "200Mi"
+        memory: "400Mi"
       requests:
         cpu: "100m"
         memory: "100Mi"

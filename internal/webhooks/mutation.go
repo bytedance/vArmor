@@ -15,6 +15,7 @@
 package webhooks
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -629,6 +630,13 @@ func buildNetworkProxyPatch(profileName string, workloads bool, networkProxyConf
 	if mitmEnabled {
 		sidecarVolumeMounts += `, {"name": "varmor-network-proxy-mitm-tls", "mountPath": "/etc/envoy/tls", "readOnly": true}`
 	}
+	// Audit: mount the node-local ALS socket directory (read-only;
+	// Envoy connects as a gRPC client) at the same absolute path the agent
+	// listens on, so the CDS cluster pipe.path resolves identically.
+	sidecarVolumeMounts += fmt.Sprintf(
+		`, {"name": "%s", "mountPath": "%s", "readOnly": true}`,
+		varmorconfig.AuditNetworkProxyVolumeName, varmorconfig.AuditNetworkProxySocketDir,
+	)
 
 	// Compute sidecar resource requirements based on MITM status and user overrides.
 	var proxyResourceOverride *varmor.ProxyResourceOverride
@@ -638,16 +646,42 @@ func buildNetworkProxyPatch(profileName string, workloads bool, networkProxyConf
 	proxyResources := varmorpolicy.ResolveProxyResources(proxyResourceOverride, mitmEnabled)
 	proxyResourcesJSON := varmorpolicy.MarshalProxyResourcesJSON(proxyResources)
 
+	// auditNodeMetadataOverlayJSON is the Envoy "--config-yaml" overlay encoded
+	// as a JSON string so it can be embedded verbatim inside the JSONPatch. The
+	// overlay supplies node.metadata (pod_name / pod_namespace / pod_uid) whose
+	// $(POD_*) references the kubelet expands from the Downward API env vars
+	// before Envoy starts; Envoy then merges it onto the static bootstrap node.
+	// This mirrors the controller path (varmorpolicy.AuditNodeMetadataOverlay).
+	overlayBytes, _ := json.Marshal(varmorpolicy.AuditNodeMetadataOverlay)
+	auditNodeMetadataOverlayJSON := string(overlayBytes)
+
+	// Audit: carry the Pod identity into the sidecar via the Downward API.
+	// The kubelet expands the $(POD_*) references in the sidecar's
+	// "--config-yaml" overlay from these env vars before Envoy starts, so the
+	// agent can attribute ALS records to a precise Pod. (Envoy does not expand
+	// "%ENV()%" inside node.metadata; that operator is access-log only.)
+	sidecarEnv := `"env": [` +
+		`{"name": "POD_NAME", "valueFrom": {"fieldRef": {"fieldPath": "metadata.name"}}}, ` +
+		`{"name": "POD_NAMESPACE", "valueFrom": {"fieldRef": {"fieldPath": "metadata.namespace"}}}, ` +
+		`{"name": "POD_UID", "valueFrom": {"fieldRef": {"fieldPath": "metadata.uid"}}}], `
+
 	sb.WriteString(fmt.Sprintf(
 		`{"op": "add", "path": "%s/spec/containers/-", "value": `+
 			`{"name": "varmor-network-proxy", `+
 			`"image": "%s", `+
 			`"securityContext": {"runAsUser": %d}, `+
-			`"args": ["-c", "/etc/envoy/bootstrap.yaml", "-l", "info"], `+
+			// codeql[go/unsafe-quote-injection]: false positive. The token spliced
+			// here is the json.Marshal output above (a fully-quoted, escaped JSON
+			// string literal), NOT the raw overlay — hence no surrounding quotes.
+			// Any " inside the overlay is already escaped to \", so it cannot break
+			// out of the enclosing string. The value is also a compile-time const,
+			// not external input.
+			`"args": ["-c", "/etc/envoy/bootstrap.yaml", "--config-yaml", `+auditNodeMetadataOverlayJSON+`, "-l", "info"], `+
 			`"readinessProbe": {"tcpSocket": {"port": %d}, "initialDelaySeconds": 2, "periodSeconds": 5}, `+
 			`"resources": %s, `+
+			`%s`+
 			`"volumeMounts": [%s]}}, `,
-		pathPrefix, varmorconfig.ProxyImage, proxyUID, proxyPort, proxyResourcesJSON, sidecarVolumeMounts,
+		pathPrefix, varmorconfig.ProxyImage, proxyUID, proxyPort, proxyResourcesJSON, sidecarEnv, sidecarVolumeMounts,
 	))
 
 	// --- 4. volumes ---
@@ -656,6 +690,16 @@ func buildNetworkProxyPatch(profileName string, workloads bool, networkProxyConf
 		`{"op": "add", "path": "%s/spec/volumes/-", "value": `+
 			`{"name": "varmor-network-proxy-config", "secret": {"secretName": "%s", "items": [{"key": "bootstrap.yaml", "path": "bootstrap.yaml"}, {"key": "lds.yaml", "path": "lds.yaml"}, {"key": "cds.yaml", "path": "cds.yaml"}]}}},`,
 		pathPrefix, profileName,
+	))
+
+	// Audit volume: the node-local ALS socket directory shared
+	// with the agent. A hostPath (DirectoryOrCreate) mounting the leaf
+	// socketDir (not the socket file) so the sidecar reconnects after the
+	// agent recreates the socket inode on restart.
+	sb.WriteString(fmt.Sprintf(
+		`{"op": "add", "path": "%s/spec/volumes/-", "value": `+
+			`{"name": "%s", "hostPath": {"path": "%s", "type": "DirectoryOrCreate"}}},`,
+		pathPrefix, varmorconfig.AuditNetworkProxyVolumeName, varmorconfig.AuditNetworkProxySocketDir,
 	))
 
 	if mitmEnabled {
