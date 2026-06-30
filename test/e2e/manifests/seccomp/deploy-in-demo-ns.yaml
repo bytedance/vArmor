@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo-4
+  namespace: demo
+  labels:
+    app: demo-4
+    # This label is required with target workloads. 
+    # You can disable the feature with --set 'manager.args={--webhookMatchLabel=}'
+    sandbox.varmor.org/enable: "true"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: demo-4
+  template:
+    metadata:
+      labels:
+        app: demo-4
+    spec:
+      containers:
+      - name: c0
+        image: debian:10
+        command: ["/bin/sh", "-c", "sleep infinity"]
+        imagePullPolicy: IfNotPresent

@@ -29,13 +29,13 @@ NAMESPACE="demo"
 POLICY_NAME="demo-2"
 
 # Initial policy file
-POLICY_FILES="../examples/2-bpf/vpol-bpf-alwaysallow.yaml"
+POLICY_FILES="manifests/bpf/vpol-bpf-alwaysallow.yaml"
 
 # Enhanced policy file
-ENHANCED_POLICY_FILES="../examples/2-bpf/vpol-bpf-enhance.yaml"
+ENHANCED_POLICY_FILES="manifests/bpf/vpol-bpf-enhance.yaml"
 
 # Workload file
-WORKLOAD_FILES="../examples/2-bpf/deploy.yaml"
+WORKLOAD_FILES="manifests/bpf/deploy.yaml"
 
 # Pod selector
 POD_SELECTOR="app=demo-2"
