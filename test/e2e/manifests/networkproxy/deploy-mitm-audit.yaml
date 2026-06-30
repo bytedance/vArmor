@@ -1,0 +1,25 @@
+# E2E fixture: workload for the MITM header-injection test.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: e2e-networkproxy-mitm-audit
+  namespace: demo
+  labels:
+    environment: production
+    app: e2e-networkproxy-mitm-audit
+    sandbox.varmor.org/enable: "true"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: e2e-networkproxy-mitm-audit
+  template:
+    metadata:
+      labels:
+        app: e2e-networkproxy-mitm-audit
+    spec:
+      containers:
+        - name: c0
+          image: curlimages/curl:7.87.0
+          command: ["/bin/sh", "-c", "sleep infinity"]
+          imagePullPolicy: IfNotPresent

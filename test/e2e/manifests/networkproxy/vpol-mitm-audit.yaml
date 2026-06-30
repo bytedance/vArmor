@@ -1,0 +1,37 @@
+# E2E fixture: MITM + audit (allow-default) policy.
+# Applied BEFORE the workload so the mutating webhook injects the Envoy
+# sidecar and MITM CA-bundle volumes at pod creation time.
+apiVersion: crd.varmor.org/v1beta1
+kind: VarmorPolicy
+metadata:
+  name: e2e-networkproxy-mitm-audit
+  namespace: demo
+spec:
+  updateExistingWorkloads: true
+  target:
+    kind: Deployment
+    selector:
+      matchLabels:
+        app: e2e-networkproxy-mitm-audit
+  policy:
+    enforcer: NetworkProxy
+    mode: EnhanceProtect
+    networkProxyConfig:
+      mitm:
+        domains:
+          - httpbin.org
+        headerMutations:
+          - domain: httpbin.org
+            headers:
+              - name: X-Request-Source
+                value: varmor-audit
+    enhanceProtect:
+      networkProxyRawRules:
+        egress:
+          defaultAction: allow
+          httpRules:
+          - qualifiers: ["audit"]
+            description: "audit all requests"
+            match:
+              hosts:
+              - "*"

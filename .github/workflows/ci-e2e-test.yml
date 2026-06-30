@@ -206,6 +206,8 @@ jobs:
           chmod +x ./test/e2e/framework.sh
           cd ./test/e2e/
           ./framework.sh --cleanup ./testcases/apparmor.sh
+          ./framework.sh --cleanup ./testcases/networkproxy.sh
+          ./framework.sh --cleanup ./testcases/networkproxy-deny.sh
         
       - name: Collect test results
         if: always()

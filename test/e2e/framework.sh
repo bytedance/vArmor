@@ -162,7 +162,11 @@ execute_command() {
     local output=""
     local status=0
     
-    output=$(${KUBECTL_CMD} exec -n ${NAMESPACE} ${pod_name} -c ${container} -- ${command} 2>&1)
+    # Wrap in `sh -c` so commands using pipes, redirects or quoting
+    # (e.g. `curl ... | grep -q ...`) are interpreted by a shell in the
+    # container rather than exec'd as a single argv. Single commands such as
+    # `cat <path>` behave identically, so this is backward compatible.
+    output=$(${KUBECTL_CMD} exec -n ${NAMESPACE} ${pod_name} -c ${container} -- sh -c "${command}" 2>&1)
     status=$?
     
     # 在控制台输出命令执行结果
