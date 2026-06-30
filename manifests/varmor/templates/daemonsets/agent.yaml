@@ -118,6 +118,8 @@ spec:
           name: var-log-dir
         - mountPath: /var/run/secrets/tokens
           name: bound-token
+        - mountPath: /var/run/varmor/audit
+          name: varmor-network-proxy-audit
         {{- if .Values.appArmorLsmEnforcer.enabled }}
           {{- with .Values.agent.appArmorLsmEnforcer.volumeMounts }}
             {{- toYaml . | nindent 8 }}
@@ -165,6 +167,10 @@ spec:
               expirationSeconds: 86400
               audience: varmor-manager
         name: bound-token
+      - hostPath:
+          path: /var/run/varmor/audit
+          type: DirectoryOrCreate
+        name: varmor-network-proxy-audit
       {{- if .Values.appArmorLsmEnforcer.enabled }}
         {{- with .Values.agent.appArmorLsmEnforcer.volumes }}
           {{- toYaml . | nindent 6 }}
