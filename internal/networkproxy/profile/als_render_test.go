@@ -62,38 +62,13 @@ func renderALSAudit(t *testing.T, mitm *MITMInput, audit AuditSinkConfig) (lds, 
 	return res.LDS, res.CDS
 }
 
-// TestAuditSink_StdoutDefault_ZeroRegression verifies that the zero-value
-// AuditSinkConfig (and an explicit stdout sink) renders the stdout access_log
-// exactly as before: StdoutAccessLog present, no gRPC ALS artefacts, and the
-// CDS carries no varmor_audit_als cluster.
-func TestAuditSink_StdoutDefault_ZeroRegression(t *testing.T) {
-	zeroLDS, zeroCDS := renderALSAudit(t, nil, AuditSinkConfig{})
-	stdoutLDS, stdoutCDS := renderALSAudit(t, nil, AuditSinkConfig{Sink: AuditSinkStdout})
-
-	// Explicit stdout must be byte-identical to the zero value.
-	if zeroLDS != stdoutLDS || zeroCDS != stdoutCDS {
-		t.Fatalf("explicit stdout sink diverged from zero-value rendering")
-	}
-
-	if !strings.Contains(zeroLDS, "envoy.extensions.access_loggers.stream.v3.StdoutAccessLog") {
-		t.Errorf("expected StdoutAccessLog in LDS, not found")
-	}
-	if strings.Contains(zeroLDS, "access_loggers.grpc") {
-		t.Errorf("unexpected gRPC ALS artefact in stdout LDS")
-	}
-	if strings.Contains(zeroCDS, DefaultALSClusterName) {
-		t.Errorf("unexpected %s cluster in stdout CDS", DefaultALSClusterName)
-	}
-}
-
 // TestAuditSink_GRPCALS_ListenerAndHCM verifies that the grpc_als sink renders
 // TcpGrpcAccessLogConfig at the listener (L4) and HttpGrpcAccessLogConfig at
 // the HCM (L7), each as two SEPARATE entries (deny + shadow) carrying the
 // correct log_name class prefix and the ALS cluster_name.
 func TestAuditSink_GRPCALS_ListenerAndHCM(t *testing.T) {
 	audit := AuditSinkConfig{
-		Sink:        AuditSinkGRPCALS,
-		ALSUDSPath:  "/run/varmor/audit/als.sock",
+		ALSUDSPath:  "/var/run/varmor/audit/als.sock",
 		ProfileName: alsTestProfile,
 	}
 	lds, cds := renderALSAudit(t, nil, audit)
@@ -144,7 +119,7 @@ func TestAuditSink_GRPCALS_ListenerAndHCM(t *testing.T) {
 		"connect_timeout: 1s",
 		"lb_policy: ROUND_ROBIN",
 		"http2_protocol_options: {}",
-		`path: "/run/varmor/audit/als.sock"`,
+		`path: "/var/run/varmor/audit/als.sock"`,
 	} {
 		if !strings.Contains(cds, want) {
 			t.Errorf("expected CDS to contain %q", want)
@@ -160,7 +135,6 @@ func TestAuditSink_GRPCALS_ListenerAndHCM(t *testing.T) {
 // honoured in both the access_log entries and the emitted cluster.
 func TestAuditSink_CustomClusterName(t *testing.T) {
 	audit := AuditSinkConfig{
-		Sink:           AuditSinkGRPCALS,
 		ALSClusterName: "custom_als",
 		ALSUDSPath:     "/tmp/x.sock",
 		ProfileName:    alsTestProfile,
@@ -178,33 +152,24 @@ func TestAuditSink_CustomClusterName(t *testing.T) {
 }
 
 // TestAuditSink_AllowAll_EmitsALSCluster verifies that the allow-all path also
-// emits the ALS cluster when grpc_als is selected, so the envoy_grpc
-// cluster_name referenced by other profiles' listeners resolves even on a
-// permissive sidecar. The allow-all listener itself renders no access_log.
+// emits the ALS cluster, so the envoy_grpc cluster_name referenced by other
+// profiles' listeners resolves even on a permissive sidecar. The allow-all
+// listener itself renders no access_log.
 func TestAuditSink_AllowAll_EmitsALSCluster(t *testing.T) {
-	audit := AuditSinkConfig{Sink: AuditSinkGRPCALS, ALSUDSPath: "/tmp/a.sock", ProfileName: alsTestProfile}
+	audit := AuditSinkConfig{ALSUDSPath: "/tmp/a.sock", ProfileName: alsTestProfile}
 	_, cds, err := GenerateAllowAllEgressRules(1, varmorconfig.DefaultProxyPort, testIPStack, audit)
 	if err != nil {
 		t.Fatalf("GenerateAllowAllEgressRules: %v", err)
 	}
 	if !strings.Contains(cds, "name: "+DefaultALSClusterName) {
-		t.Errorf("allow-all CDS missing ALS cluster under grpc_als")
-	}
-
-	// Stdout default must not add the ALS cluster.
-	_, cdsStdout, err := GenerateAllowAllEgressRules(1, varmorconfig.DefaultProxyPort, testIPStack, AuditSinkConfig{})
-	if err != nil {
-		t.Fatalf("GenerateAllowAllEgressRules stdout: %v", err)
-	}
-	if strings.Contains(cdsStdout, DefaultALSClusterName) {
-		t.Errorf("allow-all stdout CDS must not contain ALS cluster")
+		t.Errorf("allow-all CDS missing ALS cluster")
 	}
 }
 
 // TestAuditSink_DenyAll_EmitsALSCluster mirrors the allow-all check for the
 // deny-all path.
 func TestAuditSink_DenyAll_EmitsALSCluster(t *testing.T) {
-	audit := AuditSinkConfig{Sink: AuditSinkGRPCALS, ALSUDSPath: "/tmp/d.sock", ProfileName: alsTestProfile}
+	audit := AuditSinkConfig{ALSUDSPath: "/tmp/d.sock", ProfileName: alsTestProfile}
 	_, cds, err := GenerateDenyAllEgressRules(1, varmorconfig.DefaultProxyPort, testIPStack, audit)
 	if err != nil {
 		t.Fatalf("GenerateDenyAllEgressRules: %v", err)
@@ -214,18 +179,16 @@ func TestAuditSink_DenyAll_EmitsALSCluster(t *testing.T) {
 	}
 }
 
-// TestAuditSink_GRPCALS_MITMChain pins that when the gRPC ALS sink is selected
-// the MITM TLS-terminating filter chain's HCM also routes its access_log to the
-// gRPC ALS cluster, NOT to stdout. This is a regression guard: if
-// buildMITMHCMFilter omitted the AuditSink field on its HTTPConnManagerConfig,
-// the MITM chain would silently fall back to StdoutAccessLog even though every
-// other chain had been switched to gRPC. With MITM enabled there must be zero
-// StdoutAccessLog anywhere in the LDS, and the decrypted-L7 entries must use
-// HttpGrpcAccessLogConfig like the plaintext path.
+// TestAuditSink_GRPCALS_MITMChain pins that the MITM TLS-terminating filter
+// chain's HCM also routes its access_log to the gRPC ALS cluster. This is a
+// regression guard: if buildMITMHCMFilter omitted the AuditSink field on its
+// HTTPConnManagerConfig, the MITM chain would silently emit no gRPC ALS
+// access_log. With MITM enabled there must be zero StdoutAccessLog anywhere in
+// the LDS, and the decrypted-L7 entries must use HttpGrpcAccessLogConfig like
+// the plaintext path.
 func TestAuditSink_GRPCALS_MITMChain(t *testing.T) {
 	audit := AuditSinkConfig{
-		Sink:        AuditSinkGRPCALS,
-		ALSUDSPath:  "/run/varmor/audit/als.sock",
+		ALSUDSPath:  "/var/run/varmor/audit/als.sock",
 		ProfileName: alsTestProfile,
 	}
 	mitm := &MITMInput{
@@ -258,8 +221,7 @@ func TestAuditSink_GRPCALS_MITMChain(t *testing.T) {
 // carries NO such tag (it cannot distinguish tls_chain from tcp_default_chain).
 func TestAuditSink_GRPCALS_FilterChainCustomTag(t *testing.T) {
 	audit := AuditSinkConfig{
-		Sink:        AuditSinkGRPCALS,
-		ALSUDSPath:  "/run/varmor/audit/als.sock",
+		ALSUDSPath:  "/var/run/varmor/audit/als.sock",
 		ProfileName: alsTestProfile,
 	}
 	mitm := &MITMInput{
@@ -288,5 +250,41 @@ func TestAuditSink_GRPCALS_FilterChainCustomTag(t *testing.T) {
 		if strings.Contains(lds, `value: "`+chain+`"`) {
 			t.Errorf("L4 listener access_log must not carry a %q filter_chain tag", chain)
 		}
+	}
+}
+
+// TestAuditSink_ALSBufferConfig verifies that the Envoy ALS buffer bounds, when
+// set on the AuditSinkConfig, are rendered into every gRPC access_log entry's
+// common_config (buffer_flush_interval + buffer_size_bytes), and that an unset
+// (zero-value) buffer omits both fields so Envoy applies its own defaults.
+func TestAuditSink_ALSBufferConfig(t *testing.T) {
+	withBuf := AuditSinkConfig{
+		ALSUDSPath:             "/var/run/varmor/audit/als.sock",
+		ProfileName:            alsTestProfile,
+		ALSBufferFlushInterval: "1s",
+		ALSBufferSizeBytes:     16384,
+	}
+	lds, _ := renderALSAudit(t, nil, withBuf)
+
+	// Four access_log entries (L4 deny+shadow, L7 deny+shadow) each carry the
+	// buffer bounds.
+	if c := strings.Count(lds, "buffer_flush_interval: 1s"); c != 4 {
+		t.Errorf("expected 4 buffer_flush_interval entries, got %d", c)
+	}
+	if c := strings.Count(lds, "buffer_size_bytes: 16384"); c != 4 {
+		t.Errorf("expected 4 buffer_size_bytes entries, got %d", c)
+	}
+
+	// Zero-value buffer omits both fields entirely.
+	noBuf := AuditSinkConfig{
+		ALSUDSPath:  "/var/run/varmor/audit/als.sock",
+		ProfileName: alsTestProfile,
+	}
+	ldsNoBuf, _ := renderALSAudit(t, nil, noBuf)
+	if strings.Contains(ldsNoBuf, "buffer_flush_interval") {
+		t.Errorf("unset flush interval must omit buffer_flush_interval")
+	}
+	if strings.Contains(ldsNoBuf, "buffer_size_bytes") {
+		t.Errorf("unset buffer size must omit buffer_size_bytes")
 	}
 }

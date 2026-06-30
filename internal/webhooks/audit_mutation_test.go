@@ -22,17 +22,13 @@ import (
 
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
 	varmorconfig "github.com/bytedance/vArmor/internal/config"
-	profilepkg "github.com/bytedance/vArmor/internal/networkproxy/profile"
 )
 
-// Test_buildNetworkProxyPatch_AuditEnabled asserts that when the installation
-// audit sink is grpc_als, the webhook JSON-Patch injects the Downward API Pod
-// identity env vars and the shared ALS socket hostPath volume/mount.
-func Test_buildNetworkProxyPatch_AuditEnabled(t *testing.T) {
-	original := varmorconfig.AuditNetworkProxySink
-	defer func() { varmorconfig.AuditNetworkProxySink = original }()
-	varmorconfig.AuditNetworkProxySink = profilepkg.AuditSinkGRPCALS
-
+// Test_buildNetworkProxyPatch_AuditInjected asserts that NetworkProxy
+// violations always stream over gRPC ALS: the webhook JSON-Patch
+// unconditionally injects the Downward API Pod identity env vars and the
+// shared ALS socket hostPath volume/mount.
+func Test_buildNetworkProxyPatch_AuditInjected(t *testing.T) {
 	patch := buildNetworkProxyPatch("varmor-testns-test", true, nil)
 
 	// Sidecar carries the Downward API env array.
@@ -42,6 +38,16 @@ func Test_buildNetworkProxyPatch_AuditEnabled(t *testing.T) {
 		"patch should inject POD_NAME via Downward API")
 	assert.Assert(t, strings.Contains(patch, `{"name": "POD_NAMESPACE", "valueFrom": {"fieldRef": {"fieldPath": "metadata.namespace"}}}`),
 		"patch should inject POD_NAMESPACE via Downward API")
+	assert.Assert(t, strings.Contains(patch, `{"name": "POD_UID", "valueFrom": {"fieldRef": {"fieldPath": "metadata.uid"}}}`),
+		"patch should inject POD_UID via Downward API")
+
+	// Sidecar args carry the node.metadata "--config-yaml" overlay so the Pod
+	// identity is merged onto node.metadata at startup (kubelet expands the
+	// $(POD_*) references from the Downward API env vars).
+	assert.Assert(t, strings.Contains(patch, `"--config-yaml"`),
+		"patch should pass the node.metadata overlay via --config-yaml")
+	assert.Assert(t, strings.Contains(patch, `$(POD_UID)`),
+		"overlay should reference the POD_UID env var")
 
 	// Sidecar mounts the ALS socket directory (read-only).
 	assert.Assert(t, strings.Contains(patch, `"name": "`+varmorconfig.AuditNetworkProxyVolumeName+`", "mountPath": "`+varmorconfig.AuditNetworkProxySocketDir+`", "readOnly": true`),
@@ -52,36 +58,10 @@ func Test_buildNetworkProxyPatch_AuditEnabled(t *testing.T) {
 		"patch should add the ALS socket hostPath volume")
 }
 
-// Test_buildNetworkProxyPatch_AuditDisabled asserts that with the default
-// stdout sink the patch is byte-for-byte free of any audit-specific objects:
-// no env array, no ALS mount, no ALS volume.
-func Test_buildNetworkProxyPatch_AuditDisabled(t *testing.T) {
-	original := varmorconfig.AuditNetworkProxySink
-	defer func() { varmorconfig.AuditNetworkProxySink = original }()
-	varmorconfig.AuditNetworkProxySink = profilepkg.AuditSinkStdout
-
-	patch := buildNetworkProxyPatch("varmor-testns-test", true, nil)
-
-	assert.Assert(t, !strings.Contains(patch, `"env": [`),
-		"stdout sink must not inject any sidecar env array")
-	assert.Assert(t, !strings.Contains(patch, "POD_NAME"),
-		"stdout sink must not inject POD_NAME")
-	assert.Assert(t, !strings.Contains(patch, "POD_NAMESPACE"),
-		"stdout sink must not inject POD_NAMESPACE")
-	assert.Assert(t, !strings.Contains(patch, varmorconfig.AuditNetworkProxyVolumeName),
-		"stdout sink must not inject the ALS socket volume/mount")
-	assert.Assert(t, !strings.Contains(patch, varmorconfig.AuditNetworkProxySocketDir),
-		"stdout sink must not reference the ALS socket directory")
-}
-
 // Test_buildNetworkProxyPatch_AuditWithMITM asserts that audit and MITM
-// injection are orthogonal: enabling both yields the MITM TLS mount/volume
+// injection are orthogonal: enabling MITM yields the MITM TLS mount/volume
 // AND the audit env/mount/volume in the same patch.
 func Test_buildNetworkProxyPatch_AuditWithMITM(t *testing.T) {
-	original := varmorconfig.AuditNetworkProxySink
-	defer func() { varmorconfig.AuditNetworkProxySink = original }()
-	varmorconfig.AuditNetworkProxySink = profilepkg.AuditSinkGRPCALS
-
 	proxyConfig := &varmor.NetworkProxyConfig{
 		MITM: &varmor.MITMConfig{Domains: []string{"example.com"}},
 	}

@@ -706,15 +706,15 @@ func TestDenyDefaultAutoAudit(t *testing.T) {
 	lds := result.LDS
 	// access_log should be present (deny-default always enables it)
 	assertContains(t, lds, "access_log", "access_log present for deny-default auto-audit")
-	assertContains(t, lds, "envoy.access_loggers.stdout", "stdout access logger")
+	assertContains(t, lds, "envoy.access_loggers.grpc", "grpc ALS access logger")
 	// Listener-level uses CEL on connection.termination_details
 	assertContains(t, lds, "extension_filter", "CEL extension_filter")
 	assertContains(t, lds, "ExpressionFilter", "CEL ExpressionFilter type")
 	assertContains(t, lds, "connection.termination_details", "listener CEL checks termination_details")
 	// Listener-level access_log for denied connections
-	assertContains(t, lds, "[L4][%FILTER_CHAIN_NAME%] dst=", "listener-level access_log format")
+	assertContains(t, lds, "TcpGrpcAccessLogConfig", "L4 listener ALS format")
 	// HCM access_log uses CEL on response.code_details
-	assertContains(t, lds, "REQ(:METHOD)", "HCM access_log format present")
+	assertContains(t, lds, "HttpGrpcAccessLogConfig", "HCM ALS present")
 	assertContains(t, lds, "rbac_access_denied", "CEL matches rbac_access_denied")
 	// No legacy filters
 	assertNotContains(t, lds, "UAEX", "no UAEX in v4")
@@ -1120,8 +1120,8 @@ func TestTCPProxyNoAccessLog(t *testing.T) {
 	// The old "TCP dst=" format should not appear
 	assertNotContains(t, lds, "TCP dst=", "no tcp_proxy access_log in v4")
 	// Listener and HCM should still have access_log
-	assertContains(t, lds, "[L4][%FILTER_CHAIN_NAME%] dst=", "listener access_log present")
-	assertContains(t, lds, "REQ(:METHOD)", "HCM access_log present")
+	assertContains(t, lds, "TcpGrpcAccessLogConfig", "L4 listener ALS present")
+	assertContains(t, lds, "HttpGrpcAccessLogConfig", "HCM ALS present")
 }
 
 // TestDenyDefaultNoShadowCELDenyOnly verifies that when deny-default
@@ -1152,12 +1152,12 @@ func TestDenyDefaultNoShadowCELDenyOnly(t *testing.T) {
 
 	// Listener-level uses CEL deny check
 	assertContains(t, lds, "connection.termination_details", "listener CEL deny check")
-	assertContains(t, lds, "[L4][%FILTER_CHAIN_NAME%] dst=", "listener-level access_log format")
+	assertContains(t, lds, "TcpGrpcAccessLogConfig", "L4 listener ALS format")
 
 	// HCM access_log uses CEL deny check
 	assertContains(t, lds, "extension_filter", "CEL extension_filter")
 	assertContains(t, lds, "rbac_access_denied", "CEL matches rbac_access_denied")
-	assertContains(t, lds, "REQ(:METHOD)", "HCM access_log format")
+	assertContains(t, lds, "HttpGrpcAccessLogConfig", "HCM ALS format")
 
 	// No legacy filters
 	assertNotContains(t, lds, "UAEX", "no UAEX in v4")
@@ -1375,7 +1375,7 @@ func TestListenerAccessLogDenyDefaultCELDeny(t *testing.T) {
 	}
 }
 
-// TestListenerAccessLogAllowDefaultAbsent verifies that listener-level access_log
+// TestListenerAccessLogAllowDefaultNoShadow verifies that listener-level access_log
 // is NOT rendered for allow-default mode when there are NO shadow rules for
 // the listener (i.e., no egress audit rules that generate network RBAC shadows).
 func TestListenerAccessLogAllowDefaultNoShadow(t *testing.T) {
@@ -1533,8 +1533,8 @@ func TestDenyDefaultNoShadowHCMOnlyCEL(t *testing.T) {
 	assertContains(t, lds, "connection.termination_details", "listener CEL deny check")
 
 	// Access log formats
-	assertContains(t, lds, "[L4][%FILTER_CHAIN_NAME%] dst=", "listener-level access_log format")
-	assertContains(t, lds, "REQ(:METHOD)", "HCM access_log format")
+	assertContains(t, lds, "TcpGrpcAccessLogConfig", "L4 listener ALS format")
+	assertContains(t, lds, "HttpGrpcAccessLogConfig", "HCM ALS format")
 
 	// No legacy filters
 	assertNotContains(t, lds, "UAEX", "no UAEX in v4")
@@ -1579,8 +1579,8 @@ func TestDenyDefaultWithShadowHCMCELDenyOrShadow(t *testing.T) {
 	assertNotContains(t, lds, "TCP dst=", "no tcp_proxy access_log in v4")
 
 	// Listener and HCM access_log present
-	assertContains(t, lds, "[L4][%FILTER_CHAIN_NAME%] dst=", "listener access_log present")
-	assertContains(t, lds, "REQ(:METHOD)", "HCM access_log present")
+	assertContains(t, lds, "TcpGrpcAccessLogConfig", "L4 listener ALS present")
+	assertContains(t, lds, "HttpGrpcAccessLogConfig", "HCM ALS present")
 }
 
 // TestAllowDefaultWithShadowCELOnly verifies that allow-default with
@@ -1774,7 +1774,7 @@ func TestDenyDefaultNoRulesAtAll(t *testing.T) {
 	}
 
 	// Listener access_log must exist (defaultAction=deny → auto-audit all denies)
-	assertContains(t, result.LDS, "[L4][%FILTER_CHAIN_NAME%] dst=", "listener access_log format must be present")
+	assertContains(t, result.LDS, "TcpGrpcAccessLogConfig", "L4 listener ALS must be present")
 }
 
 // TestAllowDefaultTCPChainNoRBAC verifies that when defaultAction=allow,

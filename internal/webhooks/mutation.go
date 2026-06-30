@@ -15,6 +15,7 @@
 package webhooks
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -30,7 +31,6 @@ import (
 
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
 	varmorconfig "github.com/bytedance/vArmor/internal/config"
-	profilepkg "github.com/bytedance/vArmor/internal/networkproxy/profile"
 	varmorpolicy "github.com/bytedance/vArmor/internal/policy"
 	varmorprofile "github.com/bytedance/vArmor/internal/profile"
 	varmortypes "github.com/bytedance/vArmor/internal/types"
@@ -605,13 +605,6 @@ func buildNetworkProxyPatch(profileName string, workloads bool, networkProxyConf
 
 	mitmEnabled := networkProxyConfig != nil && networkProxyConfig.MITM != nil && len(networkProxyConfig.MITM.Domains) > 0
 
-	// auditEnabled gates the gRPC ALS audit injection (Downward API Pod
-	// identity env + shared ALS socket hostPath volume/mount). It is the
-	// installation-wide audit sink switch, NOT a per-policy field; stdout
-	// injects nothing so the sidecar stays byte-for-byte identical to the
-	// pre-audit one. A later commit makes the switch Helm-configurable.
-	auditEnabled := varmorconfig.AuditNetworkProxySink == profilepkg.AuditSinkGRPCALS
-
 	// --- 1. add annotation ---
 	sb.WriteString(fmt.Sprintf(
 		`{"op": "add", "path": "%s/metadata/annotations/pod.networkproxy.security.beta.varmor.org", "value": "localhost/%s"},`, pathPrefix, profileName,
@@ -637,15 +630,13 @@ func buildNetworkProxyPatch(profileName string, workloads bool, networkProxyConf
 	if mitmEnabled {
 		sidecarVolumeMounts += `, {"name": "varmor-network-proxy-mitm-tls", "mountPath": "/etc/envoy/tls", "readOnly": true}`
 	}
-	// Audit (grpc_als): mount the node-local ALS socket directory (read-only;
+	// Audit: mount the node-local ALS socket directory (read-only;
 	// Envoy connects as a gRPC client) at the same absolute path the agent
 	// listens on, so the CDS cluster pipe.path resolves identically.
-	if auditEnabled {
-		sidecarVolumeMounts += fmt.Sprintf(
-			`, {"name": "%s", "mountPath": "%s", "readOnly": true}`,
-			varmorconfig.AuditNetworkProxyVolumeName, varmorconfig.AuditNetworkProxySocketDir,
-		)
-	}
+	sidecarVolumeMounts += fmt.Sprintf(
+		`, {"name": "%s", "mountPath": "%s", "readOnly": true}`,
+		varmorconfig.AuditNetworkProxyVolumeName, varmorconfig.AuditNetworkProxySocketDir,
+	)
 
 	// Compute sidecar resource requirements based on MITM status and user overrides.
 	var proxyResourceOverride *varmor.ProxyResourceOverride
@@ -655,24 +646,31 @@ func buildNetworkProxyPatch(profileName string, workloads bool, networkProxyConf
 	proxyResources := varmorpolicy.ResolveProxyResources(proxyResourceOverride, mitmEnabled)
 	proxyResourcesJSON := varmorpolicy.MarshalProxyResourcesJSON(proxyResources)
 
-	// Audit (grpc_als): carry the Pod identity into the sidecar via the
-	// Downward API so the bootstrap node.metadata can expand
-	// %ENV(POD_NAME)% / %ENV(POD_NAMESPACE)% at Envoy startup. Emitted as a
-	// JSON "env" field only when the audit sink is grpc_als; otherwise the
-	// container carries no env array (identical to the pre-audit sidecar).
-	sidecarEnv := ""
-	if auditEnabled {
-		sidecarEnv = `"env": [` +
-			`{"name": "POD_NAME", "valueFrom": {"fieldRef": {"fieldPath": "metadata.name"}}}, ` +
-			`{"name": "POD_NAMESPACE", "valueFrom": {"fieldRef": {"fieldPath": "metadata.namespace"}}}], `
-	}
+	// auditNodeMetadataOverlayJSON is the Envoy "--config-yaml" overlay encoded
+	// as a JSON string so it can be embedded verbatim inside the JSONPatch. The
+	// overlay supplies node.metadata (pod_name / pod_namespace / pod_uid) whose
+	// $(POD_*) references the kubelet expands from the Downward API env vars
+	// before Envoy starts; Envoy then merges it onto the static bootstrap node.
+	// This mirrors the controller path (varmorpolicy.AuditNodeMetadataOverlay).
+	overlayBytes, _ := json.Marshal(varmorpolicy.AuditNodeMetadataOverlay)
+	auditNodeMetadataOverlayJSON := string(overlayBytes)
+
+	// Audit: carry the Pod identity into the sidecar via the Downward API.
+	// The kubelet expands the $(POD_*) references in the sidecar's
+	// "--config-yaml" overlay from these env vars before Envoy starts, so the
+	// agent can attribute ALS records to a precise Pod. (Envoy does not expand
+	// "%ENV()%" inside node.metadata; that operator is access-log only.)
+	sidecarEnv := `"env": [` +
+		`{"name": "POD_NAME", "valueFrom": {"fieldRef": {"fieldPath": "metadata.name"}}}, ` +
+		`{"name": "POD_NAMESPACE", "valueFrom": {"fieldRef": {"fieldPath": "metadata.namespace"}}}, ` +
+		`{"name": "POD_UID", "valueFrom": {"fieldRef": {"fieldPath": "metadata.uid"}}}], `
 
 	sb.WriteString(fmt.Sprintf(
 		`{"op": "add", "path": "%s/spec/containers/-", "value": `+
 			`{"name": "varmor-network-proxy", `+
 			`"image": "%s", `+
 			`"securityContext": {"runAsUser": %d}, `+
-			`"args": ["-c", "/etc/envoy/bootstrap.yaml", "-l", "info"], `+
+			`"args": ["-c", "/etc/envoy/bootstrap.yaml", "--config-yaml", `+auditNodeMetadataOverlayJSON+`, "-l", "info"], `+
 			`"readinessProbe": {"tcpSocket": {"port": %d}, "initialDelaySeconds": 2, "periodSeconds": 5}, `+
 			`"resources": %s, `+
 			`%s`+
@@ -688,18 +686,15 @@ func buildNetworkProxyPatch(profileName string, workloads bool, networkProxyConf
 		pathPrefix, profileName,
 	))
 
-	// Audit (grpc_als) volume: the node-local ALS socket directory shared
+	// Audit volume: the node-local ALS socket directory shared
 	// with the agent. A hostPath (DirectoryOrCreate) mounting the leaf
 	// socketDir (not the socket file) so the sidecar reconnects after the
-	// agent recreates the socket inode on restart. Injected only when the
-	// audit sink is grpc_als.
-	if auditEnabled {
-		sb.WriteString(fmt.Sprintf(
-			`{"op": "add", "path": "%s/spec/volumes/-", "value": `+
-				`{"name": "%s", "hostPath": {"path": "%s", "type": "DirectoryOrCreate"}}},`,
-			pathPrefix, varmorconfig.AuditNetworkProxyVolumeName, varmorconfig.AuditNetworkProxySocketDir,
-		))
-	}
+	// agent recreates the socket inode on restart.
+	sb.WriteString(fmt.Sprintf(
+		`{"op": "add", "path": "%s/spec/volumes/-", "value": `+
+			`{"name": "%s", "hostPath": {"path": "%s", "type": "DirectoryOrCreate"}}},`,
+		pathPrefix, varmorconfig.AuditNetworkProxyVolumeName, varmorconfig.AuditNetworkProxySocketDir,
+	))
 
 	if mitmEnabled {
 		// MITM-only volume #1: per-policy MITM leaf certificate, leaf

@@ -144,14 +144,13 @@ type HTTPConnManagerConfig struct {
 	// AccessLogShadowCEL is the CEL expression for shadow/audit detection in HCM access_log.
 	// Empty when no shadow rules exist.
 	AccessLogShadowCEL string
-	// AuditSink selects the access_log sink (stdout default or gRPC ALS) and
-	// carries the ALS cluster/UDS/profile parameters. The zero value renders
-	// the stdout sink, so the pre-audit output is unchanged.
+	// AuditSink carries the gRPC ALS cluster/UDS/profile parameters for the
+	// access_log sink. NetworkProxy auditing always reports via gRPC ALS.
 	AuditSink AuditSinkConfig
 	// FilterChainName is the name of the Envoy filter chain this HCM belongs
 	// to (e.g. "http_chain", "mitm_tls_dns_chain"). It is emitted as the
 	// gRPC ALS "filter_chain" custom_tag so the auditor can attribute an L7
-	// event to its originating chain. Unused by the stdout sink.
+	// event to its originating chain.
 	FilterChainName string
 }
 

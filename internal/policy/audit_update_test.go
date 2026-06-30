@@ -21,32 +21,7 @@ import (
 	coreV1 "k8s.io/api/core/v1"
 
 	varmorconfig "github.com/bytedance/vArmor/internal/config"
-	"github.com/bytedance/vArmor/internal/networkproxy/profile"
 )
-
-// ---- isAuditALSEnabled tests ----
-
-func Test_isAuditALSEnabled(t *testing.T) {
-	original := varmorconfig.AuditNetworkProxySink
-	defer func() { varmorconfig.AuditNetworkProxySink = original }()
-
-	testCases := []struct {
-		name     string
-		sink     string
-		expected bool
-	}{
-		{"stdout default", profile.AuditSinkStdout, false},
-		{"grpc_als", profile.AuditSinkGRPCALS, true},
-		{"unknown value", "something-else", false},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			varmorconfig.AuditNetworkProxySink = tc.sink
-			assert.Equal(t, isAuditALSEnabled(), tc.expected)
-		})
-	}
-}
 
 // ---- applyAuditToSidecar tests ----
 
@@ -69,8 +44,8 @@ func Test_applyAuditToSidecar(t *testing.T) {
 	assert.Equal(t, containers[1].VolumeMounts[1].MountPath, varmorconfig.AuditNetworkProxySocketDir)
 	assert.Assert(t, containers[1].VolumeMounts[1].ReadOnly)
 
-	// Sidecar gains the two Downward API env vars.
-	assert.Equal(t, len(containers[1].Env), 2)
+	// Sidecar gains the three Downward API env vars (name / namespace / uid).
+	assert.Equal(t, len(containers[1].Env), 3)
 	assert.Equal(t, containers[1].Env[0].Name, "POD_NAME")
 	assert.Assert(t, containers[1].Env[0].ValueFrom != nil)
 	assert.Assert(t, containers[1].Env[0].ValueFrom.FieldRef != nil)
@@ -79,6 +54,10 @@ func Test_applyAuditToSidecar(t *testing.T) {
 	assert.Assert(t, containers[1].Env[1].ValueFrom != nil)
 	assert.Assert(t, containers[1].Env[1].ValueFrom.FieldRef != nil)
 	assert.Equal(t, containers[1].Env[1].ValueFrom.FieldRef.FieldPath, "metadata.namespace")
+	assert.Equal(t, containers[1].Env[2].Name, "POD_UID")
+	assert.Assert(t, containers[1].Env[2].ValueFrom != nil)
+	assert.Assert(t, containers[1].Env[2].ValueFrom.FieldRef != nil)
+	assert.Equal(t, containers[1].Env[2].ValueFrom.FieldRef.FieldPath, "metadata.uid")
 
 	// App container must be untouched.
 	assert.Equal(t, len(containers[0].VolumeMounts), 0)
@@ -130,6 +109,7 @@ func Test_cleanupAuditFromSidecar(t *testing.T) {
 				{Name: "SOME_ENV", Value: "keep"},
 				{Name: "POD_NAME"},
 				{Name: "POD_NAMESPACE"},
+				{Name: "POD_UID"},
 			},
 		},
 	}

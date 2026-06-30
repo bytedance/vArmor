@@ -35,11 +35,26 @@ import (
 
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
 	varmorconfig "github.com/bytedance/vArmor/internal/config"
-	"github.com/bytedance/vArmor/internal/networkproxy/profile"
 	varmortypes "github.com/bytedance/vArmor/internal/types"
 	varmorutils "github.com/bytedance/vArmor/internal/utils"
 	varmorinterface "github.com/bytedance/vArmor/pkg/client/clientset/versioned/typed/varmor/v1beta1"
 )
+
+// AuditNodeMetadataOverlay is the Envoy "--config-yaml" overlay that supplies
+// the Pod identity in node.metadata. It is layered on top of the static
+// bootstrap (-c /etc/envoy/bootstrap.yaml): Envoy proto-merges this node onto
+// the bootstrap node, so id/cluster stay from the file and metadata is added
+// here. The $(POD_*) references are expanded by the kubelet from the sidecar's
+// Downward API env vars (POD_NAME / POD_NAMESPACE / POD_UID) before Envoy
+// starts. The keys MUST match the node.metadata keys the audit agent reads
+// (see pkg/auditor). This replaces the unsupported "%ENV()%"-in-node.metadata
+// approach: Envoy only expands that command operator in access-log format
+// strings, never inside node.metadata at bootstrap load.
+const AuditNodeMetadataOverlay = `node:
+  metadata:
+    pod_name: "$(POD_NAME)"
+    pod_namespace: "$(POD_NAMESPACE)"
+    pod_uid: "$(POD_UID)"`
 
 var (
 	scriptTemplate = `set -ex
@@ -84,7 +99,13 @@ ip6tables -t filter -A OUTPUT -p tcp --dport ${ENVOY_ADMIN_PORT} -m owner ! --ui
 		Name:            "varmor-network-proxy",
 		Image:           varmorconfig.ProxyImage,
 		SecurityContext: &coreV1.SecurityContext{}, // Set RunAsUser with proxyUID
-		Args:            []string{"-c", "/etc/envoy/bootstrap.yaml", "-l", "info"},
+		// The "--config-yaml" overlay carries the Pod identity into
+		// node.metadata. Its $(POD_*) references are expanded by the kubelet
+		// from the sidecar's Downward API env vars before Envoy starts, then
+		// Envoy merges the overlay node onto the static bootstrap node. This
+		// replaces the unsupported "%ENV()%"-in-node.metadata approach (Envoy
+		// only expands that operator in access-log format strings).
+		Args: []string{"-c", "/etc/envoy/bootstrap.yaml", "--config-yaml", AuditNodeMetadataOverlay, "-l", "info"},
 		ReadinessProbe: &coreV1.Probe{
 			ProbeHandler: coreV1.ProbeHandler{
 				TCPSocket: &coreV1.TCPSocketAction{
@@ -181,7 +202,7 @@ ip6tables -t filter -A OUTPUT -p tcp --dport ${ENVOY_ADMIN_PORT} -m owner ! --ui
 	// the agent's ALS server over the shared Unix domain socket. The leaf
 	// socketDir (not the gate directory and not the socket file) is mounted
 	// so the sidecar reconnects automatically after the agent recreates the
-	// socket inode. It is only injected when the audit sink is grpc_als.
+	// socket inode.
 	hostPathDirectoryOrCreate = coreV1.HostPathDirectoryOrCreate
 	proxyAuditALSVolume       = coreV1.Volume{
 		Name: varmorconfig.AuditNetworkProxyVolumeName,
@@ -204,10 +225,10 @@ ip6tables -t filter -A OUTPUT -p tcp --dport ${ENVOY_ADMIN_PORT} -m owner ! --ui
 	}
 
 	// auditDownwardAPIEnvVars carry the Pod identity into the Envoy sidecar
-	// via the Kubernetes Downward API. The bootstrap node.metadata expands
-	// %ENV(POD_NAME)% / %ENV(POD_NAMESPACE)% from these at startup so the
-	// agent can attribute ALS records to a precise Pod. Injected only when
-	// the audit sink is grpc_als.
+	// via the Kubernetes Downward API. The kubelet expands the $(POD_*)
+	// references in the sidecar's "--config-yaml" overlay (see
+	// AuditNodeMetadataOverlay) from these env vars before Envoy starts, so
+	// the agent can attribute ALS records to a precise Pod.
 	auditDownwardAPIEnvVars = []coreV1.EnvVar{
 		{
 			Name: "POD_NAME",
@@ -221,22 +242,18 @@ ip6tables -t filter -A OUTPUT -p tcp --dport ${ENVOY_ADMIN_PORT} -m owner ! --ui
 				FieldRef: &coreV1.ObjectFieldSelector{FieldPath: "metadata.namespace"},
 			},
 		},
+		{
+			Name: "POD_UID",
+			ValueFrom: &coreV1.EnvVarSource{
+				FieldRef: &coreV1.ObjectFieldSelector{FieldPath: "metadata.uid"},
+			},
+		},
 	}
 )
 
-// isAuditALSEnabled reports whether the installation-wide audit sink selects
-// gRPC ALS, in which case the proxy sidecar must receive the Downward API Pod
-// identity env vars and the shared ALS socket hostPath volume/mount. The switch
-// is read from the manager config (a later commit makes it Helm-configurable
-// and flips the default); when it is stdout no audit-specific objects are
-// injected and the sidecar stays byte-for-byte identical to the pre-audit one.
-func isAuditALSEnabled() bool {
-	return varmorconfig.AuditNetworkProxySink == profile.AuditSinkGRPCALS
-}
-
-// cleanupAuditFromSidecar removes the ALS socket volumeMount and the two
+// cleanupAuditFromSidecar removes the ALS socket volumeMount and the three
 // Downward API env vars from the Envoy sidecar container if present, keeping
-// reconciliation idempotent when the sink is toggled back to stdout.
+// reconciliation idempotent when the NetworkProxy enforcer is removed.
 func cleanupAuditFromSidecar(containers []coreV1.Container) {
 	for i := range containers {
 		if containers[i].Name != proxyContainer.Name {
@@ -250,7 +267,7 @@ func cleanupAuditFromSidecar(containers []coreV1.Container) {
 		}
 		containers[i].VolumeMounts = filteredMounts
 
-		auditEnvNames := map[string]bool{"POD_NAME": true, "POD_NAMESPACE": true}
+		auditEnvNames := map[string]bool{"POD_NAME": true, "POD_NAMESPACE": true, "POD_UID": true}
 		filteredEnv := containers[i].Env[:0]
 		for _, ev := range containers[i].Env {
 			if !auditEnvNames[ev.Name] {
@@ -554,13 +571,11 @@ func modifyDeploymentAnnotationsAndEnv(
 				applyMITMVolumes(&deploy.Spec.Template.Spec.Volumes, profileName)
 				deploy.Spec.Template.Spec.Containers = applyMITMToTargetContainers(deploy.Spec.Template.Spec.Containers, target)
 			}
-			// Audit (grpc_als): add ALS socket hostPath volume + sidecar mount and
-			// Downward API Pod identity env vars. Gated on the installation-wide
-			// audit sink switch; stdout injects nothing (zero behaviour change).
-			if isAuditALSEnabled() {
-				applyAuditToSidecar(deploy.Spec.Template.Spec.Containers)
-				applyAuditVolumes(&deploy.Spec.Template.Spec.Volumes)
-			}
+			// Audit: add ALS socket hostPath volume + sidecar mount and
+			// Downward API Pod identity env vars. NetworkProxy violations always
+			// stream over gRPC ALS.
+			applyAuditToSidecar(deploy.Spec.Template.Spec.Containers)
+			applyAuditVolumes(&deploy.Spec.Template.Spec.Volumes)
 		}
 	}
 
@@ -778,13 +793,11 @@ func modifyStatefulSetAnnotationsAndEnv(
 				applyMITMVolumes(&stateful.Spec.Template.Spec.Volumes, profileName)
 				stateful.Spec.Template.Spec.Containers = applyMITMToTargetContainers(stateful.Spec.Template.Spec.Containers, target)
 			}
-			// Audit (grpc_als): add ALS socket hostPath volume + sidecar mount and
-			// Downward API Pod identity env vars. Gated on the installation-wide
-			// audit sink switch; stdout injects nothing (zero behaviour change).
-			if isAuditALSEnabled() {
-				applyAuditToSidecar(stateful.Spec.Template.Spec.Containers)
-				applyAuditVolumes(&stateful.Spec.Template.Spec.Volumes)
-			}
+			// Audit: add ALS socket hostPath volume + sidecar mount and
+			// Downward API Pod identity env vars. NetworkProxy violations always
+			// stream over gRPC ALS.
+			applyAuditToSidecar(stateful.Spec.Template.Spec.Containers)
+			applyAuditVolumes(&stateful.Spec.Template.Spec.Volumes)
 		}
 	}
 
@@ -1002,13 +1015,11 @@ func modifyDaemonSetAnnotationsAndEnv(
 				applyMITMVolumes(&daemon.Spec.Template.Spec.Volumes, profileName)
 				daemon.Spec.Template.Spec.Containers = applyMITMToTargetContainers(daemon.Spec.Template.Spec.Containers, target)
 			}
-			// Audit (grpc_als): add ALS socket hostPath volume + sidecar mount and
-			// Downward API Pod identity env vars. Gated on the installation-wide
-			// audit sink switch; stdout injects nothing (zero behaviour change).
-			if isAuditALSEnabled() {
-				applyAuditToSidecar(daemon.Spec.Template.Spec.Containers)
-				applyAuditVolumes(&daemon.Spec.Template.Spec.Volumes)
-			}
+			// Audit: add ALS socket hostPath volume + sidecar mount and
+			// Downward API Pod identity env vars. NetworkProxy violations always
+			// stream over gRPC ALS.
+			applyAuditToSidecar(daemon.Spec.Template.Spec.Containers)
+			applyAuditVolumes(&daemon.Spec.Template.Spec.Volumes)
 		}
 	}
 

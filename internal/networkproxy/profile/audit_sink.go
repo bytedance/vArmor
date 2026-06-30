@@ -14,31 +14,18 @@
 
 package profile
 
-// This file introduces the AuditSinkConfig abstraction that selects and
-// parameterises the Envoy access_log sink used for NetworkProxy violation
-// auditing. It is threaded as a parameter through the translation chain
-// (facade -> translator -> renderer) so that a future commit can branch the
-// renderer on the selected sink WITHOUT re-plumbing every signature.
+// This file introduces the AuditSinkConfig abstraction that parameterises the
+// Envoy gRPC ALS access_log sink used for NetworkProxy violation auditing. It is
+// threaded as a parameter through the translation chain (facade -> translator ->
+// renderer) so the renderer can embed the per-profile log_name and the agent's
+// UDS endpoint without re-plumbing every signature.
 //
-// In THIS commit the abstraction is wired end-to-end but the renderer keeps
-// emitting the stdout sink only: the zero value (Sink == "") and the explicit
-// AuditSinkStdout both render byte-for-byte identically to the pre-audit
-// output, so every existing snapshot test passes unchanged. The gRPC ALS
-// render branch is added in a subsequent commit.
-//
-// The type, constants and helper methods follow the shared gRPC ALS
-// protocol so the renderer and the agent's auditor stay byte-compatible.
+// NetworkProxy violations always stream over gRPC ALS (Access Log Service) to
+// the node-local agent's auditor via a STATIC UDS cluster. The type, constants
+// and helper methods follow the shared gRPC ALS protocol so the renderer and the
+// agent's auditor stay byte-compatible.
 
 const (
-	// AuditSinkStdout routes Envoy access_log audit events to the sidecar's
-	// stdout as human-readable text. This is the default sink and preserves
-	// the pre-audit rendering byte-for-byte (zero regression).
-	AuditSinkStdout = "stdout"
-	// AuditSinkGRPCALS routes Envoy access_log audit events to the varmor
-	// agent's auditor over gRPC ALS (Access Log Service) via a STATIC UDS
-	// cluster.
-	AuditSinkGRPCALS = "grpc_als"
-
 	// DefaultALSClusterName is the CDS cluster name of the gRPC ALS endpoint.
 	// It is a fixed, shared convention so the renderer and the agent's
 	// auditor stay byte-compatible.
@@ -74,29 +61,28 @@ const (
 	FilterChainNameTCPDefault = "tcp_default_chain"
 )
 
-// AuditSinkConfig selects and parameterises the Envoy access_log sink used for
-// NetworkProxy violation auditing. The zero value (Sink == "") renders the
-// default stdout sink, so existing callers that do not opt into gRPC ALS keep
-// the pre-audit behaviour unchanged.
+// AuditSinkConfig parameterises the Envoy gRPC ALS access_log sink used for
+// NetworkProxy violation auditing.
 type AuditSinkConfig struct {
-	// Sink is the access_log sink: AuditSinkStdout (default) or AuditSinkGRPCALS.
-	Sink string
 	// ALSClusterName is the CDS cluster name for the gRPC ALS endpoint.
-	// Defaults to DefaultALSClusterName when empty. Only used when
-	// Sink == AuditSinkGRPCALS.
+	// Defaults to DefaultALSClusterName when empty.
 	ALSClusterName string
 	// ALSUDSPath is the UDS pipe path (inside the sidecar) the ALS cluster
-	// dials. Only used when Sink == AuditSinkGRPCALS.
+	// dials.
 	ALSUDSPath string
 	// ProfileName is the armor profile name embedded into each log_name as
 	// "<class>:<profileName>" so the auditor can attribute events to a
-	// profile. Only used when Sink == AuditSinkGRPCALS.
+	// profile.
 	ProfileName string
-}
-
-// usesGRPCALS reports whether the gRPC ALS sink is selected.
-func (a AuditSinkConfig) usesGRPCALS() bool {
-	return a.Sink == AuditSinkGRPCALS
+	// ALSBufferFlushInterval bounds how long Envoy buffers access-log entries
+	// before flushing them to the agent's ALS server (e.g. "1s"). An empty
+	// value omits the field so Envoy applies its own default.
+	ALSBufferFlushInterval string
+	// ALSBufferSizeBytes bounds the sidecar's in-memory access-log buffer so
+	// audit load can never back-pressure egress forwarding: once exceeded
+	// Envoy flushes (or drops) rather than growing without bound. A zero
+	// value omits the field.
+	ALSBufferSizeBytes uint32
 }
 
 // clusterName returns the effective ALS cluster name, applying the default

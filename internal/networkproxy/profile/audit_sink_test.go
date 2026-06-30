@@ -16,26 +16,6 @@ package profile
 
 import "testing"
 
-func TestAuditSinkConfig_UsesGRPCALS(t *testing.T) {
-	tests := []struct {
-		name string
-		cfg  AuditSinkConfig
-		want bool
-	}{
-		{"zero value is stdout", AuditSinkConfig{}, false},
-		{"explicit stdout", AuditSinkConfig{Sink: AuditSinkStdout}, false},
-		{"grpc als", AuditSinkConfig{Sink: AuditSinkGRPCALS}, true},
-		{"unknown sink", AuditSinkConfig{Sink: "garbage"}, false},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.cfg.usesGRPCALS(); got != tt.want {
-				t.Errorf("usesGRPCALS() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
 func TestAuditSinkConfig_ClusterName(t *testing.T) {
 	tests := []struct {
 		name string
@@ -43,7 +23,6 @@ func TestAuditSinkConfig_ClusterName(t *testing.T) {
 		want string
 	}{
 		{"empty defaults", AuditSinkConfig{}, DefaultALSClusterName},
-		{"empty with grpc als", AuditSinkConfig{Sink: AuditSinkGRPCALS}, DefaultALSClusterName},
 		{"override", AuditSinkConfig{ALSClusterName: "custom_als"}, "custom_als"},
 	}
 	for _, tt := range tests {
@@ -79,8 +58,6 @@ func TestAuditSinkConfig_LogNames(t *testing.T) {
 // a protocol break.
 func TestAuditSinkConfig_SharedConstants(t *testing.T) {
 	cases := map[string]string{
-		AuditSinkStdout:       "stdout",
-		AuditSinkGRPCALS:      "grpc_als",
 		DefaultALSClusterName: "varmor_audit_als",
 		LogNameClassDeny:      "varmor_np_deny",
 		LogNameClassAudit:     "varmor_np_audit",
@@ -90,16 +67,5 @@ func TestAuditSinkConfig_SharedConstants(t *testing.T) {
 		if got != want {
 			t.Errorf("shared constant = %q, want %q", got, want)
 		}
-	}
-}
-
-// TestStdoutSinkRendersDefaultClusters verifies that the stdout sink (both the
-// zero value and the explicit AuditSinkStdout) produces an identical CDS to
-// the pre-audit rendering: this commit must not change any emitted bytes.
-func TestStdoutSinkRendersDefaultClusters(t *testing.T) {
-	base := renderClustersYAML(7, false, AuditSinkConfig{})
-	explicit := renderClustersYAML(7, false, AuditSinkConfig{Sink: AuditSinkStdout})
-	if base != explicit {
-		t.Errorf("zero-value and explicit stdout CDS differ:\n--- zero ---\n%s\n--- stdout ---\n%s", base, explicit)
 	}
 }
