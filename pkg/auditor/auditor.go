@@ -19,14 +19,17 @@ package audit
 import (
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/cilium/ebpf"
 	"github.com/go-logr/logr"
 	"github.com/nxadm/tail"
 	"github.com/rs/zerolog"
+	"google.golang.org/grpc"
 	"gopkg.in/natefinch/lumberjack.v2"
 
 	bpfenforcer "github.com/bytedance/vArmor/pkg/lsm/bpfenforcer"
@@ -58,11 +61,20 @@ type Auditor struct {
 	auditRbMap             *ebpf.Map
 	auditEventMetadata     map[string]interface{} // auditEventMetadata used for storing additional information of the violation event
 	violationLogger        zerolog.Logger
-	log                    logr.Logger
+	// alsSocketPath is the host-side UDS path the NetworkProxy ALS gRPC
+	// server listens on. It is injected by the caller (the agent); an empty
+	// path disables the ALS collector.
+	alsSocketPath string
+	alsListener   net.Listener
+	alsServer     *grpc.Server
+	// alsWg tracks the ALS serve goroutine so Close can wait for it to
+	// return after the gRPC server is stopped.
+	alsWg sync.WaitGroup
+	log   logr.Logger
 }
 
 // NewAuditor creates an auditor to audit the violations of target containers
-func NewAuditor(nodeName string, appArmorSupported, bpfLsmSupported, enableBehaviorModeling bool, auditLogPaths string, auditEventMetadata map[string]interface{}, log logr.Logger) (*Auditor, error) {
+func NewAuditor(nodeName string, appArmorSupported, bpfLsmSupported, enableBehaviorModeling bool, auditLogPaths string, alsSocketPath string, auditEventMetadata map[string]interface{}, log logr.Logger) (*Auditor, error) {
 	auditor := Auditor{
 		nodeName:               nodeName,
 		appArmorSupported:      appArmorSupported,
@@ -131,6 +143,10 @@ func NewAuditor(nodeName string, appArmorSupported, bpfLsmSupported, enableBehav
 		MaxSize:    10,
 		MaxBackups: 3,
 	}).With().Timestamp().Logger()
+
+	// Enable the NetworkProxy ALS collector: violations always stream over
+	// gRPC ALS, so the auditor listens on the caller-provided UDS socket path.
+	auditor.alsSocketPath = alsSocketPath
 
 	return &auditor, nil
 }
@@ -214,10 +230,12 @@ func (auditor *Auditor) Run(stopCh <-chan struct{}) {
 	if auditor.bpfLsmSupported {
 		go auditor.readFromAuditEventRingBuf()
 	}
+	auditor.startALSConsumer()
 	auditor.eventHandler(stopCh)
 }
 
 func (auditor *Auditor) Close() {
+	auditor.closeALSConsumer()
 	if auditor.appArmorSupported || auditor.enableBehaviorModeling {
 		auditor.auditLogTail.Stop()
 		auditor.auditLogTail.Cleanup()
