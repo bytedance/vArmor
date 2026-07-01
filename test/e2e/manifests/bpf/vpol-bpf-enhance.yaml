@@ -37,7 +37,9 @@ spec:
       - rules:
         - disable-write-etc
         - mitigate-sa-leak
-        - disable-curl
+        - block-access-to-kube-apiserver
+      vulMitigationRules:
+      - ingress-nightmare-mitigation
       bpfRawRules:
         processes:
         - qualifiers:
@@ -47,20 +49,39 @@ spec:
           permissions:
           - exec
         network:
+          sockets:
+          - qualifiers:
+            - audit
+            protocols:
+            - "udp"
           egress:
             toDestinations:
             - qualifiers:
               - audit
-              - deny
               ip: fdbd:dc01:ff:307:9329:268d:3a27:2ca7
             - qualifiers:
               - audit
-              - deny
-              ipBlock: 192.168.1.1/24 # 192.168.1.0 to 192.168.1.255
-              port: 80
-          sockets:
-          - qualifiers:
-            - audit
-            - deny
-            protocols:
-            - "udp"
+              cidr: 192.168.1.1/24 # 192.168.1.0 to 192.168.1.255
+              ports:
+              - port: 80
+                endPort: 8080
+            - qualifiers:
+              - audit
+              ip: 10.12.34.56
+              ports:
+              - port: 8070
+              - port: 9980
+              - port: 10250
+                endPort: 10255
+            - qualifiers:
+              - audit
+              ip: pod-self
+              ports:
+              - port: 80
+                endPort: 8080
+            toServices:
+            - qualifiers:
+              - audit
+              serviceSelector:
+                matchLabels:
+                  app: nginx

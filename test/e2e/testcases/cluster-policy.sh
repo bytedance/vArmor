@@ -14,33 +14,37 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# BPF enforcement test case configuration
+# Cluster-scoped policy (VarmorClusterPolicy) test case configuration
 
 # Test name
-TEST_NAME="bpf-sa-token-protection"
+TEST_NAME="cluster-policy-sa-token-protection"
 
 # Test description
-TEST_DESCRIPTION="Testing BPF enforcer for denying access to ServiceAccount Token"
+TEST_DESCRIPTION="Testing VarmorClusterPolicy (cluster-scoped) with the BPF enforcer for denying access to ServiceAccount Token"
 
-# Namespace
+# Policy kind. VarmorClusterPolicy is cluster-scoped (not namespaced), which
+# tells the framework to wait for its readiness without the `-n` flag.
+POLICY_KIND="VarmorClusterPolicy"
+
+# Namespace (the cluster-scoped policy targets a workload that lives here)
 NAMESPACE="demo"
 
 # Policy name
-POLICY_NAME="demo-2"
+POLICY_NAME="demo-cluster-policy"
 
 # Initial policy file
-POLICY_FILES="manifests/bpf/vpol-bpf-alwaysallow.yaml"
+POLICY_FILES="manifests/cluster-policy/vcpol-bpf-alwaysallow.yaml"
 
 # Enhanced policy file
-ENHANCED_POLICY_FILES="manifests/bpf/vpol-bpf-enhance.yaml"
+ENHANCED_POLICY_FILES="manifests/cluster-policy/vcpol-bpf-enhance.yaml"
 
 # Workload file
-WORKLOAD_FILES="manifests/bpf/deploy.yaml"
+WORKLOAD_FILES="manifests/cluster-policy/deploy.yaml"
 
 # Pod selector
-POD_SELECTOR="app=demo-2"
+POD_SELECTOR="app=demo-cluster-policy"
 
-# Container name
+# Container name (c0 is explicitly unconfined, so we enforce/verify on c1)
 CONTAINER_NAME="c1"
 
 # Initial command - Should be able to read SA Token in AlwaysAllow mode

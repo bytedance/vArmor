@@ -35,8 +35,6 @@ spec:
       attackProtectionRules:
       - rules:
         - mitigate-sa-leak
-        - mitigate-host-ip-leak
-        - disable-curl
       - rules:
         - disable-write-etc
         targets:

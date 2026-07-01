@@ -38,6 +38,11 @@ TOTAL_TESTS=0
 PASSED_TESTS=0
 FAILED_TESTS=0
 
+# Retry configuration for transient operations (e.g. `kubectl apply`).
+# Overridable from the environment so CI can tune them.
+RETRY_TIMES="${RETRY_TIMES:-3}"
+RETRY_INTERVAL="${RETRY_INTERVAL:-5}"
+
 # Log functions
 log_info() {
     echo -e "${YELLOW}[INFO]${NC} $1"
@@ -49,6 +54,29 @@ log_success() {
 
 log_error() {
     echo -e "${RED}[ERROR]${NC} $1"
+}
+
+# Retry an idempotent command up to RETRY_TIMES, sleeping RETRY_INTERVAL
+# between attempts. Returns the exit status of the last attempt. Only use
+# this for operations that are safe to repeat (e.g. `kubectl apply`), never
+# for state-mutating one-shot commands.
+retry() {
+    local attempt=1
+    local status=0
+    while true; do
+        "$@"
+        status=$?
+        if [ ${status} -eq 0 ]; then
+            return 0
+        fi
+        if [ ${attempt} -ge ${RETRY_TIMES} ]; then
+            log_error "Command failed after ${attempt} attempt(s): $*"
+            return ${status}
+        fi
+        log_info "Attempt ${attempt}/${RETRY_TIMES} failed (status ${status}), retrying in ${RETRY_INTERVAL}s: $*"
+        attempt=$((attempt+1))
+        sleep ${RETRY_INTERVAL}
+    done
 }
 
 # Wait for vArmor to be ready
@@ -99,6 +127,11 @@ load_testcase() {
         return 1
     fi
     
+    # Reset per-testcase optional variables so that values set by a previously
+    # sourced test case (e.g. POLICY_KIND from a cluster-scoped test) do not
+    # leak into the next one when running with --all.
+    unset POLICY_KIND
+
     # Load test case configuration
     source "${testcase_file}"
     
@@ -116,7 +149,13 @@ apply_policy() {
     local policy_file=$1
     log_info "Applying the policy: ${policy_file}"
     
-    ${KUBECTL_CMD} apply -f "${policy_file}"
+    # `kubectl apply` is idempotent, so retry it on transient failures
+    # (network blips, apiserver 5xx, etc.) and fail if it never succeeds.
+    retry ${KUBECTL_CMD} apply -f "${policy_file}"
+    if [ $? -ne 0 ]; then
+        log_error "Failed to apply the policy ${policy_file}."
+        return 1
+    fi
     
     # Wait for policy to take effect
     sleep 5
@@ -124,9 +163,18 @@ apply_policy() {
     # Verify if policy is ready
     log_info "Waiting for the policy to be ready..."
 
-    ${KUBECTL_CMD} wait --for=condition=Ready VarmorPolicy -n ${NAMESPACE} ${POLICY_NAME} --timeout=30s
+    # POLICY_KIND defaults to the namespaced VarmorPolicy. Cluster-scoped
+    # policies (VarmorClusterPolicy) are not bound to a namespace, so they
+    # must be waited on without the `-n` flag. `kubectl wait` already has its
+    # own --timeout, so it is not retried.
+    local policy_kind="${POLICY_KIND:-VarmorPolicy}"
+    if [ "${policy_kind}" = "VarmorClusterPolicy" ]; then
+        ${KUBECTL_CMD} wait --for=condition=Ready ${policy_kind} ${POLICY_NAME} --timeout=30s
+    else
+        ${KUBECTL_CMD} wait --for=condition=Ready ${policy_kind} -n ${NAMESPACE} ${POLICY_NAME} --timeout=30s
+    fi
     if [ $? -ne 0 ]; then
-        log_error "The policy ${NAMESPACE}/${POLICY_NAME} is not ready after 30s."
+        log_error "The policy ${POLICY_NAME} is not ready after 30s."
         return 1
     fi
 
@@ -138,9 +186,15 @@ deploy_workload() {
     local workload_file=$1
 
     log_info "Deploying the workload: ${workload_file}"
-    ${KUBECTL_CMD} apply -f "${workload_file}"
+    # `kubectl apply` is idempotent, so retry it on transient failures.
+    retry ${KUBECTL_CMD} apply -f "${workload_file}"
+    if [ $? -ne 0 ]; then
+        log_error "Failed to deploy the workload ${workload_file}."
+        return 1
+    fi
 
     log_info "Waiting for the workload to be ready..."
+    # `kubectl wait` already has its own --timeout, so it is not retried.
     ${KUBECTL_CMD} wait --for=condition=Ready pod -l ${POD_SELECTOR} -n ${NAMESPACE} --timeout=60s
     if [ $? -ne 0 ]; then
         log_error "The workload is not ready after 60s."
@@ -162,7 +216,11 @@ execute_command() {
     local output=""
     local status=0
     
-    output=$(${KUBECTL_CMD} exec -n ${NAMESPACE} ${pod_name} -c ${container} -- ${command} 2>&1)
+    # Wrap in `sh -c` so commands using pipes, redirects or quoting
+    # (e.g. `curl ... | grep -q ...`) are interpreted by a shell in the
+    # container rather than exec'd as a single argv. Single commands such as
+    # `cat <path>` behave identically, so this is backward compatible.
+    output=$(${KUBECTL_CMD} exec -n ${NAMESPACE} ${pod_name} -c ${container} -- sh -c "${command}" 2>&1)
     status=$?
     
     # 在控制台输出命令执行结果
@@ -209,18 +267,41 @@ run_testcase() {
     # Create test namespace
     ${KUBECTL_CMD} create namespace ${NAMESPACE} 2>/dev/null
     
-    # Apply the initial policy
+    # Apply the initial policy. If any policy fails to become ready the test
+    # environment is broken, so fail fast: a later `kubectl exec` against a
+    # missing/not-ready container would also exit non-zero and could
+    # accidentally match a VERIFY_EXPECTED_STATUS=1 case, yielding a false pass.
     for policy_file in ${POLICY_FILES}; do
         apply_policy "${policy_file}"
+        if [ $? -ne 0 ]; then
+            log_error "Test setup failed while applying policy ${policy_file}; marking test as failed."
+            FAILED_TESTS=$((FAILED_TESTS+1))
+            cleanup_testcase
+            return 1
+        fi
     done
     
-    # Deploy workload
+    # Deploy workload. Same rationale: if the workload never becomes ready, do
+    # not proceed to verification, otherwise a broken environment could be
+    # reported as a pass.
     for workload_file in ${WORKLOAD_FILES}; do
         deploy_workload "${workload_file}"
+        if [ $? -ne 0 ]; then
+            log_error "Test setup failed while deploying workload ${workload_file}; marking test as failed."
+            FAILED_TESTS=$((FAILED_TESTS+1))
+            cleanup_testcase
+            return 1
+        fi
     done
     
     # Get Pod name
     POD_NAME=$(${KUBECTL_CMD} get pods -n ${NAMESPACE} -l ${POD_SELECTOR} -o jsonpath='{.items[0].metadata.name}')
+    if [ -z "${POD_NAME}" ]; then
+        log_error "Test setup failed: no pod found for selector ${POD_SELECTOR} in namespace ${NAMESPACE}; marking test as failed."
+        FAILED_TESTS=$((FAILED_TESTS+1))
+        cleanup_testcase
+        return 1
+    fi
     
     # Execute initial command and verify result
     execute_command "${POD_NAME}" "${CONTAINER_NAME}" "${INITIAL_COMMAND}" "${INITIAL_EXPECTED_STATUS}"
@@ -229,6 +310,12 @@ run_testcase() {
     # Apply the enhanced policy
     for policy_file in ${ENHANCED_POLICY_FILES}; do
         apply_policy "${policy_file}"
+        if [ $? -ne 0 ]; then
+            log_error "Test setup failed while applying enhanced policy ${policy_file}; marking test as failed."
+            FAILED_TESTS=$((FAILED_TESTS+1))
+            cleanup_testcase
+            return 1
+        fi
     done
 
     # Execute verification command and verify result
@@ -240,6 +327,13 @@ run_testcase() {
     verify_result ${verify_status} ${VERIFY_EXPECTED_STATUS} "${TEST_NAME}"
     
     # Clean up test resources
+    cleanup_testcase
+}
+
+# Clean up the resources created by the current test case. Honours
+# CLEANUP_AFTER_TEST and is safe to call from the setup fail-fast paths as
+# well as from the normal end-of-test flow.
+cleanup_testcase() {
     if [ "${CLEANUP_AFTER_TEST}" = "true" ]; then
         log_info "Cleaning up test resources"
         for policy_file in ${POLICY_FILES} ${ENHANCED_POLICY_FILES}; do

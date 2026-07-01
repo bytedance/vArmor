@@ -29,13 +29,13 @@ NAMESPACE="demo"
 POLICY_NAME="demo-1"
 
 # Initial policy file
-POLICY_FILES="../examples/1-apparmor/vpol-apparmor-alwaysallow.yaml"
+POLICY_FILES="manifests/apparmor/vpol-apparmor-alwaysallow.yaml"
 
 # Enhanced policy file
-ENHANCED_POLICY_FILES="../examples/1-apparmor/vpol-apparmor-enhance.yaml"
+ENHANCED_POLICY_FILES="manifests/apparmor/vpol-apparmor-enhance.yaml"
 
 # Workload file
-WORKLOAD_FILES="../examples/1-apparmor/deploy.yaml"
+WORKLOAD_FILES="manifests/apparmor/deploy.yaml"
 
 # Pod selector
 POD_SELECTOR="app=demo-1"

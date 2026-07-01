@@ -29,13 +29,13 @@ NAMESPACE="demo"
 POLICY_NAME="demo-4"
 
 # Initial policy file
-POLICY_FILES="../examples/4-seccomp/vpol-seccomp-alwaysallow.yaml"
+POLICY_FILES="manifests/seccomp/vpol-seccomp-alwaysallow.yaml"
 
 # Enhanced policy file
-ENHANCED_POLICY_FILES="../examples/4-seccomp/vpol-seccomp-enhance.yaml"
+ENHANCED_POLICY_FILES="manifests/seccomp/vpol-seccomp-enhance.yaml"
 
 # Workload file
-WORKLOAD_FILES="../examples/4-seccomp/deploy-in-demo-ns.yaml"
+WORKLOAD_FILES="manifests/seccomp/deploy-in-demo-ns.yaml"
 
 # Pod selector
 POD_SELECTOR="app=demo-4"

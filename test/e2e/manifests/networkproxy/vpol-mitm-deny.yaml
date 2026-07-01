@@ -1,0 +1,50 @@
+# E2E fixture: MITM + L7 path/method deny policy.
+# Applied BEFORE the workload so the sidecar + MITM volumes are injected at
+# pod creation. Allows GET /get and /headers*, denies /admin/* and /secret;
+# defaultAction=deny catches everything else.
+apiVersion: crd.varmor.org/v1beta1
+kind: VarmorPolicy
+metadata:
+  name: e2e-networkproxy-mitm-deny
+  namespace: demo
+spec:
+  updateExistingWorkloads: true
+  target:
+    kind: Deployment
+    selector:
+      matchLabels:
+        app: e2e-networkproxy-mitm-deny
+  policy:
+    enforcer: NetworkProxy
+    mode: EnhanceProtect
+    networkProxyConfig:
+      mitm:
+        domains:
+          - httpbin.org
+        headerMutations:
+          - domain: httpbin.org
+            headers:
+              - name: X-Request-Source
+                value: varmor-agent
+    enhanceProtect:
+      networkProxyRawRules:
+        egress:
+          defaultAction: deny
+          httpRules:
+            - qualifiers: ["deny"]
+              description: "explicit admin deny (takes precedence)"
+              match:
+                hosts:
+                  - httpbin.org
+                paths:
+                  - prefix: "/admin/"
+                  - exact: "/secret"
+            - qualifiers: ["allow", "audit"]
+              match:
+                hosts:
+                  - httpbin.org
+                paths:
+                  - exact: "/get"
+                  - prefix: "/headers"
+                methods:
+                  - GET
