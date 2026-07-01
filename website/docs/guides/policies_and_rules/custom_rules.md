@@ -5,9 +5,17 @@ description: Customize access control rules in EnhanceProtect mode.
 
 # The Custom Rules
 
-vArmor allows users to customize access control rules in [VarmorPolicy](../../getting_started/usage_instructions#varmorpolicy) or [VarmorClusterPolicy](../../getting_started/usage_instructions#varmorclusterpolicy) objects in **EnhanceProtect** mode based on the enforcer syntax.
+vArmor allows users to customize access control rules in the **EnhanceProtect** and **DefenseInDepth** modes based on the enforcer syntax. AppArmor, BPF, and NetworkProxy control the disposition action and auditing behavior of a rule via its qualifiers, while Seccomp uses the OCI `action` semantics (such as `SCMP_ACT_ERRNO`).
 
-Note:<br />- The syntax supported by BPF enforcer is still under development.
+Different enforcers recognize different sets of rule qualifiers, and the actions that can be derived from them are shown in the table below:
+
+| Enforcer | Recognized Qualifiers | Derivable Actions |
+| --- | --- | --- |
+| AppArmor | Rules are **raw AppArmor text**; qualifiers such as `audit` / `deny` are written directly by the author and are not re-parsed by vArmor | `DENIED` / `AUDIT` |
+| BPF | Recognizes only `deny` and `audit` | `DENIED` / `AUDIT` |
+| NetworkProxy | Recognizes `allow`, `deny`, and `audit`, combined with `defaultAction` | `DENIED` / `AUDIT` |
+
+> The "Derivable Actions" column refers to actions **derived from rule qualifiers**, so none of them include `ALLOWED`. `ALLOWED` is unrelated to any qualifier; it is produced only in the **DefenseInDepth** mode with `allowViolations=true`, when access not covered by the allowlist is allowed and logged. See [Disposition Actions and Auditing](policy_modes/index.md#disposition-actions-and-auditing) of the policy modes for details.
 
 ## AppArmor enforcer
 
@@ -181,8 +189,8 @@ Please refer to [NetworkProxyRules](../../getting_started/interface_specificatio
   Deny rules take precedence over allow rules. Connections matching neither are subject to `defaultAction`.
 
   Note on auditing:
-  - When `defaultAction` is `deny`, blocked requests are audited by default.
-  - When `defaultAction` is `allow`, allowed requests are **not** audited by default.
+  - The NetworkProxy records audit logs only when `defaultAction` is `deny`, or when at least one rule carries the `audit` qualifier; otherwise no audit events are produced.
+  - Its reporting channel maps only `deny` → `DENIED` and `audit` → `AUDIT`; it **never produces `ALLOWED`**.
 
 **Use case:**
 
