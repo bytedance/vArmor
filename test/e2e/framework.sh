@@ -99,6 +99,11 @@ load_testcase() {
         return 1
     fi
     
+    # Reset per-testcase optional variables so that values set by a previously
+    # sourced test case (e.g. POLICY_KIND from a cluster-scoped test) do not
+    # leak into the next one when running with --all.
+    unset POLICY_KIND
+
     # Load test case configuration
     source "${testcase_file}"
     
@@ -124,9 +129,17 @@ apply_policy() {
     # Verify if policy is ready
     log_info "Waiting for the policy to be ready..."
 
-    ${KUBECTL_CMD} wait --for=condition=Ready VarmorPolicy -n ${NAMESPACE} ${POLICY_NAME} --timeout=30s
+    # POLICY_KIND defaults to the namespaced VarmorPolicy. Cluster-scoped
+    # policies (VarmorClusterPolicy) are not bound to a namespace, so they
+    # must be waited on without the `-n` flag.
+    local policy_kind="${POLICY_KIND:-VarmorPolicy}"
+    if [ "${policy_kind}" = "VarmorClusterPolicy" ]; then
+        ${KUBECTL_CMD} wait --for=condition=Ready ${policy_kind} ${POLICY_NAME} --timeout=30s
+    else
+        ${KUBECTL_CMD} wait --for=condition=Ready ${policy_kind} -n ${NAMESPACE} ${POLICY_NAME} --timeout=30s
+    fi
     if [ $? -ne 0 ]; then
-        log_error "The policy ${NAMESPACE}/${POLICY_NAME} is not ready after 30s."
+        log_error "The policy ${POLICY_NAME} is not ready after 30s."
         return 1
     fi
 

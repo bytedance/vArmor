@@ -1,0 +1,15 @@
+apiVersion: crd.varmor.org/v1beta1
+kind: VarmorClusterPolicy
+metadata:
+  # Cluster-scoped policies are not namespaced.
+  name: demo-cluster-policy
+spec:
+  target:
+    # The policy protects all the containers by default if the .spec.target.containers is nil.
+    kind: Deployment
+    selector:
+      matchLabels:
+        app: demo-cluster-policy
+  policy:
+    enforcer: BPF
+    mode: AlwaysAllow
