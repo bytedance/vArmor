@@ -18,7 +18,7 @@ The modes can be specified through the `spec.policy.mode` field of [VarmorPolicy
 
 ## Disposition Actions and Auditing
 
-Which `action` (`DENIED` / `AUDIT` / `ALLOWED`) a violation event ultimately produces is determined jointly by the **policy mode** and the **rule qualifiers**.
+How a violation event is handled, and which action (`DENIED` / `AUDIT` / `ALLOWED`) it is recorded as in the audit event, are jointly determined by the **policy mode** and the **rule qualifiers**.
 
 ### EnhanceProtect: Disposition and Auditing of Built-in Rules
 
@@ -29,12 +29,12 @@ The EnhanceProtect mode protects workloads by combining [built-in rules](../buil
 
 > **Common pitfall**: Blocking and auditing are independent — setting `allowViolations=false` alone only blocks and produces no event; to obtain a `DENIED` audit log while blocking, you must also set `auditViolations=true`.
 
-| `allowViolations` | `auditViolations` | Blocked | Event produced | `action` |
+| allowViolations | auditViolations | Blocked | Event produced | action |
 | --- | --- | --- | --- | --- |
-| `false` (default) | `false` | Yes | No (silent) | — |
-| `false` (default) | `true` | Yes | Yes | `DENIED` |
-| `true` | `true` | No | Yes | `AUDIT` |
-| `true` | `false` | No | No (silent) | — |
+| false (default) | false | Yes | No (silent) | — |
+| false (default) | true | Yes | Yes | DENIED |
+| true | true | No | Yes | AUDIT |
+| true | false | No | No (silent) | — |
 
 > **Seccomp exception**: Due to how Seccomp works, the table above applies only to AppArmor and BPF. Seccomp produces an event (allowed and logged, i.e. observation mode) only when both `allowViolations=true` and `auditViolations=true` are set (and no policy is currently in the BehaviorModeling mode); all other combinations block silently and produce no event — it cannot emit a `DENIED` audit log while blocking. In addition, events produced by Seccomp are uniformly marked with the combined action `AUDIT|ALLOWED`, because its audit log cannot tell whether an event comes from the EnhanceProtect mode (which maps to `AUDIT`) or the DefenseInDepth mode (which maps to `ALLOWED`).
 
