@@ -162,6 +162,12 @@ func (auditor *Auditor) readFromAuditEventRingBuf() {
 			continue
 		}
 
+		// Snapshot the container information once under the cache lock. The
+		// containerd-event goroutine may mutate containerCache concurrently, so
+		// a single guarded read here both fixes the data race and keeps all
+		// fields of one event consistent.
+		info := auditor.containerByMntNsID(eventHeader.MntNs)
+
 		// Process the body of audit event
 		var e interface{}
 		switch eventHeader.Type {
@@ -180,12 +186,12 @@ func (auditor *Auditor) readFromAuditEventRingBuf() {
 			}
 
 			auditor.log.V(2).Info("audit event",
-				"pod uid", auditor.containerCache[eventHeader.MntNs].PodUID,
-				"pod name", auditor.containerCache[eventHeader.MntNs].PodName,
-				"pod namespace", auditor.containerCache[eventHeader.MntNs].PodNamespace,
-				"container id", auditor.containerCache[eventHeader.MntNs].ContainerID,
-				"container name", auditor.containerCache[eventHeader.MntNs].ContainerName,
-				"image", auditor.containerCache[eventHeader.MntNs].Image,
+				"pod uid", info.PodUID,
+				"pod name", info.PodName,
+				"pod namespace", info.PodNamespace,
+				"container id", info.ContainerID,
+				"container name", info.ContainerName,
+				"image", info.Image,
 				"pid", eventHeader.Tgid, "ktime", eventHeader.Ktime, "mnt ns", eventHeader.MntNs,
 				"capability", e.(*BpfCapabilityEvent).Capability)
 
@@ -204,12 +210,12 @@ func (auditor *Auditor) readFromAuditEventRingBuf() {
 			}
 
 			auditor.log.V(2).Info("audit event",
-				"pod uid", auditor.containerCache[eventHeader.MntNs].PodUID,
-				"pod name", auditor.containerCache[eventHeader.MntNs].PodName,
-				"pod namespace", auditor.containerCache[eventHeader.MntNs].PodNamespace,
-				"container id", auditor.containerCache[eventHeader.MntNs].ContainerID,
-				"container name", auditor.containerCache[eventHeader.MntNs].ContainerName,
-				"image", auditor.containerCache[eventHeader.MntNs].Image,
+				"pod uid", info.PodUID,
+				"pod name", info.PodName,
+				"pod namespace", info.PodNamespace,
+				"container id", info.ContainerID,
+				"container name", info.ContainerName,
+				"image", info.Image,
 				"pid", eventHeader.Tgid, "ktime", eventHeader.Ktime, "mnt ns", eventHeader.MntNs,
 				"path", e.(*BpfPathEvent).Path, "permissions", e.(*BpfPathEvent).Permissions)
 
@@ -228,12 +234,12 @@ func (auditor *Auditor) readFromAuditEventRingBuf() {
 			}
 
 			auditor.log.V(2).Info("audit event",
-				"pod uid", auditor.containerCache[eventHeader.MntNs].PodUID,
-				"pod name", auditor.containerCache[eventHeader.MntNs].PodName,
-				"pod namespace", auditor.containerCache[eventHeader.MntNs].PodNamespace,
-				"container id", auditor.containerCache[eventHeader.MntNs].ContainerID,
-				"container name", auditor.containerCache[eventHeader.MntNs].ContainerName,
-				"image", auditor.containerCache[eventHeader.MntNs].Image,
+				"pod uid", info.PodUID,
+				"pod name", info.PodName,
+				"pod namespace", info.PodNamespace,
+				"container id", info.ContainerID,
+				"container name", info.ContainerName,
+				"image", info.Image,
 				"pid", eventHeader.Tgid, "ktime", eventHeader.Ktime, "mnt ns", eventHeader.MntNs,
 				"path", e.(*BpfPathEvent).Path, "permissions", e.(*BpfPathEvent).Permissions)
 
@@ -254,24 +260,24 @@ func (auditor *Auditor) readFromAuditEventRingBuf() {
 			switch event.Type {
 			case bpfenforcer.SocketType:
 				auditor.log.V(2).Info("audit event",
-					"pod uid", auditor.containerCache[eventHeader.MntNs].PodUID,
-					"pod name", auditor.containerCache[eventHeader.MntNs].PodName,
-					"pod namespace", auditor.containerCache[eventHeader.MntNs].PodNamespace,
-					"container id", auditor.containerCache[eventHeader.MntNs].ContainerID,
-					"container name", auditor.containerCache[eventHeader.MntNs].ContainerName,
-					"image", auditor.containerCache[eventHeader.MntNs].Image,
+					"pod uid", info.PodUID,
+					"pod name", info.PodName,
+					"pod namespace", info.PodNamespace,
+					"container id", info.ContainerID,
+					"container name", info.ContainerName,
+					"image", info.Image,
 					"pid", eventHeader.Tgid, "ktime", eventHeader.Ktime, "mnt ns", eventHeader.MntNs,
 					"domain", e.(*BpfNetworkEvent).Socket.Domain,
 					"type", e.(*BpfNetworkEvent).Socket.Type,
 					"protocol", e.(*BpfNetworkEvent).Socket.Protocol)
 			case bpfenforcer.ConnectType:
 				auditor.log.V(2).Info("audit event",
-					"pod uid", auditor.containerCache[eventHeader.MntNs].PodUID,
-					"pod name", auditor.containerCache[eventHeader.MntNs].PodName,
-					"pod namespace", auditor.containerCache[eventHeader.MntNs].PodNamespace,
-					"container id", auditor.containerCache[eventHeader.MntNs].ContainerID,
-					"container name", auditor.containerCache[eventHeader.MntNs].ContainerName,
-					"image", auditor.containerCache[eventHeader.MntNs].Image,
+					"pod uid", info.PodUID,
+					"pod name", info.PodName,
+					"pod namespace", info.PodNamespace,
+					"container id", info.ContainerID,
+					"container name", info.ContainerName,
+					"image", info.Image,
 					"pid", eventHeader.Tgid, "ktime", eventHeader.Ktime, "mnt ns", eventHeader.MntNs,
 					"dest ip", e.(*BpfNetworkEvent).Address.IP, "dest port", e.(*BpfNetworkEvent).Address.Port)
 			}
@@ -291,12 +297,12 @@ func (auditor *Auditor) readFromAuditEventRingBuf() {
 			}
 
 			auditor.log.V(2).Info("audit event",
-				"pod uid", auditor.containerCache[eventHeader.MntNs].PodUID,
-				"pod name", auditor.containerCache[eventHeader.MntNs].PodName,
-				"pod namespace", auditor.containerCache[eventHeader.MntNs].PodNamespace,
-				"container id", auditor.containerCache[eventHeader.MntNs].ContainerID,
-				"container name", auditor.containerCache[eventHeader.MntNs].ContainerName,
-				"image", auditor.containerCache[eventHeader.MntNs].Image,
+				"pod uid", info.PodUID,
+				"pod name", info.PodName,
+				"pod namespace", info.PodNamespace,
+				"container id", info.ContainerID,
+				"container name", info.ContainerName,
+				"image", info.Image,
 				"pid", eventHeader.Tgid, "ktime", eventHeader.Ktime, "mnt ns", eventHeader.MntNs,
 				"permission", e.(*BpfPtraceEvent).Permission, "external", e.(*BpfPtraceEvent).External)
 
@@ -315,12 +321,12 @@ func (auditor *Auditor) readFromAuditEventRingBuf() {
 			}
 
 			auditor.log.V(2).Info("audit event",
-				"pod uid", auditor.containerCache[eventHeader.MntNs].PodUID,
-				"pod name", auditor.containerCache[eventHeader.MntNs].PodName,
-				"pod namespace", auditor.containerCache[eventHeader.MntNs].PodNamespace,
-				"container id", auditor.containerCache[eventHeader.MntNs].ContainerID,
-				"container name", auditor.containerCache[eventHeader.MntNs].ContainerName,
-				"image", auditor.containerCache[eventHeader.MntNs].Image,
+				"pod uid", info.PodUID,
+				"pod name", info.PodName,
+				"pod namespace", info.PodNamespace,
+				"container id", info.ContainerID,
+				"container name", info.ContainerName,
+				"image", info.Image,
 				"pid", eventHeader.Tgid, "ktime", eventHeader.Ktime, "mnt ns", eventHeader.MntNs,
 				"path", e.(*BpfMountEvent).Path,
 				"file system type", e.(*BpfMountEvent).Type,
@@ -333,19 +339,19 @@ func (auditor *Auditor) readFromAuditEventRingBuf() {
 			auditor.violationLogger.Warn().
 				Interface("metadata", auditor.auditEventMetadata).
 				Str("nodeName", auditor.nodeName).
-				Str("podUID", auditor.containerCache[eventHeader.MntNs].PodUID).
-				Str("podName", auditor.containerCache[eventHeader.MntNs].PodName).
-				Str("podNamespace", auditor.containerCache[eventHeader.MntNs].PodNamespace).
-				Str("containerID", auditor.containerCache[eventHeader.MntNs].ContainerID).
-				Str("containerName", auditor.containerCache[eventHeader.MntNs].ContainerName).
-				Str("image", auditor.containerCache[eventHeader.MntNs].Image).
+				Str("podUID", info.PodUID).
+				Str("podName", info.PodName).
+				Str("podNamespace", info.PodNamespace).
+				Str("containerID", info.ContainerID).
+				Str("containerName", info.ContainerName).
+				Str("image", info.Image).
 				Uint32("pid", eventHeader.Tgid).
 				Uint32("mntNsID", eventHeader.MntNs).
 				Uint64("eventTimestamp", eventHeader.Ktime/uint64(time.Second)+auditor.bootTimestamp).
 				Str("enforcer", "BPF").
 				Str("action", "DENIED").
-				Str("profileName", auditor.containerCache[eventHeader.MntNs].ProfileName).
-				Func(auditor.withPolicyIdentity(auditor.containerCache[eventHeader.MntNs].ProfileName)).
+				Str("profileName", info.ProfileName).
+				Func(auditor.withPolicyIdentity(info.ProfileName)).
 				Interface("event", e).Msg("violation event")
 
 		case bpfenforcer.AuditAction:
@@ -353,24 +359,24 @@ func (auditor *Auditor) readFromAuditEventRingBuf() {
 			auditor.violationLogger.Warn().
 				Interface("metadata", auditor.auditEventMetadata).
 				Str("nodeName", auditor.nodeName).
-				Str("podUID", auditor.containerCache[eventHeader.MntNs].PodUID).
-				Str("podName", auditor.containerCache[eventHeader.MntNs].PodName).
-				Str("podNamespace", auditor.containerCache[eventHeader.MntNs].PodNamespace).
-				Str("containerID", auditor.containerCache[eventHeader.MntNs].ContainerID).
-				Str("containerName", auditor.containerCache[eventHeader.MntNs].ContainerName).
-				Str("image", auditor.containerCache[eventHeader.MntNs].Image).
+				Str("podUID", info.PodUID).
+				Str("podName", info.PodName).
+				Str("podNamespace", info.PodNamespace).
+				Str("containerID", info.ContainerID).
+				Str("containerName", info.ContainerName).
+				Str("image", info.Image).
 				Uint32("pid", eventHeader.Tgid).
 				Uint32("mntNsID", eventHeader.MntNs).
 				Uint64("eventTimestamp", eventHeader.Ktime/uint64(time.Second)+auditor.bootTimestamp).
 				Str("enforcer", "BPF").
 				Str("action", "AUDIT").
-				Str("profileName", auditor.containerCache[eventHeader.MntNs].ProfileName).
-				Func(auditor.withPolicyIdentity(auditor.containerCache[eventHeader.MntNs].ProfileName)).
+				Str("profileName", info.ProfileName).
+				Func(auditor.withPolicyIdentity(info.ProfileName)).
 				Interface("event", e).Msg("violation event")
 
 		case bpfenforcer.AllowedAction:
 			// Send behavior event to the corresponding subscriber
-			profileName := auditor.containerCache[eventHeader.MntNs].ProfileName
+			profileName := info.ProfileName
 			if ch, ok := auditor.bpfEventChs[profileName]; ok {
 				ch <- BpfEvent{
 					Header: BpfEventHeader{

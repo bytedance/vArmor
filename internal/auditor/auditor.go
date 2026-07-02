@@ -53,6 +53,12 @@ type Auditor struct {
 	TaskDeleteSyncCh       chan bool
 	mntNsIDCache           map[uint32]uint32                    // key: The init PID of contaienr, value: The mnt ns id
 	containerCache         map[uint32]varmortypes.ContainerInfo // key: The mnt ns id of container, value: The container information
+	// cacheMu guards mntNsIDCache and containerCache. They are written only
+	// by eventHandler on the containerd-event goroutine, but read from the
+	// audit-log tail goroutine (processAuditEvent) and the BPF ringbuf
+	// goroutine (readFromAuditEventRingBuf), so every access must hold this
+	// lock to avoid a data race.
+	cacheMu sync.RWMutex
 	// policyIdentityCache maps an ArmorProfile name to the authoritative
 	// identity of the VarmorPolicy/VarmorClusterPolicy that owns it. It is
 	// written by the agent from its ArmorProfile watch and read by every
@@ -166,16 +172,21 @@ func (auditor *Auditor) eventHandler(stopCh <-chan struct{}) {
 		select {
 		case info := <-auditor.TaskStartCh:
 			// Handle the creation event of target container
+			auditor.cacheMu.Lock()
 			auditor.mntNsIDCache[info.PID] = info.MntNsID
 			auditor.containerCache[info.MntNsID] = info
+			auditor.cacheMu.Unlock()
 		case info := <-auditor.TaskDeleteCh:
 			// Handle the deletion event of target container
+			auditor.cacheMu.Lock()
 			if mntNsID, ok := auditor.mntNsIDCache[info.PID]; ok {
 				delete(auditor.containerCache, mntNsID)
 				delete(auditor.mntNsIDCache, info.PID)
 			}
+			auditor.cacheMu.Unlock()
 		case <-auditor.TaskDeleteSyncCh:
 			// Handle those containers that exit while the monitor was offline
+			auditor.cacheMu.Lock()
 			for pid, mntNsID := range auditor.mntNsIDCache {
 				id, err := varmorutils.ReadMntNsID(pid)
 				if err != nil || mntNsID != id {
@@ -191,11 +202,33 @@ func (auditor *Auditor) eventHandler(stopCh <-chan struct{}) {
 					delete(auditor.mntNsIDCache, pid)
 				}
 			}
+			auditor.cacheMu.Unlock()
 		case <-stopCh:
 			logger.Info("stop handling the containerd events")
 			return
 		}
 	}
+}
+
+// containerByMntNsID returns the cached container information for the given
+// mnt namespace id. containerCache is written by eventHandler on the
+// containerd-event goroutine and read here from the audit-log tail and BPF
+// ringbuf goroutines, so access is guarded by cacheMu. A miss returns the
+// zero ContainerInfo (attribution is best-effort). Safe for concurrent use.
+func (auditor *Auditor) containerByMntNsID(mntNsID uint32) varmortypes.ContainerInfo {
+	auditor.cacheMu.RLock()
+	defer auditor.cacheMu.RUnlock()
+	return auditor.containerCache[mntNsID]
+}
+
+// mntNsIDByPID returns the cached mnt namespace id for the given container
+// init PID. The boolean reports whether an entry was found. Safe for
+// concurrent use.
+func (auditor *Auditor) mntNsIDByPID(pid uint32) (uint32, bool) {
+	auditor.cacheMu.RLock()
+	defer auditor.cacheMu.RUnlock()
+	id, ok := auditor.mntNsIDCache[pid]
+	return id, ok
 }
 
 // AddBehaviorEventNotifyChs add the audit event channel and bpf event channel for the subscriber
