@@ -19,7 +19,6 @@ import (
 	"strings"
 
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
-	als "github.com/bytedance/vArmor/pkg/networkproxy/als"
 )
 
 // ============================================================================
@@ -456,7 +455,7 @@ func buildTLSChain(defaultDeny bool,
 	auditCfg AuditConfig,
 ) FilterChain {
 	chain := FilterChain{
-		Name: als.FilterChainNameTLS,
+		Name: FilterChainNameTLS,
 		FilterChainMatch: &FilterChainMatch{
 			TransportProtocol: "tls",
 		},
@@ -603,7 +602,7 @@ func buildHTTPChain(defaultDeny bool,
 	auditCfg AuditConfig, audit AuditSinkConfig,
 ) FilterChain {
 	chain := FilterChain{
-		Name: als.FilterChainNameHTTP,
+		Name: FilterChainNameHTTP,
 		FilterChainMatch: &FilterChainMatch{
 			ApplicationProtocols: []string{"http/1.0", "http/1.1", "h2c"},
 		},
@@ -670,7 +669,7 @@ func buildHTTPChain(defaultDeny bool,
 			AccessLogDenyCEL:   hcmDenyCEL,
 			AccessLogShadowCEL: hcmShadowCEL,
 			AuditSink:          audit,
-			FilterChainName:    als.FilterChainNameHTTP,
+			FilterChainName:    FilterChainNameHTTP,
 			RouteConfig: &RouteConfig{
 				Name: "local_route",
 				VirtualHosts: []VirtualHost{{
@@ -735,7 +734,7 @@ func buildTCPDefaultChain(defaultDeny bool,
 	auditCfg AuditConfig,
 ) FilterChain {
 	chain := FilterChain{
-		Name:             als.FilterChainNameTCPDefault,
+		Name:             FilterChainNameTCPDefault,
 		FilterChainMatch: nil,
 	}
 

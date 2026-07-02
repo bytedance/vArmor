@@ -14,11 +14,7 @@
 
 package profile
 
-import (
-	"testing"
-
-	als "github.com/bytedance/vArmor/pkg/networkproxy/als"
-)
+import "testing"
 
 func TestAuditSinkConfig_ClusterName(t *testing.T) {
 	tests := []struct {
@@ -26,7 +22,7 @@ func TestAuditSinkConfig_ClusterName(t *testing.T) {
 		cfg  AuditSinkConfig
 		want string
 	}{
-		{"empty defaults", AuditSinkConfig{}, als.DefaultALSClusterName},
+		{"empty defaults", AuditSinkConfig{}, DefaultALSClusterName},
 		{"override", AuditSinkConfig{ALSClusterName: "custom_als"}, "custom_als"},
 	}
 	for _, tt := range tests {
@@ -40,19 +36,36 @@ func TestAuditSinkConfig_ClusterName(t *testing.T) {
 
 func TestAuditSinkConfig_LogNames(t *testing.T) {
 	cfg := AuditSinkConfig{ProfileName: "my-profile"}
-	if got, want := cfg.denyLogName(), als.LogNameClassDeny+":my-profile"; got != want {
+	if got, want := cfg.denyLogName(), LogNameClassDeny+":my-profile"; got != want {
 		t.Errorf("denyLogName() = %q, want %q", got, want)
 	}
-	if got, want := cfg.auditLogName(), als.LogNameClassAudit+":my-profile"; got != want {
+	if got, want := cfg.auditLogName(), LogNameClassAudit+":my-profile"; got != want {
 		t.Errorf("auditLogName() = %q, want %q", got, want)
 	}
 
 	// Empty profile name still yields a well-formed "<class>:" prefix.
 	empty := AuditSinkConfig{}
-	if got, want := empty.denyLogName(), als.LogNameClassDeny+":"; got != want {
+	if got, want := empty.denyLogName(), LogNameClassDeny+":"; got != want {
 		t.Errorf("denyLogName() empty = %q, want %q", got, want)
 	}
-	if got, want := empty.auditLogName(), als.LogNameClassAudit+":"; got != want {
+	if got, want := empty.auditLogName(), LogNameClassAudit+":"; got != want {
 		t.Errorf("auditLogName() empty = %q, want %q", got, want)
+	}
+}
+
+// TestAuditSinkConfig_SharedConstants pins the wire-level constants that MUST
+// stay byte-compatible across the shared gRPC ALS protocol. A change here is
+// a protocol break.
+func TestAuditSinkConfig_SharedConstants(t *testing.T) {
+	cases := map[string]string{
+		DefaultALSClusterName: "varmor_audit_als",
+		LogNameClassDeny:      "varmor_np_deny",
+		LogNameClassAudit:     "varmor_np_audit",
+		ALSFilterChainTagKey:  "filter_chain",
+	}
+	for got, want := range cases {
+		if got != want {
+			t.Errorf("shared constant = %q, want %q", got, want)
+		}
 	}
 }

@@ -29,10 +29,10 @@ import (
 	"github.com/go-logr/logr"
 
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
+	varmorauditor "github.com/bytedance/vArmor/internal/auditor"
 	varmorconfig "github.com/bytedance/vArmor/internal/config"
 	varmortypes "github.com/bytedance/vArmor/internal/types"
 	varmorutils "github.com/bytedance/vArmor/internal/utils"
-	varmorauditor "github.com/bytedance/vArmor/pkg/auditor"
 	varmortracer "github.com/bytedance/vArmor/pkg/processtracer"
 )
 

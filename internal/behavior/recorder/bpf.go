@@ -24,7 +24,7 @@ import (
 
 	"github.com/go-logr/logr"
 
-	varmorauditor "github.com/bytedance/vArmor/pkg/auditor"
+	varmorauditor "github.com/bytedance/vArmor/internal/auditor"
 )
 
 // BpfRecorder caches security audit events of a BPF profile into a local file.
