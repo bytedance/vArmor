@@ -37,7 +37,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
-	varmorprofile "github.com/bytedance/vArmor/internal/networkproxy/profile"
+	als "github.com/bytedance/vArmor/pkg/networkproxy/als"
 )
 
 var (
@@ -101,21 +101,21 @@ func TestParseLogName(t *testing.T) {
 	}{
 		{
 			name:        "deny",
-			logName:     varmorprofile.LogNameClassDeny + ":profile-a",
+			logName:     als.LogNameClassDeny + ":profile-a",
 			wantAction:  actionDenied,
 			wantProfile: "profile-a",
 			wantOK:      true,
 		},
 		{
 			name:        "audit",
-			logName:     varmorprofile.LogNameClassAudit + ":profile-b",
+			logName:     als.LogNameClassAudit + ":profile-b",
 			wantAction:  actionAudit,
 			wantProfile: "profile-b",
 			wantOK:      true,
 		},
 		{name: "unknown class", logName: "unknown:profile", wantOK: false},
 		{name: "missing separator", logName: "profile", wantOK: false},
-		{name: "empty profile", logName: varmorprofile.LogNameClassDeny + ":", wantOK: false},
+		{name: "empty profile", logName: als.LogNameClassDeny + ":", wantOK: false},
 	}
 
 	for _, tt := range tests {
@@ -138,7 +138,7 @@ func TestALSStreamAccessLogsEmitsNetworkProxyEvents(t *testing.T) {
 		messages: []*accesslogv3.StreamAccessLogsMessage{
 			{
 				Identifier: &accesslogv3.StreamAccessLogsMessage_Identifier{
-					LogName: varmorprofile.LogNameClassDeny + ":profile-a",
+					LogName: als.LogNameClassDeny + ":profile-a",
 					Node:    podNode("workload-a", "team-x", "uid-123"),
 				},
 				LogEntries: &accesslogv3.StreamAccessLogsMessage_TcpLogs{
@@ -227,7 +227,7 @@ func TestALSStreamAccessLogsAuditAction(t *testing.T) {
 		ctx: context.Background(),
 		messages: []*accesslogv3.StreamAccessLogsMessage{{
 			Identifier: &accesslogv3.StreamAccessLogsMessage_Identifier{
-				LogName: varmorprofile.LogNameClassAudit + ":profile-b",
+				LogName: als.LogNameClassAudit + ":profile-b",
 			},
 			LogEntries: &accesslogv3.StreamAccessLogsMessage_HttpLogs{
 				HttpLogs: &accesslogv3.StreamAccessLogsMessage_HTTPAccessLogEntries{
@@ -336,12 +336,12 @@ func TestFilterChainTagOnlyOnL7(t *testing.T) {
 	// no tag. Verify the HTTP builder surfaces it and the TCP builder omits it.
 	httpEntry := &dataaccesslogv3.HTTPAccessLogEntry{
 		CommonProperties: &dataaccesslogv3.AccessLogCommon{
-			CustomTags: map[string]string{varmorprofile.ALSFilterChainTagKey: varmorprofile.FilterChainNameHTTP},
+			CustomTags: map[string]string{als.ALSFilterChainTagKey: als.FilterChainNameHTTP},
 		},
 	}
 	httpEvent, _ := buildHTTPNetworkProxyEvent(httpEntry)
-	if httpEvent.FilterChain != varmorprofile.FilterChainNameHTTP {
-		t.Fatalf("HTTP filterChain = %q, want %q", httpEvent.FilterChain, varmorprofile.FilterChainNameHTTP)
+	if httpEvent.FilterChain != als.FilterChainNameHTTP {
+		t.Fatalf("HTTP filterChain = %q, want %q", httpEvent.FilterChain, als.FilterChainNameHTTP)
 	}
 
 	tcpEntry := &dataaccesslogv3.TCPAccessLogEntry{
@@ -480,7 +480,7 @@ func TestStartAndCloseALSConsumerLifecycle(t *testing.T) {
 	}
 	if err := stream.Send(&accesslogv3.StreamAccessLogsMessage{
 		Identifier: &accesslogv3.StreamAccessLogsMessage_Identifier{
-			LogName: varmorprofile.LogNameClassDeny + ":profile-a",
+			LogName: als.LogNameClassDeny + ":profile-a",
 		},
 	}); err != nil {
 		t.Fatalf("stream.Send() error = %v", err)

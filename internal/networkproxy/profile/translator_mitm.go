@@ -57,6 +57,7 @@ import (
 
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
 	varmorconfig "github.com/bytedance/vArmor/internal/config"
+	als "github.com/bytedance/vArmor/pkg/networkproxy/als"
 )
 
 // ============================================================================
@@ -361,9 +362,9 @@ func buildMITMChains(cls egressClassification, mitm *MITMInput, audit AuditSinkC
 
 	var chains []FilterChain
 	if len(dnsNames) > 0 {
-		dnsHCM := buildMITMHCMFilter(cls, dnsNames, mitm.HeadersByDomain, audit, FilterChainNameMITMTLSDNS)
+		dnsHCM := buildMITMHCMFilter(cls, dnsNames, mitm.HeadersByDomain, audit, als.FilterChainNameMITMTLSDNS)
 		chains = append(chains, FilterChain{
-			Name: FilterChainNameMITMTLSDNS,
+			Name: als.FilterChainNameMITMTLSDNS,
 			FilterChainMatch: &FilterChainMatch{
 				TransportProtocol: "tls",
 				ServerNames:       dnsNames,
@@ -373,9 +374,9 @@ func buildMITMChains(cls egressClassification, mitm *MITMInput, audit AuditSinkC
 		})
 	}
 	if len(ipPrefixes) > 0 {
-		ipHCM := buildMITMHCMFilter(cls, ipPrefixes, mitm.HeadersByDomain, audit, FilterChainNameMITMTLSIP)
+		ipHCM := buildMITMHCMFilter(cls, ipPrefixes, mitm.HeadersByDomain, audit, als.FilterChainNameMITMTLSIP)
 		chains = append(chains, FilterChain{
-			Name: FilterChainNameMITMTLSIP,
+			Name: als.FilterChainNameMITMTLSIP,
 			FilterChainMatch: &FilterChainMatch{
 				TransportProtocol: "tls",
 				PrefixRanges:      ipPrefixes,

@@ -29,7 +29,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/durationpb"
 
-	varmorprofile "github.com/bytedance/vArmor/internal/networkproxy/profile"
+	als "github.com/bytedance/vArmor/pkg/networkproxy/als"
 )
 
 // alsGracefulStopTimeout bounds how long closeALSConsumer waits for the ALS
@@ -112,9 +112,9 @@ func parseLogName(logName string) (action, profileName string, ok bool) {
 		return "", "", false
 	}
 	switch class {
-	case varmorprofile.LogNameClassDeny:
+	case als.LogNameClassDeny:
 		return actionDenied, profileName, true
-	case varmorprofile.LogNameClassAudit:
+	case als.LogNameClassAudit:
 		return actionAudit, profileName, true
 	default:
 		return "", "", false
@@ -286,7 +286,7 @@ func buildHTTPNetworkProxyEvent(e *dataaccesslogv3.HTTPAccessLogEntry) (NetworkP
 // shared across the passthrough chains and never carries it, so this returns ""
 // for them.
 func filterChainTag(c *dataaccesslogv3.AccessLogCommon) string {
-	return c.GetCustomTags()[varmorprofile.ALSFilterChainTagKey]
+	return c.GetCustomTags()[als.ALSFilterChainTagKey]
 }
 
 func accessLogStartTime(c *dataaccesslogv3.AccessLogCommon) time.Time {
