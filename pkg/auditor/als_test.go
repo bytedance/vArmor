@@ -49,16 +49,19 @@ var (
 // violationLogger. Only the fields the NetworkProxy collector populates are
 // declared; the rest are ignored by the JSON decoder.
 type recordedViolation struct {
-	NodeName       string            `json:"nodeName"`
-	PodName        string            `json:"podName"`
-	PodNamespace   string            `json:"podNamespace"`
-	PodUID         string            `json:"podUID"`
-	ContainerID    string            `json:"containerID"`
-	Enforcer       string            `json:"enforcer"`
-	Action         string            `json:"action"`
-	ProfileName    string            `json:"profileName"`
-	EventTimestamp uint64            `json:"eventTimestamp"`
-	Event          NetworkProxyEvent `json:"event"`
+	NodeName        string            `json:"nodeName"`
+	PodName         string            `json:"podName"`
+	PodNamespace    string            `json:"podNamespace"`
+	PodUID          string            `json:"podUID"`
+	ContainerID     string            `json:"containerID"`
+	Enforcer        string            `json:"enforcer"`
+	Action          string            `json:"action"`
+	ProfileName     string            `json:"profileName"`
+	PolicyKind      string            `json:"policyKind"`
+	PolicyName      string            `json:"policyName"`
+	PolicyNamespace string            `json:"policyNamespace"`
+	EventTimestamp  uint64            `json:"eventTimestamp"`
+	Event           NetworkProxyEvent `json:"event"`
 }
 
 // newTestAuditor builds an Auditor whose violationLogger writes JSON lines to
@@ -66,10 +69,11 @@ type recordedViolation struct {
 // ALS path can be exercised in isolation.
 func newTestAuditor(buf *bytes.Buffer) *Auditor {
 	return &Auditor{
-		nodeName:           "node-a",
-		auditEventMetadata: map[string]interface{}{"cluster": "test"},
-		violationLogger:    zerolog.New(buf).With().Timestamp().Logger(),
-		log:                logr.Discard(),
+		nodeName:            "node-a",
+		auditEventMetadata:  map[string]interface{}{"cluster": "test"},
+		violationLogger:     zerolog.New(buf).With().Timestamp().Logger(),
+		policyIdentityCache: make(map[string]PolicyIdentity),
+		log:                 logr.Discard(),
 	}
 }
 
@@ -513,4 +517,77 @@ func TestStartALSConsumerNoopWhenSocketPathEmpty(t *testing.T) {
 	}
 	// closeALSConsumer must be safe to call when nothing was started.
 	a.closeALSConsumer()
+}
+
+// TestALSStreamAccessLogsPolicyIdentity verifies the NetworkProxy emission path
+// embeds the policyKind/policyName/policyNamespace fields looked up from the
+// identity cache, and falls back to empty fields on a cache miss.
+func TestALSStreamAccessLogsPolicyIdentity(t *testing.T) {
+	t.Run("hit", func(t *testing.T) {
+		var buf bytes.Buffer
+		a := newTestAuditor(&buf)
+		a.UpsertPolicyIdentity("profile-a", PolicyIdentity{
+			Kind: "VarmorPolicy", Name: "nginx", Namespace: "demo",
+		})
+		stream := &fakeALSStream{
+			ctx: context.Background(),
+			messages: []*accesslogv3.StreamAccessLogsMessage{{
+				Identifier: &accesslogv3.StreamAccessLogsMessage_Identifier{
+					LogName: als.LogNameClassDeny + ":profile-a",
+				},
+				LogEntries: &accesslogv3.StreamAccessLogsMessage_HttpLogs{
+					HttpLogs: &accesslogv3.StreamAccessLogsMessage_HTTPAccessLogEntries{
+						LogEntry: []*dataaccesslogv3.HTTPAccessLogEntry{{}},
+					},
+				},
+			}},
+		}
+		if err := (&alsServer{auditor: a}).StreamAccessLogs(stream); err != nil {
+			t.Fatalf("StreamAccessLogs() error = %v", err)
+		}
+		events := decodeViolations(t, &buf)
+		if len(events) != 1 {
+			t.Fatalf("emitted %d events, want 1", len(events))
+		}
+		ev := events[0]
+		if ev.PolicyKind != "VarmorPolicy" || ev.PolicyName != "nginx" || ev.PolicyNamespace != "demo" {
+			t.Fatalf("policy identity = (%q, %q, %q), want (VarmorPolicy, nginx, demo)",
+				ev.PolicyKind, ev.PolicyName, ev.PolicyNamespace)
+		}
+	})
+
+	t.Run("miss emits empty fields", func(t *testing.T) {
+		var buf bytes.Buffer
+		a := newTestAuditor(&buf)
+		// No identity registered for profile-a.
+		stream := &fakeALSStream{
+			ctx: context.Background(),
+			messages: []*accesslogv3.StreamAccessLogsMessage{{
+				Identifier: &accesslogv3.StreamAccessLogsMessage_Identifier{
+					LogName: als.LogNameClassDeny + ":profile-a",
+				},
+				LogEntries: &accesslogv3.StreamAccessLogsMessage_HttpLogs{
+					HttpLogs: &accesslogv3.StreamAccessLogsMessage_HTTPAccessLogEntries{
+						LogEntry: []*dataaccesslogv3.HTTPAccessLogEntry{{}},
+					},
+				},
+			}},
+		}
+		if err := (&alsServer{auditor: a}).StreamAccessLogs(stream); err != nil {
+			t.Fatalf("StreamAccessLogs() error = %v", err)
+		}
+		events := decodeViolations(t, &buf)
+		if len(events) != 1 {
+			t.Fatalf("emitted %d events, want 1", len(events))
+		}
+		ev := events[0]
+		if ev.PolicyKind != "" || ev.PolicyName != "" || ev.PolicyNamespace != "" {
+			t.Fatalf("policy identity on miss = (%q, %q, %q), want all empty",
+				ev.PolicyKind, ev.PolicyName, ev.PolicyNamespace)
+		}
+		// profileName must still be present so downstream can attribute later.
+		if ev.ProfileName != "profile-a" {
+			t.Fatalf("profileName = %q, want profile-a", ev.ProfileName)
+		}
+	})
 }

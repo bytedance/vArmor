@@ -345,6 +345,7 @@ func (auditor *Auditor) readFromAuditEventRingBuf() {
 				Str("enforcer", "BPF").
 				Str("action", "DENIED").
 				Str("profileName", auditor.containerCache[eventHeader.MntNs].ProfileName).
+				Func(auditor.withPolicyIdentity(auditor.containerCache[eventHeader.MntNs].ProfileName)).
 				Interface("event", e).Msg("violation event")
 
 		case bpfenforcer.AuditAction:
@@ -364,6 +365,7 @@ func (auditor *Auditor) readFromAuditEventRingBuf() {
 				Str("enforcer", "BPF").
 				Str("action", "AUDIT").
 				Str("profileName", auditor.containerCache[eventHeader.MntNs].ProfileName).
+				Func(auditor.withPolicyIdentity(auditor.containerCache[eventHeader.MntNs].ProfileName)).
 				Interface("event", e).Msg("violation event")
 
 		case bpfenforcer.AllowedAction:

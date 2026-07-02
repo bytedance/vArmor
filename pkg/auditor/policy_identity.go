@@ -14,6 +14,10 @@
 
 package audit
 
+import (
+	"github.com/rs/zerolog"
+)
+
 // PolicyIdentity is the authoritative identity of the VarmorPolicy or
 // VarmorClusterPolicy that a violation event is attributed to. It is derived
 // from the owning ArmorProfile's metadata (never by string-parsing the profile
@@ -58,4 +62,18 @@ func (auditor *Auditor) lookupPolicyIdentity(profileName string) (PolicyIdentity
 	defer auditor.policyIdentityMu.RUnlock()
 	id, ok := auditor.policyIdentityCache[profileName]
 	return id, ok
+}
+
+// withPolicyIdentity returns a zerolog field-injector that embeds the
+// policyKind/policyName/policyNamespace fields for the given ArmorProfile name
+// into a violation event. It is chained into every emission path via
+// (*zerolog.Event).Func. On a cache miss the three fields are emitted as empty
+// strings, so attribution is best-effort and never blocks or drops an event.
+func (auditor *Auditor) withPolicyIdentity(profileName string) func(*zerolog.Event) {
+	id, _ := auditor.lookupPolicyIdentity(profileName)
+	return func(e *zerolog.Event) {
+		e.Str("policyKind", id.Kind).
+			Str("policyName", id.Name).
+			Str("policyNamespace", id.Namespace)
+	}
 }

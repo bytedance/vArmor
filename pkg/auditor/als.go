@@ -242,6 +242,7 @@ func (auditor *Auditor) recordNetworkProxyViolation(action, profileName string, 
 		Str("enforcer", enforcerNetworkProxy).
 		Str("action", action).
 		Str("profileName", profileName).
+		Func(auditor.withPolicyIdentity(profileName)).
 		Interface("event", event).Msg("violation event")
 }
 
