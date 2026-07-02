@@ -20,7 +20,7 @@
 #   The Envoy sidecar performs a full MITM round-trip: it decrypts the TLS
 #   request with the injected vArmor CA, applies the headerMutation
 #   (X-Request-Source: varmor-audit), re-encrypts and forwards upstream.
-#   httpbin.org/headers echoes back whatever headers it received, so seeing
+#   postman-echo.com/headers echoes back whatever headers it received, so seeing
 #   "varmor-audit" in the response body proves decrypt + inject + forward all
 #   work. This is the MITM-specific capability that the deny test cannot cover.
 #
@@ -38,7 +38,7 @@
 TEST_NAME="networkproxy-mitm-header-inject"
 
 # Test description
-TEST_DESCRIPTION="Testing NetworkProxy MITM header mutation echoed by httpbin.org/headers"
+TEST_DESCRIPTION="Testing NetworkProxy MITM header mutation echoed by postman-echo.com/headers"
 
 # Namespace
 NAMESPACE="demo"
@@ -62,13 +62,13 @@ POD_SELECTOR="app=e2e-networkproxy-mitm-audit"
 CONTAINER_NAME="c0"
 
 # Initial command (warm-up; not asserted by the framework)
-INITIAL_COMMAND="curl -sSL -o /dev/null https://httpbin.org/headers"
+INITIAL_COMMAND="curl -sSL -o /dev/null https://postman-echo.com/headers"
 
 # Initial command expected status code
 INITIAL_EXPECTED_STATUS=0
 
-# Verification command - the injected header must be echoed back by httpbin
-VERIFY_COMMAND='curl -sSL https://httpbin.org/headers | grep -q "varmor-audit"'
+# Verification command - the injected header must be echoed back by postman-echo
+VERIFY_COMMAND='curl -sSL https://postman-echo.com/headers | grep -q "varmor-audit"'
 
 # Verification expected status code (0 means grep found the injected header)
 VERIFY_EXPECTED_STATUS=0
