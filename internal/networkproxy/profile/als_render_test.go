@@ -20,6 +20,7 @@ import (
 
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
 	varmorconfig "github.com/bytedance/vArmor/internal/config"
+	als "github.com/bytedance/vArmor/pkg/networkproxy/als"
 )
 
 // alsFixtureEgress builds a deny-default egress that exercises all four
@@ -98,7 +99,7 @@ func TestAuditSink_GRPCALS_ListenerAndHCM(t *testing.T) {
 	}
 
 	// Every ALS entry must dial the shared cluster name (4 entries total).
-	if c := strings.Count(lds, "cluster_name: "+DefaultALSClusterName); c != 4 {
+	if c := strings.Count(lds, "cluster_name: "+als.DefaultALSClusterName); c != 4 {
 		t.Errorf("expected 4 envoy_grpc cluster_name references, got %d", c)
 	}
 
@@ -114,7 +115,7 @@ func TestAuditSink_GRPCALS_ListenerAndHCM(t *testing.T) {
 
 	// CDS must carry the STATIC UDS ALS cluster.
 	for _, want := range []string{
-		"name: " + DefaultALSClusterName,
+		"name: " + als.DefaultALSClusterName,
 		"type: STATIC",
 		"connect_timeout: 1s",
 		"lb_policy: ROUND_ROBIN",
@@ -146,7 +147,7 @@ func TestAuditSink_CustomClusterName(t *testing.T) {
 	if !strings.Contains(cds, "name: custom_als") {
 		t.Errorf("expected custom cluster in CDS")
 	}
-	if strings.Contains(cds, "name: "+DefaultALSClusterName) {
+	if strings.Contains(cds, "name: "+als.DefaultALSClusterName) {
 		t.Errorf("default ALS cluster name must not appear when overridden")
 	}
 }
@@ -161,7 +162,7 @@ func TestAuditSink_AllowAll_EmitsALSCluster(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GenerateAllowAllEgressRules: %v", err)
 	}
-	if !strings.Contains(cds, "name: "+DefaultALSClusterName) {
+	if !strings.Contains(cds, "name: "+als.DefaultALSClusterName) {
 		t.Errorf("allow-all CDS missing ALS cluster")
 	}
 }
@@ -174,7 +175,7 @@ func TestAuditSink_DenyAll_EmitsALSCluster(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GenerateDenyAllEgressRules: %v", err)
 	}
-	if !strings.Contains(cds, "name: "+DefaultALSClusterName) {
+	if !strings.Contains(cds, "name: "+als.DefaultALSClusterName) {
 		t.Errorf("deny-all CDS missing ALS cluster under grpc_als")
 	}
 }
@@ -199,7 +200,7 @@ func TestAuditSink_GRPCALS_MITMChain(t *testing.T) {
 	lds, _ := renderALSAudit(t, mitm, audit)
 
 	// The MITM chain must be present.
-	if !strings.Contains(lds, FilterChainNameMITMTLSDNS) {
+	if !strings.Contains(lds, als.FilterChainNameMITMTLSDNS) {
 		t.Fatalf("expected MITM filter chain in LDS")
 	}
 	// No stdout sink may survive anywhere, including the MITM HCM.
@@ -210,8 +211,8 @@ func TestAuditSink_GRPCALS_MITMChain(t *testing.T) {
 	if !strings.Contains(lds, "access_loggers.grpc.v3.HttpGrpcAccessLogConfig") {
 		t.Errorf("expected HttpGrpcAccessLogConfig (L7) in MITM LDS")
 	}
-	if !strings.Contains(lds, "cluster_name: "+DefaultALSClusterName) {
-		t.Errorf("expected MITM access_log to dial %s", DefaultALSClusterName)
+	if !strings.Contains(lds, "cluster_name: "+als.DefaultALSClusterName) {
+		t.Errorf("expected MITM access_log to dial %s", als.DefaultALSClusterName)
 	}
 }
 
@@ -233,11 +234,11 @@ func TestAuditSink_GRPCALS_FilterChainCustomTag(t *testing.T) {
 
 	// L7 chains each get a filter_chain literal custom_tag. http_chain and
 	// mitm_tls_dns_chain are both present in this fixture.
-	wantTag := "- tag: " + ALSFilterChainTagKey
+	wantTag := "- tag: " + als.ALSFilterChainTagKey
 	if !strings.Contains(lds, wantTag) {
 		t.Fatalf("expected filter_chain custom_tag in LDS, none found")
 	}
-	for _, chain := range []string{FilterChainNameHTTP, FilterChainNameMITMTLSDNS} {
+	for _, chain := range []string{als.FilterChainNameHTTP, als.FilterChainNameMITMTLSDNS} {
 		if !strings.Contains(lds, `value: "`+chain+`"`) {
 			t.Errorf("expected filter_chain custom_tag value %q in LDS", chain)
 		}
@@ -246,7 +247,7 @@ func TestAuditSink_GRPCALS_FilterChainCustomTag(t *testing.T) {
 	// The L4 listener-level access_log must NOT carry a chain tag: it is shared
 	// across tls_chain and tcp_default_chain, so a static literal cannot tell
 	// them apart. Assert no tag names an L4-only chain.
-	for _, chain := range []string{FilterChainNameTLS, FilterChainNameTCPDefault} {
+	for _, chain := range []string{als.FilterChainNameTLS, als.FilterChainNameTCPDefault} {
 		if strings.Contains(lds, `value: "`+chain+`"`) {
 			t.Errorf("L4 listener access_log must not carry a %q filter_chain tag", chain)
 		}

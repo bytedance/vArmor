@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	varmorconfig "github.com/bytedance/vArmor/internal/config"
+	als "github.com/bytedance/vArmor/pkg/networkproxy/als"
 )
 
 // ============================================================================
@@ -853,7 +854,7 @@ func renderALSAccessLogEntry(sb *strings.Builder, itemPrefix, celExpr, logName, 
 	}
 	if filterChain != "" {
 		sb.WriteString(b + "    custom_tags:\n")
-		sb.WriteString(b + "    - tag: " + ALSFilterChainTagKey + "\n")
+		sb.WriteString(b + "    - tag: " + als.ALSFilterChainTagKey + "\n")
 		sb.WriteString(b + "      literal:\n")
 		sb.WriteString(b + "        value: \"" + yamlEscapeScalar(filterChain) + "\"\n")
 	}

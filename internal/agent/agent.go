@@ -400,12 +400,38 @@ func (agent *Agent) selectEnforcer(ap *varmor.ArmorProfile) (varmortypes.Enforce
 	return e, nil
 }
 
+// policyIdentityFromArmorProfile derives the authoritative identity of the
+// VarmorPolicy or VarmorClusterPolicy that owns the given ArmorProfile. The
+// identity is read from the ArmorProfile's controller OwnerReference (set when
+// the manager creates the ArmorProfile) rather than by string-parsing the
+// profile name, which is ambiguous because both namespace and name may contain
+// "-". For a cluster-scoped VarmorClusterPolicy the policy namespace is left
+// empty, because an ArmorProfile owned by a cluster policy carries the vArmor
+// install namespace, not a policy namespace. It is a pure function so it can be
+// unit-tested in isolation and keeps the auditor free of internal dependencies.
+func policyIdentityFromArmorProfile(ap *varmor.ArmorProfile) varmorauditor.PolicyIdentity {
+	id := varmorauditor.PolicyIdentity{}
+	if len(ap.OwnerReferences) > 0 {
+		owner := ap.OwnerReferences[0]
+		id.Kind = owner.Kind
+		id.Name = owner.Name
+	}
+	if id.Kind == "VarmorPolicy" {
+		id.Namespace = ap.Namespace
+	}
+	return id
+}
+
 // handleCreateOrUpdateArmorProfile load or reload AppArmor Profile for containers.
 func (agent *Agent) handleCreateOrUpdateArmorProfile(ap *varmor.ArmorProfile, key string) error {
 	logger := agent.log.WithName("handleCreateOrUpdateArmorProfile()")
 
 	logger.Info("ArmorProfile created or updated", "namespace", ap.Namespace, "name", ap.Name,
 		"labels", ap.Labels, "profile name", ap.Spec.Profile.Name, "profile mode", ap.Spec.Profile.Mode)
+
+	// Register the authoritative policy identity so the auditor can attribute
+	// violation events (keyed by the profile name) to the owning policy.
+	agent.auditor.UpsertPolicyIdentity(ap.Name, policyIdentityFromArmorProfile(ap))
 
 	defer func() {
 		if !agent.bpfLsmSupported || agent.existingApCount <= agent.processedApCount {
@@ -533,6 +559,9 @@ func (agent *Agent) handleDeleteArmorProfile(namespace, name, key string) error 
 	logger := agent.log.WithName("handleDeleteArmorProfile()")
 
 	logger.Info("ArmorProfile deleted", "namespace", namespace, "name", name)
+
+	// Drop the policy identity registered for this profile name.
+	agent.auditor.DeletePolicyIdentity(name)
 
 	if !agent.appArmorSupported && !agent.bpfLsmSupported {
 		return nil

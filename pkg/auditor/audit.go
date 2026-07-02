@@ -97,6 +97,7 @@ func (auditor *Auditor) processAuditEvent(event string) {
 				Str("enforcer", "AppArmor").
 				Str("action", "DENIED").
 				Str("profileName", profileName).
+				Func(auditor.withPolicyIdentity(profileName)).
 				Interface("event", e).Msg("violation event")
 		case AuditAction:
 			auditor.violationLogger.Warn().
@@ -114,6 +115,7 @@ func (auditor *Auditor) processAuditEvent(event string) {
 				Str("enforcer", "AppArmor").
 				Str("action", "AUDIT").
 				Str("profileName", profileName).
+				Func(auditor.withPolicyIdentity(profileName)).
 				Interface("event", e).Msg("violation event")
 		case AllowedAction:
 			if ch, ok := auditor.auditEventChs[profileName]; ok {
@@ -137,6 +139,7 @@ func (auditor *Auditor) processAuditEvent(event string) {
 					Str("enforcer", "AppArmor").
 					Str("action", "ALLOWED").
 					Str("profileName", profileName).
+					Func(auditor.withPolicyIdentity(profileName)).
 					Interface("event", e).Msg("violation event")
 			}
 		}
@@ -210,6 +213,7 @@ func (auditor *Auditor) processAuditEvent(event string) {
 				Str("enforcer", "Seccomp").
 				Str("action", "AUDIT|ALLOWED").
 				Str("profileName", profileName).
+				Func(auditor.withPolicyIdentity(profileName)).
 				Interface("event", e).Msg("violation event")
 		} else {
 			// Send the behavior event to all subscribers
