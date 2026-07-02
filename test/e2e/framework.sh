@@ -194,6 +194,26 @@ deploy_workload() {
     fi
 
     log_info "Waiting for the workload to be ready..."
+    # Two-phase wait. `kubectl wait` fails immediately with
+    # "no matching resources found" if the selector matches zero Pods at the
+    # instant it runs. Right after `apply`, the Deployment exists but its Pod
+    # may not have been created yet (the vArmor mutating webhook lengthens the
+    # admission path), so poll until at least one Pod appears before waiting on
+    # its readiness. This removes a race that surfaces intermittently and is
+    # more pronounced on newer Kubernetes releases.
+    local appeared=0
+    for _ in $(seq 1 30); do
+        if [ "$(${KUBECTL_CMD} get pod -l ${POD_SELECTOR} -n ${NAMESPACE} --no-headers 2>&1 | grep -c .)" -gt 0 ]; then
+            appeared=1
+            break
+        fi
+        sleep 2
+    done
+    if [ "${appeared}" -ne 1 ]; then
+        log_error "No Pod matched selector ${POD_SELECTOR} in namespace ${NAMESPACE} after 60s."
+        return 1
+    fi
+
     # `kubectl wait` already has its own --timeout, so it is not retried.
     ${KUBECTL_CMD} wait --for=condition=Ready pod -l ${POD_SELECTOR} -n ${NAMESPACE} --timeout=60s
     if [ $? -ne 0 ]; then
