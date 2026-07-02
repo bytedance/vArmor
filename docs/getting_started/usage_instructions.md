@@ -23,13 +23,22 @@ You can check the `profileName` field by examining the status of VarmorPolicy or
 The Manager and Agent components log through standard output. By default, the log format is TEXT. You can switch it to JSON format through [this option](../getting_started/installation.md#set-the-log-output-format-to-json).
 
 ### Audit Logs
-vArmor supports configuring policy objects in alarm-only mode (observation mode) and alarm-interception mode. You can achieve this through the `auditViolations` and `allowViolations` fields of the policy object. For common usage, please refer to [this document](../practices/index.md#common-usage-methods). All violation events will be logged in JSON format to the /var/log/varmor/violations.log file on the host machine (the maximum file size is 10MB, and up to 3 old files will be retained).
+vArmor supports configuring policy objects in audit-only mode (observation mode) and interception-with-audit mode. This can be controlled either through the `auditViolations` and `allowViolations` fields of the policy object (which govern the EnhanceProtect built-in rules and the DefenseInDepth Profile), or through the qualifiers (`allow` / `deny` / `audit`) of individual custom rules. For common usage, please refer to [Disposition Actions and Auditing](../guides/policies_and_rules/policy_modes/README.md#disposition-actions-and-auditing) of the policy modes and [Custom Rules](../guides/policies_and_rules/custom_rules.md). All violation events will be logged in JSON format to the /var/log/varmor/violations.log file on the host machine (the maximum file size is 10MB, and up to 3 old files will be retained).
 
-The format of violation events is as follows. Behaviors that are intercepted and alarmed will generate events with the `DENIED` action. Behaviors that are alarmed only without interception will generate events with the `AUDIT`, `ALLOWED`, or `AUDIT|ALLOWED` action, depending on the policy mode and the enforcer.
+Violation events are logged in JSON format as shown below. Each event carries an `action` field that indicates the final disposition of the behavior:
 
-* Currently, only the AppArmor and BPF enforcers support the alarm-interception mode.
-* Limited by the principle and performance impact of Seccomp, you can only use `auditViolations=true` and `allowViolations=true` in combination to implement the alarm-only mode (observation mode) for the Seccomp enforcer when there is no policy in the BehaviorModeling mode.
+| `action` | Meaning |
+| --- | --- |
+| `DENIED` | The violation was **blocked** and logged |
+| `AUDIT` | The violation was **allowed** and logged. In the EnhanceProtect mode with both `allowViolations` and `auditViolations` set to `true`, an allowed violation is logged with this action (observation / audit) |
+| `ALLOWED` | The violation was **allowed** and logged. In the DefenseInDepth mode with `allowViolations` set to `true`, access not permitted by the allowlist is allowed and logged with this action (useful for gathering violations to refine Deny-by-Default profiles) |
+| `AUDIT\|ALLOWED` | A combined action specific to Seccomp violation events (allowed and logged). Because the Seccomp audit log cannot tell whether the event comes from the EnhanceProtect mode (which maps to `AUDIT`) or the DefenseInDepth mode (which maps to `ALLOWED`), it is uniformly marked with this combined value |
+
+Notes:
+* Currently, the AppArmor, BPF, and NetworkProxy enforcers support the interception-with-audit mode.
+* Limited by the principle and performance impact of Seccomp, you can only use `auditViolations=true` and `allowViolations=true` in combination to implement the audit-only mode (observation mode) for the Seccomp enforcer when there is no policy in the BehaviorModeling mode.
 * Limited by the principle of the AppArmor LSM and Seccomp, when using the AppArmor or Seccomp enforcer, it may not be possible to associate container and Pod information for the short-lived processes.
+* The NetworkProxy enforcer reports egress traffic audit events through its Envoy sidecar. Because these events are produced by the proxy at the Pod granularity, they only carry Pod-level identity (`nodeName`, `podName`, `podNamespace`, `podUID`).
 
 ```json
 {
@@ -79,6 +88,9 @@ The format of violation events is as follows. Behaviors that are intercepted and
   "enforcer": "AppArmor",
   "action": "AUDIT",
   "profileName": "varmor-demo-demo-1",
+  "policyKind": "VarmorPolicy",
+  "policyName": "demo-1",
+  "policyNamespace": "demo",
   "event": {
     "version": 1,
     "event": 4,
@@ -123,6 +135,9 @@ The format of violation events is as follows. Behaviors that are intercepted and
   "enforcer": "Seccomp",
   "action": "AUDIT|ALLOWED",
   "profileName": "varmor-demo-demo-5",
+  "policyKind": "VarmorPolicy",
+  "policyName": "demo-5",
+  "policyNamespace": "demo",
   "event": {
     "auditID": "1740621808.346:683",
     "epoch": 1740621808,
@@ -133,6 +148,78 @@ The format of violation events is as follows. Behaviors that are intercepted and
     "syscall": "unshare"
   },
   "time": "2025-02-27T02:03:28Z",
+  "message": "violation event"
+}
+```
+
+```json
+{
+  "level": "warn",
+  "metadata": {
+    "varmorNamespace": "varmor"
+  },
+  "nodeName": "n37-031-068",
+  "containerID": "",
+  "containerName": "",
+  "image": "",
+  "podName": "mitm-audit-all-5b4866596c-lmmdj",
+  "podNamespace": "demo",
+  "podUID": "f015eaf6-2e98-47bd-9707-ac0a2cf58447",
+  "pid": 0,
+  "mntNsID": 0,
+  "eventTimestamp": 1782811882,
+  "enforcer": "NetworkProxy",
+  "action": "AUDIT",
+  "profileName": "varmor-demo-mitm-audit-all",
+  "policyKind": "VarmorPolicy",
+  "policyName": "mitm-audit-all",
+  "policyNamespace": "demo",
+  "event": {
+    "layer": "L4",
+    "dstAddress": "100.8.70.247:443",
+    "sni": "www.bytedance.com",
+    "durationMs": 38
+  },
+  "time": "2026-06-30T17:31:23+08:00",
+  "message": "violation event"
+}
+```
+
+```json
+{
+  "level": "warn",
+  "metadata": {
+    "varmorNamespace": "varmor"
+  },
+  "nodeName": "n37-031-068",
+  "containerID": "",
+  "containerName": "",
+  "image": "",
+  "podName": "mitm-audit-all-5b4866596c-lmmdj",
+  "podNamespace": "demo",
+  "podUID": "f015eaf6-2e98-47bd-9707-ac0a2cf58447",
+  "pid": 0,
+  "mntNsID": 0,
+  "eventTimestamp": 1782811922,
+  "enforcer": "NetworkProxy",
+  "action": "AUDIT",
+  "profileName": "varmor-demo-mitm-audit-all",
+  "policyKind": "VarmorPolicy",
+  "policyName": "mitm-audit-all",
+  "policyNamespace": "demo",
+  "event": {
+    "layer": "L7",
+    "filterChain": "mitm_tls_dns_chain",
+    "dstAddress": "54.221.96.34:443",
+    "sni": "httpbin.org",
+    "authority": "httpbin.org",
+    "method": "GET",
+    "path": "/headers",
+    "responseCode": 200,
+    "reason": "via_upstream",
+    "durationMs": 2276
+  },
+  "time": "2026-06-30T17:32:02+08:00",
   "message": "violation event"
 }
 ```
