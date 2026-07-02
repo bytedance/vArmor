@@ -35,7 +35,7 @@
 TEST_NAME="networkproxy-mitm-path-deny"
 
 # Test description
-TEST_DESCRIPTION="Testing NetworkProxy MITM L7 path deny (httpbin.org/admin -> 403)"
+TEST_DESCRIPTION="Testing NetworkProxy MITM L7 path deny (postman-echo.com/admin -> 403)"
 
 # Namespace
 NAMESPACE="demo"
@@ -59,13 +59,13 @@ POD_SELECTOR="app=e2e-networkproxy-mitm-deny"
 CONTAINER_NAME="c0"
 
 # Initial command - allowed path GET /get should succeed
-INITIAL_COMMAND="curl -sSL --fail -o /dev/null https://httpbin.org/get"
+INITIAL_COMMAND="curl -sSL --fail -o /dev/null https://postman-echo.com/get"
 
 # Initial command expected status code (0 means allowed)
 INITIAL_EXPECTED_STATUS=0
 
 # Verification command - denied path /admin/login -> 403 -> curl --fail exits 22
-VERIFY_COMMAND="curl -sSL --fail -o /dev/null https://httpbin.org/admin/login"
+VERIFY_COMMAND="curl -sSL --fail -o /dev/null https://postman-echo.com/admin/login"
 
 # Verification expected status code (22 = curl HTTP error, request was blocked)
 VERIFY_EXPECTED_STATUS=22

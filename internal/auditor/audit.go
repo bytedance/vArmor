@@ -63,11 +63,11 @@ func (auditor *Auditor) processAuditEvent(event string) {
 		//   If so, we can't associate container information for violations.
 		var mntNsID uint32
 		var ok bool
-		if mntNsID, ok = auditor.mntNsIDCache[uint32(e.PID)]; !ok {
+		if mntNsID, ok = auditor.mntNsIDByPID(uint32(e.PID)); !ok {
 			mntNsID, _ = varmorutils.ReadMntNsID(uint32(e.PID))
 		}
 
-		info := auditor.containerCache[mntNsID]
+		info := auditor.containerByMntNsID(mntNsID)
 		auditor.log.V(2).Info("audit event",
 			"pod uid", info.PodUID,
 			"pod name", info.PodName,
@@ -159,11 +159,11 @@ func (auditor *Auditor) processAuditEvent(event string) {
 		//   If so, we can't associate container information for violations.
 		var mntNsID uint32
 		var ok bool
-		if mntNsID, ok = auditor.mntNsIDCache[uint32(e.PID)]; !ok {
+		if mntNsID, ok = auditor.mntNsIDByPID(uint32(e.PID)); !ok {
 			mntNsID, _ = varmorutils.ReadMntNsID(uint32(e.PID))
 		}
 
-		info := auditor.containerCache[mntNsID]
+		info := auditor.containerByMntNsID(mntNsID)
 		auditor.log.V(2).Info("audit event",
 			"pod uid", info.PodUID,
 			"pod name", info.PodName,

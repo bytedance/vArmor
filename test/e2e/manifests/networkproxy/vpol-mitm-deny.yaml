@@ -20,9 +20,9 @@ spec:
     networkProxyConfig:
       mitm:
         domains:
-          - httpbin.org
+          - postman-echo.com
         headerMutations:
-          - domain: httpbin.org
+          - domain: postman-echo.com
             headers:
               - name: X-Request-Source
                 value: varmor-agent
@@ -35,14 +35,14 @@ spec:
               description: "explicit admin deny (takes precedence)"
               match:
                 hosts:
-                  - httpbin.org
+                  - postman-echo.com
                 paths:
                   - prefix: "/admin/"
                   - exact: "/secret"
             - qualifiers: ["allow", "audit"]
               match:
                 hosts:
-                  - httpbin.org
+                  - postman-echo.com
                 paths:
                   - exact: "/get"
                   - prefix: "/headers"
