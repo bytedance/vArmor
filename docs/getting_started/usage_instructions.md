@@ -88,6 +88,9 @@ Notes:
   "enforcer": "AppArmor",
   "action": "AUDIT",
   "profileName": "varmor-demo-demo-1",
+  "policyKind": "VarmorPolicy",
+  "policyName": "demo-1",
+  "policyNamespace": "demo",
   "event": {
     "version": 1,
     "event": 4,
@@ -132,6 +135,9 @@ Notes:
   "enforcer": "Seccomp",
   "action": "AUDIT|ALLOWED",
   "profileName": "varmor-demo-demo-5",
+  "policyKind": "VarmorPolicy",
+  "policyName": "demo-5",
+  "policyNamespace": "demo",
   "event": {
     "auditID": "1740621808.346:683",
     "epoch": 1740621808,
@@ -165,9 +171,12 @@ Notes:
   "enforcer": "NetworkProxy",
   "action": "AUDIT",
   "profileName": "varmor-demo-mitm-audit-all",
+  "policyKind": "VarmorPolicy",
+  "policyName": "mitm-audit-all",
+  "policyNamespace": "demo",
   "event": {
     "layer": "L4",
-    "dstAddress": "10.8.7.247:443",
+    "dstAddress": "100.8.70.247:443",
     "sni": "www.bytedance.com",
     "durationMs": 38
   },
@@ -195,6 +204,9 @@ Notes:
   "enforcer": "NetworkProxy",
   "action": "AUDIT",
   "profileName": "varmor-demo-mitm-audit-all",
+  "policyKind": "VarmorPolicy",
+  "policyName": "mitm-audit-all",
+  "policyNamespace": "demo",
   "event": {
     "layer": "L7",
     "filterChain": "mitm_tls_dns_chain",
