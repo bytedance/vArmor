@@ -53,14 +53,20 @@ type Auditor struct {
 	TaskDeleteSyncCh       chan bool
 	mntNsIDCache           map[uint32]uint32                    // key: The init PID of contaienr, value: The mnt ns id
 	containerCache         map[uint32]varmortypes.ContainerInfo // key: The mnt ns id of container, value: The container information
-	auditEventChs          map[string]chan<- string             // auditEventChs used for sending apparmor & seccomp behavior event to subscribers, key: profile name, value: audit event channel
-	bpfEventChs            map[string]chan<- BpfEvent           // bpfEventChs used for sending bpf behavior event to subscribers, key: profile name, value: bpf event channel
-	auditLogPath           string
-	auditLogTail           *tail.Tail
-	savedRateLimit         uint64
-	auditRbMap             *ebpf.Map
-	auditEventMetadata     map[string]interface{} // auditEventMetadata used for storing additional information of the violation event
-	violationLogger        zerolog.Logger
+	// policyIdentityCache maps an ArmorProfile name to the authoritative
+	// identity of the VarmorPolicy/VarmorClusterPolicy that owns it. It is
+	// written by the agent from its ArmorProfile watch and read by every
+	// violation emission path, so it is guarded by policyIdentityMu.
+	policyIdentityCache map[string]PolicyIdentity // key: profile name
+	policyIdentityMu    sync.RWMutex
+	auditEventChs       map[string]chan<- string   // auditEventChs used for sending apparmor & seccomp behavior event to subscribers, key: profile name, value: audit event channel
+	bpfEventChs         map[string]chan<- BpfEvent // bpfEventChs used for sending bpf behavior event to subscribers, key: profile name, value: bpf event channel
+	auditLogPath        string
+	auditLogTail        *tail.Tail
+	savedRateLimit      uint64
+	auditRbMap          *ebpf.Map
+	auditEventMetadata  map[string]interface{} // auditEventMetadata used for storing additional information of the violation event
+	violationLogger     zerolog.Logger
 	// alsSocketPath is the host-side UDS path the NetworkProxy ALS gRPC
 	// server listens on. It is injected by the caller (the agent); an empty
 	// path disables the ALS collector.
@@ -85,6 +91,7 @@ func NewAuditor(nodeName string, appArmorSupported, bpfLsmSupported, enableBehav
 		TaskDeleteSyncCh:       make(chan bool, 1),
 		mntNsIDCache:           make(map[uint32]uint32, 100),
 		containerCache:         make(map[uint32]varmortypes.ContainerInfo, 100),
+		policyIdentityCache:    make(map[string]PolicyIdentity),
 		auditEventChs:          make(map[string]chan<- string),
 		bpfEventChs:            make(map[string]chan<- BpfEvent),
 		savedRateLimit:         0,
