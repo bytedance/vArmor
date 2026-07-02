@@ -15,7 +15,7 @@
 package preprocessor
 
 import (
-	varmorauditor "github.com/bytedance/vArmor/pkg/auditor"
+	varmorauditor "github.com/bytedance/vArmor/internal/auditor"
 )
 
 func (p *DataPreprocessor) parseSeccompEventForTree(event *varmorauditor.SeccompEvent) error {

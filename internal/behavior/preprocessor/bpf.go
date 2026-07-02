@@ -16,8 +16,8 @@ package preprocessor
 
 import (
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
+	varmorauditor "github.com/bytedance/vArmor/internal/auditor"
 	varmorutils "github.com/bytedance/vArmor/internal/utils"
-	varmorauditor "github.com/bytedance/vArmor/pkg/auditor"
 )
 
 func (p *DataPreprocessor) parseBpfEventForTree(event *varmorauditor.BpfEvent) error {

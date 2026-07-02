@@ -22,12 +22,12 @@ import (
 
 	"github.com/go-logr/logr"
 
+	varmorauditor "github.com/bytedance/vArmor/internal/auditor"
 	varmorpreprocessor "github.com/bytedance/vArmor/internal/behavior/preprocessor"
 	varmorrecorder "github.com/bytedance/vArmor/internal/behavior/recorder"
 	varmorconfig "github.com/bytedance/vArmor/internal/config"
 	varmorintertypes "github.com/bytedance/vArmor/internal/types"
 	varmorutils "github.com/bytedance/vArmor/internal/utils"
-	varmorauditor "github.com/bytedance/vArmor/pkg/auditor"
 	varmorptracer "github.com/bytedance/vArmor/pkg/processtracer"
 	varmormonitor "github.com/bytedance/vArmor/pkg/runtime"
 	varmortypes "github.com/bytedance/vArmor/pkg/types"

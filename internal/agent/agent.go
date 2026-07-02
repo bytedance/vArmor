@@ -41,11 +41,11 @@ import (
 
 	// listerv1 "k8s.io/client-go/listers/core/v1"
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
+	varmorauditor "github.com/bytedance/vArmor/internal/auditor"
 	varmorbehavior "github.com/bytedance/vArmor/internal/behavior"
 	varmorconfig "github.com/bytedance/vArmor/internal/config"
 	varmortypes "github.com/bytedance/vArmor/internal/types"
 	varmorutils "github.com/bytedance/vArmor/internal/utils"
-	varmorauditor "github.com/bytedance/vArmor/pkg/auditor"
 	varmorinterface "github.com/bytedance/vArmor/pkg/client/clientset/versioned/typed/varmor/v1beta1"
 	varmorinformer "github.com/bytedance/vArmor/pkg/client/informers/externalversions/varmor/v1beta1"
 	varmorlister "github.com/bytedance/vArmor/pkg/client/listers/varmor/v1beta1"

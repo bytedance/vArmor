@@ -23,8 +23,8 @@ import (
 
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
 	varmorconfig "github.com/bytedance/vArmor/internal/config"
+	"github.com/bytedance/vArmor/internal/networkproxy/profile"
 	varmorprofile "github.com/bytedance/vArmor/internal/profile"
-	als "github.com/bytedance/vArmor/pkg/networkproxy/als"
 )
 
 // newNetworkProxyPolicy builds a minimal namespace-scoped AlwaysAllow
@@ -118,8 +118,8 @@ func TestGenerateEnvoySecret_AllowAllNoALSLogName(t *testing.T) {
 	}
 	lds := secret.StringData[SecretKeyLDS]
 	for _, denied := range []string{
-		fmt.Sprintf("%s:%s", als.LogNameClassDeny, profileName),
-		fmt.Sprintf("%s:%s", als.LogNameClassAudit, profileName),
+		fmt.Sprintf("%s:%s", profile.LogNameClassDeny, profileName),
+		fmt.Sprintf("%s:%s", profile.LogNameClassAudit, profileName),
 	} {
 		if strings.Contains(lds, denied) {
 			t.Errorf("allow-all listener unexpectedly emitted log_name %q", denied)

@@ -47,7 +47,7 @@ import (
 // here. The $(POD_*) references are expanded by the kubelet from the sidecar's
 // Downward API env vars (POD_NAME / POD_NAMESPACE / POD_UID) before Envoy
 // starts. The keys MUST match the node.metadata keys the audit agent reads
-// (see pkg/auditor). This replaces the unsupported "%ENV()%"-in-node.metadata
+// (see internal/auditor). This replaces the unsupported "%ENV()%"-in-node.metadata
 // approach: Envoy only expands that command operator in access-log format
 // strings, never inside node.metadata at bootstrap load.
 const AuditNodeMetadataOverlay = `node:

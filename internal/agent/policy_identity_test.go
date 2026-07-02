@@ -22,7 +22,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
-	varmorauditor "github.com/bytedance/vArmor/pkg/auditor"
+	varmorauditor "github.com/bytedance/vArmor/internal/auditor"
 )
 
 func TestPolicyIdentityFromArmorProfile(t *testing.T) {
