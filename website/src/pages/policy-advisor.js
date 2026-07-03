@@ -38,12 +38,22 @@ const retrieveExecutionsFromModel = (model = {}) => {
   const executions = [];
   if (model.data && model.data.dynamicResult && model.data.dynamicResult.appArmor && model.data.dynamicResult.appArmor.executions) {
     for (const execution of model.data.dynamicResult.appArmor.executions) {
-      executions.push(execution.split('/').pop());
+      const base = execution.split('/').pop();
+      executions.push(base);
+      const dotIndex = base.lastIndexOf('.');
+      if (dotIndex > 0) {
+        executions.push(base.slice(dotIndex));
+      }
     }
   }
   if (model.data && model.data.dynamicResult && model.data.dynamicResult.bpf && model.data.dynamicResult.bpf.executions) {
     for (const execution of model.data.dynamicResult.bpf.executions) {
-      executions.push(execution.split('/').pop());
+      const base = execution.split('/').pop();
+      executions.push(base);
+      const dotIndex = base.lastIndexOf('.');
+      if (dotIndex > 0) {
+        executions.push(base.slice(dotIndex));
+      }
     }
   }
   return executions;

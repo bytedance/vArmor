@@ -42,9 +42,17 @@ def retrieve_syscalls_from_behavior_data(behavior_data):
 def retrieve_executions_from_behavior_data(behavior_data):
   executions = []
   for execution in behavior_data.get("data", {}).get("dynamicResult", {}).get("appArmor", {}).get("executions", []):
-    executions.append(os.path.basename(execution))
+    base = os.path.basename(execution)
+    executions.append(base)
+    ext = os.path.splitext(base)[1]
+    if ext:
+      executions.append(ext)
   for execution in behavior_data.get("data", {}).get("dynamicResult", {}).get("bpf", {}).get("executions", []):
-    executions.append(os.path.basename(execution))
+    base = os.path.basename(execution)
+    executions.append(base)
+    ext = os.path.splitext(base)[1]
+    if ext:
+      executions.append(ext)
   return executions
 
 
