@@ -514,7 +514,8 @@
       "enforcers": ["seccomp"],
       "conflicts": {
         "features": ["load-bpf"],
-        "syscalls": ["bpf"]
+        "syscalls": ["bpf"],
+        "capabilities": ["bpf"]
       }
     },
     {
@@ -611,7 +612,7 @@
       "id": "disable-shell",
       "enforcers": ["apparmor", "bpf"],
       "conflicts": {
-        "executions": ["sh", "bash", "dash"]
+        "executions": ["sh", "bash", "dash", ".sh"]
       }
     },
     {

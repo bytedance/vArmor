@@ -1,5 +1,5 @@
 import unittest
-from utils import files_conflict_with_rule
+from utils import files_conflict_with_rule, retrieve_executions_from_behavior_data
 
 class TestFunctions(unittest.TestCase):
   def test_files_conflict_with_rule(self):
@@ -449,6 +449,47 @@ class TestFunctions(unittest.TestCase):
       for index, testcase in enumerate(value["testcases"]):
         print("Run testcase %d" % index)
         self.assertEqual(files_conflict_with_rule(value["rules"], testcase["files"]), testcase["conflict"])
+
+  def test_retrieve_executions_from_behavior_data(self):
+    # Script files executed via binfmt_script are recorded by their script path
+    # (e.g. /var/lib/cilium/bpf/init.sh) without the sh/bash/dash interpreter
+    # binary. The extractor must additionally emit the extension token (.sh) so
+    # that rules like disable-shell can detect shell usage in such cases.
+    testcases = [
+      {
+        "behavior_data": {
+          "data": {
+            "dynamicResult": {
+              "appArmor": {
+                "executions": ["/var/lib/cilium/bpf/init.sh", "/usr/bin/curl"]
+              },
+              "bpf": {
+                "executions": ["/opt/entrypoint.py"]
+              }
+            }
+          }
+        },
+        "expected": ["init.sh", ".sh", "curl", "entrypoint.py", ".py"]
+      },
+      {
+        # No extension -> only the basename is emitted (no empty ext token).
+        "behavior_data": {
+          "data": {
+            "dynamicResult": {
+              "appArmor": {
+                "executions": ["/bin/bash", "/usr/local/bin/node"]
+              }
+            }
+          }
+        },
+        "expected": ["bash", "node"]
+      }
+    ]
+
+    print("------- retrieve_executions_from_behavior_data -------")
+    for index, testcase in enumerate(testcases):
+      print("Run testcase %d" % index)
+      self.assertEqual(retrieve_executions_from_behavior_data(testcase["behavior_data"]), testcase["expected"])
 
 if __name__ == '__main__':
     unittest.main()
