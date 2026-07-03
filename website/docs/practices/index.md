@@ -9,7 +9,7 @@ import ThemeImage from '@site/src/components/ThemeImage';
 
 ## Introduction
 
-This article will introduce the purpose of the vArmor project and then introduce its applications in different scenarios from a technical perspective. This article will show you how to solve specific problems by relying on the technical features of vArmor, to achieve technical and business goals and help enterprises build a solid security defense line in a cloud-native environment.
+This article will introduce the purpose of the vArmor project and then introduce its applications in scenarios such as multi-tenant isolation, core business hardening, privileged container hardening, and network egress control (AI Agent hardening) from a technical perspective. This article will show you how to solve specific problems by relying on the technical features of vArmor, to achieve technical and business goals and help enterprises build a solid security defense line in a cloud-native environment.
 
 ## Why vArmor Was Launched
 
@@ -31,7 +31,7 @@ However, writing and managing security profiles face numerous challenges:
 * AppArmor or SELinux LSM depends on the operating system distribution, thus having limitations.
 * In a Kubernetes environment, automating the management and application of different security profiles is complex.
 
-To address these issues, vArmor emerged. It provides multiple policy modes, built-in rules, and configuration options. According to the definition of policy objects, vArmor manages security profiles (AppArmor Profile, BPF Profile, Seccomp Profile) to harden containers for different workloads. vArmor also implements behavior modeling functions based on BPF and Audit technologies, which can collect behaviors of different applications and generate behavior models to assist in building security policies.
+To address these issues, vArmor emerged. It provides multiple policy modes, built-in rules, and configuration options. According to the definition of policy objects, vArmor manages security profiles (AppArmor Profile, BPF Profile, Seccomp Profile) to harden containers for different workloads. In addition, vArmor provides the NetworkProxy enforcer based on an Envoy Sidecar, which can enforce access control on containers' network egress traffic at the L4/L7 layers. vArmor also implements behavior modeling functions based on BPF and Audit technologies, which can collect behaviors of different applications and generate behavior models to assist in building security policies.
 
 For example, users can configure policy objects according to their needs to achieve three effects: interception only, interception with alarm, and alarm only. They can also use built-in rules and custom rules to update policy objects to meet the requirements of different application scenarios. Next, we will use several application scenarios to show how vArmor helps enterprises enhance container security capabilities in the cloud-native environment.
 
@@ -120,10 +120,10 @@ spec:
     enforcer: BPF
     mode: EnhanceProtect
     enhanceProtect:
-      # AuditViolations determines whether to audit the actions that violate the mandatory access control rules. Any detected violation will be logged to /var/log/varmor/violations.log file in the host.
+      # AuditViolations determines whether to audit the actions that violate the built-in rules. Any detected violation will be logged to /var/log/varmor/violations.log file in the host.
       # It's disabled by default.
       auditViolations: true
-      # AllowViolations determines whether to allow the actions that are against the mandatory access control rules.
+      # AllowViolations determines whether to allow the actions that are against the built-in rules.
       # It's disabled by default.
       allowViolations: true
 ```
@@ -136,7 +136,7 @@ spec:
     enforcer: BPF
     mode: EnhanceProtect
     enhanceProtect:
-      # AuditViolations determines whether to audit the actions that violate the mandatory access control rules. Any detected violation will be logged to /var/log/varmor/violations.log file in the host.
+      # AuditViolations determines whether to audit the actions that violate the built-in rules. Any detected violation will be logged to /var/log/varmor/violations.log file in the host.
       # It's disabled by default.
       auditViolations: true
 ```
@@ -167,7 +167,7 @@ spec:
           - audit
           - deny
         network:
-          egresses:
+          egress:
             toDestinations:
             - ip: fdbd:dc01:ff:307:9329:268d:3a27:2ca7
               qualifiers:
@@ -281,11 +281,80 @@ spec:
       duration: 30
 ```
 
-The behavior data includes the capabilities required by the target application, the processes executed, the files read and written, the syscalls invoked, etc. This information can be used to assist in deprivileging. Please refer to the [usage instructions](../guides/policies_and_rules/policy_modes/behavior_modeling.md#basic-usage) to further understand how to use the behavior modeling feature of vArmor. Please note that currently only the AppArmor and Seccomp enforcers support the behavior modeling feature.
+The behavior data includes the capabilities required by the target application, the processes executed, the files read and written, the syscalls invoked, etc. This information can be used to assist in deprivileging. Please refer to the [usage instructions](../guides/policies_and_rules/policy_modes/behavior_modeling.md#basic-usage) to further understand how to use the behavior modeling feature of vArmor. Please note that the AppArmor, BPF, and Seccomp enforcers all support the behavior modeling feature.
+
+### Network Egress Control and AI Agent Hardening
+
+#### Risks of Network Egress
+
+Enforcers such as AppArmor, BPF, and Seccomp mainly enforce mandatory access control at the kernel level, making it difficult to cover network behaviors at the application protocol layer. However, containerized applications (especially AI Agents, which have proliferated in recent years) usually need to actively access external services, such as calling large language model APIs, pulling third-party data, etc. Once such network egress gets out of control, it may lead to risks such as data exfiltration, credential leakage, SSRF, and domain fronting. In addition, novel attack techniques such as prompt injection may induce AI Agents to abuse tools and send out sensitive data.
+
+To address such risks, the industry already has some solutions, but each has its own focus:
+
+* **Kubernetes NetworkPolicy** can implement network micro-segmentation, but its control granularity stops at L3/L4, based on IP and port. It cannot perform fine-grained control based on domain names or HTTP semantics, nor does it have HTTPS traffic inspection and auditing capabilities.
+* **CNIs such as Cilium** can extend access control to L7 (such as HTTP, DNS) and leverage an Envoy proxy to perform L7 filtering and even TLS traffic inspection<sup><a href="#ref6">[6]</a></sup>, making up for NetworkPolicy's shortcomings at the application protocol layer; however, they are positioned as network access control and usually do not provide capabilities such as injecting API keys by target domain or credential isolation.
+
+As can be seen, "access control at the application protocol layer" and "credential isolation" are often addressed separately by different tools, while AI Agent hardening scenarios usually require both.
+
+#### Using the NetworkProxy Enforcer
+
+vArmor provides the NetworkProxy enforcer based on an Envoy Sidecar proxy, which implements both network access control at the application protocol layer and credential injection within a single enforcer. vArmor injects an Envoy sidecar and an init container into the target Pod via a mutation webhook. The init container uses iptables to redirect egress traffic to the sidecar, which then enforces access control according to the policy. Its main capabilities include:
+
+* **L4 egress control**: Control outbound connections based on target IP, CIDR, and port.
+* **L7 HTTP/HTTPS control**: Control requests based on host, path, and method; for HTTPS, match domain names via TLS SNI, and after configuring TLS MITM, it can further decrypt traffic to match and inspect path and method.
+* **Per-domain HTTP header injection**: Automatically inject authentication headers by target domain (such as referencing a Kubernetes Secret to inject an API key), so that business containers never touch the real credentials, thereby achieving credential isolation while providing access control.
+* **Anti-domain-fronting**: Verify the consistency between the TLS SNI and the HTTP Host.
+* **Blacklist/whitelist modes and audit logs**: Support setting `defaultAction` to `deny` (whitelist) or `allow` (blacklist), and audit logs can be recorded as needed.
+
+Unlike solutions that require combining multiple tools to cover both access control and credential isolation, the NetworkProxy enforcer converges the two into a single policy. Policies support dynamic updates without restarting the Pod. Furthermore, by combining kernel-level mandatory access control (AppArmor/BPF/Seccomp) with application-protocol-level network access control (NetworkProxy), vArmor can provide defense-in-depth from system calls to network protocols for workloads such as AI Agents.
+
+#### Common Usage Methods
+
+For example, use a whitelist approach to restrict an AI Agent to only access a specified large language model service, and deny all other egress traffic:
+
+```yaml
+policy:
+  enforcer: NetworkProxy
+  mode: EnhanceProtect
+  enhanceProtect:
+    networkProxyRawRules:
+      egress:
+        defaultAction: deny
+        httpRules:
+        - qualifiers:
+          - allow
+          match:
+            hosts:
+            - api.openai.com
+            - "*.openai.com"
+            ports:
+            - port: 443
+            paths:
+            - prefix: /v1/chat
+            methods:
+            - POST
+  networkProxyConfig:
+    mitm:
+      domains:
+      - api.openai.com
+      headerMutations:
+      - domain: api.openai.com
+        headers:
+        - name: Authorization
+          # Reference a Secret containing an API Key for injection.
+          # This field is mutually exclusive with value.
+          secretRef:
+            name: openai-credentials
+            key: api-key
+          # Or configure the API Key for injection in the policy.
+          # value: Bearer xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+```
+
+For more rule syntax and examples, please refer to the NetworkProxy enforcer section in [Custom Rules](../guides/policies_and_rules/custom_rules.md).
 
 ## Summary
 
-As a cloud-native container sandbox system, vArmor provides effective solutions to the challenges in the writing and management of security policies in the current container security field. In the multi-tenant isolation scenario, although it cannot reach the isolation level of hardware-virtualized containers, by coordinating a series of security practices, it can reduce the risk of cross-tenant attacks. In terms of core business hardening, with its cloud-native, flexible, out-of-the-box, and easy-to-use features, it provides effective security protection measures for enterprises while they enjoy the performance and convenience of runc containers. For privileged containers, vArmor can not only harden through built-in and custom rules to block common attack vectors but also utilize the behavior modeling feature to assist in deprivileging.
+As a cloud-native container sandbox system, vArmor provides effective solutions to the challenges in the writing and management of security policies in the current container security field. In the multi-tenant isolation scenario, although it cannot reach the isolation level of hardware-virtualized containers, by coordinating a series of security practices, it can reduce the risk of cross-tenant attacks. In terms of core business hardening, with its cloud-native, flexible, out-of-the-box, and easy-to-use features, it provides effective security protection measures for enterprises while they enjoy the performance and convenience of runc containers. For privileged containers, vArmor can not only harden through built-in and custom rules to block common attack vectors but also utilize the behavior modeling feature to assist in deprivileging. In the network egress control scenario, vArmor's NetworkProxy enforcer enforces egress access control at the L4/L7 layers and provides protection against data exfiltration and credential leakage for emerging workloads such as AI Agents.
 
 With its rich features and flexible application methods, vArmor provides comprehensive and practical protection for container security, helping enterprises balance the needs of security and business development in the cloud-native environment.
 
@@ -296,3 +365,4 @@ With its rich features and flexible application methods, vArmor provides compreh
 3. [Kubernetes Privilege Escalation: Excessive Permissions in Popular Platforms](https://www.paloaltonetworks.com/apps/pan/public/downloadResource?pagePath=/content/pan/en_US/resources/whitepapers/kubernetes-privilege-escalation-excessive-permissions-in-popular-platforms)<a id="ref3"/>
 4. [2024 Data Breach Investigations Report](https://www.verizon.com/business/resources/Te3/reports/2024-dbir-data-breach-investigations-report.pdf)<a id="ref4"/>
 5. [#BrokenSesame: Accidental ‘write’ permissions to private registry allowed potential RCE to Alibaba Cloud Database Services](https://www.wiz.io/blog/brokensesame-accidental-write-permissions-to-private-registry-allowed-potential-r)<a id="ref5"/>
+6. [Cilium: Layer 7 Examples](https://docs.cilium.io/en/stable/security/policy/language/#layer-7-examples)<a id="ref6"/>
