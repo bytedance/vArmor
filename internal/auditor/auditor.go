@@ -71,12 +71,19 @@ type Auditor struct {
 	// goroutine (processAuditEvent) and the BPF ringbuf goroutine
 	// (readFromAuditEventRingBuf), so every access must hold this lock to
 	// avoid a concurrent map read/write fatal error.
-	chsMu              sync.RWMutex
-	auditEventChs      map[string]chan<- string   // auditEventChs used for sending apparmor & seccomp behavior event to subscribers, key: profile name, value: audit event channel
-	bpfEventChs        map[string]chan<- BpfEvent // bpfEventChs used for sending bpf behavior event to subscribers, key: profile name, value: bpf event channel
-	auditLogPath       string
-	auditLogTail       *tail.Tail
-	savedRateLimit     uint64
+	chsMu          sync.RWMutex
+	auditEventChs  map[string]chan<- string   // auditEventChs used for sending apparmor & seccomp behavior event to subscribers, key: profile name, value: audit event channel
+	bpfEventChs    map[string]chan<- BpfEvent // bpfEventChs used for sending bpf behavior event to subscribers, key: profile name, value: bpf event channel
+	auditLogPath   string
+	auditLogTail   *tail.Tail
+	savedRateLimit uint64
+	// rateLimitMu serializes the 0<->1 subscriber-count boundary decision
+	// together with the setRateLimit/restoreRateLimit sysctl read-modify-write,
+	// so the count transition and the save/restore of savedRateLimit are
+	// atomic. It is deliberately separate from chsMu: the audit-log tail and
+	// BPF ringbuf reader goroutines only take chsMu, so they are never blocked
+	// by the slow sysctl I/O performed while holding rateLimitMu.
+	rateLimitMu        sync.Mutex
 	auditRbMap         *ebpf.Map
 	auditEventMetadata map[string]interface{} // auditEventMetadata used for storing additional information of the violation event
 	violationLogger    zerolog.Logger
@@ -275,6 +282,13 @@ func (auditor *Auditor) snapshotAuditEventChs() []chan<- string {
 // AddBehaviorEventNotifyChs add the audit event channel and bpf event channel for the subscriber
 // The subscriber parameter is the name of profile
 func (auditor *Auditor) AddBehaviorEventNotifyChs(subscriber string, auditEventCh *chan string, bpfEventCh *chan BpfEvent) {
+	// Hold rateLimitMu across the whole registration so no concurrent
+	// Add/Delete can change the subscriber count between the boundary check
+	// below and the setRateLimit call, which would otherwise corrupt
+	// savedRateLimit.
+	auditor.rateLimitMu.Lock()
+	defer auditor.rateLimitMu.Unlock()
+
 	auditor.chsMu.Lock()
 	if bpfEventCh != nil {
 		auditor.bpfEventChs[subscriber] = *bpfEventCh
@@ -296,6 +310,12 @@ func (auditor *Auditor) AddBehaviorEventNotifyChs(subscriber string, auditEventC
 // DeleteBehaviorEventNotifyCh delete the audit event channel and bpf event channel for the subscriber
 // The subscriber parameter is the name of profile
 func (auditor *Auditor) DeleteBehaviorEventNotifyCh(subscriber string) {
+	// Hold rateLimitMu across the whole deregistration so the count==0
+	// boundary check and restoreRateLimit form an atomic critical section
+	// with respect to concurrent Add/Delete calls.
+	auditor.rateLimitMu.Lock()
+	defer auditor.rateLimitMu.Unlock()
+
 	auditor.chsMu.Lock()
 	delete(auditor.bpfEventChs, subscriber)
 	delete(auditor.auditEventChs, subscriber)
