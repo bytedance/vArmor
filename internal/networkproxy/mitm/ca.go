@@ -162,6 +162,24 @@ func ParseCA(certPEM, keyPEM []byte) (*CACertificate, error) {
 		return nil, fmt.Errorf("failed to parse CA private key: %w", err)
 	}
 
+	// Ensure the parsed certificate and private key are an actual key pair.
+	// x509.ParseCertificate / ParseECPrivateKey each succeed independently, so
+	// a Secret whose mitm-ca.crt and mitm-ca.key were crossed with a different
+	// CA would still parse cleanly here. Without this check such a mismatch is
+	// only detected later, when x509.CreateCertificate is called during leaf
+	// signing and fails with "provided PrivateKey doesn't match parent's
+	// PublicKey"; because the reuse path in buildOrReuseMITMMaterial does not
+	// fall back to generating a fresh CA once ParseCA succeeds, the policy
+	// would be stuck failing every reconcile instead of self-healing. Reject
+	// the mismatch here so the caller treats it as "no reusable CA".
+	certPub, ok := cert.PublicKey.(*ecdsa.PublicKey)
+	if !ok {
+		return nil, fmt.Errorf("CA certificate public key is not an ECDSA key")
+	}
+	if !certPub.Equal(key.Public()) {
+		return nil, fmt.Errorf("CA certificate public key does not match the provided private key")
+	}
+
 	return &CACertificate{
 		CertPEM: certPEM,
 		KeyPEM:  keyPEM,
