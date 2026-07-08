@@ -241,6 +241,27 @@ func (c *PolicyCacher) GetClusterPolicyEntry(key string) (string, varmor.VarmorP
 	return c.ClusterPolicyEnforcer[key], c.ClusterPolicyMode[key], c.ClusterPolicyProxyConfig[key]
 }
 
+// SnapshotClusterPolicyEnforcers returns copies of the cluster-scoped enforcer
+// and mode maps taken under the read lock. Callers can iterate the returned
+// maps without holding the lock, which avoids racing the informer handlers that
+// mutate ClusterPolicyEnforcer / ClusterPolicyMode (add/update/delete). This is
+// preferred over exposing the maps directly: the propagator's per-entry work
+// performs blocking apiserver I/O, which must not run while the cacher lock is
+// held. It is safe to call from multiple goroutines.
+func (c *PolicyCacher) SnapshotClusterPolicyEnforcers() (map[string]string, map[string]varmor.VarmorPolicyMode) {
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
+	enforcers := make(map[string]string, len(c.ClusterPolicyEnforcer))
+	for k, v := range c.ClusterPolicyEnforcer {
+		enforcers[k] = v
+	}
+	modes := make(map[string]varmor.VarmorPolicyMode, len(c.ClusterPolicyMode))
+	for k, v := range c.ClusterPolicyMode {
+		modes[k] = v
+	}
+	return enforcers, modes
+}
+
 // GetPolicyEntry returns the cached enforcer, mode, and proxy config for a namespace-scoped policy key.
 // It is safe to call from multiple goroutines.
 func (c *PolicyCacher) GetPolicyEntry(key string) (string, varmor.VarmorPolicyMode, *varmor.NetworkProxyConfig) {
