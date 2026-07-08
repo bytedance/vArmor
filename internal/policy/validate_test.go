@@ -1008,6 +1008,7 @@ func TestValidateNetworkProxyEgress_Nil(t *testing.T) {
 
 func TestValidateNetworkProxyEgress_ValidInput(t *testing.T) {
 	egress := &varmor.NetworkProxyEgress{
+		DefaultAction: "deny",
 		HTTPRules: []varmor.NetworkProxyHTTPRule{
 			{
 				Match: varmor.HTTPMatch{
@@ -1033,6 +1034,7 @@ func TestValidateNetworkProxyEgress_ValidInput(t *testing.T) {
 
 func TestValidateNetworkProxyEgress_UnsafeHost(t *testing.T) {
 	egress := &varmor.NetworkProxyEgress{
+		DefaultAction: "deny",
 		HTTPRules: []varmor.NetworkProxyHTTPRule{
 			{
 				Match: varmor.HTTPMatch{
@@ -1048,6 +1050,7 @@ func TestValidateNetworkProxyEgress_UnsafeHost(t *testing.T) {
 
 func TestValidateNetworkProxyEgress_UnsafePath(t *testing.T) {
 	egress := &varmor.NetworkProxyEgress{
+		DefaultAction: "deny",
 		HTTPRules: []varmor.NetworkProxyHTTPRule{
 			{
 				Match: varmor.HTTPMatch{
@@ -1065,6 +1068,7 @@ func TestValidateNetworkProxyEgress_UnsafePath(t *testing.T) {
 
 func TestValidateNetworkProxyEgress_UnsafeMethod(t *testing.T) {
 	egress := &varmor.NetworkProxyEgress{
+		DefaultAction: "deny",
 		HTTPRules: []varmor.NetworkProxyHTTPRule{
 			{
 				Match: varmor.HTTPMatch{
@@ -1080,6 +1084,7 @@ func TestValidateNetworkProxyEgress_UnsafeMethod(t *testing.T) {
 
 func TestValidateNetworkProxyEgress_UnsafeIP(t *testing.T) {
 	egress := &varmor.NetworkProxyEgress{
+		DefaultAction: "deny",
 		Rules: []varmor.NetworkProxyEgressRule{
 			{
 				IP: "10.0.0.1\"\ninjection: true",
@@ -1093,6 +1098,7 @@ func TestValidateNetworkProxyEgress_UnsafeIP(t *testing.T) {
 
 func TestValidateNetworkProxyEgress_UnsafeCIDR(t *testing.T) {
 	egress := &varmor.NetworkProxyEgress{
+		DefaultAction: "deny",
 		Rules: []varmor.NetworkProxyEgressRule{
 			{
 				CIDR: "10.0.0.0/8\"\ninjection",
@@ -1106,6 +1112,7 @@ func TestValidateNetworkProxyEgress_UnsafeCIDR(t *testing.T) {
 
 func TestValidateNetworkProxyEgress_UnsafeNEL(t *testing.T) {
 	egress := &varmor.NetworkProxyEgress{
+		DefaultAction: "deny",
 		HTTPRules: []varmor.NetworkProxyHTTPRule{
 			{
 				Match: varmor.HTTPMatch{
@@ -1121,6 +1128,7 @@ func TestValidateNetworkProxyEgress_UnsafeNEL(t *testing.T) {
 
 func TestValidateNetworkProxyEgress_UnsafeLS(t *testing.T) {
 	egress := &varmor.NetworkProxyEgress{
+		DefaultAction: "deny",
 		HTTPRules: []varmor.NetworkProxyHTTPRule{
 			{
 				Match: varmor.HTTPMatch{
@@ -1136,6 +1144,7 @@ func TestValidateNetworkProxyEgress_UnsafeLS(t *testing.T) {
 
 func TestValidateNetworkProxyEgress_UnsafePathPrefix(t *testing.T) {
 	egress := &varmor.NetworkProxyEgress{
+		DefaultAction: "deny",
 		HTTPRules: []varmor.NetworkProxyHTTPRule{
 			{
 				Match: varmor.HTTPMatch{
@@ -1149,4 +1158,38 @@ func TestValidateNetworkProxyEgress_UnsafePathPrefix(t *testing.T) {
 	valid, msg := ValidateNetworkProxyEgress(egress)
 	assert.False(t, valid)
 	assert.Contains(t, msg, "unsafe characters")
+}
+
+func TestValidateNetworkProxyEgress_DefaultActionAllow(t *testing.T) {
+	egress := &varmor.NetworkProxyEgress{
+		DefaultAction: "allow",
+	}
+	valid, msg := ValidateNetworkProxyEgress(egress)
+	assert.True(t, valid, "defaultAction \"allow\" should pass: %s", msg)
+}
+
+func TestValidateNetworkProxyEgress_DefaultActionCaseInsensitive(t *testing.T) {
+	for _, action := range []string{"Deny", "DENY", "Allow", "ALLOW"} {
+		egress := &varmor.NetworkProxyEgress{DefaultAction: action}
+		valid, msg := ValidateNetworkProxyEgress(egress)
+		assert.True(t, valid, "defaultAction %q should pass: %s", action, msg)
+	}
+}
+
+func TestValidateNetworkProxyEgress_DefaultActionTypo(t *testing.T) {
+	egress := &varmor.NetworkProxyEgress{
+		DefaultAction: "denny",
+	}
+	valid, msg := ValidateNetworkProxyEgress(egress)
+	assert.False(t, valid, "typo defaultAction should be rejected")
+	assert.Contains(t, msg, "defaultAction")
+}
+
+func TestValidateNetworkProxyEgress_DefaultActionEmpty(t *testing.T) {
+	egress := &varmor.NetworkProxyEgress{
+		DefaultAction: "",
+	}
+	valid, msg := ValidateNetworkProxyEgress(egress)
+	assert.False(t, valid, "empty defaultAction should be rejected")
+	assert.Contains(t, msg, "defaultAction")
 }

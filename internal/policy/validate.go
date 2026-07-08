@@ -17,6 +17,7 @@ package policy
 import (
 	"fmt"
 	"reflect"
+	"strings"
 
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
 	varmorconfig "github.com/bytedance/vArmor/internal/config"
@@ -444,6 +445,19 @@ func validateProxyResources(override *varmor.ProxyResourceOverride) (bool, strin
 func ValidateNetworkProxyEgress(egress *varmor.NetworkProxyEgress) (bool, string) {
 	if egress == nil {
 		return true, ""
+	}
+
+	// Validate defaultAction. Only "deny" and "allow" are legal. The downstream
+	// classifier treats any value other than "deny" as allow-default, so an
+	// unvalidated typo (e.g. "denny") would silently turn a deny-default
+	// (whitelist) policy into an allow-default (blacklist) one. Reject anything
+	// outside the legal set here. The comparison is case-insensitive to match
+	// the classifier's strings.EqualFold semantics.
+	if !strings.EqualFold(egress.DefaultAction, "deny") &&
+		!strings.EqualFold(egress.DefaultAction, "allow") {
+		return false, fmt.Sprintf(
+			"egress.defaultAction: %q is invalid, must be \"deny\" or \"allow\"",
+			egress.DefaultAction)
 	}
 
 	// Validate HTTP rules
