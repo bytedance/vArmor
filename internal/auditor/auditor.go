@@ -65,14 +65,21 @@ type Auditor struct {
 	// violation emission path, so it is guarded by policyIdentityMu.
 	policyIdentityCache map[string]PolicyIdentity // key: profile name
 	policyIdentityMu    sync.RWMutex
-	auditEventChs       map[string]chan<- string   // auditEventChs used for sending apparmor & seccomp behavior event to subscribers, key: profile name, value: audit event channel
-	bpfEventChs         map[string]chan<- BpfEvent // bpfEventChs used for sending bpf behavior event to subscribers, key: profile name, value: bpf event channel
-	auditLogPath        string
-	auditLogTail        *tail.Tail
-	savedRateLimit      uint64
-	auditRbMap          *ebpf.Map
-	auditEventMetadata  map[string]interface{} // auditEventMetadata used for storing additional information of the violation event
-	violationLogger     zerolog.Logger
+	// chsMu guards auditEventChs and bpfEventChs. They are mutated by
+	// BehaviorModeller.Run/stop on the modeller goroutine when subscribers
+	// are dynamically added/removed, but read from the audit-log tail
+	// goroutine (processAuditEvent) and the BPF ringbuf goroutine
+	// (readFromAuditEventRingBuf), so every access must hold this lock to
+	// avoid a concurrent map read/write fatal error.
+	chsMu              sync.RWMutex
+	auditEventChs      map[string]chan<- string   // auditEventChs used for sending apparmor & seccomp behavior event to subscribers, key: profile name, value: audit event channel
+	bpfEventChs        map[string]chan<- BpfEvent // bpfEventChs used for sending bpf behavior event to subscribers, key: profile name, value: bpf event channel
+	auditLogPath       string
+	auditLogTail       *tail.Tail
+	savedRateLimit     uint64
+	auditRbMap         *ebpf.Map
+	auditEventMetadata map[string]interface{} // auditEventMetadata used for storing additional information of the violation event
+	violationLogger    zerolog.Logger
 	// alsSocketPath is the host-side UDS path the NetworkProxy ALS gRPC
 	// server listens on. It is injected by the caller (the agent); an empty
 	// path disables the ALS collector.
@@ -231,17 +238,54 @@ func (auditor *Auditor) mntNsIDByPID(pid uint32) (uint32, bool) {
 	return id, ok
 }
 
+// auditEventChByProfile returns the audit-event channel registered for the
+// given profile and whether one exists. Guarded by chsMu so it is safe to
+// call from the audit-log tail and BPF ringbuf goroutines concurrently with
+// AddBehaviorEventNotifyChs/DeleteBehaviorEventNotifyCh. The channel is
+// returned by value so the caller can send on it after releasing the lock.
+func (auditor *Auditor) auditEventChByProfile(profileName string) (chan<- string, bool) {
+	auditor.chsMu.RLock()
+	defer auditor.chsMu.RUnlock()
+	ch, ok := auditor.auditEventChs[profileName]
+	return ch, ok
+}
+
+// bpfEventChByProfile returns the bpf-event channel registered for the given
+// profile and whether one exists. Guarded by chsMu. Safe for concurrent use.
+func (auditor *Auditor) bpfEventChByProfile(profileName string) (chan<- BpfEvent, bool) {
+	auditor.chsMu.RLock()
+	defer auditor.chsMu.RUnlock()
+	ch, ok := auditor.bpfEventChs[profileName]
+	return ch, ok
+}
+
+// snapshotAuditEventChs returns a snapshot of all registered audit-event
+// channels taken under chsMu. Callers broadcast to the returned slice after
+// releasing the lock so a blocking send never stalls subscriber updates.
+func (auditor *Auditor) snapshotAuditEventChs() []chan<- string {
+	auditor.chsMu.RLock()
+	defer auditor.chsMu.RUnlock()
+	chs := make([]chan<- string, 0, len(auditor.auditEventChs))
+	for _, ch := range auditor.auditEventChs {
+		chs = append(chs, ch)
+	}
+	return chs
+}
+
 // AddBehaviorEventNotifyChs add the audit event channel and bpf event channel for the subscriber
 // The subscriber parameter is the name of profile
 func (auditor *Auditor) AddBehaviorEventNotifyChs(subscriber string, auditEventCh *chan string, bpfEventCh *chan BpfEvent) {
+	auditor.chsMu.Lock()
 	if bpfEventCh != nil {
 		auditor.bpfEventChs[subscriber] = *bpfEventCh
 	}
 	if auditEventCh != nil {
 		auditor.auditEventChs[subscriber] = *auditEventCh
 	}
+	auditEventChCount := len(auditor.auditEventChs)
+	auditor.chsMu.Unlock()
 
-	if len(auditor.auditEventChs) == 1 {
+	if auditEventChCount == 1 {
 		err := auditor.setRateLimit()
 		if err != nil {
 			auditor.log.Error(err, "auditor.setRateLimit()")
@@ -252,10 +296,13 @@ func (auditor *Auditor) AddBehaviorEventNotifyChs(subscriber string, auditEventC
 // DeleteBehaviorEventNotifyCh delete the audit event channel and bpf event channel for the subscriber
 // The subscriber parameter is the name of profile
 func (auditor *Auditor) DeleteBehaviorEventNotifyCh(subscriber string) {
+	auditor.chsMu.Lock()
 	delete(auditor.bpfEventChs, subscriber)
 	delete(auditor.auditEventChs, subscriber)
+	auditEventChCount := len(auditor.auditEventChs)
+	auditor.chsMu.Unlock()
 
-	if len(auditor.auditEventChs) == 0 {
+	if auditEventChCount == 0 {
 		err := auditor.restoreRateLimit()
 		if err != nil {
 			auditor.log.Error(err, "auditor.restoreRateLimit()")
