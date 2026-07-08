@@ -54,7 +54,7 @@ func readBootTime() (uint64, error) {
 	return 0, fmt.Errorf("btime not found")
 }
 
-func sysctlRead(path string) (string, error) {
+var sysctlRead = func(path string) (string, error) {
 	content, err := os.ReadFile(path)
 	if err != nil {
 		return "", err
@@ -62,7 +62,7 @@ func sysctlRead(path string) (string, error) {
 	return strings.Trim(string(content), "\n"), nil
 }
 
-func sysctlWrite(path string, value uint64) error {
+var sysctlWrite = func(path string, value uint64) error {
 	file, err := os.OpenFile(path, os.O_WRONLY, 0)
 	if err != nil {
 		return err
