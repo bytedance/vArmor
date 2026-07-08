@@ -110,11 +110,22 @@ func (c *PolicyCacher) updateVarmorClusterPolicy(oldObj, newObj interface{}) {
 	}
 	c.ClusterPolicyEnforcer[key] = vcp.Spec.Policy.Enforcer
 	c.ClusterPolicyMode[key] = vcp.Spec.Policy.Mode
-	// Update only mutable proxy config fields (MITM, Resources).
-	// ProxyUID, ProxyPort, ProxyAdminPort are immutable after creation
-	// and must not be overwritten — they are baked into each Pod's
-	// iptables rules at init time.
-	updateProxyConfigMutableFields(c.ClusterPolicyProxyConfig[key], vcp.Spec.Policy.NetworkProxyConfig)
+	// Handle nil transitions explicitly, then update only mutable proxy
+	// config fields (MITM, Resources). ProxyUID, ProxyPort, ProxyAdminPort
+	// are immutable after creation and must not be overwritten — they are
+	// baked into each Pod's iptables rules at init time.
+	newProxyConfig := vcp.Spec.Policy.NetworkProxyConfig
+	cachedProxyConfig := c.ClusterPolicyProxyConfig[key]
+	switch {
+	case cachedProxyConfig == nil && newProxyConfig != nil:
+		// Proxy config was added during the update: cache a full copy.
+		c.ClusterPolicyProxyConfig[key] = newProxyConfig.DeepCopy()
+	case cachedProxyConfig != nil && newProxyConfig == nil:
+		// Proxy config was removed during the update: drop the cached entry.
+		c.ClusterPolicyProxyConfig[key] = nil
+	default:
+		updateProxyConfigMutableFields(cachedProxyConfig, newProxyConfig)
+	}
 }
 
 func (c *PolicyCacher) deleteVarmorClusterPolicy(obj interface{}) {
@@ -169,8 +180,21 @@ func (c *PolicyCacher) updateVarmorPolicy(oldObj, newObj interface{}) {
 	}
 	c.PolicyEnforcer[key] = vp.Spec.Policy.Enforcer
 	c.PolicyMode[key] = vp.Spec.Policy.Mode
-	// Update only mutable proxy config fields (MITM, Resources).
-	updateProxyConfigMutableFields(c.PolicyProxyConfig[key], vp.Spec.Policy.NetworkProxyConfig)
+	// Handle nil transitions explicitly, then update only mutable proxy
+	// config fields (MITM, Resources). ProxyUID, ProxyPort, ProxyAdminPort
+	// are immutable after creation and must not be overwritten.
+	newProxyConfig := vp.Spec.Policy.NetworkProxyConfig
+	cachedProxyConfig := c.PolicyProxyConfig[key]
+	switch {
+	case cachedProxyConfig == nil && newProxyConfig != nil:
+		// Proxy config was added during the update: cache a full copy.
+		c.PolicyProxyConfig[key] = newProxyConfig.DeepCopy()
+	case cachedProxyConfig != nil && newProxyConfig == nil:
+		// Proxy config was removed during the update: drop the cached entry.
+		c.PolicyProxyConfig[key] = nil
+	default:
+		updateProxyConfigMutableFields(cachedProxyConfig, newProxyConfig)
+	}
 }
 
 func (c *PolicyCacher) deleteVarmorPolicy(obj interface{}) {
