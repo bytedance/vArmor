@@ -77,7 +77,9 @@ type PtraceContent struct {
 
 type MountContent struct {
 	Mode              uint32      `json:"mode,omitempty"`
+	// +kubebuilder:validation:Format=int64
 	MountFlags        uint32      `json:"mountFlags"`
+	// +kubebuilder:validation:Format=int64
 	ReverseMountflags uint32      `json:"reverseMountflags"`
 	Pattern           PathPattern `json:"pattern"`
 	Fstype            string      `json:"fstype"`
