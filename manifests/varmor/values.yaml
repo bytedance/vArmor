@@ -425,7 +425,7 @@ networkproxy:
   image:
     init:
       name: proxyinit
-      tag: v0.1
+      tag: v0.2
     proxy:
       name: envoy
       tag: v1.38-latest
