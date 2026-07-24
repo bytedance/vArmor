@@ -800,28 +800,45 @@ func buildNetworkProxyMITMTargetPatch(workloads bool, container corev1.Container
 	return sb.String()
 }
 
+// iptablesScript builds the proxy-init shell script that redirects the
+// Pod's outbound TCP traffic to the Envoy sidecar. The generated string is
+// embedded into the mutating webhook's JSON patch (wrapped in double quotes),
+// so it MUST NOT contain any double-quote character.
+//
+// The script asks the varmor-choose-backend helper (shipped in the proxyinit
+// image) which iptables backend is already in use in the target Pod netns,
+// and drives all rules through that backend (${IPT}/${IPT6}). This keeps
+// vArmor's rules visible to, and coherent with, rules other components
+// (e.g. a PaaS kata mesh init using legacy) have already installed in the
+// same netns. On a fresh netns the helper returns nft, matching the previous
+// default. If both backends already carry rules the helper prints CONFLICT
+// and the script aborts rather than guessing.
 func iptablesScript(proxyUID int64, proxyPort uint16, proxyAdminPort uint16) string {
 	script := fmt.Sprintf(
 		`set -ex\n`+
 			`ENVOY_UID=%d\n`+
 			`ENVOY_PORT=%d\n`+
 			`ENVOY_ADMIN_PORT=%d\n`+
-			`iptables -t nat -N VARMOR_OUTPUT\n`+
-			`iptables -t nat -N VARMOR_REDIRECT\n`+
-			`iptables -t nat -A OUTPUT -p tcp -j VARMOR_OUTPUT\n`+
-			`iptables -t nat -A VARMOR_OUTPUT -m owner --uid-owner ${ENVOY_UID} -j RETURN\n`+
-			`iptables -t nat -A VARMOR_OUTPUT -d 127.0.0.0/8 -j RETURN\n`+
-			`iptables -t nat -A VARMOR_OUTPUT -p tcp -j VARMOR_REDIRECT\n`+
-			`iptables -t nat -A VARMOR_REDIRECT -p tcp -j REDIRECT --to-ports ${ENVOY_PORT}\n`+
-			`iptables -t filter -A OUTPUT -p tcp --dport ${ENVOY_ADMIN_PORT} -m owner ! --uid-owner ${ENVOY_UID} -j DROP\n`+
-			`ip6tables -t nat -N VARMOR_OUTPUT\n`+
-			`ip6tables -t nat -N VARMOR_REDIRECT\n`+
-			`ip6tables -t nat -A OUTPUT -p tcp -j VARMOR_OUTPUT\n`+
-			`ip6tables -t nat -A VARMOR_OUTPUT -m owner --uid-owner ${ENVOY_UID} -j RETURN\n`+
-			`ip6tables -t nat -A VARMOR_OUTPUT -d ::1/128 -j RETURN\n`+
-			`ip6tables -t nat -A VARMOR_OUTPUT -p tcp -j VARMOR_REDIRECT\n`+
-			`ip6tables -t nat -A VARMOR_REDIRECT -p tcp -j REDIRECT --to-ports ${ENVOY_PORT}\n`+
-			`ip6tables -t filter -A OUTPUT -p tcp --dport ${ENVOY_ADMIN_PORT} -m owner ! --uid-owner ${ENVOY_UID} -j DROP`,
+			`IPT=$(/usr/local/bin/varmor-choose-backend iptables-legacy iptables-nft)\n`+
+			`IPT6=$(/usr/local/bin/varmor-choose-backend ip6tables-legacy ip6tables-nft)\n`+
+			`if [ ${IPT} = CONFLICT ]; then echo varmor-proxy-init: both legacy and nft rules present in netns, refusing to inject; exit 1; fi\n`+
+			`if [ ${IPT6} = CONFLICT ]; then echo varmor-proxy-init: both legacy and nft ipv6 rules present in netns, refusing to inject; exit 1; fi\n`+
+			`${IPT} -t nat -N VARMOR_OUTPUT\n`+
+			`${IPT} -t nat -N VARMOR_REDIRECT\n`+
+			`${IPT} -t nat -A OUTPUT -p tcp -j VARMOR_OUTPUT\n`+
+			`${IPT} -t nat -A VARMOR_OUTPUT -m owner --uid-owner ${ENVOY_UID} -j RETURN\n`+
+			`${IPT} -t nat -A VARMOR_OUTPUT -d 127.0.0.0/8 -j RETURN\n`+
+			`${IPT} -t nat -A VARMOR_OUTPUT -p tcp -j VARMOR_REDIRECT\n`+
+			`${IPT} -t nat -A VARMOR_REDIRECT -p tcp -j REDIRECT --to-ports ${ENVOY_PORT}\n`+
+			`${IPT} -t filter -A OUTPUT -p tcp --dport ${ENVOY_ADMIN_PORT} -m owner ! --uid-owner ${ENVOY_UID} -j DROP\n`+
+			`${IPT6} -t nat -N VARMOR_OUTPUT\n`+
+			`${IPT6} -t nat -N VARMOR_REDIRECT\n`+
+			`${IPT6} -t nat -A OUTPUT -p tcp -j VARMOR_OUTPUT\n`+
+			`${IPT6} -t nat -A VARMOR_OUTPUT -m owner --uid-owner ${ENVOY_UID} -j RETURN\n`+
+			`${IPT6} -t nat -A VARMOR_OUTPUT -d ::1/128 -j RETURN\n`+
+			`${IPT6} -t nat -A VARMOR_OUTPUT -p tcp -j VARMOR_REDIRECT\n`+
+			`${IPT6} -t nat -A VARMOR_REDIRECT -p tcp -j REDIRECT --to-ports ${ENVOY_PORT}\n`+
+			`${IPT6} -t filter -A OUTPUT -p tcp --dport ${ENVOY_ADMIN_PORT} -m owner ! --uid-owner ${ENVOY_UID} -j DROP`,
 		proxyUID, proxyPort, proxyAdminPort,
 	)
 	return fmt.Sprintf(`"%s"`, script)
