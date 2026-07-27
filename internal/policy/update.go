@@ -57,26 +57,38 @@ const AuditNodeMetadataOverlay = `node:
     pod_uid: "$(POD_UID)"`
 
 var (
+	// scriptTemplate builds the proxy-init shell script executed via "sh -c"
+	// for the controller-managed injection path (Deployment/StatefulSet/
+	// DaemonSet). It is kept logically identical to iptablesScript in
+	// internal/webhooks/mutation.go: it asks the varmor-choose-backend helper
+	// (shipped in the proxyinit image) which iptables backend is already in use
+	// in the target Pod netns and drives all rules through that backend
+	// (${IPT}/${IPT6}). Fresh netns -> nft (previous default); both backends
+	// carry rules -> the helper prints CONFLICT and the script aborts.
 	scriptTemplate = `set -ex
 ENVOY_UID=%d
 ENVOY_PORT=%d
 ENVOY_ADMIN_PORT=%d
-iptables -t nat -N VARMOR_OUTPUT
-iptables -t nat -N VARMOR_REDIRECT
-iptables -t nat -A OUTPUT -p tcp -j VARMOR_OUTPUT
-iptables -t nat -A VARMOR_OUTPUT -m owner --uid-owner ${ENVOY_UID} -j RETURN
-iptables -t nat -A VARMOR_OUTPUT -d 127.0.0.0/8 -j RETURN
-iptables -t nat -A VARMOR_OUTPUT -p tcp -j VARMOR_REDIRECT
-iptables -t nat -A VARMOR_REDIRECT -p tcp -j REDIRECT --to-ports ${ENVOY_PORT}
-iptables -t filter -A OUTPUT -p tcp --dport ${ENVOY_ADMIN_PORT} -m owner ! --uid-owner ${ENVOY_UID} -j DROP
-ip6tables -t nat -N VARMOR_OUTPUT
-ip6tables -t nat -N VARMOR_REDIRECT
-ip6tables -t nat -A OUTPUT -p tcp -j VARMOR_OUTPUT
-ip6tables -t nat -A VARMOR_OUTPUT -m owner --uid-owner ${ENVOY_UID} -j RETURN
-ip6tables -t nat -A VARMOR_OUTPUT -d ::1/128 -j RETURN
-ip6tables -t nat -A VARMOR_OUTPUT -p tcp -j VARMOR_REDIRECT
-ip6tables -t nat -A VARMOR_REDIRECT -p tcp -j REDIRECT --to-ports ${ENVOY_PORT}
-ip6tables -t filter -A OUTPUT -p tcp --dport ${ENVOY_ADMIN_PORT} -m owner ! --uid-owner ${ENVOY_UID} -j DROP`
+IPT=$(/usr/local/bin/varmor-choose-backend iptables-legacy iptables-nft)
+IPT6=$(/usr/local/bin/varmor-choose-backend ip6tables-legacy ip6tables-nft)
+if [ ${IPT} = CONFLICT ]; then echo varmor-proxy-init: both legacy and nft rules present in netns, refusing to inject; exit 1; fi
+if [ ${IPT6} = CONFLICT ]; then echo varmor-proxy-init: both legacy and nft ipv6 rules present in netns, refusing to inject; exit 1; fi
+${IPT} -t nat -N VARMOR_OUTPUT
+${IPT} -t nat -N VARMOR_REDIRECT
+${IPT} -t nat -A OUTPUT -p tcp -j VARMOR_OUTPUT
+${IPT} -t nat -A VARMOR_OUTPUT -m owner --uid-owner ${ENVOY_UID} -j RETURN
+${IPT} -t nat -A VARMOR_OUTPUT -d 127.0.0.0/8 -j RETURN
+${IPT} -t nat -A VARMOR_OUTPUT -p tcp -j VARMOR_REDIRECT
+${IPT} -t nat -A VARMOR_REDIRECT -p tcp -j REDIRECT --to-ports ${ENVOY_PORT}
+${IPT} -t filter -A OUTPUT -p tcp --dport ${ENVOY_ADMIN_PORT} -m owner ! --uid-owner ${ENVOY_UID} -j DROP
+${IPT6} -t nat -N VARMOR_OUTPUT
+${IPT6} -t nat -N VARMOR_REDIRECT
+${IPT6} -t nat -A OUTPUT -p tcp -j VARMOR_OUTPUT
+${IPT6} -t nat -A VARMOR_OUTPUT -m owner --uid-owner ${ENVOY_UID} -j RETURN
+${IPT6} -t nat -A VARMOR_OUTPUT -d ::1/128 -j RETURN
+${IPT6} -t nat -A VARMOR_OUTPUT -p tcp -j VARMOR_REDIRECT
+${IPT6} -t nat -A VARMOR_REDIRECT -p tcp -j REDIRECT --to-ports ${ENVOY_PORT}
+${IPT6} -t filter -A OUTPUT -p tcp --dport ${ENVOY_ADMIN_PORT} -m owner ! --uid-owner ${ENVOY_UID} -j DROP`
 
 	proxyInitContainer = coreV1.Container{
 		Name:  "varmor-network-proxy-init",
