@@ -17,7 +17,9 @@ package policy
 import (
 	"context"
 	"fmt"
+	"os"
 	"reflect"
+	"strconv"
 	"strings"
 	"time"
 
@@ -228,12 +230,14 @@ ${IPT6} -t filter -A OUTPUT -p tcp --dport ${ENVOY_ADMIN_PORT} -m owner ! --uid-
 
 	// proxyAuditALSVolumeMount mounts the ALS socket directory into the Envoy
 	// sidecar at the same absolute path the agent listens on, so the CDS
-	// cluster pipe.path resolves identically on both sides. Read-only is
-	// sufficient: Envoy only connects to the socket as a gRPC client.
+	// cluster pipe.path resolves identically on both sides. It is mounted
+	// read-write (not read-only): on runc Envoy only connects to the socket as
+	// a gRPC client, but on kata the in-sidecar audit sink must bind(2) the
+	// socket inode in this directory, which requires write access.
 	proxyAuditALSVolumeMount = coreV1.VolumeMount{
 		Name:      varmorconfig.AuditNetworkProxyVolumeName,
 		MountPath: varmorconfig.AuditNetworkProxySocketDir,
-		ReadOnly:  true,
+		ReadOnly:  false,
 	}
 
 	// auditDownwardAPIEnvVars carry the Pod identity into the Envoy sidecar
@@ -263,6 +267,72 @@ ${IPT6} -t filter -A OUTPUT -p tcp --dport ${ENVOY_ADMIN_PORT} -m owner ! --uid-
 	}
 )
 
+// AuditPolicyIdentity carries the owning policy's Kind/Name/Namespace down the
+// injection chain so the in-sidecar kata audit sink can attribute violation
+// records to the policy. It mirrors auditor.PolicyIdentity but is kept local to
+// the injection path to avoid importing the auditor package here.
+type AuditPolicyIdentity struct {
+	// Kind is "VarmorPolicy" or "VarmorClusterPolicy".
+	Kind string
+	// Name is the policy's metadata.name.
+	Name string
+	// Namespace is the policy's namespace for a namespaced VarmorPolicy, and an
+	// empty string for a cluster-scoped VarmorClusterPolicy.
+	Namespace string
+}
+
+// auditSinkNodeNameEnvVar carries the virtual node name into the Envoy sidecar
+// via the Downward API. The in-sidecar kata audit sink reads NODE_NAME to
+// attribute every violation record to the node hosting the kata Pod. On runc it
+// is unused (the node-central agent supplies the node name), which keeps the
+// sidecar env identical across runtimes (zero fork).
+var auditSinkNodeNameEnvVar = coreV1.EnvVar{
+	Name: "NODE_NAME",
+	ValueFrom: &coreV1.EnvVarSource{
+		FieldRef: &coreV1.ObjectFieldSelector{FieldPath: "spec.nodeName"},
+	},
+}
+
+// auditSinkEnvNames enumerates the sink-only env var names so cleanup can strip
+// them idempotently when the NetworkProxy enforcer is removed.
+var auditSinkEnvNames = map[string]bool{
+	"NODE_NAME":            true,
+	"PROFILE_NAME":         true,
+	"POLICY_KIND":          true,
+	"POLICY_NAME":          true,
+	"POLICY_NAMESPACE":     true,
+	"VARMOR_ENVOY_UID":     true,
+	"AUDIT_EVENT_METADATA": true,
+}
+
+// auditSinkEnvVars builds the env vars consumed by the in-sidecar kata audit
+// sink. They are injected on every sidecar (runc and kata) so the custom Envoy
+// image stays runtime-agnostic; on runc the entrypoint's connect(2) self-check
+// succeeds and the sink is never started, so the values are simply unused.
+//
+//   - NODE_NAME (Downward API spec.nodeName): node attribution.
+//   - PROFILE_NAME / POLICY_KIND / POLICY_NAME / POLICY_NAMESPACE: the policy
+//     identity the sink seeds so violation records carry the owning policy.
+//   - VARMOR_ENVOY_UID: the uid the entrypoint drops to before exec-ing Envoy,
+//     kept in sync with the iptables uid-owner RETURN exemption (proxyUID).
+//   - AUDIT_EVENT_METADATA: the cluster metadata literal the manager carries,
+//     so the sink produces records matching the node-central agent. Omitted
+//     when the manager has no such metadata configured.
+func auditSinkEnvVars(profileName string, id AuditPolicyIdentity, proxyUID int64) []coreV1.EnvVar {
+	envs := []coreV1.EnvVar{
+		auditSinkNodeNameEnvVar,
+		{Name: "PROFILE_NAME", Value: profileName},
+		{Name: "POLICY_KIND", Value: id.Kind},
+		{Name: "POLICY_NAME", Value: id.Name},
+		{Name: "POLICY_NAMESPACE", Value: id.Namespace},
+		{Name: "VARMOR_ENVOY_UID", Value: strconv.FormatInt(proxyUID, 10)},
+	}
+	if md := os.Getenv("AUDIT_EVENT_METADATA"); md != "" {
+		envs = append(envs, coreV1.EnvVar{Name: "AUDIT_EVENT_METADATA", Value: md})
+	}
+	return envs
+}
+
 // cleanupAuditFromSidecar removes the ALS socket volumeMount and the three
 // Downward API env vars from the Envoy sidecar container if present, keeping
 // reconciliation idempotent when the NetworkProxy enforcer is removed.
@@ -282,7 +352,7 @@ func cleanupAuditFromSidecar(containers []coreV1.Container) {
 		auditEnvNames := map[string]bool{"POD_NAME": true, "POD_NAMESPACE": true, "POD_UID": true}
 		filteredEnv := containers[i].Env[:0]
 		for _, ev := range containers[i].Env {
-			if !auditEnvNames[ev.Name] {
+			if !auditEnvNames[ev.Name] && !auditSinkEnvNames[ev.Name] {
 				filteredEnv = append(filteredEnv, ev)
 			}
 		}
@@ -302,13 +372,16 @@ func cleanupAuditVolumes(volumes *[]coreV1.Volume) {
 	*volumes = filtered
 }
 
-// applyAuditToSidecar appends the ALS socket volumeMount and the Downward API
-// Pod identity env vars to the Envoy sidecar container.
-func applyAuditToSidecar(containers []coreV1.Container) {
+// applyAuditToSidecar appends the ALS socket volumeMount, the Downward API Pod
+// identity env vars, and the kata audit sink env vars (node name, policy
+// identity, drop-privilege uid and cluster metadata) to the Envoy sidecar
+// container.
+func applyAuditToSidecar(containers []coreV1.Container, profileName string, id AuditPolicyIdentity, proxyUID int64) {
 	for i := range containers {
 		if containers[i].Name == proxyContainer.Name {
 			containers[i].VolumeMounts = append(containers[i].VolumeMounts, proxyAuditALSVolumeMount)
 			containers[i].Env = append(containers[i].Env, auditDownwardAPIEnvVars...)
+			containers[i].Env = append(containers[i].Env, auditSinkEnvVars(profileName, id, proxyUID)...)
 			break
 		}
 	}
@@ -450,6 +523,7 @@ func modifyDeploymentAnnotationsAndEnv(
 	proxyConfig *varmor.NetworkProxyConfig,
 	deploy *appsV1.Deployment,
 	profileName string,
+	id AuditPolicyIdentity,
 	bpfExclusiveMode bool) {
 
 	e := varmortypes.GetEnforcerType(enforcer)
@@ -568,7 +642,13 @@ func modifyDeploymentAnnotationsAndEnv(
 			proxyInitContainer.Command = []string{"sh", "-c", script}
 			deploy.Spec.Template.Spec.InitContainers = append(deploy.Spec.Template.Spec.InitContainers, proxyInitContainer)
 			// Add a proxy sidecar container
-			proxyContainer.SecurityContext.RunAsUser = &proxyUID
+			// Option B (kata): the sidecar always starts as root so the custom
+			// Envoy image entrypoint can run its runtime self-check and, on kata,
+			// bind the in-sidecar audit sink before dropping to the Envoy uid
+			// (VARMOR_ENVOY_UID = proxyUID) and exec-ing Envoy. On runc this is
+			// harmless: the entrypoint drops to proxyUID immediately.
+			sidecarRunAsUser := int64(0)
+			proxyContainer.SecurityContext.RunAsUser = &sidecarRunAsUser
 			proxyContainer.ReadinessProbe.TCPSocket.Port.IntVal = int32(proxyPort)
 			proxyContainer.Resources = ResolveProxyResources(
 				proxyResourceOverride(proxyConfig), isMITMEnabled(proxyConfig))
@@ -586,7 +666,7 @@ func modifyDeploymentAnnotationsAndEnv(
 			// Audit: add ALS socket hostPath volume + sidecar mount and
 			// Downward API Pod identity env vars. NetworkProxy violations always
 			// stream over gRPC ALS.
-			applyAuditToSidecar(deploy.Spec.Template.Spec.Containers)
+			applyAuditToSidecar(deploy.Spec.Template.Spec.Containers, profileName, id, proxyUID)
 			applyAuditVolumes(&deploy.Spec.Template.Spec.Volumes)
 		}
 	}
@@ -673,6 +753,7 @@ func modifyStatefulSetAnnotationsAndEnv(
 	proxyConfig *varmor.NetworkProxyConfig,
 	stateful *appsV1.StatefulSet,
 	profileName string,
+	id AuditPolicyIdentity,
 	bpfExclusiveMode bool) {
 	e := varmortypes.GetEnforcerType(enforcer)
 
@@ -790,7 +871,13 @@ func modifyStatefulSetAnnotationsAndEnv(
 			proxyInitContainer.Command = []string{"sh", "-c", script}
 			stateful.Spec.Template.Spec.InitContainers = append(stateful.Spec.Template.Spec.InitContainers, proxyInitContainer)
 			// Add a proxy sidecar container
-			proxyContainer.SecurityContext.RunAsUser = &proxyUID
+			// Option B (kata): the sidecar always starts as root so the custom
+			// Envoy image entrypoint can run its runtime self-check and, on kata,
+			// bind the in-sidecar audit sink before dropping to the Envoy uid
+			// (VARMOR_ENVOY_UID = proxyUID) and exec-ing Envoy. On runc this is
+			// harmless: the entrypoint drops to proxyUID immediately.
+			sidecarRunAsUser := int64(0)
+			proxyContainer.SecurityContext.RunAsUser = &sidecarRunAsUser
 			proxyContainer.ReadinessProbe.TCPSocket.Port.IntVal = int32(proxyPort)
 			proxyContainer.Resources = ResolveProxyResources(
 				proxyResourceOverride(proxyConfig), isMITMEnabled(proxyConfig))
@@ -808,7 +895,7 @@ func modifyStatefulSetAnnotationsAndEnv(
 			// Audit: add ALS socket hostPath volume + sidecar mount and
 			// Downward API Pod identity env vars. NetworkProxy violations always
 			// stream over gRPC ALS.
-			applyAuditToSidecar(stateful.Spec.Template.Spec.Containers)
+			applyAuditToSidecar(stateful.Spec.Template.Spec.Containers, profileName, id, proxyUID)
 			applyAuditVolumes(&stateful.Spec.Template.Spec.Volumes)
 		}
 	}
@@ -895,6 +982,7 @@ func modifyDaemonSetAnnotationsAndEnv(
 	proxyConfig *varmor.NetworkProxyConfig,
 	daemon *appsV1.DaemonSet,
 	profileName string,
+	id AuditPolicyIdentity,
 	bpfExclusiveMode bool) {
 	e := varmortypes.GetEnforcerType(enforcer)
 
@@ -1012,7 +1100,13 @@ func modifyDaemonSetAnnotationsAndEnv(
 			proxyInitContainer.Command = []string{"sh", "-c", script}
 			daemon.Spec.Template.Spec.InitContainers = append(daemon.Spec.Template.Spec.InitContainers, proxyInitContainer)
 			// Add a proxy sidecar container
-			proxyContainer.SecurityContext.RunAsUser = &proxyUID
+			// Option B (kata): the sidecar always starts as root so the custom
+			// Envoy image entrypoint can run its runtime self-check and, on kata,
+			// bind the in-sidecar audit sink before dropping to the Envoy uid
+			// (VARMOR_ENVOY_UID = proxyUID) and exec-ing Envoy. On runc this is
+			// harmless: the entrypoint drops to proxyUID immediately.
+			sidecarRunAsUser := int64(0)
+			proxyContainer.SecurityContext.RunAsUser = &sidecarRunAsUser
 			proxyContainer.ReadinessProbe.TCPSocket.Port.IntVal = int32(proxyPort)
 			proxyContainer.Resources = ResolveProxyResources(
 				proxyResourceOverride(proxyConfig), isMITMEnabled(proxyConfig))
@@ -1030,7 +1124,7 @@ func modifyDaemonSetAnnotationsAndEnv(
 			// Audit: add ALS socket hostPath volume + sidecar mount and
 			// Downward API Pod identity env vars. NetworkProxy violations always
 			// stream over gRPC ALS.
-			applyAuditToSidecar(daemon.Spec.Template.Spec.Containers)
+			applyAuditToSidecar(daemon.Spec.Template.Spec.Containers, profileName, id, proxyUID)
 			applyAuditVolumes(&daemon.Spec.Template.Spec.Volumes)
 		}
 	}
@@ -1118,6 +1212,7 @@ func updateWorkloadAnnotationsAndEnv(
 	target varmor.Target,
 	proxyConfig *varmor.NetworkProxyConfig,
 	profileName string,
+	id AuditPolicyIdentity,
 	bpfExclusiveMode bool,
 	logger logr.Logger) {
 
@@ -1173,7 +1268,7 @@ func updateWorkloadAnnotationsAndEnv(
 				}
 
 				deployOld := deploy.DeepCopy()
-				modifyDeploymentAnnotationsAndEnv(enforcer, mode, target, proxyConfig, deploy, profileName, bpfExclusiveMode)
+				modifyDeploymentAnnotationsAndEnv(enforcer, mode, target, proxyConfig, deploy, profileName, id, bpfExclusiveMode)
 				if reflect.DeepEqual(deployOld, deploy) {
 					return nil
 				}
@@ -1216,7 +1311,7 @@ func updateWorkloadAnnotationsAndEnv(
 				}
 
 				statefulOld := stateful.DeepCopy()
-				modifyStatefulSetAnnotationsAndEnv(enforcer, mode, target, proxyConfig, stateful, profileName, bpfExclusiveMode)
+				modifyStatefulSetAnnotationsAndEnv(enforcer, mode, target, proxyConfig, stateful, profileName, id, bpfExclusiveMode)
 				if reflect.DeepEqual(statefulOld, stateful) {
 					return nil
 				}
@@ -1263,7 +1358,7 @@ func updateWorkloadAnnotationsAndEnv(
 				}
 
 				daemonOld := daemon.DeepCopy()
-				modifyDaemonSetAnnotationsAndEnv(enforcer, mode, target, proxyConfig, daemon, profileName, bpfExclusiveMode)
+				modifyDaemonSetAnnotationsAndEnv(enforcer, mode, target, proxyConfig, daemon, profileName, id, bpfExclusiveMode)
 				if reflect.DeepEqual(daemonOld, daemon) {
 					return nil
 				}

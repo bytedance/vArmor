@@ -404,7 +404,15 @@ func (auditor *Auditor) startALSConsumer() {
 	// the kubelet auto-created them for a DirectoryOrCreate hostPath with its
 	// default root:root 0755. gateDir and socketDir are distinct directories,
 	// so the order of the two chmods does not matter.
-	if err := os.Chmod(gateDir, 0o700); err != nil {
+	// gateDir mode: the node-central agent uses root-only 0700 so no non-root
+	// host user can traverse into the socket; the in-sidecar kata sink uses
+	// 0711 (traverse-without-list) because the co-located non-root Envoy must
+	// path-walk gateDir on the shared container rootfs to reach the socket.
+	gateDirMode := os.FileMode(0o700)
+	if auditor.alsColocatedSidecar {
+		gateDirMode = 0o711
+	}
+	if err := os.Chmod(gateDir, gateDirMode); err != nil {
 		auditor.log.Info("cannot chmod ALS gate directory", "dir", gateDir, "reason", err.Error())
 	}
 	if err := os.Chmod(socketDir, 0o711); err != nil {

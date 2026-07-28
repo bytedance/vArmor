@@ -91,7 +91,18 @@ type Auditor struct {
 	// server listens on. It is injected by the caller (the agent); an empty
 	// path disables the ALS collector.
 	alsSocketPath string
-	alsListener   net.Listener
+	// alsColocatedSidecar relaxes the ALS gate directory from the default
+	// root-only 0700 to 0711 (traverse-without-list). It MUST stay false for
+	// the node-central agent, where gateDir is a host directory that no
+	// non-root process ever path-walks (the sidecar reaches the socket
+	// through its own hostPath mount of socketDir, not through the host's
+	// gateDir), so 0700 maximally isolates it. It is set true only by the
+	// in-sidecar kata sink (SetColocatedSidecar), where gateDir lives on the
+	// shared container rootfs and the co-located Envoy (a non-root uid) must
+	// traverse it to connect(2) to the socket; 0711 lets Envoy path-walk in
+	// without being able to enumerate the directory.
+	alsColocatedSidecar bool
+	alsListener         net.Listener
 	alsServer     *grpc.Server
 	// alsWg tracks the ALS serve goroutine so Close can wait for it to
 	// return after the gRPC server is stopped.
@@ -176,6 +187,16 @@ func NewAuditor(nodeName string, appArmorSupported, bpfLsmSupported, enableBehav
 	auditor.alsSocketPath = alsSocketPath
 
 	return &auditor, nil
+}
+
+// SetColocatedSidecar marks the auditor as running inside the same container
+// as the Envoy sidecar it collects from (the kata in-sidecar sink). It relaxes
+// the ALS gate directory to 0711 so the co-located non-root Envoy can traverse
+// it to connect(2) to the socket. It has no effect on the node-central agent,
+// which never calls it and keeps the maximally isolated 0700 gate. It must be
+// called before Run.
+func (auditor *Auditor) SetColocatedSidecar(colocated bool) {
+	auditor.alsColocatedSidecar = colocated
 }
 
 func (auditor *Auditor) eventHandler(stopCh <-chan struct{}) {

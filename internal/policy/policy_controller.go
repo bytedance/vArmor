@@ -179,7 +179,7 @@ func (c *PolicyController) handleDeleteVarmorPolicy(namespace, name string) erro
 				"",
 				ap.Spec.Target,
 				nil,
-				"", false, logger)
+				"", AuditPolicyIdentity{}, false, logger)
 		}
 
 		logger.Info("remove the ArmorProfile's finalizers")
@@ -291,6 +291,7 @@ func (c *PolicyController) handleAddVarmorPolicy(vp *varmor.VarmorPolicy, profil
 			vp.Spec.Target,
 			vp.Spec.Policy.NetworkProxyConfig,
 			ap.Name,
+			AuditPolicyIdentity{Kind: "VarmorPolicy", Name: vp.Name, Namespace: vp.Namespace},
 			c.bpfExclusiveMode,
 			logger)
 	}

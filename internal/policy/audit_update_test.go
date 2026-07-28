@@ -36,16 +36,21 @@ func Test_applyAuditToSidecar(t *testing.T) {
 		},
 	}
 
-	applyAuditToSidecar(containers)
+	applyAuditToSidecar(containers, "varmor-testns-test", AuditPolicyIdentity{
+		Kind:      "VarmorPolicy",
+		Name:      "test",
+		Namespace: "testns",
+	}, varmorconfig.DefaultProxyUID)
 
-	// Sidecar gains the ALS socket volumeMount.
+	// Sidecar gains the ALS socket volumeMount. It is mounted read-write so the
+	// in-sidecar kata audit sink can bind(2) the socket inode.
 	assert.Equal(t, len(containers[1].VolumeMounts), 2)
 	assert.Equal(t, containers[1].VolumeMounts[1].Name, varmorconfig.AuditNetworkProxyVolumeName)
 	assert.Equal(t, containers[1].VolumeMounts[1].MountPath, varmorconfig.AuditNetworkProxySocketDir)
-	assert.Assert(t, containers[1].VolumeMounts[1].ReadOnly)
+	assert.Assert(t, !containers[1].VolumeMounts[1].ReadOnly)
 
-	// Sidecar gains the three Downward API env vars (name / namespace / uid).
-	assert.Equal(t, len(containers[1].Env), 3)
+	// Sidecar gains the three Downward API env vars (name / namespace / uid)
+	// followed by the kata audit sink env vars.
 	assert.Equal(t, containers[1].Env[0].Name, "POD_NAME")
 	assert.Assert(t, containers[1].Env[0].ValueFrom != nil)
 	assert.Assert(t, containers[1].Env[0].ValueFrom.FieldRef != nil)
@@ -58,6 +63,22 @@ func Test_applyAuditToSidecar(t *testing.T) {
 	assert.Assert(t, containers[1].Env[2].ValueFrom != nil)
 	assert.Assert(t, containers[1].Env[2].ValueFrom.FieldRef != nil)
 	assert.Equal(t, containers[1].Env[2].ValueFrom.FieldRef.FieldPath, "metadata.uid")
+
+	// Kata audit sink env vars.
+	envByName := map[string]coreV1.EnvVar{}
+	for _, ev := range containers[1].Env {
+		envByName[ev.Name] = ev
+	}
+	nodeName, ok := envByName["NODE_NAME"]
+	assert.Assert(t, ok)
+	assert.Assert(t, nodeName.ValueFrom != nil)
+	assert.Assert(t, nodeName.ValueFrom.FieldRef != nil)
+	assert.Equal(t, nodeName.ValueFrom.FieldRef.FieldPath, "spec.nodeName")
+	assert.Equal(t, envByName["PROFILE_NAME"].Value, "varmor-testns-test")
+	assert.Equal(t, envByName["POLICY_KIND"].Value, "VarmorPolicy")
+	assert.Equal(t, envByName["POLICY_NAME"].Value, "test")
+	assert.Equal(t, envByName["POLICY_NAMESPACE"].Value, "testns")
+	assert.Equal(t, envByName["VARMOR_ENVOY_UID"].Value, "1337")
 
 	// App container must be untouched.
 	assert.Equal(t, len(containers[0].VolumeMounts), 0)
@@ -174,7 +195,9 @@ func Test_applyThenCleanupAudit_RoundTrip(t *testing.T) {
 		{Name: "varmor-network-proxy-config"},
 	}
 
-	applyAuditToSidecar(containers)
+	applyAuditToSidecar(containers, "varmor-testns-test", AuditPolicyIdentity{
+		Kind: "VarmorPolicy", Name: "test", Namespace: "testns",
+	}, varmorconfig.DefaultProxyUID)
 	applyAuditVolumes(&volumes)
 	cleanupAuditFromSidecar(containers)
 	cleanupAuditVolumes(&volumes)

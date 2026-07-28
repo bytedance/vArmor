@@ -229,6 +229,13 @@ docker-build-proxyinit:
 	@docker buildx build --file $(PWD)/tools/proxyinit/Dockerfile --tag $(PROXYINIT_IMAGE_DEV)-amd64 --platform linux/amd64 --load .
 	@docker buildx build --file $(PWD)/tools/proxyinit/Dockerfile --tag $(PROXYINIT_IMAGE_DEV)-arm64 --platform linux/arm64 --load .
 
+docker-build-proxy:
+	@echo "[+] Build custom envoy image"
+	@docker buildx build --file $(PWD)/tools/networkproxy/Dockerfile --tag $(PROXY_IMAGE_AP)-amd64 --platform linux/amd64 --load .
+	@docker buildx build --file $(PWD)/tools/networkproxy/Dockerfile --tag $(PROXY_IMAGE_AP)-arm64 --platform linux/arm64 --load .
+	@docker buildx build --file $(PWD)/tools/networkproxy/Dockerfile --tag $(PROXY_IMAGE_DEV)-amd64 --platform linux/amd64 --load .
+	@docker buildx build --file $(PWD)/tools/networkproxy/Dockerfile --tag $(PROXY_IMAGE_DEV)-arm64 --platform linux/arm64 --load .
+
 docker-save-ci-dev:
 	@docker tag  $(VARMOR_IMAGE_DEV)-amd64 $(VARMOR_IMAGE_DEV)
 	@docker tag  $(CLASSIFIER_IMAGE_DEV)-amd64 $(CLASSIFIER_IMAGE_DEV)
@@ -301,7 +308,7 @@ push: ## Push images and chart to the public repository for release.
 
 ##@ Sync proxy images
 .PHONY: sync-proxy-images
-sync-proxy-images: docker-build-proxyinit ## Sync proxy images to the public repository.
+sync-proxy-images: docker-build-proxyinit docker-build-proxy ## Sync proxy images to the public repository.
 	@echo "[+] Push proxyinit image"
 	@echo "----------------------------------------"
 	docker push $(PROXYINIT_IMAGE_AP)-amd64
@@ -323,17 +330,6 @@ sync-proxy-images: docker-build-proxyinit ## Sync proxy images to the public rep
 	docker manifest create $(PROXYINIT_IMAGE_DEV) $(PROXYINIT_IMAGE_DEV)-amd64 $(PROXYINIT_IMAGE_DEV)-arm64
 	@echo "----------------------------------------"
 	docker manifest push $(PROXYINIT_IMAGE_DEV)
-	@echo "----------------------------------------"
-	@echo "[+] Pull proxy image"
-	@docker pull --platform linux/amd64 envoyproxy/$(PROXY_IMAGE_NAME):$(PROXY_IMAGE_TAG)
-	@docker tag envoyproxy/$(PROXY_IMAGE_NAME):$(PROXY_IMAGE_TAG) $(PROXY_IMAGE_AP)-amd64
-	@docker tag envoyproxy/$(PROXY_IMAGE_NAME):$(PROXY_IMAGE_TAG) $(PROXY_IMAGE_DEV)-amd64
-	@echo "----------------------------------------"
-	@docker pull --platform linux/arm64 envoyproxy/$(PROXY_IMAGE_NAME):$(PROXY_IMAGE_TAG)
-	@docker tag envoyproxy/$(PROXY_IMAGE_NAME):$(PROXY_IMAGE_TAG) $(PROXY_IMAGE_AP)-arm64
-	@docker tag envoyproxy/$(PROXY_IMAGE_NAME):$(PROXY_IMAGE_TAG) $(PROXY_IMAGE_DEV)-arm64
-	@echo "----------------------------------------"
-	@docker rmi envoyproxy/$(PROXY_IMAGE_NAME):$(PROXY_IMAGE_TAG)
 	@echo "----------------------------------------"
 	@echo "[+] Push proxy image"
 	@echo "----------------------------------------"

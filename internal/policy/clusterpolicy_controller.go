@@ -179,7 +179,7 @@ func (c *ClusterPolicyController) handleDeleteVarmorClusterPolicy(name string) e
 				"",
 				ap.Spec.Target,
 				nil,
-				"", false, logger)
+				"", AuditPolicyIdentity{}, false, logger)
 		}
 
 		logger.Info("remove the ArmorProfile's finalizers")
@@ -295,6 +295,7 @@ func (c *ClusterPolicyController) handleAddVarmorClusterPolicy(vcp *varmor.Varmo
 			vcp.Spec.Target,
 			vcp.Spec.Policy.NetworkProxyConfig,
 			ap.Name,
+			AuditPolicyIdentity{Kind: "VarmorClusterPolicy", Name: vcp.Name},
 			c.bpfExclusiveMode,
 			logger)
 	}

@@ -22,6 +22,7 @@ import (
 
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
 	varmorconfig "github.com/bytedance/vArmor/internal/config"
+	varmorpolicy "github.com/bytedance/vArmor/internal/policy"
 )
 
 // Test_buildNetworkProxyPatch_AuditInjected asserts that NetworkProxy
@@ -29,7 +30,7 @@ import (
 // unconditionally injects the Downward API Pod identity env vars and the
 // shared ALS socket hostPath volume/mount.
 func Test_buildNetworkProxyPatch_AuditInjected(t *testing.T) {
-	patch := buildNetworkProxyPatch("varmor-testns-test", true, nil)
+	patch := buildNetworkProxyPatch("varmor-testns-test", varmorpolicy.AuditPolicyIdentity{Kind: "VarmorPolicy", Name: "test", Namespace: "testns"}, true, nil)
 
 	// Sidecar carries the Downward API env array.
 	assert.Assert(t, strings.Contains(patch, `"env": [`),
@@ -49,9 +50,29 @@ func Test_buildNetworkProxyPatch_AuditInjected(t *testing.T) {
 	assert.Assert(t, strings.Contains(patch, `$(POD_UID)`),
 		"overlay should reference the POD_UID env var")
 
-	// Sidecar mounts the ALS socket directory (read-only).
-	assert.Assert(t, strings.Contains(patch, `"name": "`+varmorconfig.AuditNetworkProxyVolumeName+`", "mountPath": "`+varmorconfig.AuditNetworkProxySocketDir+`", "readOnly": true`),
+	// Sidecar mounts the ALS socket directory (read-write, so the in-sidecar
+	// kata audit sink can bind(2) the socket inode).
+	assert.Assert(t, strings.Contains(patch, `"name": "`+varmorconfig.AuditNetworkProxyVolumeName+`", "mountPath": "`+varmorconfig.AuditNetworkProxySocketDir+`", "readOnly": false`),
 		"patch should mount the ALS socket directory into the sidecar")
+
+	// Sidecar carries the kata audit sink env vars.
+	assert.Assert(t, strings.Contains(patch, `{"name": "NODE_NAME", "valueFrom": {"fieldRef": {"fieldPath": "spec.nodeName"}}}`),
+		"patch should inject NODE_NAME via Downward API")
+	assert.Assert(t, strings.Contains(patch, `{"name": "PROFILE_NAME", "value": "varmor-testns-test"}`),
+		"patch should inject PROFILE_NAME")
+	assert.Assert(t, strings.Contains(patch, `{"name": "POLICY_KIND", "value": "VarmorPolicy"}`),
+		"patch should inject POLICY_KIND")
+	assert.Assert(t, strings.Contains(patch, `{"name": "POLICY_NAME", "value": "test"}`),
+		"patch should inject POLICY_NAME")
+	assert.Assert(t, strings.Contains(patch, `{"name": "POLICY_NAMESPACE", "value": "testns"}`),
+		"patch should inject POLICY_NAMESPACE")
+	assert.Assert(t, strings.Contains(patch, `{"name": "VARMOR_ENVOY_UID", "value": "1337"}`),
+		"patch should inject VARMOR_ENVOY_UID")
+
+	// Sidecar starts as root so the entrypoint can bind the kata sink before
+	// dropping to the Envoy uid.
+	assert.Assert(t, strings.Contains(patch, `"securityContext": {"runAsUser": 0}`),
+		"patch should start the sidecar as root (runAsUser 0)")
 
 	// PodSpec gains the ALS socket hostPath volume.
 	assert.Assert(t, strings.Contains(patch, `"name": "`+varmorconfig.AuditNetworkProxyVolumeName+`", "hostPath": {"path": "`+varmorconfig.AuditNetworkProxySocketDir+`", "type": "DirectoryOrCreate"}`),
@@ -65,7 +86,7 @@ func Test_buildNetworkProxyPatch_AuditWithMITM(t *testing.T) {
 	proxyConfig := &varmor.NetworkProxyConfig{
 		MITM: &varmor.MITMConfig{Domains: []string{"example.com"}},
 	}
-	patch := buildNetworkProxyPatch("varmor-testns-test", true, proxyConfig)
+	patch := buildNetworkProxyPatch("varmor-testns-test", varmorpolicy.AuditPolicyIdentity{Kind: "VarmorPolicy", Name: "test", Namespace: "testns"}, true, proxyConfig)
 
 	// MITM injection intact.
 	assert.Assert(t, strings.Contains(patch, `"name": "varmor-network-proxy-mitm-tls"`),

@@ -22,6 +22,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
+	varmorpolicy "github.com/bytedance/vArmor/internal/policy"
 	varmorconfig "github.com/bytedance/vArmor/internal/config"
 )
 
@@ -33,7 +34,7 @@ func Test_buildNetworkProxyPatch_MITMEnabled(t *testing.T) {
 		},
 	}
 
-	patch := buildNetworkProxyPatch(profileName, true, proxyConfig)
+	patch := buildNetworkProxyPatch(profileName, varmorpolicy.AuditPolicyIdentity{Kind: "VarmorPolicy", Name: "test", Namespace: "testns"}, true, proxyConfig)
 
 	// Should contain the sidecar MITM TLS volumeMount
 	assert.Assert(t, strings.Contains(patch, `"name": "varmor-network-proxy-mitm-tls"`),
@@ -87,7 +88,7 @@ func Test_buildNetworkProxyPatch_MITMDisabled(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			patch := buildNetworkProxyPatch(profileName, true, tc.proxyConfig)
+			patch := buildNetworkProxyPatch(profileName, varmorpolicy.AuditPolicyIdentity{Kind: "VarmorPolicy", Name: "test", Namespace: "testns"}, true, tc.proxyConfig)
 
 			// Should NOT contain MITM volumes
 			assert.Assert(t, !strings.Contains(patch, "varmor-network-proxy-mitm-tls"),
