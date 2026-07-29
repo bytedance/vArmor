@@ -231,10 +231,10 @@ docker-build-proxyinit:
 
 docker-build-proxy:
 	@echo "[+] Build custom envoy image"
-	@docker buildx build --file $(PWD)/tools/networkproxy/Dockerfile --tag $(PROXY_IMAGE_AP)-amd64 --platform linux/amd64 --load .
-	@docker buildx build --file $(PWD)/tools/networkproxy/Dockerfile --tag $(PROXY_IMAGE_AP)-arm64 --platform linux/arm64 --load .
-	@docker buildx build --file $(PWD)/tools/networkproxy/Dockerfile --tag $(PROXY_IMAGE_DEV)-amd64 --platform linux/amd64 --load .
-	@docker buildx build --file $(PWD)/tools/networkproxy/Dockerfile --tag $(PROXY_IMAGE_DEV)-arm64 --platform linux/arm64 --load .
+	@docker buildx build --file $(PWD)/cmd/networkproxy/Dockerfile --tag $(PROXY_IMAGE_AP)-amd64 --platform linux/amd64 --load .
+	@docker buildx build --file $(PWD)/cmd/networkproxy/Dockerfile --tag $(PROXY_IMAGE_AP)-arm64 --platform linux/arm64 --load .
+	@docker buildx build --file $(PWD)/cmd/networkproxy/Dockerfile --tag $(PROXY_IMAGE_DEV)-amd64 --platform linux/amd64 --load .
+	@docker buildx build --file $(PWD)/cmd/networkproxy/Dockerfile --tag $(PROXY_IMAGE_DEV)-arm64 --platform linux/arm64 --load .
 
 docker-save-ci-dev:
 	@docker tag  $(VARMOR_IMAGE_DEV)-amd64 $(VARMOR_IMAGE_DEV)

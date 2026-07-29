@@ -69,7 +69,7 @@ RUN GOOS=${TARGETOS} && \
     GOARCH=${TARGETARCH} && \
     CGO_ENABLED=1 go build -o /output/networkproxy-audit-sink -v \
         -ldflags "-w" \
-        ./cmd/networkproxy-audit-sink/
+        ./cmd/networkproxy/
 
 
 ## Packaging: upstream Envoy image + sink + entrypoint
@@ -96,7 +96,7 @@ RUN ldconfig
 
 # Runtime-agnostic entrypoint: connect-check -> (kata) start sink -> drop to
 # Envoy uid -> exec envoy. su-exec ships in the upstream Envoy image.
-COPY tools/networkproxy/entrypoint.sh /usr/local/bin/varmor-proxy-entrypoint.sh
+COPY cmd/networkproxy/entrypoint.sh /usr/local/bin/varmor-proxy-entrypoint.sh
 RUN chmod 0755 /usr/local/bin/varmor-proxy-entrypoint.sh
 
 # Start as root so the entrypoint can bind the sink socket (kata) and then drop
