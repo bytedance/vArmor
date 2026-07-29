@@ -230,14 +230,15 @@ ${IPT6} -t filter -A OUTPUT -p tcp --dport ${ENVOY_ADMIN_PORT} -m owner ! --uid-
 
 	// proxyAuditALSVolumeMount mounts the ALS socket directory into the Envoy
 	// sidecar at the same absolute path the agent listens on, so the CDS
-	// cluster pipe.path resolves identically on both sides. It is mounted
-	// read-write (not read-only): on runc Envoy only connects to the socket as
-	// a gRPC client, but on kata the in-sidecar audit sink must bind(2) the
-	// socket inode in this directory, which requires write access.
+	// cluster pipe.path resolves identically on both sides. This mount is only
+	// injected on runc (kata omits the hostPath volume entirely), where Envoy
+	// merely connects to the node agent's socket as a gRPC client and never
+	// writes to the directory, so it is mounted read-only. The kata in-sidecar
+	// sink binds its socket in the container's own rootfs, needing no mount.
 	proxyAuditALSVolumeMount = coreV1.VolumeMount{
 		Name:      varmorconfig.AuditNetworkProxyVolumeName,
 		MountPath: varmorconfig.AuditNetworkProxySocketDir,
-		ReadOnly:  false,
+		ReadOnly:  true,
 	}
 
 	// auditDownwardAPIEnvVars carry the Pod identity into the Envoy sidecar
@@ -372,14 +373,20 @@ func cleanupAuditVolumes(volumes *[]coreV1.Volume) {
 	*volumes = filtered
 }
 
-// applyAuditToSidecar appends the ALS socket volumeMount, the Downward API Pod
-// identity env vars, and the kata audit sink env vars (node name, policy
-// identity, drop-privilege uid and cluster metadata) to the Envoy sidecar
-// container.
-func applyAuditToSidecar(containers []coreV1.Container, profileName string, id AuditPolicyIdentity, proxyUID int64) {
+// applyAuditToSidecar appends the Downward API Pod identity env vars and the
+// audit sink env vars (node name, policy identity, drop-privilege uid and
+// cluster metadata) to the Envoy sidecar container. On runc it also appends the
+// shared ALS socket volumeMount so Envoy can connect to the node agent's socket;
+// on a micro-VM (microVM == true) the volumeMount is omitted because no hostPath volume
+// is injected and the in-sidecar sink binds the socket in the container's own
+// writable rootfs. The env vars are injected in both cases (runc's entrypoint
+// self-check succeeds and simply ignores the unused sink env vars).
+func applyAuditToSidecar(containers []coreV1.Container, profileName string, id AuditPolicyIdentity, proxyUID int64, microVM bool) {
 	for i := range containers {
 		if containers[i].Name == proxyContainer.Name {
-			containers[i].VolumeMounts = append(containers[i].VolumeMounts, proxyAuditALSVolumeMount)
+			if !microVM {
+				containers[i].VolumeMounts = append(containers[i].VolumeMounts, proxyAuditALSVolumeMount)
+			}
 			containers[i].Env = append(containers[i].Env, auditDownwardAPIEnvVars...)
 			containers[i].Env = append(containers[i].Env, auditSinkEnvVars(profileName, id, proxyUID)...)
 			break
@@ -387,8 +394,15 @@ func applyAuditToSidecar(containers []coreV1.Container, profileName string, id A
 	}
 }
 
-// applyAuditVolumes appends the ALS socket hostPath volume to a PodSpec.
-func applyAuditVolumes(volumes *[]coreV1.Volume) {
+// applyAuditVolumes appends the ALS socket hostPath volume to a PodSpec. It is a
+// no-op on a micro-VM (microVM == true): serverless/micro-VM providers (e.g. Volcengine
+// VCI) reject hostPath volumes at admission, so the Pod would never schedule.
+// On kata the in-sidecar sink binds the socket in the container's own rootfs and
+// needs no volume.
+func applyAuditVolumes(volumes *[]coreV1.Volume, microVM bool) {
+	if microVM {
+		return
+	}
 	*volumes = append(*volumes, *proxyAuditALSVolume.DeepCopy())
 }
 
@@ -666,8 +680,9 @@ func modifyDeploymentAnnotationsAndEnv(
 			// Audit: add ALS socket hostPath volume + sidecar mount and
 			// Downward API Pod identity env vars. NetworkProxy violations always
 			// stream over gRPC ALS.
-			applyAuditToSidecar(deploy.Spec.Template.Spec.Containers, profileName, id, proxyUID)
-			applyAuditVolumes(&deploy.Spec.Template.Spec.Volumes)
+			microVM := varmorconfig.IsMicroVMPod(deploy.Spec.Template.Labels, deploy.Spec.Template.Annotations, deploy.Spec.Template.Spec.RuntimeClassName)
+			applyAuditToSidecar(deploy.Spec.Template.Spec.Containers, profileName, id, proxyUID, microVM)
+			applyAuditVolumes(&deploy.Spec.Template.Spec.Volumes, microVM)
 		}
 	}
 
@@ -895,8 +910,9 @@ func modifyStatefulSetAnnotationsAndEnv(
 			// Audit: add ALS socket hostPath volume + sidecar mount and
 			// Downward API Pod identity env vars. NetworkProxy violations always
 			// stream over gRPC ALS.
-			applyAuditToSidecar(stateful.Spec.Template.Spec.Containers, profileName, id, proxyUID)
-			applyAuditVolumes(&stateful.Spec.Template.Spec.Volumes)
+			microVM := varmorconfig.IsMicroVMPod(stateful.Spec.Template.Labels, stateful.Spec.Template.Annotations, stateful.Spec.Template.Spec.RuntimeClassName)
+			applyAuditToSidecar(stateful.Spec.Template.Spec.Containers, profileName, id, proxyUID, microVM)
+			applyAuditVolumes(&stateful.Spec.Template.Spec.Volumes, microVM)
 		}
 	}
 
@@ -1124,8 +1140,9 @@ func modifyDaemonSetAnnotationsAndEnv(
 			// Audit: add ALS socket hostPath volume + sidecar mount and
 			// Downward API Pod identity env vars. NetworkProxy violations always
 			// stream over gRPC ALS.
-			applyAuditToSidecar(daemon.Spec.Template.Spec.Containers, profileName, id, proxyUID)
-			applyAuditVolumes(&daemon.Spec.Template.Spec.Volumes)
+			microVM := varmorconfig.IsMicroVMPod(daemon.Spec.Template.Labels, daemon.Spec.Template.Annotations, daemon.Spec.Template.Spec.RuntimeClassName)
+			applyAuditToSidecar(daemon.Spec.Template.Spec.Containers, profileName, id, proxyUID, microVM)
+			applyAuditVolumes(&daemon.Spec.Template.Spec.Volumes, microVM)
 		}
 	}
 

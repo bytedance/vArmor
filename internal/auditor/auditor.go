@@ -103,7 +103,7 @@ type Auditor struct {
 	// without being able to enumerate the directory.
 	alsColocatedSidecar bool
 	alsListener         net.Listener
-	alsServer     *grpc.Server
+	alsServer           *grpc.Server
 	// alsWg tracks the ALS serve goroutine so Close can wait for it to
 	// return after the gRPC server is stopped.
 	alsWg sync.WaitGroup

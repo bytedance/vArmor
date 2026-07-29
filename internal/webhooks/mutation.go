@@ -170,7 +170,8 @@ func buildPatch(obj interface{}, enforcer string,
 					jsonPatch += `{"op": "add", "path": "/spec/template/spec/volumes", "value": []},`
 				}
 
-				jsonPatch += buildNetworkProxyPatch(profileName, id, true, networkProxyConfig)
+				microVM := varmorconfig.IsMicroVMPod(deploy.Spec.Template.Labels, deploy.Spec.Template.Annotations, deploy.Spec.Template.Spec.RuntimeClassName)
+				jsonPatch += buildNetworkProxyPatch(profileName, id, true, networkProxyConfig, microVM)
 			}
 		}
 
@@ -253,7 +254,8 @@ func buildPatch(obj interface{}, enforcer string,
 					jsonPatch += `{"op": "add", "path": "/spec/template/spec/volumes", "value": []},`
 				}
 
-				jsonPatch += buildNetworkProxyPatch(profileName, id, true, networkProxyConfig)
+				microVM := varmorconfig.IsMicroVMPod(statefulSet.Spec.Template.Labels, statefulSet.Spec.Template.Annotations, statefulSet.Spec.Template.Spec.RuntimeClassName)
+				jsonPatch += buildNetworkProxyPatch(profileName, id, true, networkProxyConfig, microVM)
 			}
 		}
 
@@ -334,7 +336,8 @@ func buildPatch(obj interface{}, enforcer string,
 				if len(daemonSet.Spec.Template.Spec.Volumes) == 0 {
 					jsonPatch += `{"op": "add", "path": "/spec/template/spec/volumes", "value": []},`
 				}
-				jsonPatch += buildNetworkProxyPatch(profileName, id, true, networkProxyConfig)
+				microVM := varmorconfig.IsMicroVMPod(daemonSet.Spec.Template.Labels, daemonSet.Spec.Template.Annotations, daemonSet.Spec.Template.Spec.RuntimeClassName)
+				jsonPatch += buildNetworkProxyPatch(profileName, id, true, networkProxyConfig, microVM)
 			}
 		}
 
@@ -413,7 +416,8 @@ func buildPatch(obj interface{}, enforcer string,
 					jsonPatch += `{"op": "add", "path": "/spec/volumes", "value": []},`
 				}
 
-				jsonPatch += buildNetworkProxyPatch(profileName, id, false, networkProxyConfig)
+				microVM := varmorconfig.IsMicroVMPod(pod.Labels, pod.Annotations, pod.Spec.RuntimeClassName)
+				jsonPatch += buildNetworkProxyPatch(profileName, id, false, networkProxyConfig, microVM)
 			}
 		}
 
@@ -604,7 +608,7 @@ func jsonString(v string) string {
 	return string(b)
 }
 
-func buildNetworkProxyPatch(profileName string, id varmorpolicy.AuditPolicyIdentity, workloads bool, networkProxyConfig *varmor.NetworkProxyConfig) string {
+func buildNetworkProxyPatch(profileName string, id varmorpolicy.AuditPolicyIdentity, workloads bool, networkProxyConfig *varmor.NetworkProxyConfig, microVM bool) string {
 	var sb strings.Builder
 
 	pathPrefix := ""
@@ -659,15 +663,19 @@ func buildNetworkProxyPatch(profileName string, id varmorpolicy.AuditPolicyIdent
 	if mitmEnabled {
 		sidecarVolumeMounts += `, {"name": "varmor-network-proxy-mitm-tls", "mountPath": "/etc/envoy/tls", "readOnly": true}`
 	}
-	// Audit: mount the node-local ALS socket directory at the same absolute
-	// path the agent listens on, so the CDS cluster pipe.path resolves
-	// identically. It is mounted read-write (not read-only): on runc Envoy
-	// only connects to the socket as a gRPC client, but on kata the in-sidecar
-	// audit sink must bind(2) the socket inode in this directory.
-	sidecarVolumeMounts += fmt.Sprintf(
-		`, {"name": "%s", "mountPath": "%s", "readOnly": false}`,
-		varmorconfig.AuditNetworkProxyVolumeName, varmorconfig.AuditNetworkProxySocketDir,
-	)
+	// Audit: on runc, mount the node-local ALS socket directory (hostPath) at
+	// the same absolute path the agent listens on, so the CDS cluster pipe.path
+	// resolves identically. Envoy only connects to the socket as a gRPC client
+	// and never writes to the directory, so it is mounted read-only. On kata the
+	// hostPath cannot cross the VM boundary, so no volume/volumeMount is
+	// injected: the in-sidecar audit sink bind(2)s the socket inode directly in
+	// the container's own rootfs at the same path, and Envoy connects locally.
+	if !microVM {
+		sidecarVolumeMounts += fmt.Sprintf(
+			`, {"name": "%s", "mountPath": "%s", "readOnly": true}`,
+			varmorconfig.AuditNetworkProxyVolumeName, varmorconfig.AuditNetworkProxySocketDir,
+		)
+	}
 
 	// Compute sidecar resource requirements based on MITM status and user overrides.
 	var proxyResourceOverride *varmor.ProxyResourceOverride
@@ -752,15 +760,20 @@ func buildNetworkProxyPatch(profileName string, id varmorpolicy.AuditPolicyIdent
 		pathPrefix, profileName,
 	))
 
-	// Audit volume: the node-local ALS socket directory shared
-	// with the agent. A hostPath (DirectoryOrCreate) mounting the leaf
-	// socketDir (not the socket file) so the sidecar reconnects after the
-	// agent recreates the socket inode on restart.
-	sb.WriteString(fmt.Sprintf(
-		`{"op": "add", "path": "%s/spec/volumes/-", "value": `+
-			`{"name": "%s", "hostPath": {"path": "%s", "type": "DirectoryOrCreate"}}},`,
-		pathPrefix, varmorconfig.AuditNetworkProxyVolumeName, varmorconfig.AuditNetworkProxySocketDir,
-	))
+	// Audit volume: on runc, the node-local ALS socket directory shared with the
+	// agent. A hostPath (DirectoryOrCreate) mounting the leaf socketDir (not the
+	// socket file) so the sidecar reconnects after the agent recreates the
+	// socket inode on restart. On kata this hostPath is omitted entirely (it
+	// cannot cross the micro-VM boundary and is rejected at admission by some
+	// serverless providers); the in-sidecar sink binds the socket in the
+	// container's own rootfs instead.
+	if !microVM {
+		sb.WriteString(fmt.Sprintf(
+			`{"op": "add", "path": "%s/spec/volumes/-", "value": `+
+				`{"name": "%s", "hostPath": {"path": "%s", "type": "DirectoryOrCreate"}}},`,
+			pathPrefix, varmorconfig.AuditNetworkProxyVolumeName, varmorconfig.AuditNetworkProxySocketDir,
+		))
+	}
 
 	if mitmEnabled {
 		// MITM-only volume #1: per-policy MITM leaf certificate, leaf
