@@ -14,7 +14,9 @@ This file provides essential context and instructions for AI coding agents worki
 - `make copy-ebpf` - Copy compiled eBPF artifacts to pkg directories
 - `make update-mozilla-bundle` - Refresh embedded Mozilla CA bundle (set `SKIP_MOZILLA_BUNDLE_UPDATE=1` for offline builds)
 - `make docker-build-proxyinit` - Build proxyinit image (amd64/arm64)
-- `make sync-proxy-images` - Build proxyinit + sync Envoy images to registry
+- `make docker-build-proxy` - Build custom Envoy image (amd64/arm64)
+- `make push-proxy-images` - Push proxyinit + custom Envoy images to the public registry (build first)
+- `make push-proxy-images-dev` - Push proxyinit + custom Envoy images to the private/dev registry (build first)
 
 ### Testing
 
