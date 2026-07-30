@@ -43,6 +43,14 @@ SOCKET="${VARMOR_ALS_SOCKET:-/var/run/varmor/audit/als/als.sock}"
 SINK="/usr/local/bin/networkproxy-audit-sink"
 ENVOY_UID="${VARMOR_ENVOY_UID:-1337}"
 
+# In-sidecar audit sink supervision knobs (see supervise_sink below).
+#   SINK_BACKOFF_MAX     - upper bound (seconds) for the exponential restart delay.
+#   SINK_HEALTHY_SECONDS - if the sink stayed up at least this long before dying,
+#                          the next restart delay is reset to 1s (treat as a fresh
+#                          transient failure rather than a crash-loop).
+SINK_BACKOFF_MAX="${VARMOR_SINK_BACKOFF_MAX:-30}"
+SINK_HEALTHY_SECONDS="${VARMOR_SINK_HEALTHY_SECONDS:-60}"
+
 # drop_and_exec drops privileges to the Envoy uid and exec-s Envoy with the
 # container Args ("$@"). su-exec is shipped in the upstream Envoy image; setpriv
 # (util-linux) is kept as a fallback so the script is robust across base images.
@@ -57,11 +65,61 @@ drop_and_exec() {
     fi
 }
 
+# supervise_sink keeps the in-sidecar audit sink alive for the whole lifetime of
+# the container. Envoy is exec-ed below as the container main process (PID 1):
+# Kubernetes only restarts a container when its main process exits. If the sink
+# were a plain background job and later panicked or its UDS server died, the
+# container would NOT restart; Envoy would keep streaming ALS to a socket nobody
+# listens on and audit records would be lost silently with no self-healing.
+# Respawning the sink here bounds that loss to a short window.
+#
+# Restart timing uses exponential backoff (1s, doubling, capped at
+# SINK_BACKOFF_MAX): a one-off crash recovers fast (~1s, minimal audit loss),
+# while a genuine crash-loop quickly backs off so it does not spam logs or spin
+# the CPU. If the sink stayed up at least SINK_HEALTHY_SECONDS before dying it is
+# treated as a fresh transient failure and the delay resets to 1s.
+#
+# Every respawn is logged to stderr (container logs) so failures stay visible and
+# alertable: [WARN] for an ordinary self-healed restart, escalating to [ERROR]
+# once the backoff reaches its cap (i.e. the sink is crash-looping and self-heal
+# is not resolving it).
+supervise_sink() {
+    n=0
+    delay=1
+    while true; do
+        start=$(date +%s)
+        "${SINK}" -socket "${SOCKET}" || true
+        ran=$(( $(date +%s) - start ))
+        n=$((n + 1))
+
+        # A sink that ran healthily for a while before dying is a fresh transient
+        # failure, not a crash-loop: recover fast next time.
+        if [ "${ran}" -ge "${SINK_HEALTHY_SECONDS}" ]; then
+            delay=1
+        fi
+
+        level="WARN"
+        if [ "${delay}" -ge "${SINK_BACKOFF_MAX}" ]; then
+            level="ERROR"
+        fi
+        echo "[${level}] varmor-proxy-entrypoint: in-sidecar audit sink exited after ${ran}s (respawn #${n}); restarting in ${delay}s" >&2
+
+        sleep "${delay}"
+        delay=$((delay * 2))
+        if [ "${delay}" -gt "${SINK_BACKOFF_MAX}" ]; then
+            delay="${SINK_BACKOFF_MAX}"
+        fi
+    done
+}
+
 if "${SINK}" -check -socket "${SOCKET}"; then
     echo "varmor-proxy-entrypoint: ALS agent socket reachable at ${SOCKET}; node-central mode (runc)"
 else
     echo "varmor-proxy-entrypoint: ALS agent socket unreachable at ${SOCKET}; starting in-sidecar audit sink (kata)"
-    "${SINK}" -socket "${SOCKET}" &
+    # Start the sink under a supervisor so it is respawned if it dies; Envoy
+    # (PID 1) never sees the sink's death, so without this the socket would go
+    # silently unserved. See supervise_sink() above for the full rationale.
+    supervise_sink &
     # Wait (bounded, ~5s) until the sink is accepting connections so Envoy does
     # not lose the earliest violation events to connection retries.
     i=0
