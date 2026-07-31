@@ -118,7 +118,7 @@ func (auditor *Auditor) processAuditEvent(event string) {
 				Func(auditor.withPolicyIdentity(profileName)).
 				Interface("event", e).Msg("violation event")
 		case AllowedAction:
-			if ch, ok := auditor.auditEventChs[profileName]; ok {
+			if ch, ok := auditor.auditEventChByProfile(profileName); ok {
 				// Send behavior event to the corresponding subscriber
 				ch <- event
 			} else {
@@ -186,14 +186,17 @@ func (auditor *Auditor) processAuditEvent(event string) {
 			profileName = info.ProfileName
 		}
 
-		ch, ok := auditor.auditEventChs[profileName]
+		ch, ok := auditor.auditEventChByProfile(profileName)
 		if ok {
 			// Send the behavior event to the corresponding subscriber
 			ch <- event
 			return
 		}
 
-		if len(auditor.auditEventChs) == 0 {
+		// Snapshot the subscriber channels once under the lock so the
+		// broadcast below never touches the map concurrently with an update.
+		subscriberChs := auditor.snapshotAuditEventChs()
+		if len(subscriberChs) == 0 {
 			// Only record the event when there is no policy in the BehaviorModeling mode.
 			// This can reduce the noise in the violation log.
 			// The events of the policy in the DefenseInDepth or EnhanceProtect mode will
@@ -217,7 +220,7 @@ func (auditor *Auditor) processAuditEvent(event string) {
 				Interface("event", e).Msg("violation event")
 		} else {
 			// Send the behavior event to all subscribers
-			for _, ch := range auditor.auditEventChs {
+			for _, ch := range subscriberChs {
 				ch <- event
 			}
 		}

@@ -179,7 +179,7 @@ func (c *PolicyController) handleDeleteVarmorPolicy(namespace, name string) erro
 				"",
 				ap.Spec.Target,
 				nil,
-				"", false, logger)
+				"", AuditPolicyIdentity{}, false, logger)
 		}
 
 		logger.Info("remove the ArmorProfile's finalizers")
@@ -233,9 +233,8 @@ func (c *PolicyController) handleAddVarmorPolicy(vp *varmor.VarmorPolicy, profil
 			err.Error())
 		if err != nil {
 			logger.Error(err, "statuscommon.UpdateVarmorPolicyStatus()")
-			return err
 		}
-		return nil
+		return err
 	}
 
 	ap, egressInfo, err := varmorprofile.NewArmorProfile(c.kubeClient, c.varmorInterface, vp, false, c.enableServiceEgressControl, c.enablePodEgressControl, logger)
@@ -246,9 +245,8 @@ func (c *PolicyController) handleAddVarmorPolicy(vp *varmor.VarmorPolicy, profil
 			err.Error())
 		if err != nil {
 			logger.Error(err, "statuscommon.UpdateVarmorPolicyStatus()")
-			return err
 		}
-		return nil
+		return err
 	}
 
 	if vp.Spec.Policy.Mode == varmor.BehaviorModelingMode {
@@ -293,6 +291,7 @@ func (c *PolicyController) handleAddVarmorPolicy(vp *varmor.VarmorPolicy, profil
 			vp.Spec.Target,
 			vp.Spec.Policy.NetworkProxyConfig,
 			ap.Name,
+			AuditPolicyIdentity{Kind: "VarmorPolicy", Name: vp.Name, Namespace: vp.Namespace},
 			c.bpfExclusiveMode,
 			logger)
 	}
@@ -334,9 +333,8 @@ func (c *PolicyController) handleUpdateVarmorPolicy(newVp *varmor.VarmorPolicy, 
 			err.Error())
 		if err != nil {
 			logger.Error(err, "statuscommon.UpdateVarmorPolicyStatus()")
-			return err
 		}
-		return nil
+		return err
 	}
 
 	// Third, create a new ArmorProfileSpec with the updated policy
@@ -359,9 +357,8 @@ func (c *PolicyController) handleUpdateVarmorPolicy(newVp *varmor.VarmorPolicy, 
 			err.Error())
 		if err != nil {
 			logger.Error(err, "statuscommon.UpdateVarmorPolicyStatus()")
-			return err
 		}
-		return nil
+		return err
 	}
 
 	newApSpec := oldAp.Spec.DeepCopy()
@@ -417,20 +414,6 @@ func (c *PolicyController) handleUpdateVarmorPolicy(newVp *varmor.VarmorPolicy, 
 
 		logger.Info("3.2. update the ArmorProfile object")
 		oldAp.Spec = *newApSpec
-		forceSetOwnerReference(oldAp, newVp, false)
-		_, err = c.varmorInterface.ArmorProfiles(oldAp.Namespace).Update(context.Background(), oldAp, metav1.UpdateOptions{})
-		if err != nil {
-			logger.Error(err, "ArmorProfile().Update()")
-			if varmorutils.IsRequestSizeError(err) {
-				return statuscommon.UpdateVarmorPolicyStatus(
-					c.varmorInterface, newVp, "", false, varmor.VarmorPolicyError, varmor.VarmorPolicyUpdated, apicorev1.ConditionFalse,
-					"Error",
-					"The profiles are too large to update the existing ArmorProfile object.")
-			}
-			return err
-		}
-	} else if len(oldAp.OwnerReferences) == 0 {
-		// Forward compatibility, add an ownerReference to the existing ArmorProfile object
 		forceSetOwnerReference(oldAp, newVp, false)
 		_, err = c.varmorInterface.ArmorProfiles(oldAp.Namespace).Update(context.Background(), oldAp, metav1.UpdateOptions{})
 		if err != nil {

@@ -377,7 +377,7 @@ func (auditor *Auditor) readFromAuditEventRingBuf() {
 		case bpfenforcer.AllowedAction:
 			// Send behavior event to the corresponding subscriber
 			profileName := info.ProfileName
-			if ch, ok := auditor.bpfEventChs[profileName]; ok {
+			if ch, ok := auditor.bpfEventChByProfile(profileName); ok {
 				ch <- BpfEvent{
 					Header: BpfEventHeader{
 						Action: bpfenforcer.EnforcementActionMap[eventHeader.Action],

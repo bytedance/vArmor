@@ -179,7 +179,7 @@ func (c *ClusterPolicyController) handleDeleteVarmorClusterPolicy(name string) e
 				"",
 				ap.Spec.Target,
 				nil,
-				"", false, logger)
+				"", AuditPolicyIdentity{}, false, logger)
 		}
 
 		logger.Info("remove the ArmorProfile's finalizers")
@@ -235,9 +235,8 @@ func (c *ClusterPolicyController) handleAddVarmorClusterPolicy(vcp *varmor.Varmo
 					err.Error())
 				if err != nil {
 					logger.Error(err, "statuscommon.UpdateVarmorClusterPolicyStatus()")
-					return err
 				}
-				return nil
+				return err
 			}
 		}
 	}
@@ -250,9 +249,8 @@ func (c *ClusterPolicyController) handleAddVarmorClusterPolicy(vcp *varmor.Varmo
 			err.Error())
 		if err != nil {
 			logger.Error(err, "statuscommon.UpdateVarmorClusterPolicyStatus()")
-			return err
 		}
-		return nil
+		return err
 	}
 
 	if vcp.Spec.Policy.Mode == varmor.BehaviorModelingMode {
@@ -297,6 +295,7 @@ func (c *ClusterPolicyController) handleAddVarmorClusterPolicy(vcp *varmor.Varmo
 			vcp.Spec.Target,
 			vcp.Spec.Policy.NetworkProxyConfig,
 			ap.Name,
+			AuditPolicyIdentity{Kind: "VarmorClusterPolicy", Name: vcp.Name},
 			c.bpfExclusiveMode,
 			logger)
 	}
@@ -341,9 +340,8 @@ func (c *ClusterPolicyController) handleUpdateVarmorClusterPolicy(newVcp *varmor
 					err.Error())
 				if err != nil {
 					logger.Error(err, "statuscommon.UpdateVarmorClusterPolicyStatus()")
-					return err
 				}
-				return nil
+				return err
 			}
 		}
 	}
@@ -368,9 +366,8 @@ func (c *ClusterPolicyController) handleUpdateVarmorClusterPolicy(newVcp *varmor
 			err.Error())
 		if err != nil {
 			logger.Error(err, "statuscommon.UpdateVarmorClusterPolicyStatus()")
-			return err
 		}
-		return nil
+		return err
 	}
 
 	newApSpec := oldAp.Spec.DeepCopy()
@@ -426,20 +423,6 @@ func (c *ClusterPolicyController) handleUpdateVarmorClusterPolicy(newVcp *varmor
 
 		logger.Info("3.2. update the ArmorProfile object")
 		oldAp.Spec = *newApSpec
-		forceSetOwnerReference(oldAp, newVcp, true)
-		_, err = c.varmorInterface.ArmorProfiles(varmorconfig.Namespace).Update(context.Background(), oldAp, metav1.UpdateOptions{})
-		if err != nil {
-			logger.Error(err, "ArmorProfile().Update()")
-			if varmorutils.IsRequestSizeError(err) {
-				return statuscommon.UpdateVarmorClusterPolicyStatus(
-					c.varmorInterface, newVcp, "", false, varmor.VarmorPolicyError, varmor.VarmorPolicyUpdated, apicorev1.ConditionFalse,
-					"Error",
-					"The profiles are too large to update the existing ArmorProfile object.")
-			}
-			return err
-		}
-	} else if len(oldAp.OwnerReferences) == 0 {
-		// Forward compatibility, add an ownerReference to the existing ArmorProfile object
 		forceSetOwnerReference(oldAp, newVcp, true)
 		_, err = c.varmorInterface.ArmorProfiles(varmorconfig.Namespace).Update(context.Background(), oldAp, metav1.UpdateOptions{})
 		if err != nil {

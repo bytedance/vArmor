@@ -1,0 +1,36 @@
+#!/bin/sh
+# varmor-choose-backend LEGACY_BIN NFT_BIN
+#
+# Detects which iptables backend is already in use inside the current network
+# namespace and prints the binary name to use for subsequent rule injection:
+#
+#   - only the legacy backend has rules    -> print LEGACY_BIN
+#   - only the nft backend has rules       -> print NFT_BIN
+#   - neither backend has rules (fresh ns) -> print NFT_BIN (previous default)
+#   - both backends already carry rules    -> print CONFLICT
+#
+# The caller must abort when it receives CONFLICT rather than guess a backend,
+# because mixing legacy and nft rules in one netns is unsupported.
+#
+# Rules are counted from "<bin>-save" output: every rule line starts with "-".
+# stderr is folded into stdout (2>&1) and a "|| true" guard keeps the pipeline
+# from tripping "set -e" when a backend is unavailable or its table is empty.
+set -eu
+
+legacy_bin="$1"
+nft_bin="$2"
+
+legacy_cnt=$("$legacy_bin"-save 2>&1 | grep -c '^-' || true)
+nft_cnt=$("$nft_bin"-save 2>&1 | grep -c '^-' || true)
+legacy_cnt=${legacy_cnt:-0}
+nft_cnt=${nft_cnt:-0}
+
+if [ "$legacy_cnt" -gt 0 ] && [ "$nft_cnt" -eq 0 ]; then
+	echo "$legacy_bin"
+elif [ "$nft_cnt" -gt 0 ] && [ "$legacy_cnt" -eq 0 ]; then
+	echo "$nft_bin"
+elif [ "$legacy_cnt" -eq 0 ] && [ "$nft_cnt" -eq 0 ]; then
+	echo "$nft_bin"
+else
+	echo CONFLICT
+fi

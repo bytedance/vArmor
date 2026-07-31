@@ -33,6 +33,7 @@ import (
 	coreinformers "k8s.io/client-go/informers/core/v1"
 	discoveryinformers "k8s.io/client-go/informers/discovery/v1"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/retry"
 	"k8s.io/klog/v2"
 	"k8s.io/klog/v2/textlogger"
@@ -359,6 +360,19 @@ func main() {
 			logger.WithName("CERT-MANAGER"),
 		)
 		secretFactory.Start(stopCh)
+
+		// Dynamic configuration: watch the varmor-config ConfigMap in the vArmor
+		// namespace so runtime settings (e.g. micro-VM detection rules) hot-reload
+		// without a manager restart. A dedicated namespace-scoped factory keeps the
+		// RBAC surface minimal (configmaps get/list/watch in this namespace only).
+		configFactory := kubeinformers.NewSharedInformerFactoryWithOptions(kubeClient, secretResyncPeriod, kubeinformers.WithNamespace(config.Namespace))
+		configMapInformer := configFactory.Core().V1().ConfigMaps()
+		config.StartDynamicConfigInformer(configMapInformer, logger.WithName("DYNAMIC-CONFIG"))
+		configFactory.Start(stopCh)
+		if !cache.WaitForCacheSync(stopCh, configMapInformer.Informer().HasSynced) {
+			logger.WithName("SETUP").Error(fmt.Errorf("failed to sync dynamic config informer cache"), "cache.WaitForCacheSync()")
+			os.Exit(1)
+		}
 
 		wcFactory := kubeinformers.NewSharedInformerFactoryWithOptions(kubeClient, secretResyncPeriod)
 		webhookRegister := webhookconfig.NewRegister(

@@ -65,20 +65,45 @@ type Auditor struct {
 	// violation emission path, so it is guarded by policyIdentityMu.
 	policyIdentityCache map[string]PolicyIdentity // key: profile name
 	policyIdentityMu    sync.RWMutex
-	auditEventChs       map[string]chan<- string   // auditEventChs used for sending apparmor & seccomp behavior event to subscribers, key: profile name, value: audit event channel
-	bpfEventChs         map[string]chan<- BpfEvent // bpfEventChs used for sending bpf behavior event to subscribers, key: profile name, value: bpf event channel
-	auditLogPath        string
-	auditLogTail        *tail.Tail
-	savedRateLimit      uint64
-	auditRbMap          *ebpf.Map
-	auditEventMetadata  map[string]interface{} // auditEventMetadata used for storing additional information of the violation event
-	violationLogger     zerolog.Logger
+	// chsMu guards auditEventChs and bpfEventChs. They are mutated by
+	// BehaviorModeller.Run/stop on the modeller goroutine when subscribers
+	// are dynamically added/removed, but read from the audit-log tail
+	// goroutine (processAuditEvent) and the BPF ringbuf goroutine
+	// (readFromAuditEventRingBuf), so every access must hold this lock to
+	// avoid a concurrent map read/write fatal error.
+	chsMu          sync.RWMutex
+	auditEventChs  map[string]chan<- string   // auditEventChs used for sending apparmor & seccomp behavior event to subscribers, key: profile name, value: audit event channel
+	bpfEventChs    map[string]chan<- BpfEvent // bpfEventChs used for sending bpf behavior event to subscribers, key: profile name, value: bpf event channel
+	auditLogPath   string
+	auditLogTail   *tail.Tail
+	savedRateLimit uint64
+	// rateLimitMu serializes the 0<->1 subscriber-count boundary decision
+	// together with the setRateLimit/restoreRateLimit sysctl read-modify-write,
+	// so the count transition and the save/restore of savedRateLimit are
+	// atomic. It is deliberately separate from chsMu: the audit-log tail and
+	// BPF ringbuf reader goroutines only take chsMu, so they are never blocked
+	// by the slow sysctl I/O performed while holding rateLimitMu.
+	rateLimitMu        sync.Mutex
+	auditRbMap         *ebpf.Map
+	auditEventMetadata map[string]interface{} // auditEventMetadata used for storing additional information of the violation event
+	violationLogger    zerolog.Logger
 	// alsSocketPath is the host-side UDS path the NetworkProxy ALS gRPC
 	// server listens on. It is injected by the caller (the agent); an empty
 	// path disables the ALS collector.
 	alsSocketPath string
-	alsListener   net.Listener
-	alsServer     *grpc.Server
+	// alsColocatedSidecar relaxes the ALS gate directory from the default
+	// root-only 0700 to 0711 (traverse-without-list). It MUST stay false for
+	// the node-central agent, where gateDir is a host directory that no
+	// non-root process ever path-walks (the sidecar reaches the socket
+	// through its own hostPath mount of socketDir, not through the host's
+	// gateDir), so 0700 maximally isolates it. It is set true only by the
+	// in-sidecar kata sink (SetColocatedSidecar), where gateDir lives on the
+	// shared container rootfs and the co-located Envoy (a non-root uid) must
+	// traverse it to connect(2) to the socket; 0711 lets Envoy path-walk in
+	// without being able to enumerate the directory.
+	alsColocatedSidecar bool
+	alsListener         net.Listener
+	alsServer           *grpc.Server
 	// alsWg tracks the ALS serve goroutine so Close can wait for it to
 	// return after the gRPC server is stopped.
 	alsWg sync.WaitGroup
@@ -164,6 +189,16 @@ func NewAuditor(nodeName string, appArmorSupported, bpfLsmSupported, enableBehav
 	return &auditor, nil
 }
 
+// SetColocatedSidecar marks the auditor as running inside the same container
+// as the Envoy sidecar it collects from (the kata in-sidecar sink). It relaxes
+// the ALS gate directory to 0711 so the co-located non-root Envoy can traverse
+// it to connect(2) to the socket. It has no effect on the node-central agent,
+// which never calls it and keeps the maximally isolated 0700 gate. It must be
+// called before Run.
+func (auditor *Auditor) SetColocatedSidecar(colocated bool) {
+	auditor.alsColocatedSidecar = colocated
+}
+
 func (auditor *Auditor) eventHandler(stopCh <-chan struct{}) {
 	logger := auditor.log.WithName("eventHandler()")
 	logger.Info("start handling the containerd events")
@@ -231,17 +266,61 @@ func (auditor *Auditor) mntNsIDByPID(pid uint32) (uint32, bool) {
 	return id, ok
 }
 
+// auditEventChByProfile returns the audit-event channel registered for the
+// given profile and whether one exists. Guarded by chsMu so it is safe to
+// call from the audit-log tail and BPF ringbuf goroutines concurrently with
+// AddBehaviorEventNotifyChs/DeleteBehaviorEventNotifyCh. The channel is
+// returned by value so the caller can send on it after releasing the lock.
+func (auditor *Auditor) auditEventChByProfile(profileName string) (chan<- string, bool) {
+	auditor.chsMu.RLock()
+	defer auditor.chsMu.RUnlock()
+	ch, ok := auditor.auditEventChs[profileName]
+	return ch, ok
+}
+
+// bpfEventChByProfile returns the bpf-event channel registered for the given
+// profile and whether one exists. Guarded by chsMu. Safe for concurrent use.
+func (auditor *Auditor) bpfEventChByProfile(profileName string) (chan<- BpfEvent, bool) {
+	auditor.chsMu.RLock()
+	defer auditor.chsMu.RUnlock()
+	ch, ok := auditor.bpfEventChs[profileName]
+	return ch, ok
+}
+
+// snapshotAuditEventChs returns a snapshot of all registered audit-event
+// channels taken under chsMu. Callers broadcast to the returned slice after
+// releasing the lock so a blocking send never stalls subscriber updates.
+func (auditor *Auditor) snapshotAuditEventChs() []chan<- string {
+	auditor.chsMu.RLock()
+	defer auditor.chsMu.RUnlock()
+	chs := make([]chan<- string, 0, len(auditor.auditEventChs))
+	for _, ch := range auditor.auditEventChs {
+		chs = append(chs, ch)
+	}
+	return chs
+}
+
 // AddBehaviorEventNotifyChs add the audit event channel and bpf event channel for the subscriber
 // The subscriber parameter is the name of profile
 func (auditor *Auditor) AddBehaviorEventNotifyChs(subscriber string, auditEventCh *chan string, bpfEventCh *chan BpfEvent) {
+	// Hold rateLimitMu across the whole registration so no concurrent
+	// Add/Delete can change the subscriber count between the boundary check
+	// below and the setRateLimit call, which would otherwise corrupt
+	// savedRateLimit.
+	auditor.rateLimitMu.Lock()
+	defer auditor.rateLimitMu.Unlock()
+
+	auditor.chsMu.Lock()
 	if bpfEventCh != nil {
 		auditor.bpfEventChs[subscriber] = *bpfEventCh
 	}
 	if auditEventCh != nil {
 		auditor.auditEventChs[subscriber] = *auditEventCh
 	}
+	auditEventChCount := len(auditor.auditEventChs)
+	auditor.chsMu.Unlock()
 
-	if len(auditor.auditEventChs) == 1 {
+	if auditEventChCount == 1 {
 		err := auditor.setRateLimit()
 		if err != nil {
 			auditor.log.Error(err, "auditor.setRateLimit()")
@@ -252,10 +331,19 @@ func (auditor *Auditor) AddBehaviorEventNotifyChs(subscriber string, auditEventC
 // DeleteBehaviorEventNotifyCh delete the audit event channel and bpf event channel for the subscriber
 // The subscriber parameter is the name of profile
 func (auditor *Auditor) DeleteBehaviorEventNotifyCh(subscriber string) {
+	// Hold rateLimitMu across the whole deregistration so the count==0
+	// boundary check and restoreRateLimit form an atomic critical section
+	// with respect to concurrent Add/Delete calls.
+	auditor.rateLimitMu.Lock()
+	defer auditor.rateLimitMu.Unlock()
+
+	auditor.chsMu.Lock()
 	delete(auditor.bpfEventChs, subscriber)
 	delete(auditor.auditEventChs, subscriber)
+	auditEventChCount := len(auditor.auditEventChs)
+	auditor.chsMu.Unlock()
 
-	if len(auditor.auditEventChs) == 0 {
+	if auditEventChCount == 0 {
 		err := auditor.restoreRateLimit()
 		if err != nil {
 			auditor.log.Error(err, "auditor.restoreRateLimit()")

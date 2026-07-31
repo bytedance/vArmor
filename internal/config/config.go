@@ -295,6 +295,25 @@ func getPodNamespace() string {
 	return ns
 }
 
+// getVarmorNamespace returns the namespace where the vArmor components are
+// deployed, which is what varmorNamespace in the audit metadata must reflect.
+//
+// It cannot simply reuse getPodNamespace() (POD_NAMESPACE): that env var is
+// context-dependent. In the agent-centralized (runc) path the auditor runs in
+// the varmor-agent DaemonSet, so POD_NAMESPACE is the vArmor namespace and is
+// correct. In the in-sidecar (kata/micro-VM) path the auditor runs inside the
+// business Pod's sidecar, where POD_NAMESPACE is the workload namespace (e.g.
+// "demo") injected via the Downward API - not the vArmor namespace. The
+// manager therefore injects an explicit VARMOR_NAMESPACE env (its own
+// component namespace) into the sidecar; we prefer it here and fall back to
+// POD_NAMESPACE for the agent path where VARMOR_NAMESPACE is unset.
+func getVarmorNamespace() string {
+	if ns := os.Getenv("VARMOR_NAMESPACE"); ns != "" {
+		return ns
+	}
+	return getPodNamespace()
+}
+
 func getAgentReadinessPort() int {
 	readinessPort := os.Getenv("AGENT_READINESS_PORT")
 	if readinessPort != "" {
@@ -356,7 +375,7 @@ func loadAuditEventMetadata() map[string]interface{} {
 	if s != "" {
 		json.Unmarshal([]byte(s), &metadata)
 	}
-	metadata["varmorNamespace"] = getPodNamespace()
+	metadata["varmorNamespace"] = getVarmorNamespace()
 	return metadata
 }
 

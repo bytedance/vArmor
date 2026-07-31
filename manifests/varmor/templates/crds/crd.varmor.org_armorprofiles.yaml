@@ -124,7 +124,7 @@ spec:
                               format: int32
                               type: integer
                             mountFlags:
-                              format: int32
+                              format: int64
                               type: integer
                             pattern:
                               properties:
@@ -139,7 +139,7 @@ spec:
                               - flags
                               type: object
                             reverseMountflags:
-                              format: int32
+                              format: int64
                               type: integer
                           required:
                           - fstype

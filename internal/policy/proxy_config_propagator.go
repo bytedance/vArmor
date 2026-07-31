@@ -86,13 +86,22 @@ func (p *ProxyConfigPropagator) addNamespace(obj interface{}) {
 	logger := p.log
 	ns := obj.(*v1.Namespace).Name
 
-	for key, enforcers := range p.policyCacher.ClusterPolicyEnforcer {
+	// Snapshot the cluster-policy enforcer/mode maps under the cacher's read
+	// lock instead of ranging over the shared maps directly. The maps are
+	// written concurrently by the PolicyCacher informer handlers, so iterating
+	// them here without synchronization races those writers and can trigger a
+	// "concurrent map iteration and map write" fatal error. Snapshotting also
+	// keeps the blocking apiserver I/O below out of the cacher's critical
+	// section.
+	enforcerByKey, modeByKey := p.policyCacher.SnapshotClusterPolicyEnforcers()
+
+	for key, enforcers := range enforcerByKey {
 		e := varmortypes.GetEnforcerType(enforcers)
 		if (e & varmortypes.NetworkProxy) == 0 {
 			continue
 		}
 
-		if p.policyCacher.ClusterPolicyMode[key] == varmor.BehaviorModelingMode {
+		if modeByKey[key] == varmor.BehaviorModelingMode {
 			continue
 		}
 

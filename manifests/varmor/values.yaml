@@ -78,6 +78,38 @@ audit:
       # violation rates (calibrate against the sidecar memory limit).
       bufferSizeBytes: 65536
 
+# dynamicConfig populates the varmor-config ConfigMap, vArmor's runtime-reloadable
+# configuration (see templates/configmap.yaml). The manager watches it via an
+# informer and applies changes without a restart.
+dynamicConfig:
+  # microVMDetection tells the NetworkProxy injector which workloads run under a
+  # micro-VM runtime. For those, the ALS socket hostPath is omitted and the
+  # in-sidecar audit sink binds the socket locally. A workload matches if its
+  # runtimeClassName is in runtimeClassNames OR any annotation rule matches OR
+  # any label rule matches.
+  microVMDetection:
+    # RuntimeClass names that indicate a kata / micro-VM sandbox.
+    runtimeClassNames:
+    - kata
+    - kata-qemu
+    - kata-clh
+    # Vendor annotations that indicate a serverless / micro-VM sandbox. An empty
+    # value matches on key presence alone; a non-empty value must match exactly.
+    annotations:
+    # Volcengine VKE burst-to-VCI (serverless), enforce mode.
+    - key: vke.volcengine.com/burst-to-vci
+      value: enforce
+    # Vendor labels that indicate a serverless / micro-VM sandbox. An empty value
+    # matches on key presence alone; a non-empty value must match exactly.
+    labels:
+    # Volcengine VKE burst-to-VCI (serverless), enforce mode.
+    - key: vke.volcengine.com/burst-to-vci
+      value: enforce
+    # Alibaba Cloud ECI: opt a Pod into the elastic container instance (micro-VM)
+    # runtime via a Pod label.
+    - key: alibabacloud.com/eci
+      value: "true"
+
 image:
   registry: ""
   namespace: varmor
@@ -425,7 +457,7 @@ networkproxy:
   image:
     init:
       name: proxyinit
-      tag: v0.1
+      tag: v0.2
     proxy:
       name: envoy
       tag: v1.38-latest

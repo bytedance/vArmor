@@ -25,6 +25,7 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
+	varmorpolicy "github.com/bytedance/vArmor/internal/policy"
 )
 
 func Test_buildPatch(t *testing.T) {
@@ -1186,7 +1187,7 @@ func Test_buildPatch(t *testing.T) {
 				assert.NilError(t, err)
 
 				deploy := obj.(*appsv1.Deployment)
-				patch, err := buildPatch(deploy, tc.enforcer, tc.mode, target, nil, profileName, tc.bpfExclusiveMode, tc.apparmorGA)
+				patch, err := buildPatch(deploy, tc.enforcer, tc.mode, target, nil, profileName, varmorpolicy.AuditPolicyIdentity{}, tc.bpfExclusiveMode, tc.apparmorGA)
 				if err != nil {
 					assert.Assert(t, err != nil)
 				}
@@ -1202,7 +1203,7 @@ func Test_buildPatch(t *testing.T) {
 				assert.NilError(t, err)
 
 				pod := obj.(*corev1.Pod)
-				patch, err := buildPatch(pod, tc.enforcer, tc.mode, target, nil, profileName, tc.bpfExclusiveMode, tc.apparmorGA)
+				patch, err := buildPatch(pod, tc.enforcer, tc.mode, target, nil, profileName, varmorpolicy.AuditPolicyIdentity{}, tc.bpfExclusiveMode, tc.apparmorGA)
 				if err != nil {
 					assert.Assert(t, err != nil)
 				}

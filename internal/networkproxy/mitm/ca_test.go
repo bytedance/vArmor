@@ -200,6 +200,26 @@ func TestParseCA_NonCACertificate(t *testing.T) {
 	}
 }
 
+func TestParseCA_MismatchedKeyPair(t *testing.T) {
+	// Two independent CAs: certPEM from the first, keyPEM from the second.
+	// Each PEM parses fine on its own, but they are not a key pair, so ParseCA
+	// must reject them instead of returning a CA that fails only later during
+	// leaf signing.
+	ca1, err := GenerateCA()
+	if err != nil {
+		t.Fatalf("GenerateCA() 1 failed: %v", err)
+	}
+	ca2, err := GenerateCA()
+	if err != nil {
+		t.Fatalf("GenerateCA() 2 failed: %v", err)
+	}
+
+	_, err = ParseCA(ca1.CertPEM, ca2.KeyPEM)
+	if err == nil {
+		t.Fatal("ParseCA() should fail when the certificate and private key are not a pair")
+	}
+}
+
 func TestPEMFormat(t *testing.T) {
 	ca, err := GenerateCA()
 	if err != nil {
