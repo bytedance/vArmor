@@ -22,6 +22,7 @@ import (
 
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
 	varmorconfig "github.com/bytedance/vArmor/internal/config"
+	varmorpolicy "github.com/bytedance/vArmor/internal/policy"
 )
 
 // Test_buildNetworkProxyPatch_AuditInjected asserts that NetworkProxy
@@ -29,7 +30,7 @@ import (
 // unconditionally injects the Downward API Pod identity env vars and the
 // shared ALS socket hostPath volume/mount.
 func Test_buildNetworkProxyPatch_AuditInjected(t *testing.T) {
-	patch := buildNetworkProxyPatch("varmor-testns-test", true, nil)
+	patch := buildNetworkProxyPatch("varmor-testns-test", varmorpolicy.AuditPolicyIdentity{Kind: "VarmorPolicy", Name: "test", Namespace: "testns"}, true, nil, false)
 
 	// Sidecar carries the Downward API env array.
 	assert.Assert(t, strings.Contains(patch, `"env": [`),
@@ -49,9 +50,35 @@ func Test_buildNetworkProxyPatch_AuditInjected(t *testing.T) {
 	assert.Assert(t, strings.Contains(patch, `$(POD_UID)`),
 		"overlay should reference the POD_UID env var")
 
-	// Sidecar mounts the ALS socket directory (read-only).
+	// Sidecar mounts the ALS socket directory read-only on runc (Envoy only
+	// connects to the node agent's socket as a gRPC client). a micro-VM omits it.
 	assert.Assert(t, strings.Contains(patch, `"name": "`+varmorconfig.AuditNetworkProxyVolumeName+`", "mountPath": "`+varmorconfig.AuditNetworkProxySocketDir+`", "readOnly": true`),
 		"patch should mount the ALS socket directory into the sidecar")
+
+	// Sidecar carries the micro-VM audit sink env vars.
+	assert.Assert(t, strings.Contains(patch, `{"name": "NODE_NAME", "valueFrom": {"fieldRef": {"fieldPath": "spec.nodeName"}}}`),
+		"patch should inject NODE_NAME via Downward API")
+	assert.Assert(t, strings.Contains(patch, `{"name": "PROFILE_NAME", "value": "varmor-testns-test"}`),
+		"patch should inject PROFILE_NAME")
+	assert.Assert(t, strings.Contains(patch, `{"name": "POLICY_KIND", "value": "VarmorPolicy"}`),
+		"patch should inject POLICY_KIND")
+	assert.Assert(t, strings.Contains(patch, `{"name": "POLICY_NAME", "value": "test"}`),
+		"patch should inject POLICY_NAME")
+	assert.Assert(t, strings.Contains(patch, `{"name": "POLICY_NAMESPACE", "value": "testns"}`),
+		"patch should inject POLICY_NAMESPACE")
+	// VARMOR_NAMESPACE must carry the vArmor component namespace (varmorconfig.
+	// Namespace), NOT the workload namespace. Inside the sidecar POD_NAMESPACE
+	// is the business Pod's namespace, so the sink relies on this explicit env
+	// to populate varmorNamespace correctly.
+	assert.Assert(t, strings.Contains(patch, `{"name": "VARMOR_NAMESPACE", "value": "`+varmorconfig.Namespace+`"}`),
+		"patch should inject VARMOR_NAMESPACE with the vArmor component namespace")
+	assert.Assert(t, strings.Contains(patch, `{"name": "VARMOR_ENVOY_UID", "value": "1337"}`),
+		"patch should inject VARMOR_ENVOY_UID")
+
+	// Sidecar starts as root so the entrypoint can bind the micro-VM sink before
+	// dropping to the Envoy uid.
+	assert.Assert(t, strings.Contains(patch, `"securityContext": {"runAsUser": 0}`),
+		"patch should start the sidecar as root (runAsUser 0)")
 
 	// PodSpec gains the ALS socket hostPath volume.
 	assert.Assert(t, strings.Contains(patch, `"name": "`+varmorconfig.AuditNetworkProxyVolumeName+`", "hostPath": {"path": "`+varmorconfig.AuditNetworkProxySocketDir+`", "type": "DirectoryOrCreate"}`),
@@ -65,7 +92,7 @@ func Test_buildNetworkProxyPatch_AuditWithMITM(t *testing.T) {
 	proxyConfig := &varmor.NetworkProxyConfig{
 		MITM: &varmor.MITMConfig{Domains: []string{"example.com"}},
 	}
-	patch := buildNetworkProxyPatch("varmor-testns-test", true, proxyConfig)
+	patch := buildNetworkProxyPatch("varmor-testns-test", varmorpolicy.AuditPolicyIdentity{Kind: "VarmorPolicy", Name: "test", Namespace: "testns"}, true, proxyConfig, false)
 
 	// MITM injection intact.
 	assert.Assert(t, strings.Contains(patch, `"name": "varmor-network-proxy-mitm-tls"`),
@@ -78,4 +105,30 @@ func Test_buildNetworkProxyPatch_AuditWithMITM(t *testing.T) {
 		"patch should inject POD_NAME alongside MITM")
 	assert.Assert(t, strings.Contains(patch, `"name": "`+varmorconfig.AuditNetworkProxyVolumeName+`", "hostPath":`),
 		"patch should add the ALS socket volume alongside MITM")
+}
+
+// Test_buildNetworkProxyPatch_MicroVM asserts that on a micro-VM the ALS
+// hostPath volume and the sidecar ALS volumeMount are both omitted (the hostPath
+// cannot cross the VM boundary; the in-sidecar audit sink binds the socket in the
+// container's own rootfs), while the Downward API / sink env vars and the
+// root-start securityContext are still injected.
+func Test_buildNetworkProxyPatch_MicroVM(t *testing.T) {
+	patch := buildNetworkProxyPatch("varmor-testns-test", varmorpolicy.AuditPolicyIdentity{Kind: "VarmorPolicy", Name: "test", Namespace: "testns"}, true, nil, true)
+
+	// No ALS socket hostPath volume on a micro-VM.
+	assert.Assert(t, !strings.Contains(patch, `"hostPath": {"path": "`+varmorconfig.AuditNetworkProxySocketDir+`"`),
+		"micro-VM patch must not add the ALS socket hostPath volume")
+	// No ALS socket volumeMount on a micro-VM.
+	assert.Assert(t, !strings.Contains(patch, `"mountPath": "`+varmorconfig.AuditNetworkProxySocketDir+`"`),
+		"micro-VM patch must not mount the ALS socket directory into the sidecar")
+
+	// Env vars and root-start securityContext are still injected.
+	assert.Assert(t, strings.Contains(patch, `{"name": "PROFILE_NAME", "value": "varmor-testns-test"}`),
+		"micro-VM patch should still inject PROFILE_NAME")
+	assert.Assert(t, strings.Contains(patch, `{"name": "VARMOR_NAMESPACE", "value": "`+varmorconfig.Namespace+`"}`),
+		"micro-VM patch should still inject VARMOR_NAMESPACE with the vArmor component namespace")
+	assert.Assert(t, strings.Contains(patch, `{"name": "VARMOR_ENVOY_UID", "value": "1337"}`),
+		"micro-VM patch should still inject VARMOR_ENVOY_UID")
+	assert.Assert(t, strings.Contains(patch, `"securityContext": {"runAsUser": 0}`),
+		"micro-VM patch should still start the sidecar as root")
 }

@@ -14,7 +14,9 @@ This file provides essential context and instructions for AI coding agents worki
 - `make copy-ebpf` - Copy compiled eBPF artifacts to pkg directories
 - `make update-mozilla-bundle` - Refresh embedded Mozilla CA bundle (set `SKIP_MOZILLA_BUNDLE_UPDATE=1` for offline builds)
 - `make docker-build-proxyinit` - Build proxyinit image (amd64/arm64)
-- `make sync-proxy-images` - Build proxyinit + sync Envoy images to registry
+- `make docker-build-proxy` - Build custom Envoy image (amd64/arm64)
+- `make push-proxy-images` - Push proxyinit + custom Envoy images to the public registry (build first)
+- `make push-proxy-images-dev` - Push proxyinit + custom Envoy images to the private/dev registry (build first)
 
 ### Testing
 
@@ -183,6 +185,7 @@ Combinations: AppArmorBPF, AppArmorSeccomp, BPFSeccomp, AppArmorBPFSeccomp...
 | NetworkProxy orchestration | `internal/networkproxy/networkproxy.go` | Secret lifecycle |
 | NetworkProxy profile | `internal/networkproxy/profile/` | Translator + Renderer |
 | NetworkProxy MITM | `internal/networkproxy/mitm/` | CA/cert generation |
+| Dynamic config | `internal/config/dynamic.go` | `varmor-config` ConfigMap loader (informer hot-reload) + `IsMicroVMPod` |
 
 ### Key Design Decisions (NetworkProxy)
 
@@ -199,6 +202,8 @@ These are non-obvious choices. Understand them before modifying NetworkProxy cod
 5. **Webhook idempotency for env vars** - `mutation.go` skips CA env var injection if container already defines them. But `update.go` (reconcile) uses cleanup-then-reinject.
 
 6. **YAML escaping is YAML-transparent** - `yamlEscapeScalar()` produces escape sequences that YAML parsers restore to original values. Envoy receives the intended string. Escaping prevents structural injection, not value modification.
+
+7. **Dynamic config via `varmor-config` ConfigMap** - vArmor's first (and currently only) runtime-reloadable configuration. Single `config.yaml` data key holding one embedded YAML document (ComponentConfig pattern), watched by a namespaced informer and hot-swapped into a process-wide RWMutex snapshot; absent/malformed config falls back to built-in defaults. Currently drives micro-VM detection (`IsMicroVMPod`: runtimeClassName OR vendor annotation OR vendor label match). The NetworkProxy injector uses it at admission time to decide volume topology - micro-VM Pods omit the ALS hostPath volume and sidecar volumeMount entirely (the in-sidecar audit sink binds the socket in the container's own rootfs), because serverless/micro-VM providers reject hostPath at admission. This is orthogonal to the entrypoint's runtime connect(2) self-check, which decides whether to *start* the sink.
 
 ## Kubernetes Patterns
 

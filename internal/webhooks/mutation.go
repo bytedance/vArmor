@@ -17,6 +17,8 @@ package webhooks
 import (
 	"encoding/json"
 	"fmt"
+	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -49,6 +51,17 @@ func (ws *WebhookServer) matchAndPatch(request *admissionv1.AdmissionRequest, ke
 		return nil
 	}
 
+	// Capture the owning policy's identity before policyNamespace is
+	// overwritten with the vArmor install namespace below. It is threaded down
+	// to the NetworkProxy sidecar env so the in-sidecar kata audit sink can
+	// attribute violation records to the policy.
+	var policyIdentity varmorpolicy.AuditPolicyIdentity
+	if clusterScope {
+		policyIdentity = varmorpolicy.AuditPolicyIdentity{Kind: "VarmorClusterPolicy", Name: policyName}
+	} else {
+		policyIdentity = varmorpolicy.AuditPolicyIdentity{Kind: "VarmorPolicy", Name: policyName, Namespace: policyNamespace}
+	}
+
 	if request.Kind.Kind != target.Kind {
 		return nil
 	}
@@ -78,7 +91,7 @@ func (ws *WebhookServer) matchAndPatch(request *admissionv1.AdmissionRequest, ke
 	apName := varmorprofile.GenerateArmorProfileName(policyNamespace, policyName, clusterScope)
 	if target.Name != "" && target.Name == m.GetName() {
 		logger.Info("mutating resource", "resource kind", request.Kind.Kind, "resource namespace", request.Namespace, "resource name", request.Name, "profile", apName)
-		patch, err := buildPatch(obj, enforcer, mode, target, networkProxyConfig, apName, ws.bpfExclusiveMode, varmorconfig.AppArmorGA)
+		patch, err := buildPatch(obj, enforcer, mode, target, networkProxyConfig, apName, policyIdentity, ws.bpfExclusiveMode, varmorconfig.AppArmorGA)
 		if err != nil {
 			logger.Error(err, "ws.buildPatch()")
 			return nil
@@ -92,7 +105,7 @@ func (ws *WebhookServer) matchAndPatch(request *admissionv1.AdmissionRequest, ke
 		}
 		if selector.Matches(labels.Set(m.GetLabels())) {
 			logger.Info("mutating resource", "resource kind", request.Kind.Kind, "resource namespace", request.Namespace, "resource name", request.Name, "profile", apName)
-			patch, err := buildPatch(obj, enforcer, mode, target, networkProxyConfig, apName, ws.bpfExclusiveMode, varmorconfig.AppArmorGA)
+			patch, err := buildPatch(obj, enforcer, mode, target, networkProxyConfig, apName, policyIdentity, ws.bpfExclusiveMode, varmorconfig.AppArmorGA)
 			if err != nil {
 				logger.Error(err, "ws.buildPatch()")
 				return nil
@@ -129,7 +142,7 @@ func (ws *WebhookServer) deserializeWorkload(request *admissionv1.AdmissionReque
 
 func buildPatch(obj interface{}, enforcer string,
 	mode varmor.VarmorPolicyMode, target varmor.Target, networkProxyConfig *varmor.NetworkProxyConfig,
-	profileName string, bpfExclusiveMode bool, appArmorGA bool) (patch string, err error) {
+	profileName string, id varmorpolicy.AuditPolicyIdentity, bpfExclusiveMode bool, appArmorGA bool) (patch string, err error) {
 	var jsonPatch string
 
 	e := varmortypes.GetEnforcerType(enforcer)
@@ -157,7 +170,8 @@ func buildPatch(obj interface{}, enforcer string,
 					jsonPatch += `{"op": "add", "path": "/spec/template/spec/volumes", "value": []},`
 				}
 
-				jsonPatch += buildNetworkProxyPatch(profileName, true, networkProxyConfig)
+				microVM := varmorconfig.IsMicroVMPod(deploy.Spec.Template.Labels, deploy.Spec.Template.Annotations, deploy.Spec.Template.Spec.RuntimeClassName)
+				jsonPatch += buildNetworkProxyPatch(profileName, id, true, networkProxyConfig, microVM)
 			}
 		}
 
@@ -240,7 +254,8 @@ func buildPatch(obj interface{}, enforcer string,
 					jsonPatch += `{"op": "add", "path": "/spec/template/spec/volumes", "value": []},`
 				}
 
-				jsonPatch += buildNetworkProxyPatch(profileName, true, networkProxyConfig)
+				microVM := varmorconfig.IsMicroVMPod(statefulSet.Spec.Template.Labels, statefulSet.Spec.Template.Annotations, statefulSet.Spec.Template.Spec.RuntimeClassName)
+				jsonPatch += buildNetworkProxyPatch(profileName, id, true, networkProxyConfig, microVM)
 			}
 		}
 
@@ -321,7 +336,8 @@ func buildPatch(obj interface{}, enforcer string,
 				if len(daemonSet.Spec.Template.Spec.Volumes) == 0 {
 					jsonPatch += `{"op": "add", "path": "/spec/template/spec/volumes", "value": []},`
 				}
-				jsonPatch += buildNetworkProxyPatch(profileName, true, networkProxyConfig)
+				microVM := varmorconfig.IsMicroVMPod(daemonSet.Spec.Template.Labels, daemonSet.Spec.Template.Annotations, daemonSet.Spec.Template.Spec.RuntimeClassName)
+				jsonPatch += buildNetworkProxyPatch(profileName, id, true, networkProxyConfig, microVM)
 			}
 		}
 
@@ -400,7 +416,8 @@ func buildPatch(obj interface{}, enforcer string,
 					jsonPatch += `{"op": "add", "path": "/spec/volumes", "value": []},`
 				}
 
-				jsonPatch += buildNetworkProxyPatch(profileName, false, networkProxyConfig)
+				microVM := varmorconfig.IsMicroVMPod(pod.Labels, pod.Annotations, pod.Spec.RuntimeClassName)
+				jsonPatch += buildNetworkProxyPatch(profileName, id, false, networkProxyConfig, microVM)
 			}
 		}
 
@@ -580,7 +597,18 @@ func buildSeccompPatch(
 	return jsonPatch
 }
 
-func buildNetworkProxyPatch(profileName string, workloads bool, networkProxyConfig *varmor.NetworkProxyConfig) string {
+// jsonString encodes v as a JSON string literal (including the surrounding
+// double quotes and all necessary escaping) so it can be spliced safely into a
+// JSONPatch value position. It is used for the policy identity and metadata
+// fields injected into the NetworkProxy sidecar env, which originate from
+// user-controlled policy names/namespaces and must not be able to break out of
+// the enclosing JSON string.
+func jsonString(v string) string {
+	b, _ := json.Marshal(v)
+	return string(b)
+}
+
+func buildNetworkProxyPatch(profileName string, id varmorpolicy.AuditPolicyIdentity, workloads bool, networkProxyConfig *varmor.NetworkProxyConfig, microVM bool) string {
 	var sb strings.Builder
 
 	pathPrefix := ""
@@ -604,6 +632,11 @@ func buildNetworkProxyPatch(profileName string, workloads bool, networkProxyConf
 	}
 
 	mitmEnabled := networkProxyConfig != nil && networkProxyConfig.MITM != nil && len(networkProxyConfig.MITM.Domains) > 0
+
+	// sidecarRunAsUser is always 0: see the securityContext comment below.
+	// proxyUID is still used for the iptables uid-owner RETURN exemption and
+	// for VARMOR_ENVOY_UID (the uid the entrypoint drops to before Envoy).
+	var sidecarRunAsUser int64 = 0
 
 	// --- 1. add annotation ---
 	sb.WriteString(fmt.Sprintf(
@@ -630,13 +663,19 @@ func buildNetworkProxyPatch(profileName string, workloads bool, networkProxyConf
 	if mitmEnabled {
 		sidecarVolumeMounts += `, {"name": "varmor-network-proxy-mitm-tls", "mountPath": "/etc/envoy/tls", "readOnly": true}`
 	}
-	// Audit: mount the node-local ALS socket directory (read-only;
-	// Envoy connects as a gRPC client) at the same absolute path the agent
-	// listens on, so the CDS cluster pipe.path resolves identically.
-	sidecarVolumeMounts += fmt.Sprintf(
-		`, {"name": "%s", "mountPath": "%s", "readOnly": true}`,
-		varmorconfig.AuditNetworkProxyVolumeName, varmorconfig.AuditNetworkProxySocketDir,
-	)
+	// Audit: on runc, mount the node-local ALS socket directory (hostPath) at
+	// the same absolute path the agent listens on, so the CDS cluster pipe.path
+	// resolves identically. Envoy only connects to the socket as a gRPC client
+	// and never writes to the directory, so it is mounted read-only. On kata the
+	// hostPath cannot cross the VM boundary, so no volume/volumeMount is
+	// injected: the in-sidecar audit sink bind(2)s the socket inode directly in
+	// the container's own rootfs at the same path, and Envoy connects locally.
+	if !microVM {
+		sidecarVolumeMounts += fmt.Sprintf(
+			`, {"name": "%s", "mountPath": "%s", "readOnly": true}`,
+			varmorconfig.AuditNetworkProxyVolumeName, varmorconfig.AuditNetworkProxySocketDir,
+		)
+	}
 
 	// Compute sidecar resource requirements based on MITM status and user overrides.
 	var proxyResourceOverride *varmor.ProxyResourceOverride
@@ -655,20 +694,57 @@ func buildNetworkProxyPatch(profileName string, workloads bool, networkProxyConf
 	overlayBytes, _ := json.Marshal(varmorpolicy.AuditNodeMetadataOverlay)
 	auditNodeMetadataOverlayJSON := string(overlayBytes)
 
-	// Audit: carry the Pod identity into the sidecar via the Downward API.
-	// The kubelet expands the $(POD_*) references in the sidecar's
-	// "--config-yaml" overlay from these env vars before Envoy starts, so the
-	// agent can attribute ALS records to a precise Pod. (Envoy does not expand
-	// "%ENV()%" inside node.metadata; that operator is access-log only.)
+	// Audit sink env: the in-sidecar kata audit sink reads NODE_NAME (node
+	// attribution), the policy identity (PROFILE_NAME/POLICY_KIND/POLICY_NAME/
+	// POLICY_NAMESPACE), VARMOR_ENVOY_UID (the uid the image entrypoint drops
+	// to before exec-ing Envoy, kept in sync with proxyUID), VARMOR_NAMESPACE
+	// and, when the manager carries cluster metadata, AUDIT_EVENT_METADATA.
+	// These are injected on every sidecar so the custom Envoy image stays
+	// runtime-agnostic; on runc the entrypoint's connect(2) self-check succeeds
+	// and the sink is never started, so the values are simply unused.
+	//
+	// VARMOR_NAMESPACE carries the manager's own namespace (the namespace where
+	// the vArmor components are deployed) so the sink can populate the
+	// varmorNamespace audit-metadata field correctly. It must NOT be derived
+	// from the Downward API metadata.namespace: inside the sidecar that would
+	// be the business Pod's namespace, not the vArmor namespace.
+	sinkEnv := fmt.Sprintf(
+		`{"name": "NODE_NAME", "valueFrom": {"fieldRef": {"fieldPath": "spec.nodeName"}}}, `+
+			`{"name": "PROFILE_NAME", "value": %s}, `+
+			`{"name": "POLICY_KIND", "value": %s}, `+
+			`{"name": "POLICY_NAME", "value": %s}, `+
+			`{"name": "POLICY_NAMESPACE", "value": %s}, `+
+			`{"name": "VARMOR_NAMESPACE", "value": %s}, `+
+			`{"name": "VARMOR_ENVOY_UID", "value": %s}`,
+		jsonString(profileName), jsonString(id.Kind), jsonString(id.Name),
+		jsonString(id.Namespace), jsonString(varmorconfig.Namespace),
+		jsonString(strconv.FormatInt(proxyUID, 10)),
+	)
+	if md := os.Getenv("AUDIT_EVENT_METADATA"); md != "" {
+		sinkEnv += fmt.Sprintf(`, {"name": "AUDIT_EVENT_METADATA", "value": %s}`, jsonString(md))
+	}
+
+	// Audit: carry the Pod identity into the sidecar via the Downward API. The
+	// kubelet expands the $(POD_*) references in the sidecar's "--config-yaml"
+	// overlay from these env vars before Envoy starts, so the agent can
+	// attribute ALS records to a precise Pod. (Envoy does not expand "%ENV()%"
+	// inside node.metadata; that operator is access-log only.) The kata audit
+	// sink env vars are appended after the Pod identity vars.
 	sidecarEnv := `"env": [` +
 		`{"name": "POD_NAME", "valueFrom": {"fieldRef": {"fieldPath": "metadata.name"}}}, ` +
 		`{"name": "POD_NAMESPACE", "valueFrom": {"fieldRef": {"fieldPath": "metadata.namespace"}}}, ` +
-		`{"name": "POD_UID", "valueFrom": {"fieldRef": {"fieldPath": "metadata.uid"}}}], `
+		`{"name": "POD_UID", "valueFrom": {"fieldRef": {"fieldPath": "metadata.uid"}}}, ` +
+		sinkEnv + `], `
 
 	sb.WriteString(fmt.Sprintf(
 		`{"op": "add", "path": "%s/spec/containers/-", "value": `+
 			`{"name": "varmor-network-proxy", `+
 			`"image": "%s", `+
+			// Option B (kata): the sidecar always starts as root (runAsUser 0) so
+			// the custom Envoy image entrypoint can run its runtime self-check
+			// and, on kata, bind the in-sidecar audit sink before dropping to the
+			// Envoy uid (VARMOR_ENVOY_UID = proxyUID) and exec-ing Envoy. On runc
+			// the entrypoint drops to proxyUID immediately, so this is harmless.
 			`"securityContext": {"runAsUser": %d}, `+
 			// codeql[go/unsafe-quote-injection]: false positive. The token spliced
 			// here is the json.Marshal output above (a fully-quoted, escaped JSON
@@ -681,7 +757,7 @@ func buildNetworkProxyPatch(profileName string, workloads bool, networkProxyConf
 			`"resources": %s, `+
 			`%s`+
 			`"volumeMounts": [%s]}}, `,
-		pathPrefix, varmorconfig.ProxyImage, proxyUID, proxyPort, proxyResourcesJSON, sidecarEnv, sidecarVolumeMounts,
+		pathPrefix, varmorconfig.ProxyImage, sidecarRunAsUser, proxyPort, proxyResourcesJSON, sidecarEnv, sidecarVolumeMounts,
 	))
 
 	// --- 4. volumes ---
@@ -692,15 +768,20 @@ func buildNetworkProxyPatch(profileName string, workloads bool, networkProxyConf
 		pathPrefix, profileName,
 	))
 
-	// Audit volume: the node-local ALS socket directory shared
-	// with the agent. A hostPath (DirectoryOrCreate) mounting the leaf
-	// socketDir (not the socket file) so the sidecar reconnects after the
-	// agent recreates the socket inode on restart.
-	sb.WriteString(fmt.Sprintf(
-		`{"op": "add", "path": "%s/spec/volumes/-", "value": `+
-			`{"name": "%s", "hostPath": {"path": "%s", "type": "DirectoryOrCreate"}}},`,
-		pathPrefix, varmorconfig.AuditNetworkProxyVolumeName, varmorconfig.AuditNetworkProxySocketDir,
-	))
+	// Audit volume: on runc, the node-local ALS socket directory shared with the
+	// agent. A hostPath (DirectoryOrCreate) mounting the leaf socketDir (not the
+	// socket file) so the sidecar reconnects after the agent recreates the
+	// socket inode on restart. On kata this hostPath is omitted entirely (it
+	// cannot cross the micro-VM boundary and is rejected at admission by some
+	// serverless providers); the in-sidecar sink binds the socket in the
+	// container's own rootfs instead.
+	if !microVM {
+		sb.WriteString(fmt.Sprintf(
+			`{"op": "add", "path": "%s/spec/volumes/-", "value": `+
+				`{"name": "%s", "hostPath": {"path": "%s", "type": "DirectoryOrCreate"}}},`,
+			pathPrefix, varmorconfig.AuditNetworkProxyVolumeName, varmorconfig.AuditNetworkProxySocketDir,
+		))
+	}
 
 	if mitmEnabled {
 		// MITM-only volume #1: per-policy MITM leaf certificate, leaf

@@ -1,0 +1,40 @@
+# varmor-config is vArmor's dynamic configuration ConfigMap. The manager loads
+# it via an informer and hot-reloads changes at runtime (no restart required).
+# The whole configuration is embedded as a single YAML document under the
+# config.yaml key (the ComponentConfig pattern used by kube-scheduler/kubelet),
+# so structured, multi-valued settings such as the micro-VM detection rules below
+# can be expressed cleanly. If this ConfigMap is absent or malformed the manager
+# falls back to the built-in defaults, which are identical to the values shipped
+# here.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: varmor-config
+  namespace: {{ include "varmor.namespace" . }}
+  labels:
+    {{- include "varmor.labels" . | nindent 4 }}
+data:
+  config.yaml: |
+    # microVMDetection controls how the NetworkProxy injector decides a workload
+    # runs under a micro-VM runtime (kata / serverless sandbox). For such
+    # workloads the ALS socket hostPath cannot cross the VM boundary (and is
+    # rejected at admission by some serverless providers), so the injector omits
+    # the hostPath volume/mount and the in-sidecar audit sink binds the socket
+    # in the container's own rootfs instead. A workload matches if its
+    # runtimeClassName is listed OR any annotation rule matches OR any label rule
+    # matches (an empty value matches on key presence alone).
+    microVMDetection:
+      runtimeClassNames:
+        {{- range .Values.dynamicConfig.microVMDetection.runtimeClassNames }}
+        - {{ . | quote }}
+        {{- end }}
+      annotations:
+        {{- range .Values.dynamicConfig.microVMDetection.annotations }}
+        - key: {{ .key | quote }}
+          value: {{ .value | quote }}
+        {{- end }}
+      labels:
+        {{- range .Values.dynamicConfig.microVMDetection.labels }}
+        - key: {{ .key | quote }}
+          value: {{ .value | quote }}
+        {{- end }}

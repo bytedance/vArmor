@@ -229,6 +229,13 @@ docker-build-proxyinit:
 	@docker buildx build --file $(PWD)/tools/proxyinit/Dockerfile --tag $(PROXYINIT_IMAGE_DEV)-amd64 --platform linux/amd64 --load .
 	@docker buildx build --file $(PWD)/tools/proxyinit/Dockerfile --tag $(PROXYINIT_IMAGE_DEV)-arm64 --platform linux/arm64 --load .
 
+docker-build-proxy:
+	@echo "[+] Build custom envoy image"
+	@docker buildx build --file $(PWD)/cmd/networkproxy/Dockerfile --tag $(PROXY_IMAGE_AP)-amd64 --platform linux/amd64 --load .
+	@docker buildx build --file $(PWD)/cmd/networkproxy/Dockerfile --tag $(PROXY_IMAGE_AP)-arm64 --platform linux/arm64 --load .
+	@docker buildx build --file $(PWD)/cmd/networkproxy/Dockerfile --tag $(PROXY_IMAGE_DEV)-amd64 --platform linux/amd64 --load .
+	@docker buildx build --file $(PWD)/cmd/networkproxy/Dockerfile --tag $(PROXY_IMAGE_DEV)-arm64 --platform linux/arm64 --load .
+
 docker-save-ci-dev:
 	@docker tag  $(VARMOR_IMAGE_DEV)-amd64 $(VARMOR_IMAGE_DEV)
 	@docker tag  $(CLASSIFIER_IMAGE_DEV)-amd64 $(CLASSIFIER_IMAGE_DEV)
@@ -253,29 +260,6 @@ demo-package: ## Package the demo resources.
 
 ##@ Push artifacts (Note: Logging in to the registry is required beforehand.)
 .PHONY: push
-push-dev: ## Push images and chart to the private repository for development.
-	docker push $(VARMOR_IMAGE_DEV)-amd64
-	@echo "----------------------------------------"
-	docker push $(VARMOR_IMAGE_DEV)-arm64
-	@echo "----------------------------------------"
-	-docker manifest rm $(VARMOR_IMAGE_DEV)
-	@echo "----------------------------------------"
-	docker manifest create $(VARMOR_IMAGE_DEV) $(VARMOR_IMAGE_DEV)-amd64 $(VARMOR_IMAGE_DEV)-arm64
-	@echo "----------------------------------------"
-	docker manifest push $(VARMOR_IMAGE_DEV)
-	@echo "----------------------------------------"
-	docker push $(CLASSIFIER_IMAGE_DEV)-amd64
-	@echo "----------------------------------------"
-	docker push $(CLASSIFIER_IMAGE_DEV)-arm64
-	@echo "----------------------------------------"
-	-docker manifest rm $(CLASSIFIER_IMAGE_DEV)
-	@echo "----------------------------------------"
-	docker manifest create $(CLASSIFIER_IMAGE_DEV) $(CLASSIFIER_IMAGE_DEV)-amd64 $(CLASSIFIER_IMAGE_DEV)-arm64
-	@echo "----------------------------------------"
-	docker manifest push $(CLASSIFIER_IMAGE_DEV)
-	@echo "----------------------------------------"
-	helm push varmor-$(CHART_VERSION_DEV).tgz oci://$(REPO_DEV)
-
 push: ## Push images and chart to the public repository for release.
 	docker push $(VARMOR_IMAGE_AP)-amd64
 	@echo "----------------------------------------"
@@ -299,11 +283,32 @@ push: ## Push images and chart to the public repository for release.
 	@echo "----------------------------------------"
 	helm push varmor-$(CHART_VERSION).tgz oci://$(REPO_AP)
 
-##@ Sync proxy images
-.PHONY: sync-proxy-images
-sync-proxy-images: docker-build-proxyinit ## Sync proxy images to the public repository.
-	@echo "[+] Push proxyinit image"
+.PHONY: push-dev
+push-dev: ## Push images and chart to the private repository for development.
+	docker push $(VARMOR_IMAGE_DEV)-amd64
 	@echo "----------------------------------------"
+	docker push $(VARMOR_IMAGE_DEV)-arm64
+	@echo "----------------------------------------"
+	-docker manifest rm $(VARMOR_IMAGE_DEV)
+	@echo "----------------------------------------"
+	docker manifest create $(VARMOR_IMAGE_DEV) $(VARMOR_IMAGE_DEV)-amd64 $(VARMOR_IMAGE_DEV)-arm64
+	@echo "----------------------------------------"
+	docker manifest push $(VARMOR_IMAGE_DEV)
+	@echo "----------------------------------------"
+	docker push $(CLASSIFIER_IMAGE_DEV)-amd64
+	@echo "----------------------------------------"
+	docker push $(CLASSIFIER_IMAGE_DEV)-arm64
+	@echo "----------------------------------------"
+	-docker manifest rm $(CLASSIFIER_IMAGE_DEV)
+	@echo "----------------------------------------"
+	docker manifest create $(CLASSIFIER_IMAGE_DEV) $(CLASSIFIER_IMAGE_DEV)-amd64 $(CLASSIFIER_IMAGE_DEV)-arm64
+	@echo "----------------------------------------"
+	docker manifest push $(CLASSIFIER_IMAGE_DEV)
+	@echo "----------------------------------------"
+	helm push varmor-$(CHART_VERSION_DEV).tgz oci://$(REPO_DEV)
+
+.PHONY: push-proxy-images
+push-proxy-images: ## Push proxy images to the public repository for release.
 	docker push $(PROXYINIT_IMAGE_AP)-amd64
 	@echo "----------------------------------------"
 	docker push $(PROXYINIT_IMAGE_AP)-arm64
@@ -314,6 +319,19 @@ sync-proxy-images: docker-build-proxyinit ## Sync proxy images to the public rep
 	@echo "----------------------------------------"
 	docker manifest push $(PROXYINIT_IMAGE_AP)
 	@echo "----------------------------------------"
+	docker push $(PROXY_IMAGE_AP)-amd64
+	@echo "----------------------------------------"
+	docker push $(PROXY_IMAGE_AP)-arm64
+	@echo "----------------------------------------"
+	-docker manifest rm $(PROXY_IMAGE_AP)
+	@echo "----------------------------------------"
+	docker manifest create $(PROXY_IMAGE_AP) $(PROXY_IMAGE_AP)-amd64 $(PROXY_IMAGE_AP)-arm64
+	@echo "----------------------------------------"
+	docker manifest push $(PROXY_IMAGE_AP)
+	@echo "----------------------------------------"
+
+.PHONY: push-proxy-images-dev
+push-proxy-images-dev: ## Push proxy images to the private repository for development.
 	docker push $(PROXYINIT_IMAGE_DEV)-amd64
 	@echo "----------------------------------------"
 	docker push $(PROXYINIT_IMAGE_DEV)-arm64
@@ -324,19 +342,6 @@ sync-proxy-images: docker-build-proxyinit ## Sync proxy images to the public rep
 	@echo "----------------------------------------"
 	docker manifest push $(PROXYINIT_IMAGE_DEV)
 	@echo "----------------------------------------"
-	@echo "[+] Pull proxy image"
-	@docker pull --platform linux/amd64 envoyproxy/$(PROXY_IMAGE_NAME):$(PROXY_IMAGE_TAG)
-	@docker tag envoyproxy/$(PROXY_IMAGE_NAME):$(PROXY_IMAGE_TAG) $(PROXY_IMAGE_AP)-amd64
-	@docker tag envoyproxy/$(PROXY_IMAGE_NAME):$(PROXY_IMAGE_TAG) $(PROXY_IMAGE_DEV)-amd64
-	@echo "----------------------------------------"
-	@docker pull --platform linux/arm64 envoyproxy/$(PROXY_IMAGE_NAME):$(PROXY_IMAGE_TAG)
-	@docker tag envoyproxy/$(PROXY_IMAGE_NAME):$(PROXY_IMAGE_TAG) $(PROXY_IMAGE_AP)-arm64
-	@docker tag envoyproxy/$(PROXY_IMAGE_NAME):$(PROXY_IMAGE_TAG) $(PROXY_IMAGE_DEV)-arm64
-	@echo "----------------------------------------"
-	@docker rmi envoyproxy/$(PROXY_IMAGE_NAME):$(PROXY_IMAGE_TAG)
-	@echo "----------------------------------------"
-	@echo "[+] Push proxy image"
-	@echo "----------------------------------------"
 	docker push $(PROXY_IMAGE_DEV)-amd64
 	@echo "----------------------------------------"
 	docker push $(PROXY_IMAGE_DEV)-arm64
@@ -346,17 +351,8 @@ sync-proxy-images: docker-build-proxyinit ## Sync proxy images to the public rep
 	docker manifest create $(PROXY_IMAGE_DEV) $(PROXY_IMAGE_DEV)-amd64 $(PROXY_IMAGE_DEV)-arm64
 	@echo "----------------------------------------"
 	docker manifest push $(PROXY_IMAGE_DEV)
-	@echo "----------------------------------------"
-	docker push $(PROXY_IMAGE_AP)-amd64
-	@echo "----------------------------------------"
-	docker push $(PROXY_IMAGE_AP)-arm64
-	@echo "----------------------------------------"
-	-docker manifest rm $(PROXY_IMAGE_AP)
-	@echo "----------------------------------------"
-	docker manifest create $(PROXY_IMAGE_AP) $(PROXY_IMAGE_AP)-amd64 $(PROXY_IMAGE_AP)-arm64
-	@echo "----------------------------------------"
-	docker manifest push $(PROXY_IMAGE_AP)
-	
+
+
 ##@ MITM Certificate Bundle
 
 # Location of the embedded Mozilla CA bundle consumed by the MITM

@@ -25,6 +25,17 @@ rules:
   verbs:
   - patch
   - list
+# Read-only access to the varmor-config ConfigMap for dynamic configuration
+# (micro-VM detection rules) via an informer. resourceNames cannot scope list/watch,
+# so this is namespace-wide but limited to the get/list/watch verbs.
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  verbs:
+  - get
+  - list
+  - watch
 - apiGroups:
   - coordination.k8s.io
   resources:
