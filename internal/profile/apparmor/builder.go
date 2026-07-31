@@ -166,12 +166,46 @@ func buildSignalRules(appArmor *varmor.AppArmor, profileName string, debug bool)
 	return ruleSet
 }
 
+func buildMountRules(appArmor *varmor.AppArmor) string {
+	ruleSet := "\n  # ---- MOUNT ----\n"
+
+	if len(appArmor.Mounts) == 0 {
+		// Default: allow umount if no mount behavior data
+		ruleSet += "  umount,\n"
+		return ruleSet
+	}
+
+	rules := make([]string, 0, len(appArmor.Mounts))
+	for _, mount := range appArmor.Mounts {
+		var rule string
+		if mount.Type != "" && len(mount.Flags) > 0 {
+			rule = fmt.Sprintf("  mount fstype=%s options=(%s) -> %s,\n",
+				mount.Type, strings.Join(mount.Flags, ","), mount.Path)
+		} else if mount.Type != "" {
+			rule = fmt.Sprintf("  mount fstype=%s -> %s,\n", mount.Type, mount.Path)
+		} else if len(mount.Flags) > 0 {
+			rule = fmt.Sprintf("  mount options=(%s) -> %s,\n",
+				strings.Join(mount.Flags, ","), mount.Path)
+		} else {
+			rule = fmt.Sprintf("  mount -> %s,\n", mount.Path)
+		}
+		rules = append(rules, rule)
+	}
+
+	// Always allow umount
+	rules = append(rules, "  umount,\n")
+
+	sort.Strings(rules)
+	ruleSet += strings.Join(rules, "")
+
+	return ruleSet
+}
+
 func buildDefaultAllowRules() string {
 	// From docker-default profile
 	//   https://github.com/moby/moby/blob/master/profiles/apparmor/template.go
 	//   https://github.com/containerd/containerd/blob/main/contrib/apparmor/template.go
 	ruleSet := "\n  # ---- ADDITIONAL ----\n"
-	ruleSet += "  umount,\n"
 	return ruleSet
 }
 
@@ -187,6 +221,7 @@ func GenerateProfileWithBehaviorModel(appArmor *varmor.AppArmor, debug bool) (st
 		ruleSet += buildNetworkRules(appArmor, debug)
 		ruleSet += buildPtraceRules(appArmor, profileName, debug)
 		ruleSet += buildSignalRules(appArmor, profileName, debug)
+		ruleSet += buildMountRules(appArmor)
 		ruleSet += buildDefaultAllowRules()
 
 		profile := fmt.Sprintf(defenseInDepthTemplate, profileName, ruleSet)

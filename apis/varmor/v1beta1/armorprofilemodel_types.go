@@ -67,6 +67,7 @@ type AppArmor struct {
 	Network      *Network `json:"networks,omitempty"`
 	Ptraces      []Ptrace `json:"ptraces,omitempty"`
 	Signals      []Signal `json:"signals,omitempty"`
+	Mounts       []Mount  `json:"mounts,omitempty"`
 	Unhandled    []string `json:"unhandled,omitempty"`
 }
 

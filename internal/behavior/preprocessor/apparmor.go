@@ -66,6 +66,9 @@ type AaLogRecord struct {
 	Path          string
 	Interface     string
 	Member        string
+	FsType        string
+	Flags         string
+	SrcName       string
 }
 
 const (
@@ -434,8 +437,47 @@ func (p *DataPreprocessor) parseAppArmorEventForTree(event *AaLogRecord) error {
 		return nil
 	}
 
+	// Mount
+	if event.Operation == "mount" || event.Operation == "umount" {
+		if event.Name == "" && event.FsType == "" {
+			return nil
+		}
+
+		// Parse mount flags from the Flags field
+		var flags []string
+		if event.Flags != "" {
+			for _, flag := range strings.Split(event.Flags, ",") {
+				flag = strings.TrimSpace(flag)
+				if flag != "" && !varmorutils.InStringArray(flag, flags) {
+					flags = append(flags, flag)
+				}
+			}
+		}
+
+		// Check if we already have this mount entry
+		for i, mount := range p.behaviorData.DynamicResult.AppArmor.Mounts {
+			if mount.Path == event.Name && mount.Type == event.FsType {
+				// Merge flags
+				for _, flag := range flags {
+					if !varmorutils.InStringArray(flag, mount.Flags) {
+						p.behaviorData.DynamicResult.AppArmor.Mounts[i].Flags = append(p.behaviorData.DynamicResult.AppArmor.Mounts[i].Flags, flag)
+					}
+				}
+				return nil
+			}
+		}
+
+		// Add new mount entry
+		p.behaviorData.DynamicResult.AppArmor.Mounts = append(p.behaviorData.DynamicResult.AppArmor.Mounts, varmor.Mount{
+			Path:  event.Name,
+			Type:  event.FsType,
+			Flags: flags,
+		})
+		return nil
+	}
+
 	// Ignore change_hat, change_profile, and allow all signal, dbus...
-	unhandled := fmt.Sprintf("Resource - %v, ActiveHat - %v, AaMode - %v, Time - %v, Operation - %v, Profile - %v, Name - %v, Name2 - %v, Attr - %v, Parent - %v, Pid - %v, Task - %v, Info - %v, ErrorCode - %v, DeniedMask - %v, RequestedMask - %v, MagicToken - %v, Family - %v, Protocol - %v, SockType - %v, Fsuid - %v, Ouid - %v, Signal - %v, Peer - %v, PeerProfile - %v, Bus - %v, Path - %v, Interface - %v, Member - %v",
+	unhandled := fmt.Sprintf("Resource - %v, ActiveHat - %v, AaMode - %v, Time - %v, Operation - %v, Profile - %v, Name - %v, Name2 - %v, Attr - %v, Parent - %v, Pid - %v, Task - %v, Info - %v, ErrorCode - %v, DeniedMask - %v, RequestedMask - %v, MagicToken - %v, Family - %v, Protocol - %v, SockType - %v, Fsuid - %v, Ouid - %v, Signal - %v, Peer - %v, PeerProfile - %v, Bus - %v, Path - %v, Interface - %v, Member - %v, FsType - %v, Flags - %v, SrcName - %v",
 		event.Resource, event.ActiveHat, event.AaMode,
 		event.Time, event.Operation, event.Profile,
 		event.Name, event.Name2, event.Attr,
@@ -445,7 +487,8 @@ func (p *DataPreprocessor) parseAppArmorEventForTree(event *AaLogRecord) error {
 		event.Protocol, event.SockType, event.Fsuid,
 		event.Ouid, event.Signal, event.Peer,
 		event.PeerProfile, event.Bus, event.Path,
-		event.Interface, event.Member)
+		event.Interface, event.Member, event.FsType,
+		event.Flags, event.SrcName)
 	if !varmorutils.InStringArray(unhandled, p.behaviorData.DynamicResult.AppArmor.Unhandled) {
 		p.behaviorData.DynamicResult.AppArmor.Unhandled = append(p.behaviorData.DynamicResult.AppArmor.Unhandled, unhandled)
 	}
@@ -513,6 +556,10 @@ func parseAppArmorEvent(line string) (*AaLogRecord, error) {
 		r.Path = C.GoString(record.dbus_path)
 		r.Interface = C.GoString(record.dbus_interface)
 		r.Member = C.GoString(record.dbus_member)
+	} else if r.Operation == "mount" || r.Operation == "umount" {
+		r.FsType = C.GoString(record.fs_type)
+		r.Flags = C.GoString(record.flags)
+		r.SrcName = C.GoString(record.src_name)
 	}
 
 	if r.Time == 0 {
