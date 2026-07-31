@@ -66,6 +66,12 @@ func Test_buildNetworkProxyPatch_AuditInjected(t *testing.T) {
 		"patch should inject POLICY_NAME")
 	assert.Assert(t, strings.Contains(patch, `{"name": "POLICY_NAMESPACE", "value": "testns"}`),
 		"patch should inject POLICY_NAMESPACE")
+	// VARMOR_NAMESPACE must carry the vArmor component namespace (varmorconfig.
+	// Namespace), NOT the workload namespace. Inside the sidecar POD_NAMESPACE
+	// is the business Pod's namespace, so the sink relies on this explicit env
+	// to populate varmorNamespace correctly.
+	assert.Assert(t, strings.Contains(patch, `{"name": "VARMOR_NAMESPACE", "value": "`+varmorconfig.Namespace+`"}`),
+		"patch should inject VARMOR_NAMESPACE with the vArmor component namespace")
 	assert.Assert(t, strings.Contains(patch, `{"name": "VARMOR_ENVOY_UID", "value": "1337"}`),
 		"patch should inject VARMOR_ENVOY_UID")
 
@@ -119,6 +125,8 @@ func Test_buildNetworkProxyPatch_MicroVM(t *testing.T) {
 	// Env vars and root-start securityContext are still injected.
 	assert.Assert(t, strings.Contains(patch, `{"name": "PROFILE_NAME", "value": "varmor-testns-test"}`),
 		"micro-VM patch should still inject PROFILE_NAME")
+	assert.Assert(t, strings.Contains(patch, `{"name": "VARMOR_NAMESPACE", "value": "`+varmorconfig.Namespace+`"}`),
+		"micro-VM patch should still inject VARMOR_NAMESPACE with the vArmor component namespace")
 	assert.Assert(t, strings.Contains(patch, `{"name": "VARMOR_ENVOY_UID", "value": "1337"}`),
 		"micro-VM patch should still inject VARMOR_ENVOY_UID")
 	assert.Assert(t, strings.Contains(patch, `"securityContext": {"runAsUser": 0}`),

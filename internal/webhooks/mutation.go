@@ -697,20 +697,28 @@ func buildNetworkProxyPatch(profileName string, id varmorpolicy.AuditPolicyIdent
 	// Audit sink env: the in-sidecar kata audit sink reads NODE_NAME (node
 	// attribution), the policy identity (PROFILE_NAME/POLICY_KIND/POLICY_NAME/
 	// POLICY_NAMESPACE), VARMOR_ENVOY_UID (the uid the image entrypoint drops
-	// to before exec-ing Envoy, kept in sync with proxyUID) and, when the
-	// manager carries cluster metadata, AUDIT_EVENT_METADATA. These are
-	// injected on every sidecar so the custom Envoy image stays runtime-
-	// agnostic; on runc the entrypoint's connect(2) self-check succeeds and the
-	// sink is never started, so the values are simply unused.
+	// to before exec-ing Envoy, kept in sync with proxyUID), VARMOR_NAMESPACE
+	// and, when the manager carries cluster metadata, AUDIT_EVENT_METADATA.
+	// These are injected on every sidecar so the custom Envoy image stays
+	// runtime-agnostic; on runc the entrypoint's connect(2) self-check succeeds
+	// and the sink is never started, so the values are simply unused.
+	//
+	// VARMOR_NAMESPACE carries the manager's own namespace (the namespace where
+	// the vArmor components are deployed) so the sink can populate the
+	// varmorNamespace audit-metadata field correctly. It must NOT be derived
+	// from the Downward API metadata.namespace: inside the sidecar that would
+	// be the business Pod's namespace, not the vArmor namespace.
 	sinkEnv := fmt.Sprintf(
 		`{"name": "NODE_NAME", "valueFrom": {"fieldRef": {"fieldPath": "spec.nodeName"}}}, `+
 			`{"name": "PROFILE_NAME", "value": %s}, `+
 			`{"name": "POLICY_KIND", "value": %s}, `+
 			`{"name": "POLICY_NAME", "value": %s}, `+
 			`{"name": "POLICY_NAMESPACE", "value": %s}, `+
+			`{"name": "VARMOR_NAMESPACE", "value": %s}, `+
 			`{"name": "VARMOR_ENVOY_UID", "value": %s}`,
 		jsonString(profileName), jsonString(id.Kind), jsonString(id.Name),
-		jsonString(id.Namespace), jsonString(strconv.FormatInt(proxyUID, 10)),
+		jsonString(id.Namespace), jsonString(varmorconfig.Namespace),
+		jsonString(strconv.FormatInt(proxyUID, 10)),
 	)
 	if md := os.Getenv("AUDIT_EVENT_METADATA"); md != "" {
 		sinkEnv += fmt.Sprintf(`, {"name": "AUDIT_EVENT_METADATA", "value": %s}`, jsonString(md))
