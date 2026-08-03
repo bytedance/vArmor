@@ -1,0 +1,50 @@
+name: ci-refresh-mozilla-bundle
+# Keep the go:embed'd Mozilla CA bundle fresh without breaking reproducible
+# builds. The bundle is embedded at compile time, so we deliberately do NOT
+# fetch it during image builds. Instead this workflow periodically refreshes
+# the vendored file and opens a pull request, so every change to the trust
+# store still goes through code review and lands in git history.
+on:
+  schedule:
+    # Every Monday at 03:00 UTC.
+    - cron: "0 3 * * 1"
+  workflow_dispatch: {}
+
+# Least-privilege default: read-only for all jobs unless explicitly raised.
+permissions:
+  contents: read
+
+jobs:
+  refresh-mozilla-bundle:
+    runs-on: ubuntu-latest
+    # Only this job needs write access to push a branch and open a PR.
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Refresh Mozilla CA bundle
+        run: make update-mozilla-bundle
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+        with:
+          commit-message: "chore(mitm): refresh embedded Mozilla CA bundle"
+          branch: chore/refresh-mozilla-bundle
+          delete-branch: true
+          title: "chore(mitm): refresh embedded Mozilla CA bundle"
+          body: |
+            Automated refresh of the embedded Mozilla CA bundle used by the
+            NetworkProxy MITM package (`internal/networkproxy/mitm/certs/mozilla.pem`).
+
+            The bundle is fetched from https://curl.se/ca/cacert.pem and
+            verified against its published SHA-256 by `make update-mozilla-bundle`.
+
+            Because the bundle is embedded via `go:embed` at compile time, this
+            PR must be merged and the binary rebuilt for the new trust store to
+            take effect. Please review the diff before merging.
+          labels: |
+            dependencies
+            automated
