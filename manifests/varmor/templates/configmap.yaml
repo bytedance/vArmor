@@ -38,3 +38,47 @@ data:
         - key: {{ .key | quote }}
           value: {{ .value | quote }}
         {{- end }}
+    # networkProxy holds cluster-wide defaults for the NetworkProxy (Envoy)
+    # sidecar. Currently it carries defaultResources, the cluster-level default
+    # resource requests/limits for the injected sidecar container. The injector
+    # resolves the final resources with a three-layer, field-level merge chain:
+    # per-policy override > this cluster-global config > built-in defaults. Each
+    # leaf value (requests.cpu/memory, limits.cpu/memory) falls back
+    # independently, so a partial config only overrides the fields it sets.
+    # Two independent, MITM-aware tiers are supported: nonMitm applies to
+    # non-MITM sidecars, while mitm applies to MITM sidecars (which run heavier
+    # due to double TLS handshakes). Any block left empty is skipped entirely,
+    # keeping the built-in defaults for that tier/field. The tiers are
+    # independent, NOT inherited: a MITM sidecar reads ONLY the mitm tier and a
+    # non-MITM sidecar reads ONLY the nonMitm tier, so each tier must be set
+    # explicitly to change it.
+    # Invalid entries (unknown resource name, unparseable quantity, non-positive
+    # value) are ignored and logged by the manager at load time, as is a limit
+    # set below its request in the same tier. Note the tier keys must be spelled
+    # EXACTLY "nonMitm" and "mitm": a misspelled tier key is silently ignored
+    # (that tier falls back to the built-in defaults) with no warning, because
+    # only the entries inside a tier are validated, not the tier key itself.
+    networkProxy:
+      defaultResources:
+        {{- if or .Values.dynamicConfig.networkProxy.defaultResources.nonMitm.requests .Values.dynamicConfig.networkProxy.defaultResources.nonMitm.limits }}
+        nonMitm:
+          {{- with .Values.dynamicConfig.networkProxy.defaultResources.nonMitm.requests }}
+          requests:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.dynamicConfig.networkProxy.defaultResources.nonMitm.limits }}
+          limits:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+        {{- end }}
+        {{- if or .Values.dynamicConfig.networkProxy.defaultResources.mitm.requests .Values.dynamicConfig.networkProxy.defaultResources.mitm.limits }}
+        mitm:
+          {{- with .Values.dynamicConfig.networkProxy.defaultResources.mitm.requests }}
+          requests:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.dynamicConfig.networkProxy.defaultResources.mitm.limits }}
+          limits:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+        {{- end }}

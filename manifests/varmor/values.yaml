@@ -110,6 +110,71 @@ dynamicConfig:
     - key: alibabacloud.com/eci
       value: "true"
 
+  # networkProxy holds cluster-wide defaults for the NetworkProxy (Envoy) sidecar.
+  # defaultResources sets the cluster-level default resource requests/limits for
+  # the injected sidecar container. The injector resolves the final resources with
+  # a three-layer, field-level merge chain: per-policy override > this cluster-
+  # global config > built-in defaults. Each leaf value (requests.cpu/memory,
+  # limits.cpu/memory) falls back independently, so a partial config below only
+  # overrides the fields it sets; everything unset keeps the built-in defaults.
+  #
+  # Two independent, MITM-aware tiers are supported: nonMitm applies to non-MITM
+  # sidecars; mitm applies to MITM sidecars, which run heavier due to double TLS
+  # handshakes. Leave a block empty (as shipped) to keep the built-in defaults
+  # for that tier.
+  #
+  # IMPORTANT: the two tiers are independent, NOT inherited. A MITM sidecar reads
+  # ONLY the mitm tier and a non-MITM sidecar reads ONLY the nonMitm tier. So to
+  # raise resources for MITM workloads you must set the mitm block explicitly;
+  # setting only nonMitm leaves MITM sidecars on their built-in defaults, and
+  # vice versa.
+  #
+  # IMPORTANT: the tier keys must be spelled EXACTLY "nonMitm" and "mitm" (the
+  # embedded config is parsed leniently). A misspelled tier key (e.g. "nonMITM",
+  # "non-mitm", "Mitm") is silently ignored -- that tier falls back to the
+  # built-in defaults with NO warning, since only the entries INSIDE a tier are
+  # validated at load time, not the tier key itself.
+  #
+  # IMPORTANT: always quote quantities as strings (e.g. cpu: "500m", memory:
+  # "256Mi"). An unquoted bare number is parsed by YAML as an integer, so
+  # `memory: 100` means 100 BYTES, not 100Mi. Unquoted suffixed values (500m,
+  # 256Mi) are fine because YAML already reads them as strings, but quoting
+  # everything is the safe habit.
+  #
+  # Invalid entries are ignored (that field falls back to its built-in default)
+  # and logged by the manager at load time: an unknown resource name (only cpu
+  # and memory are supported), an unparseable quantity, or a non-positive value
+  # (zero or negative). A limit set below its request in the same tier is also
+  # warned about (the kube-apiserver would otherwise reject the sidecar Pod).
+  #
+  # Built-in defaults for reference:
+  #   non-MITM  requests: cpu 50m,  memory 64Mi   limits: cpu 500m,  memory 256Mi
+  #   MITM      requests: cpu 100m, memory 128Mi  limits: cpu 1000m, memory 512Mi
+  networkProxy:
+    defaultResources:
+      # Non-MITM sidecar defaults. Example (quote every quantity):
+      #   nonMitm:
+      #     requests:
+      #       cpu: "50m"
+      #       memory: "64Mi"
+      #     limits:
+      #       cpu: "500m"
+      #       memory: "256Mi"
+      nonMitm:
+        requests: {}
+        limits: {}
+      # MITM sidecar defaults. Example (quote every quantity):
+      #   mitm:
+      #     requests:
+      #       cpu: "100m"
+      #       memory: "128Mi"
+      #     limits:
+      #       cpu: "1000m"
+      #       memory: "512Mi"
+      mitm:
+        requests: {}
+        limits: {}
+
 image:
   registry: ""
   namespace: varmor

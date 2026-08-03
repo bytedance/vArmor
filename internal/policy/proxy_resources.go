@@ -21,6 +21,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
+	varmorconfig "github.com/bytedance/vArmor/internal/config"
 )
 
 // DefaultProxyResources returns the built-in resource requirements for the
@@ -63,25 +64,48 @@ func DefaultProxyResources(mitmEnabled bool) corev1.ResourceRequirements {
 }
 
 // ResolveProxyResources computes the final resource requirements for the proxy
-// sidecar container by merging user-specified overrides on top of the built-in
-// defaults. The merge is field-level: only the resource types (cpu, memory)
-// explicitly specified in the override are applied; all others retain the
-// default values.
+// sidecar container using a three-layer, field-level merge chain. Each leaf
+// scalar (requests.cpu, requests.memory, limits.cpu, limits.memory) is resolved
+// independently: a value from a higher-priority layer wins, otherwise the value
+// falls through to the next layer. This means a partially-specified global
+// config or per-policy override only overrides the fields it sets; every other
+// field keeps falling back to the built-in default.
 //
-// Merge chain:
+// Merge chain (highest priority first):
 //
-//	Policy override > Built-in defaults (selected by mitmEnabled)
+//	Per-policy override
+//	  > Cluster-global config (varmor-config ConfigMap, MITM-aware tier)
+//	    > Built-in defaults (selected by mitmEnabled)
 func ResolveProxyResources(override *varmor.ProxyResourceOverride, mitmEnabled bool) corev1.ResourceRequirements {
+	// Layer 1 (lowest priority): built-in defaults.
 	result := DefaultProxyResources(mitmEnabled)
-	if override == nil {
-		return result
+
+	// Layer 2: cluster-global defaults from the varmor-config ConfigMap.
+	// GetNetworkProxyDefaultResources returns two MITM-aware tiers; pick the
+	// one matching this policy. Only non-nil resource lists overlay, and within
+	// them only present keys apply (field-level fallback).
+	nonMITMGlobal, mitmGlobal := varmorconfig.GetNetworkProxyDefaultResources()
+	global := nonMITMGlobal
+	if mitmEnabled {
+		global = mitmGlobal
 	}
-	for k, v := range override.Requests {
+	for k, v := range global.Requests {
 		result.Requests[k] = v
 	}
-	for k, v := range override.Limits {
+	for k, v := range global.Limits {
 		result.Limits[k] = v
 	}
+
+	// Layer 3 (highest priority): per-policy override.
+	if override != nil {
+		for k, v := range override.Requests {
+			result.Requests[k] = v
+		}
+		for k, v := range override.Limits {
+			result.Limits[k] = v
+		}
+	}
+
 	return result
 }
 
