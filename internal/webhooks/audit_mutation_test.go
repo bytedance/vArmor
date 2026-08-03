@@ -132,3 +132,61 @@ func Test_buildNetworkProxyPatch_MicroVM(t *testing.T) {
 	assert.Assert(t, strings.Contains(patch, `"securityContext": {"runAsUser": 0}`),
 		"micro-VM patch should still start the sidecar as root")
 }
+
+// Test_buildNetworkProxyPatch_GlobalDefaultResources asserts that cluster-global
+// sidecar resource defaults from the varmor-config ConfigMap flow through the
+// injection chain into the sidecar container's "resources" field, and that the
+// merge is field-level: a global value overrides its field while unset fields
+// keep the built-in defaults.
+func Test_buildNetworkProxyPatch_GlobalDefaultResources(t *testing.T) {
+	restore := varmorconfig.SetDynamicConfigForTest(varmorconfig.DynamicConfig{
+		NetworkProxy: varmorconfig.NetworkProxyDynamicConfig{
+			DefaultResources: varmorconfig.ProxyDefaultResources{
+				NonMITM: varmorconfig.ProxyResourceTier{
+					Requests: map[string]string{"cpu": "70m"},      // memory falls back to built-in 64Mi
+					Limits:   map[string]string{"memory": "300Mi"}, // cpu falls back to built-in 500m
+				},
+			},
+		},
+	})
+	defer restore()
+
+	patch := buildNetworkProxyPatch("varmor-testns-test", varmorpolicy.AuditPolicyIdentity{Kind: "VarmorPolicy", Name: "test", Namespace: "testns"}, true, nil, false)
+
+	// Global-configured fields land in the sidecar resources.
+	assert.Assert(t, strings.Contains(patch, `"cpu":"70m"`),
+		"sidecar resources should carry the global requests.cpu override")
+	assert.Assert(t, strings.Contains(patch, `"memory":"300Mi"`),
+		"sidecar resources should carry the global limits.memory override")
+	// Unset fields keep the built-in non-MITM defaults.
+	assert.Assert(t, strings.Contains(patch, `"memory":"64Mi"`),
+		"sidecar resources should keep the built-in requests.memory default")
+	assert.Assert(t, strings.Contains(patch, `"cpu":"500m"`),
+		"sidecar resources should keep the built-in limits.cpu default")
+}
+
+// Test_buildNetworkProxyPatch_GlobalMITMTier asserts that the MITM tier of the
+// global config is selected for MITM policies.
+func Test_buildNetworkProxyPatch_GlobalMITMTier(t *testing.T) {
+	restore := varmorconfig.SetDynamicConfigForTest(varmorconfig.DynamicConfig{
+		NetworkProxy: varmorconfig.NetworkProxyDynamicConfig{
+			DefaultResources: varmorconfig.ProxyDefaultResources{
+				MITM: varmorconfig.ProxyResourceTier{
+					Limits: map[string]string{"cpu": "1500m"},
+				},
+			},
+		},
+	})
+	defer restore()
+
+	proxyConfig := &varmor.NetworkProxyConfig{
+		MITM: &varmor.MITMConfig{Domains: []string{"example.com"}},
+	}
+	patch := buildNetworkProxyPatch("varmor-testns-test", varmorpolicy.AuditPolicyIdentity{Kind: "VarmorPolicy", Name: "test", Namespace: "testns"}, true, proxyConfig, false)
+
+	// The MITM-tier global override lands; other fields keep MITM built-in defaults.
+	assert.Assert(t, strings.Contains(patch, `"cpu":"1500m"`),
+		"MITM sidecar resources should carry the global mitm.limits.cpu override")
+	assert.Assert(t, strings.Contains(patch, `"memory":"512Mi"`),
+		"MITM sidecar resources should keep the built-in mitm limits.memory default")
+}
