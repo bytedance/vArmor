@@ -39,6 +39,7 @@ Notes:
 * Limited by the principle and performance impact of Seccomp, you can only use `auditViolations=true` and `allowViolations=true` in combination to implement the audit-only mode (observation mode) for the Seccomp enforcer when there is no policy in the BehaviorModeling mode.
 * Limited by the principle of the AppArmor LSM and Seccomp, when using the AppArmor or Seccomp enforcer, it may not be possible to associate container and Pod information for the short-lived processes.
 * The NetworkProxy enforcer reports egress traffic audit events through its Envoy sidecar. Because these events are produced by the proxy at the Pod granularity, they only carry Pod-level identity (`nodeName`, `podName`, `podNamespace`, `podUID`).
+* For the NetworkProxy enforcer, the way violation records reach `/var/log/varmor/violations.log` depends on the runtime. Under runc, the Envoy sidecar streams them to the node-level `varmor-agent`, which writes the log on the host. Under a micro-VM runtime (kata / serverless sandbox), an in-sidecar audit sink writes the log inside the container's own filesystem instead (the records are byte-identical). Whether a workload is treated as micro-VM is decided by the `microVMDetection` rules in the `varmor-config` ConfigMap; see [Micro-VM (Kata) Detection for NetworkProxy Auditing](../getting_started/installation.md#micro-vm-kata-detection-for-networkproxy-auditing).
 
 ```json
 {

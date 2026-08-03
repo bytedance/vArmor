@@ -150,6 +150,55 @@ You can use the following option to change this behavior. Default: disabled.
 --set removeAllSeccompProfiles.enabled=true
 ``` 
 
+### Dynamic Configuration
+
+Besides the install-time Helm options above, vArmor ships a runtime-reloadable configuration carried by the `varmor-config` ConfigMap in vArmor's namespace. The manager watches this ConfigMap via an informer and hot-reloads changes **without a restart**. If the ConfigMap is absent or malformed, the manager falls back to the built-in defaults (which are identical to the values shipped by the chart). You can seed its initial content through the `dynamicConfig` value at install time, or edit the ConfigMap directly afterwards.
+
+```bash
+kubectl -n varmor edit configmap varmor-config
+```
+
+#### Default Resources of the NetworkProxy Sidecar
+You can set the cluster-wide default resource requests/limits for the injected NetworkProxy (Envoy) sidecar, so an administrator can tune sidecar resources once instead of setting `.spec.policy.networkProxy.resources` on every policy.
+
+The injector resolves the final resources with a three-layer, field-level merge chain, where each leaf value (`requests.cpu`/`requests.memory`/`limits.cpu`/`limits.memory`) falls back independently:
+
+> per-policy override (`.spec.policy.networkProxy.resources`) > this cluster-global config > built-in defaults
+
+Two independent, MITM-aware tiers are provided, because a MITM sidecar runs heavier (double TLS handshakes). A MITM sidecar reads **only** the `mitm` tier and a non-MITM sidecar reads **only** the `nonMitm` tier — the tiers are **not** inherited from each other. The built-in defaults are:
+
+| Tier | CPU requests | Memory requests | CPU limits | Memory limits |
+|------|-------------|----------------|-----------|--------------|
+| `nonMitm` | 50m | 64Mi | 500m | 256Mi |
+| `mitm` | 100m | 128Mi | 1000m | 512Mi |
+
+```bash
+--set dynamicConfig.networkProxy.defaultResources.nonMitm.requests.cpu="50m" \
+--set dynamicConfig.networkProxy.defaultResources.nonMitm.requests.memory="64Mi" \
+--set dynamicConfig.networkProxy.defaultResources.mitm.limits.cpu="1000m" \
+--set dynamicConfig.networkProxy.defaultResources.mitm.limits.memory="512Mi"
+```
+
+Notes:
+* Always quote quantities as strings (e.g. `"500m"`, `"256Mi"`). An unquoted bare number is parsed as an integer, so `memory: 100` means **100 bytes**, not 100Mi.
+* The tier keys must be spelled exactly `nonMitm` and `mitm`. A misspelled tier key is silently ignored and that tier falls back to the built-in defaults.
+* Invalid entries (an unknown resource name, an unparseable quantity, a non-positive value, or a limit set below its request in the same tier) are ignored and logged by the manager at load time; that field falls back to its built-in default.
+
+#### Micro-VM (Kata) Detection for NetworkProxy Auditing
+The NetworkProxy enforcer persists egress violation audit logs through its Envoy sidecar. Under a runc runtime, Envoy streams the records over a node-level hostPath Unix socket to the `varmor-agent` DaemonSet. Under a micro-VM runtime (kata / serverless sandbox) the sidecar runs inside a micro-VM, so that hostPath socket cannot cross the VM boundary (and is rejected at admission by some serverless providers). For such workloads vArmor omits the hostPath volume/mount and starts an in-sidecar audit sink that binds the socket in the container's own rootfs and writes the container-local `/var/log/varmor/violations.log` — producing byte-identical normalized records to the runc path.
+
+The `microVMDetection` config tells the injector which workloads run under a micro-VM runtime. A workload matches if its `runtimeClassName` is listed **OR** any annotation rule matches **OR** any label rule matches (for annotation/label rules, an empty value matches on key presence alone; a non-empty value must match exactly). The built-in defaults already cover upstream kata and the major cloud serverless runtimes:
+
+* `runtimeClassNames`: `kata`, `kata-qemu`, `kata-clh`
+* annotation: `vke.volcengine.com/burst-to-vci=enforce` (Volcengine VKE burst-to-VCI)
+* label: `alibabacloud.com/eci=true` (Alibaba Cloud ECI)
+
+To extend the rules for a custom micro-VM runtime, edit the `varmor-config` ConfigMap or set the `dynamicConfig.microVMDetection` values at install time.
+
+#### iptables Backend for NetworkProxy Traffic Redirection
+The NetworkProxy enforcer transparently redirects traffic by injecting iptables rules through an init container. Starting from the `proxyinit:v0.2` image, vArmor automatically detects the iptables backend (`legacy` vs `nft`) already in use in the target network namespace and drives the matching backend, instead of hardcoding one. This prevents traffic from being silently blackholed in shared-netns setups — for example a kata Pod whose netns is also programmed by a PaaS mesh init using the `legacy` backend. On a fresh netns it defaults to `nft` (matching prior behaviour); if both backends already carry rules it aborts with a `CONFLICT` rather than guessing. This is fully automatic and requires no configuration; just make sure the chart pulls `proxyinit:v0.2` or later.
+
+
 ## Upgrade
 
 You can use helm commands to upgrade, rollback, and perform other operations.

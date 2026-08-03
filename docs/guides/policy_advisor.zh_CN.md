@@ -19,6 +19,8 @@
 
 `policy-advisor.py AppArmor,BPF -f share-containers-pid-ns -c sys_admin,net_admin,kill -m data.json`
 
+> 在将行为数据与 `disable-shell` 等规则进行匹配时，advisor 会同时依据可执行文件的 basename 及其文件扩展名进行判断。因此，即使某个 shell 仅以脚本路径的形式被记录(例如 `/var/lib/cilium/bpf/init.sh`，且没有 `sh`/`bash`/`dash` 二进制),也能通过其 `.sh` 扩展名被识别为冲突，从而过滤掉相应的冲突规则。
+
 
 ## 用法
 

@@ -257,6 +257,8 @@ Built-in defaults:
 | Non-MITM | 50m | 64Mi | 500m | 256Mi |
 | MITM | 100m | 128Mi | 1000m | 512Mi |
 
+> The resolved resources follow a three-layer, field-level merge chain: this per-policy override > the cluster-global default set in the `varmor-config` ConfigMap > the built-in defaults above. See [Default Resources of the NetworkProxy Sidecar](./installation.md#default-resources-of-the-networkproxy-sidecar) for the cluster-global configuration.
+
 ## NetworkProxyRules
 
 | Field | Description |
