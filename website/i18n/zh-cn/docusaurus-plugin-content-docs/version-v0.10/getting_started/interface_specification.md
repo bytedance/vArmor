@@ -257,6 +257,8 @@ description: vArmor 的接口规范。
 | 非 MITM | 50m | 64Mi | 500m | 256Mi |
 | MITM | 100m | 128Mi | 1000m | 512Mi |
 
+> 最终资源遵循三层、字段级的合并链：本策略级覆盖 > `varmor-config` ConfigMap 中设置的集群级默认值 > 上述内置默认值。集群级配置详见[NetworkProxy Sidecar 的默认资源](./installation.md#networkproxy-sidecar-的默认资源)。
+
 ## NetworkProxyRules
 
 | 字段 | 描述 |
