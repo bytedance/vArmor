@@ -19,6 +19,8 @@ Filter out the conflicted built-in rules with behavior data to make the policy t
 
 `policy-advisor.py AppArmor,BPF -f share-containers-pid-ns -c sys_admin,net_admin,kill -m data.json`
 
+> When matching behavior data against rules such as `disable-shell`, the advisor keys off both the executable basename and its file-extension token. So a shell recorded only as a script path (e.g. `/var/lib/cilium/bpf/init.sh`, with no `sh`/`bash`/`dash` binary) is still detected as a conflict via its `.sh` extension, and the conflicting rule is filtered out.
+
 
 ## Usage
 ```

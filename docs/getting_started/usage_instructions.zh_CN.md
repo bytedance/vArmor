@@ -40,6 +40,7 @@ vArmor 支持将策略对象配置为仅审计不拦截（观察模式）、拦�
 * 受限于 Seccomp 原理和性能影响，您需要组合使用 `auditViolations=true` 和 `allowViolations=true`，在没有策略处于 BehaviorModeling 模式时，实现仅审计不拦截的效果（观察模式）。
 * 受限于 AppArmor LSM 和 Seccomp 的原理，使用 AppArmor 或 Seccomp enforcer 时，可能无法关联短进程的所属容器和 Pod 信息。
 * NetworkProxy enforcer 通过其 Envoy sidecar 上报出口流量的审计事件。由于这些事件由代理在 Pod 粒度上产生，因此仅携带 Pod 级别的身份信息（`nodeName`、`podName`、`podNamespace`、`podUID`）。
+* 对于 NetworkProxy enforcer，违规记录写入 `/var/log/varmor/violations.log` 的方式取决于运行时。在 runc 下，Envoy sidecar 将记录流式发送到节点级的 `varmor-agent`，由其写入宿主机上的日志文件；在微虚机运行时(kata / Serverless 沙箱)下，则改由 sidecar 内置的审计 sink 写入容器自身文件系统中的日志文件(记录内容逐字节一致)。工作负载是否被视为微虚机，由 `varmor-config` ConfigMap 中的 `microVMDetection` 规则决定，详见[NetworkProxy 审计的微虚机(Kata)识别](../getting_started/installation.zh_CN.md#networkproxy-审计的微虚机kata识别)。
 
 ```json
 {
@@ -59,6 +60,9 @@ vArmor 支持将策略对象配置为仅审计不拦截（观察模式）、拦�
   "enforcer": "BPF",
   "action": "DENIED",
   "profileName": "varmor-demo-demo-2",
+  "policyKind": "VarmorPolicy",
+  "policyName": "demo-2",
+  "policyNamespace": "demo",
   "event": {
     "operation": "File",
     "permissions": [
