@@ -61,6 +61,9 @@ Notes:
   "enforcer": "BPF",
   "action": "DENIED",
   "profileName": "varmor-demo-demo-2",
+  "policyKind": "VarmorPolicy",
+  "policyName": "demo-2",
+  "policyNamespace": "demo",
   "event": {
     "operation": "File",
     "permissions": [

@@ -60,6 +60,9 @@ vArmor 支持将策略对象配置为仅审计不拦截（观察模式）、拦�
   "enforcer": "BPF",
   "action": "DENIED",
   "profileName": "varmor-demo-demo-2",
+  "policyKind": "VarmorPolicy",
+  "policyName": "demo-2",
+  "policyNamespace": "demo",
   "event": {
     "operation": "File",
     "permissions": [
