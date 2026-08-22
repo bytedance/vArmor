@@ -338,19 +338,34 @@ func TestAuditOnlyRule(t *testing.T) {
 }
 
 func TestPortRange(t *testing.T) {
-	egress := &varmor.NetworkProxyEgress{
-		DefaultAction: "deny",
-		Rules: []varmor.NetworkProxyEgressRule{
-			{Qualifiers: []string{"allow"}, IP: "10.0.0.1", Ports: []varmor.Port{{Port: 8000, EndPort: 9000}}},
-		},
+	tests := []struct {
+		name      string
+		port      uint16
+		endPort   uint16
+		wantStart string
+		wantEnd   string
+	}{
+		{name: "regular range", port: 8000, endPort: 9000, wantStart: "start: 8000", wantEnd: "end: 9001"},
+		{name: "maximum port", port: 65534, endPort: 65535, wantStart: "start: 65534", wantEnd: "end: 65536"},
 	}
-	result, err := TranslateEgressRules(egress, 1, 15001, nil, testIPStack, AuditSinkConfig{})
-	if err != nil {
-		t.Fatalf("TranslateEgressRules failed: %v", err)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			egress := &varmor.NetworkProxyEgress{
+				DefaultAction: "deny",
+				Rules: []varmor.NetworkProxyEgressRule{
+					{Qualifiers: []string{"allow"}, IP: "10.0.0.1", Ports: []varmor.Port{{Port: tt.port, EndPort: tt.endPort}}},
+				},
+			}
+			result, err := TranslateEgressRules(egress, 1, 15001, nil, testIPStack, AuditSinkConfig{})
+			if err != nil {
+				t.Fatalf("TranslateEgressRules failed: %v", err)
+			}
+			assertContains(t, result.LDS, "destination_port_range:", "port range present")
+			assertContains(t, result.LDS, tt.wantStart, "port range start")
+			assertContains(t, result.LDS, tt.wantEnd, "port range end (exclusive)")
+		})
 	}
-	assertContains(t, result.LDS, "destination_port_range:", "port range present")
-	assertContains(t, result.LDS, "start: 8000", "port range start")
-	assertContains(t, result.LDS, "end: 9001", "port range end (exclusive)")
 }
 
 func TestWildcardDomain(t *testing.T) {

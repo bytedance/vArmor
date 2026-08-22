@@ -619,7 +619,7 @@ func renderPermissionRuleYAML(rule PermissionRule, indent int, rbacType string) 
 		sb.WriteString(fmt.Sprintf("%s- destination_port: %d\n", prefix, port))
 
 	case "destination_port_range":
-		rangeVal := rule.Value.(map[string]uint16)
+		rangeVal := rule.Value.(map[string]uint32)
 		sb.WriteString(fmt.Sprintf("%s- destination_port_range:\n", prefix))
 		sb.WriteString(fmt.Sprintf("%s    start: %d\n", prefix, rangeVal["start"]))
 		sb.WriteString(fmt.Sprintf("%s    end: %d\n", prefix, rangeVal["end"]))
