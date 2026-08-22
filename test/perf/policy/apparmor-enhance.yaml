@@ -20,11 +20,11 @@ spec:
       - disallow-access-procfs-root
       attackProtectionRules:
       - rules:
-        - mitigate-disk-device-number-leak	
+        - mitigate-disk-device-number-leak
         - mitigate-sa-leak
-        - mitigate-overlayfs-leak	
-        - mitigate-host-ip-leak	
-        - disallow-metadata-service	
+        - mitigate-overlayfs-leak
+        - mitigate-host-ip-leak
+        - disallow-metadata-service
       vulMitigationRules:
-      - cgroups-lxcfs-escape-mitigation	
-      - runc-override-mitigation	
+      - cgroups-lxcfs-escape-mitigation
+      - runc-override-mitigation
