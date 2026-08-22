@@ -165,11 +165,11 @@ kubectl -n varmor edit configmap varmor-config
 ```
 
 #### Default Resources of the NetworkProxy Sidecar
-You can set the cluster-wide default resource requests/limits for the injected NetworkProxy (Envoy) sidecar, so an administrator can tune sidecar resources once instead of setting `.spec.policy.networkProxy.resources` on every policy.
+You can set the cluster-wide default resource requests/limits for the injected NetworkProxy (Envoy) sidecar, so an administrator can tune sidecar resources once instead of setting `.spec.policy.networkProxyConfig.resources` on every policy.
 
 The injector resolves the final resources with a three-layer, field-level merge chain, where each leaf value (`requests.cpu`/`requests.memory`/`limits.cpu`/`limits.memory`) falls back independently:
 
-> per-policy override (`.spec.policy.networkProxy.resources`) > this cluster-global config > built-in defaults
+> per-policy override (`.spec.policy.networkProxyConfig.resources`) > this cluster-global config > built-in defaults
 
 Two independent, MITM-aware tiers are provided, because a MITM sidecar runs heavier (double TLS handshakes). A MITM sidecar reads **only** the `mitm` tier and a non-MITM sidecar reads **only** the `nonMitm` tier — the tiers are **not** inherited from each other. The built-in defaults are:
 
