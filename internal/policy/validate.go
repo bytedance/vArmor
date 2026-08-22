@@ -188,8 +188,11 @@ func ValidateUpdatePolicy(policy interface{}, oldEnforcer string, oldTarget varm
 	// hot-reloaded. Changing them would cause a mismatch between the iptables REDIRECT
 	// target and the Envoy listener port in existing Pods.
 	// When oldProxyConfig is nil (controller path), this check is skipped.
-	if oldProxyConfig != nil && newSpec.Policy.NetworkProxyConfig != nil {
+	if oldProxyConfig != nil {
 		newPC := newSpec.Policy.NetworkProxyConfig
+		if newPC == nil {
+			newPC = &varmor.NetworkProxyConfig{}
+		}
 		if !proxyConfigImmutableFieldsEqual(oldProxyConfig, newPC) {
 			return false, "Modifying proxyUID, proxyPort, or proxyAdminPort is not allowed after the policy is created. You need to recreate the policy object."
 		}

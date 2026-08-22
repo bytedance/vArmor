@@ -450,6 +450,63 @@ func TestValidateUpdatePolicy_ValidUpdate(t *testing.T) {
 	assert.Equal(t, "", message, "Validation passes when validation passes")
 }
 
+func TestValidateUpdatePolicy_RemoveNetworkProxyConfig(t *testing.T) {
+	proxyUID := int64(2000)
+	proxyPort := uint16(16001)
+	proxyAdminPort := uint16(16000)
+	tests := []struct {
+		name           string
+		oldProxyConfig *varmor.NetworkProxyConfig
+		valid          bool
+	}{
+		{
+			name: "custom immutable fields",
+			oldProxyConfig: &varmor.NetworkProxyConfig{
+				ProxyUID:       &proxyUID,
+				ProxyPort:      &proxyPort,
+				ProxyAdminPort: &proxyAdminPort,
+			},
+			valid: false,
+		},
+		{
+			name:           "default immutable fields",
+			oldProxyConfig: &varmor.NetworkProxyConfig{},
+			valid:          true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			policy := &varmor.VarmorPolicy{
+				Spec: varmor.VarmorPolicySpec{
+					Target: varmor.Target{
+						Kind: "Deployment",
+						Name: "test-deployment",
+					},
+					Policy: varmor.Policy{
+						Enforcer: "AppArmor",
+						Mode:     varmor.RuntimeDefaultMode,
+					},
+				},
+				Status: varmor.VarmorPolicyStatus{Phase: varmor.VarmorPolicyProtecting},
+			}
+
+			valid, message := ValidateUpdatePolicy(
+				policy,
+				"AppArmor",
+				policy.Spec.Target,
+				tt.oldProxyConfig,
+			)
+			assert.Equal(t, tt.valid, valid)
+			if tt.valid {
+				assert.Empty(t, message)
+			} else {
+				assert.Contains(t, message, "Modifying proxyUID, proxyPort, or proxyAdminPort")
+			}
+		})
+	}
+}
+
 // TestValidateUpdatePolicy_UnsupportedPolicyType tests unsupported policy type
 func TestValidateUpdatePolicy_UnsupportedPolicyType(t *testing.T) {
 	invalidPolicy := "invalid policy type"
