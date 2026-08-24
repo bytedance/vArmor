@@ -160,7 +160,7 @@ test-unit: ## Run unit tests.
 	go test ./... -coverprofile coverage.out
 
 .PHONY: test
-test: manifests generate fmt vet test-unit ## Run tests.
+test: manifests generate fmt verify-mozilla-bundle vet test-unit ## Run tests.
 
 
 ##@ Build
@@ -370,14 +370,63 @@ SKIP_MOZILLA_BUNDLE_UPDATE ?=
 update-mozilla-bundle: ## Refresh the embedded Mozilla CA bundle used by the MITM package.
 ifeq ($(strip $(SKIP_MOZILLA_BUNDLE_UPDATE)),)
 	@echo "[+] Refreshing Mozilla CA bundle from $(MOZILLA_BUNDLE_URL)"
-	@tmpdir=$$(mktemp -d) ; \
-	 trap 'rm -rf "$$tmpdir"' EXIT ; \
-	 curl -fsSL --retry 3 --retry-delay 2 -o "$$tmpdir/cacert.pem"        "$(MOZILLA_BUNDLE_URL)" ; \
-	 curl -fsSL --retry 3 --retry-delay 2 -o "$$tmpdir/cacert.pem.sha256" "$(MOZILLA_BUNDLE_SHA)" ; \
-	 ( cd "$$tmpdir" && sha256sum -c cacert.pem.sha256 ) ; \
-	 install -m 0644 "$$tmpdir/cacert.pem" "$(MOZILLA_BUNDLE_PATH)" ; \
-	 sha256sum "$(MOZILLA_BUNDLE_PATH)" | awk '{print $$1}' > "$(MOZILLA_BUNDLE_PATH).sha256" ; \
+	@set -eu; \
+	 tmpdir=$$(mktemp -d); \
+	 bundle_tmp=""; \
+	 checksum_tmp=""; \
+	 trap 'rm -rf "$$tmpdir"; [ -z "$$bundle_tmp" ] || rm -f "$$bundle_tmp"; [ -z "$$checksum_tmp" ] || rm -f "$$checksum_tmp"' EXIT HUP INT TERM; \
+	 curl -fsSL --retry 3 --retry-delay 2 -o "$$tmpdir/cacert.pem"        "$(MOZILLA_BUNDLE_URL)"; \
+	 curl -fsSL --retry 3 --retry-delay 2 -o "$$tmpdir/cacert.pem.sha256" "$(MOZILLA_BUNDLE_SHA)"; \
+	 ( cd "$$tmpdir" && sha256sum -c cacert.pem.sha256 ); \
+	 bundle_tmp=$$(mktemp "$(MOZILLA_BUNDLE_PATH).tmp.XXXXXX"); \
+	 checksum_tmp=$$(mktemp "$(MOZILLA_BUNDLE_PATH).sha256.tmp.XXXXXX"); \
+	 install -m 0644 "$$tmpdir/cacert.pem" "$$bundle_tmp"; \
+	 expected_line=$$(sed -n '1p' "$$tmpdir/cacert.pem.sha256"); \
+	 expected_sha=$${expected_line%% *}; \
+	 actual_line=$$(sha256sum "$$bundle_tmp"); \
+	 actual_sha=$${actual_line%% *}; \
+	 if [ "$$actual_sha" != "$$expected_sha" ]; then \
+	   echo "[-] Installed Mozilla CA bundle does not match the published SHA-256" >&2; \
+	   exit 1; \
+	 fi; \
+	 printf '%s\n' "$$actual_sha" > "$$checksum_tmp"; \
+	 chmod 0644 "$$checksum_tmp"; \
+	 mv "$$bundle_tmp" "$(MOZILLA_BUNDLE_PATH)"; \
+	 bundle_tmp=""; \
+	 mv "$$checksum_tmp" "$(MOZILLA_BUNDLE_PATH).sha256"; \
+	 checksum_tmp=""; \
 	 echo "[+] Updated $(MOZILLA_BUNDLE_PATH)"
 else
 	@echo "[=] SKIP_MOZILLA_BUNDLE_UPDATE set, keeping existing $(MOZILLA_BUNDLE_PATH)"
 endif
+	@$(MAKE) --no-print-directory verify-mozilla-bundle
+
+.PHONY: verify-mozilla-bundle
+verify-mozilla-bundle: ## Verify the embedded Mozilla CA bundle against its vendored SHA-256.
+	@set -eu; \
+	 checksum_path="$(MOZILLA_BUNDLE_PATH).sha256"; \
+	 if [ ! -s "$(MOZILLA_BUNDLE_PATH)" ]; then \
+	   echo "[-] Mozilla CA bundle is missing or empty: $(MOZILLA_BUNDLE_PATH)" >&2; \
+	   exit 1; \
+	 fi; \
+	 if [ ! -s "$$checksum_path" ]; then \
+	   echo "[-] Mozilla CA bundle checksum is missing or empty: $$checksum_path" >&2; \
+	   exit 1; \
+	 fi; \
+	 expected_sha=$$(cat "$$checksum_path"); \
+	 case "$$expected_sha" in \
+	   *[!0-9a-f]*|'') echo "[-] Invalid SHA-256 in $$checksum_path" >&2; exit 1 ;; \
+	 esac; \
+	 if [ "$${#expected_sha}" -ne 64 ]; then \
+	   echo "[-] Invalid SHA-256 length in $$checksum_path" >&2; \
+	   exit 1; \
+	 fi; \
+	 actual_line=$$(sha256sum "$(MOZILLA_BUNDLE_PATH)"); \
+	 actual_sha=$${actual_line%% *}; \
+	 if [ "$$actual_sha" != "$$expected_sha" ]; then \
+	   echo "[-] Mozilla CA bundle SHA-256 mismatch" >&2; \
+	   echo "    expected: $$expected_sha" >&2; \
+	   echo "    actual:   $$actual_sha" >&2; \
+	   exit 1; \
+	 fi; \
+	 echo "[+] Verified $(MOZILLA_BUNDLE_PATH) ($$actual_sha)"
