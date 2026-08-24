@@ -1216,9 +1216,9 @@ func portToPermissionRules(ports []varmor.Port) []PermissionRule {
 		if p.EndPort > 0 && p.EndPort != p.Port {
 			rules = append(rules, PermissionRule{
 				Type: "destination_port_range",
-				Value: map[string]uint16{
-					"start": p.Port,
-					"end":   p.EndPort + 1,
+				Value: map[string]uint32{
+					"start": uint32(p.Port),
+					"end":   uint32(p.EndPort) + 1,
 				},
 			})
 		} else {
