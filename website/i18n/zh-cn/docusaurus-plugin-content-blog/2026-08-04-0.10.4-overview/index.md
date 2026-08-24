@@ -74,7 +74,7 @@ NetworkProxy enforcer 通过 init 容器注入 iptables 规则来透明地重定
 
 vArmor 新增了一份运行时可热加载的动态配置，承载于 vArmor 所在命名空间下的 `varmor-config` ConfigMap 中。Manager 通过 informer 监听该 ConfigMap，变更时 **无需重启** 即可热加载；若 ConfigMap 缺失或格式非法，则回退到与 Chart 随附取值完全一致的内置默认值。
 
-管理员从此只需 **配置一次**，即可为整个集群注入的 NetworkProxy Sidecar 设置默认资源 requests/limits，而不必在每条策略上单独设置 `.spec.policy.networkProxy.resources`。注入器采用 **三层、字段级的合并链** 解析最终资源，每个叶子字段（`requests.cpu`/`requests.memory`/`limits.cpu`/`limits.memory`）独立回退：
+管理员从此只需 **配置一次**，即可为整个集群注入的 NetworkProxy Sidecar 设置默认资源 requests/limits，而不必在每条策略上单独设置 `.spec.policy.networkProxyConfig.resources`。注入器采用 **三层、字段级的合并链** 解析最终资源，每个叶子字段（`requests.cpu`/`requests.memory`/`limits.cpu`/`limits.memory`）独立回退：
 
 > 策略级覆盖 > 集群级全局配置（`varmor-config`） > 内置默认值
 

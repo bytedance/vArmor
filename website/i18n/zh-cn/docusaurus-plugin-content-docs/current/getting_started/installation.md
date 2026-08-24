@@ -162,11 +162,11 @@ kubectl -n varmor edit configmap varmor-config
 ```
 
 #### NetworkProxy Sidecar 的默认资源
-你可以为注入的 NetworkProxy(Envoy) sidecar 设置集群级的默认资源 requests/limits，这样管理员只需配置一次，而不必在每个策略上单独设置 `.spec.policy.networkProxy.resources`。
+你可以为注入的 NetworkProxy(Envoy) sidecar 设置集群级的默认资源 requests/limits，这样管理员只需配置一次，而不必在每个策略上单独设置 `.spec.policy.networkProxyConfig.resources`。
 
 注入器采用三层、字段级的合并链来解析最终资源，其中每个叶子字段(`requests.cpu`/`requests.memory`/`limits.cpu`/`limits.memory`)独立回退：
 
-> 策略级覆盖(`.spec.policy.networkProxy.resources`) > 本集群级全局配置 > 内置默认值
+> 策略级覆盖(`.spec.policy.networkProxyConfig.resources`) > 本集群级全局配置 > 内置默认值
 
 由于 MITM sidecar 负载更重(双向 TLS 握手)，配置分为两个相互独立且区分 MITM 的层级。MITM sidecar **只**读取 `mitm` 层，非 MITM sidecar **只**读取 `nonMitm` 层——两层之间**不会**相互继承。内置默认值如下：
 

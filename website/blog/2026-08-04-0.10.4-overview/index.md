@@ -74,7 +74,7 @@ In the [future roadmap of v0.10.1](/blog/varmor-0.10.1-new-features-overview/), 
 
 vArmor adds a runtime hot-reloadable dynamic configuration, carried in the `varmor-config` ConfigMap in vArmor's namespace. The Manager watches this ConfigMap via an informer and hot-reloads on change **without a restart**; if the ConfigMap is missing or malformed, it falls back to the built-in defaults that are identical to the values shipped with the Chart.
 
-Administrators now only need to **configure once** to set default resource requests/limits for every NetworkProxy sidecar injected across the cluster, instead of setting `.spec.policy.networkProxy.resources` on each policy individually. The injector uses a **three-tier, field-level merge chain** to resolve the final resources, with each leaf field (`requests.cpu`/`requests.memory`/`limits.cpu`/`limits.memory`) falling back independently:
+Administrators now only need to **configure once** to set default resource requests/limits for every NetworkProxy sidecar injected across the cluster, instead of setting `.spec.policy.networkProxyConfig.resources` on each policy individually. The injector uses a **three-tier, field-level merge chain** to resolve the final resources, with each leaf field (`requests.cpu`/`requests.memory`/`limits.cpu`/`limits.memory`) falling back independently:
 
 > Policy-level override > Cluster-level global config (`varmor-config`) > Built-in default
 
