@@ -21,6 +21,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
+	varmorconfig "github.com/bytedance/vArmor/internal/config"
 )
 
 // TestValidateAddPolicy_ValidVarmorPolicy tests valid VarmorPolicy validation
@@ -451,27 +452,51 @@ func TestValidateUpdatePolicy_ValidUpdate(t *testing.T) {
 }
 
 func TestValidateUpdatePolicy_RemoveNetworkProxyConfig(t *testing.T) {
-	proxyUID := int64(2000)
-	proxyPort := uint16(16001)
-	proxyAdminPort := uint16(16000)
+	defaultProxyUID := varmorconfig.DefaultProxyUID
+	defaultProxyPort := varmorconfig.DefaultProxyPort
+	defaultProxyAdminPort := varmorconfig.DefaultProxyAdminPort
+	customProxyUID := int64(2000)
+	customProxyPort := uint16(16001)
+	customProxyAdminPort := uint16(16000)
 	tests := []struct {
 		name           string
 		oldProxyConfig *varmor.NetworkProxyConfig
 		valid          bool
 	}{
 		{
-			name: "custom immutable fields",
+			name:           "implicit defaults",
+			oldProxyConfig: &varmor.NetworkProxyConfig{},
+			valid:          true,
+		},
+		{
+			name: "explicit defaults",
 			oldProxyConfig: &varmor.NetworkProxyConfig{
-				ProxyUID:       &proxyUID,
-				ProxyPort:      &proxyPort,
-				ProxyAdminPort: &proxyAdminPort,
+				ProxyUID:       &defaultProxyUID,
+				ProxyPort:      &defaultProxyPort,
+				ProxyAdminPort: &defaultProxyAdminPort,
+			},
+			valid: true,
+		},
+		{
+			name: "custom proxy UID",
+			oldProxyConfig: &varmor.NetworkProxyConfig{
+				ProxyUID: &customProxyUID,
 			},
 			valid: false,
 		},
 		{
-			name:           "default immutable fields",
-			oldProxyConfig: &varmor.NetworkProxyConfig{},
-			valid:          true,
+			name: "custom proxy port",
+			oldProxyConfig: &varmor.NetworkProxyConfig{
+				ProxyPort: &customProxyPort,
+			},
+			valid: false,
+		},
+		{
+			name: "custom proxy admin port",
+			oldProxyConfig: &varmor.NetworkProxyConfig{
+				ProxyAdminPort: &customProxyAdminPort,
+			},
+			valid: false,
 		},
 	}
 

@@ -189,11 +189,7 @@ func ValidateUpdatePolicy(policy interface{}, oldEnforcer string, oldTarget varm
 	// target and the Envoy listener port in existing Pods.
 	// When oldProxyConfig is nil (controller path), this check is skipped.
 	if oldProxyConfig != nil {
-		newPC := newSpec.Policy.NetworkProxyConfig
-		if newPC == nil {
-			newPC = &varmor.NetworkProxyConfig{}
-		}
-		if !proxyConfigImmutableFieldsEqual(oldProxyConfig, newPC) {
+		if !proxyConfigImmutableFieldsEqual(oldProxyConfig, newSpec.Policy.NetworkProxyConfig) {
 			return false, "Modifying proxyUID, proxyPort, or proxyAdminPort is not allowed after the policy is created. You need to recreate the policy object."
 		}
 	}
@@ -272,12 +268,34 @@ func ValidateUpdatePolicy(policy interface{}, oldEnforcer string, oldTarget varm
 	return true, ""
 }
 
-// proxyConfigImmutableFieldsEqual compares the immutable fields of two
-// NetworkProxyConfig values. Returns true if they are equal or both nil.
+// proxyConfigImmutableFieldsEqual compares the effective immutable fields of
+// two NetworkProxyConfig values after applying their runtime defaults.
 func proxyConfigImmutableFieldsEqual(old, new *varmor.NetworkProxyConfig) bool {
-	return ptrInt64Equal(old.ProxyUID, new.ProxyUID) &&
-		ptrUint16Equal(old.ProxyPort, new.ProxyPort) &&
-		ptrUint16Equal(old.ProxyAdminPort, new.ProxyAdminPort)
+	oldProxyUID, oldProxyPort, oldProxyAdminPort := normalizedProxyConfigImmutableFields(old)
+	newProxyUID, newProxyPort, newProxyAdminPort := normalizedProxyConfigImmutableFields(new)
+
+	return oldProxyUID == newProxyUID &&
+		oldProxyPort == newProxyPort &&
+		oldProxyAdminPort == newProxyAdminPort
+}
+
+func normalizedProxyConfigImmutableFields(config *varmor.NetworkProxyConfig) (int64, uint16, uint16) {
+	proxyUID := varmorconfig.DefaultProxyUID
+	proxyPort := varmorconfig.DefaultProxyPort
+	proxyAdminPort := varmorconfig.DefaultProxyAdminPort
+	if config != nil {
+		if config.ProxyUID != nil {
+			proxyUID = *config.ProxyUID
+		}
+		if config.ProxyPort != nil {
+			proxyPort = *config.ProxyPort
+		}
+		if config.ProxyAdminPort != nil {
+			proxyAdminPort = *config.ProxyAdminPort
+		}
+	}
+
+	return proxyUID, proxyPort, proxyAdminPort
 }
 
 // validateNetworkProxyEgressForSpec validates NetworkProxy egress rules
@@ -298,26 +316,6 @@ func validateNetworkProxyEgressForSpec(spec *varmor.VarmorPolicySpec) (bool, str
 		}
 	}
 	return true, ""
-}
-
-func ptrInt64Equal(a, b *int64) bool {
-	if a == nil && b == nil {
-		return true
-	}
-	if a == nil || b == nil {
-		return false
-	}
-	return *a == *b
-}
-
-func ptrUint16Equal(a, b *uint16) bool {
-	if a == nil && b == nil {
-		return true
-	}
-	if a == nil || b == nil {
-		return false
-	}
-	return *a == *b
 }
 
 // containsYAMLUnsafeChars reports whether s contains any character that is
