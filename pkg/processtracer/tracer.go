@@ -20,6 +20,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"sync"
 
 	"github.com/cilium/ebpf/link"
 	"github.com/cilium/ebpf/perf"
@@ -32,6 +33,7 @@ type ProcessTracer struct {
 	execLink        link.Link
 	forkLink        link.Link
 	reader          *perf.Reader
+	chsMu           sync.RWMutex
 	processEventChs map[string]chan<- BpfProcessEvent
 	tracing         bool
 	log             logr.Logger
@@ -74,6 +76,9 @@ func (tracer *ProcessTracer) Close() {
 }
 
 func (tracer *ProcessTracer) AddProcessEventNotifyCh(subscriber string, processEventCh *chan BpfProcessEvent) {
+	tracer.chsMu.Lock()
+	defer tracer.chsMu.Unlock()
+
 	if processEventCh != nil {
 		tracer.processEventChs[subscriber] = *processEventCh
 	}
@@ -88,12 +93,26 @@ func (tracer *ProcessTracer) AddProcessEventNotifyCh(subscriber string, processE
 }
 
 func (tracer *ProcessTracer) DeleteProcessEventNotifyCh(subscriber string) {
+	tracer.chsMu.Lock()
+	defer tracer.chsMu.Unlock()
+
 	delete(tracer.processEventChs, subscriber)
 
 	if len(tracer.processEventChs) == 0 && tracer.tracing {
 		tracer.stopTracing()
 		tracer.tracing = false
 	}
+}
+
+func (tracer *ProcessTracer) snapshotProcessEventChs() []chan<- BpfProcessEvent {
+	tracer.chsMu.RLock()
+	defer tracer.chsMu.RUnlock()
+
+	chs := make([]chan<- BpfProcessEvent, 0, len(tracer.processEventChs))
+	for _, ch := range tracer.processEventChs {
+		chs = append(chs, ch)
+	}
+	return chs
 }
 
 func (tracer *ProcessTracer) startTracing() error {
@@ -195,7 +214,7 @@ func (tracer *ProcessTracer) handleBpfEvents() {
 			continue
 		}
 
-		for _, eventCh := range tracer.processEventChs {
+		for _, eventCh := range tracer.snapshotProcessEventChs() {
 			eventCh <- event
 		}
 	}

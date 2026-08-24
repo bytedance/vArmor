@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/containerd/containerd"
@@ -41,6 +42,7 @@ type RuntimeMonitor struct {
 	runtimeConn       *grpc.ClientConn
 	running           bool
 	status            error
+	chsMu             sync.RWMutex
 	taskStartChs      map[string]chan<- varmortypes.ContainerInfo
 	taskDeleteChs     map[string]chan<- varmortypes.ContainerInfo
 	taskDeleteSyncChs map[string]chan<- bool
@@ -83,6 +85,9 @@ func (monitor *RuntimeMonitor) AddTaskNotifyChs(
 	deleteCh *chan varmortypes.ContainerInfo,
 	deleteSynCh *chan bool) {
 
+	monitor.chsMu.Lock()
+	defer monitor.chsMu.Unlock()
+
 	if startCh != nil {
 		monitor.taskStartChs[subscriber] = *startCh
 	}
@@ -95,9 +100,45 @@ func (monitor *RuntimeMonitor) AddTaskNotifyChs(
 }
 
 func (monitor *RuntimeMonitor) DeleteTaskNotifyChs(subscriber string) {
+	monitor.chsMu.Lock()
+	defer monitor.chsMu.Unlock()
+
 	delete(monitor.taskStartChs, subscriber)
 	delete(monitor.taskDeleteChs, subscriber)
 	delete(monitor.taskDeleteSyncChs, subscriber)
+}
+
+func (monitor *RuntimeMonitor) snapshotTaskStartChs() []chan<- varmortypes.ContainerInfo {
+	monitor.chsMu.RLock()
+	defer monitor.chsMu.RUnlock()
+
+	chs := make([]chan<- varmortypes.ContainerInfo, 0, len(monitor.taskStartChs))
+	for _, ch := range monitor.taskStartChs {
+		chs = append(chs, ch)
+	}
+	return chs
+}
+
+func (monitor *RuntimeMonitor) snapshotTaskDeleteChs() []chan<- varmortypes.ContainerInfo {
+	monitor.chsMu.RLock()
+	defer monitor.chsMu.RUnlock()
+
+	chs := make([]chan<- varmortypes.ContainerInfo, 0, len(monitor.taskDeleteChs))
+	for _, ch := range monitor.taskDeleteChs {
+		chs = append(chs, ch)
+	}
+	return chs
+}
+
+func (monitor *RuntimeMonitor) snapshotTaskDeleteSyncChs() []chan<- bool {
+	monitor.chsMu.RLock()
+	defer monitor.chsMu.RUnlock()
+
+	chs := make([]chan<- bool, 0, len(monitor.taskDeleteSyncChs))
+	for _, ch := range monitor.taskDeleteSyncChs {
+		chs = append(chs, ch)
+	}
+	return chs
 }
 
 func (monitor *RuntimeMonitor) retrieveContainerInfo(containerInfo *varmortypes.ContainerInfo) error {
@@ -263,7 +304,7 @@ func (monitor *RuntimeMonitor) eventHandler(stopCh <-chan struct{}) {
 				info.ProfileName = extractVarmorProfileName(info)
 				if info.ProfileName != "" {
 					logger.V(2).Info("notify subscribers of the '/tasks/start'", "info", info)
-					for _, ch := range monitor.taskStartChs {
+					for _, ch := range monitor.snapshotTaskStartChs() {
 						ch <- info
 					}
 				}
@@ -282,7 +323,7 @@ func (monitor *RuntimeMonitor) eventHandler(stopCh <-chan struct{}) {
 				}
 
 				logger.V(2).Info("notify subscribers of the '/tasks/delete' event", "info", info)
-				for _, ch := range monitor.taskDeleteChs {
+				for _, ch := range monitor.snapshotTaskDeleteChs() {
 					ch <- info
 				}
 			}
@@ -308,7 +349,7 @@ func (monitor *RuntimeMonitor) eventHandler(stopCh <-chan struct{}) {
 				monitor.status = nil
 
 				logger.V(2).Info("notify subscribers to handle the containers that exit or are created while the monitor is offline")
-				for _, ch := range monitor.taskDeleteSyncChs {
+				for _, ch := range monitor.snapshotTaskDeleteSyncChs() {
 					ch <- true
 				}
 				monitor.CollectExistingTargetContainers()
@@ -380,7 +421,7 @@ func (monitor *RuntimeMonitor) CollectExistingTargetContainers() error {
 
 		info.ProfileName = extractVarmorProfileName(info)
 		if info.ProfileName != "" {
-			for _, ch := range monitor.taskStartChs {
+			for _, ch := range monitor.snapshotTaskStartChs() {
 				ch <- info
 			}
 		}
