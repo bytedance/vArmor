@@ -21,6 +21,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
+	varmorconfig "github.com/bytedance/vArmor/internal/config"
 )
 
 // TestValidateAddPolicy_ValidVarmorPolicy tests valid VarmorPolicy validation
@@ -448,6 +449,87 @@ func TestValidateUpdatePolicy_ValidUpdate(t *testing.T) {
 	valid, message := ValidateUpdatePolicy(policy, oldEnforcer, oldTarget, nil)
 	assert.True(t, valid, "Valid policy update should pass validation")
 	assert.Equal(t, "", message, "Validation passes when validation passes")
+}
+
+func TestValidateUpdatePolicy_RemoveNetworkProxyConfig(t *testing.T) {
+	defaultProxyUID := varmorconfig.DefaultProxyUID
+	defaultProxyPort := varmorconfig.DefaultProxyPort
+	defaultProxyAdminPort := varmorconfig.DefaultProxyAdminPort
+	customProxyUID := int64(2000)
+	customProxyPort := uint16(16001)
+	customProxyAdminPort := uint16(16000)
+	tests := []struct {
+		name           string
+		oldProxyConfig *varmor.NetworkProxyConfig
+		valid          bool
+	}{
+		{
+			name:           "implicit defaults",
+			oldProxyConfig: &varmor.NetworkProxyConfig{},
+			valid:          true,
+		},
+		{
+			name: "explicit defaults",
+			oldProxyConfig: &varmor.NetworkProxyConfig{
+				ProxyUID:       &defaultProxyUID,
+				ProxyPort:      &defaultProxyPort,
+				ProxyAdminPort: &defaultProxyAdminPort,
+			},
+			valid: true,
+		},
+		{
+			name: "custom proxy UID",
+			oldProxyConfig: &varmor.NetworkProxyConfig{
+				ProxyUID: &customProxyUID,
+			},
+			valid: false,
+		},
+		{
+			name: "custom proxy port",
+			oldProxyConfig: &varmor.NetworkProxyConfig{
+				ProxyPort: &customProxyPort,
+			},
+			valid: false,
+		},
+		{
+			name: "custom proxy admin port",
+			oldProxyConfig: &varmor.NetworkProxyConfig{
+				ProxyAdminPort: &customProxyAdminPort,
+			},
+			valid: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			policy := &varmor.VarmorPolicy{
+				Spec: varmor.VarmorPolicySpec{
+					Target: varmor.Target{
+						Kind: "Deployment",
+						Name: "test-deployment",
+					},
+					Policy: varmor.Policy{
+						Enforcer: "AppArmor",
+						Mode:     varmor.RuntimeDefaultMode,
+					},
+				},
+				Status: varmor.VarmorPolicyStatus{Phase: varmor.VarmorPolicyProtecting},
+			}
+
+			valid, message := ValidateUpdatePolicy(
+				policy,
+				"AppArmor",
+				policy.Spec.Target,
+				tt.oldProxyConfig,
+			)
+			assert.Equal(t, tt.valid, valid)
+			if tt.valid {
+				assert.Empty(t, message)
+			} else {
+				assert.Contains(t, message, "Modifying proxyUID, proxyPort, or proxyAdminPort")
+			}
+		})
+	}
 }
 
 // TestValidateUpdatePolicy_UnsupportedPolicyType tests unsupported policy type
