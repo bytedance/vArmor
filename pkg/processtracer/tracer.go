@@ -125,11 +125,14 @@ func (tracer *ProcessTracer) DeleteProcessEventNotifyCh(subscriber string) {
 	delete(tracer.processEventChs, subscriber)
 
 	if len(tracer.processEventChs) == 0 && tracer.tracing {
-		if err := tracer.disableTracing(); err != nil {
-			tracer.log.Error(err, "failed to disable tracing")
-			return
-		}
+		err := tracer.disableTracing()
+		// Stopping can partially release the reader or links. Mark tracing
+		// inactive so the next subscriber retries startup and cleans up any
+		// stale resources first.
 		tracer.tracing = false
+		if err != nil {
+			tracer.log.Error(err, "failed to disable tracing")
+		}
 	}
 }
 
