@@ -149,6 +149,43 @@ func TestProcessEventNotifyCh_ReAddAfterDeleteRestartsTracing(t *testing.T) {
 	}
 }
 
+func TestProcessEventNotifyCh_ReAddAfterStopFailureRestartsTracing(t *testing.T) {
+	var starts atomic.Int32
+	var stops atomic.Int32
+	tracer := &ProcessTracer{
+		processEventChs: map[string]chan<- BpfProcessEvent{
+			"subscriber": make(chan BpfProcessEvent, 1),
+		},
+		tracing: true,
+		startTracingFn: func() error {
+			starts.Add(1)
+			return nil
+		},
+		stopTracingFn: func() error {
+			stops.Add(1)
+			return errors.New("injected stop failure")
+		},
+		log: logr.Discard(),
+	}
+
+	tracer.DeleteProcessEventNotifyCh("subscriber")
+	if tracer.tracing {
+		t.Fatal("tracing remained active after stop failed")
+	}
+	if got := stops.Load(); got != 1 {
+		t.Fatalf("tracing stopped %d times, want 1", got)
+	}
+
+	eventCh := make(chan BpfProcessEvent, 1)
+	tracer.AddProcessEventNotifyCh("subscriber", &eventCh)
+	if got := starts.Load(); got != 1 {
+		t.Fatalf("tracing started %d times after re-add, want 1", got)
+	}
+	if !tracer.tracing {
+		t.Fatal("tracing was not active after the subscriber was re-added")
+	}
+}
+
 func TestProcessTracerClose_SynchronizesWithDelete(t *testing.T) {
 	const iterations = 100
 	for i := 0; i < iterations; i++ {
