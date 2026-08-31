@@ -79,6 +79,7 @@ func Test_applyAuditToSidecar(t *testing.T) {
 	assert.Equal(t, envByName["POLICY_KIND"].Value, "VarmorPolicy")
 	assert.Equal(t, envByName["POLICY_NAME"].Value, "test")
 	assert.Equal(t, envByName["POLICY_NAMESPACE"].Value, "testns")
+	assert.Equal(t, envByName["VARMOR_NAMESPACE"].Value, varmorconfig.Namespace)
 	assert.Equal(t, envByName["VARMOR_ENVOY_UID"].Value, "1337")
 
 	// App container must be untouched.
@@ -178,6 +179,7 @@ func Test_cleanupAuditFromSidecar(t *testing.T) {
 				{Name: "POD_NAME"},
 				{Name: "POD_NAMESPACE"},
 				{Name: "POD_UID"},
+				{Name: "VARMOR_NAMESPACE", Value: "varmor"},
 			},
 		},
 	}

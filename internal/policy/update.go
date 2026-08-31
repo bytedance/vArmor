@@ -302,6 +302,7 @@ var auditSinkEnvNames = map[string]bool{
 	"POLICY_KIND":          true,
 	"POLICY_NAME":          true,
 	"POLICY_NAMESPACE":     true,
+	"VARMOR_NAMESPACE":     true,
 	"VARMOR_ENVOY_UID":     true,
 	"AUDIT_EVENT_METADATA": true,
 }
@@ -314,6 +315,7 @@ var auditSinkEnvNames = map[string]bool{
 //   - NODE_NAME (Downward API spec.nodeName): node attribution.
 //   - PROFILE_NAME / POLICY_KIND / POLICY_NAME / POLICY_NAMESPACE: the policy
 //     identity the sink seeds so violation records carry the owning policy.
+//   - VARMOR_NAMESPACE: the namespace where vArmor itself is installed.
 //   - VARMOR_ENVOY_UID: the uid the entrypoint drops to before exec-ing Envoy,
 //     kept in sync with the iptables uid-owner RETURN exemption (proxyUID).
 //   - AUDIT_EVENT_METADATA: the cluster metadata literal the manager carries,
@@ -326,6 +328,7 @@ func auditSinkEnvVars(profileName string, id AuditPolicyIdentity, proxyUID int64
 		{Name: "POLICY_KIND", Value: id.Kind},
 		{Name: "POLICY_NAME", Value: id.Name},
 		{Name: "POLICY_NAMESPACE", Value: id.Namespace},
+		{Name: "VARMOR_NAMESPACE", Value: varmorconfig.Namespace},
 		{Name: "VARMOR_ENVOY_UID", Value: strconv.FormatInt(proxyUID, 10)},
 	}
 	if md := os.Getenv("AUDIT_EVENT_METADATA"); md != "" {
@@ -334,9 +337,10 @@ func auditSinkEnvVars(profileName string, id AuditPolicyIdentity, proxyUID int64
 	return envs
 }
 
-// cleanupAuditFromSidecar removes the ALS socket volumeMount and the three
-// Downward API env vars from the Envoy sidecar container if present, keeping
-// reconciliation idempotent when the NetworkProxy enforcer is removed.
+// cleanupAuditFromSidecar removes the ALS socket volumeMount, the Downward API
+// env vars, and all in-sidecar audit sink env vars from the Envoy sidecar if
+// present, keeping reconciliation idempotent when the NetworkProxy enforcer is
+// removed.
 func cleanupAuditFromSidecar(containers []coreV1.Container) {
 	for i := range containers {
 		if containers[i].Name != proxyContainer.Name {
