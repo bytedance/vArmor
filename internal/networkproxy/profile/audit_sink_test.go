@@ -35,21 +35,11 @@ func TestAuditSinkConfig_ClusterName(t *testing.T) {
 }
 
 func TestAuditSinkConfig_LogNames(t *testing.T) {
-	cfg := AuditSinkConfig{ProfileName: "my-profile"}
-	if got, want := cfg.denyLogName(), LogNameClassDeny+":my-profile"; got != want {
-		t.Errorf("denyLogName() = %q, want %q", got, want)
-	}
-	if got, want := cfg.auditLogName(), LogNameClassAudit+":my-profile"; got != want {
-		t.Errorf("auditLogName() = %q, want %q", got, want)
-	}
-
-	// Empty profile name still yields a well-formed "<class>:" prefix.
-	empty := AuditSinkConfig{}
-	if got, want := empty.denyLogName(), LogNameClassDeny+":"; got != want {
-		t.Errorf("denyLogName() empty = %q, want %q", got, want)
-	}
-	if got, want := empty.auditLogName(), LogNameClassAudit+":"; got != want {
-		t.Errorf("auditLogName() empty = %q, want %q", got, want)
+	for _, name := range []string{"my-profile", ""} {
+		cfg := AuditSinkConfig{ProfileName: name}
+		if got, want := cfg.eventLogName(), LogNameClassEvent+":"+name; got != want {
+			t.Errorf("eventLogName() = %q, want %q", got, want)
+		}
 	}
 }
 
@@ -59,6 +49,7 @@ func TestAuditSinkConfig_LogNames(t *testing.T) {
 func TestAuditSinkConfig_SharedConstants(t *testing.T) {
 	cases := map[string]string{
 		DefaultALSClusterName: "varmor_audit_als",
+		LogNameClassEvent:     "varmor_np_event",
 		LogNameClassDeny:      "varmor_np_deny",
 		LogNameClassAudit:     "varmor_np_audit",
 		ALSFilterChainTagKey:  "filter_chain",

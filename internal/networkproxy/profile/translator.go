@@ -330,8 +330,8 @@ func (a *AuditConfig) HasShadowHTTPRules() bool {
 // ============================================================================
 
 // computeListenerCELs returns the deny and shadow CEL expressions for listener-level access_log.
-// Each is returned separately so the renderer can emit them as independent access_log entries,
-// avoiding the CEL || short-circuit failure when connection.termination_details is null.
+// Return conditions separately so the renderer can use independent CEL filters
+// under an OrFilter, isolating errors when a connection attribute is absent.
 func computeListenerCELs(defaultDeny bool, hasShadowEgressRules bool) (denyCEL, shadowCEL string) {
 	if defaultDeny {
 		denyCEL = celListenerDeny
@@ -343,8 +343,8 @@ func computeListenerCELs(defaultDeny bool, hasShadowEgressRules bool) (denyCEL, 
 }
 
 // computeHCMCELs returns the deny and shadow CEL expressions for HCM-level access_log.
-// Each is returned separately so the renderer can emit them as independent access_log entries,
-// avoiding the CEL || short-circuit failure.
+// Return conditions separately so the renderer can use independent CEL filters
+// under an OrFilter, isolating errors when metadata is absent.
 func computeHCMCELs(defaultDeny bool, hasShadowRules bool) (denyCEL, shadowCEL string) {
 	if defaultDeny {
 		denyCEL = celHCMDeny

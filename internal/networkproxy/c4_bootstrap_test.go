@@ -118,8 +118,7 @@ func TestGenerateEnvoySecret_AllowAllNoALSLogName(t *testing.T) {
 	}
 	lds := secret.StringData[SecretKeyLDS]
 	for _, denied := range []string{
-		fmt.Sprintf("%s:%s", profile.LogNameClassDeny, profileName),
-		fmt.Sprintf("%s:%s", profile.LogNameClassAudit, profileName),
+		fmt.Sprintf("%s:%s", profile.LogNameClassEvent, profileName),
 	} {
 		if strings.Contains(lds, denied) {
 			t.Errorf("allow-all listener unexpectedly emitted log_name %q", denied)
