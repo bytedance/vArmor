@@ -31,11 +31,9 @@ const (
 	// auditor stay byte-compatible.
 	DefaultALSClusterName = "varmor_audit_als"
 
-	// LogNameClassDeny / LogNameClassAudit are the two log_name classes the
-	// renderer embeds (as "<class>:<profileName>") into each gRPC ALS
-	// access_log entry. The auditor parses the class to map an event to an
-	// action: deny -> DENIED, audit -> AUDIT. This is a shared convention
-	// between the renderer and the agent's auditor.
+	// LogNameClassEvent identifies selected events; their action is determined
+	// from each entry's RBAC result. Legacy classes remain accepted by sinks.
+	LogNameClassEvent = "varmor_np_event"
 	LogNameClassDeny  = "varmor_np_deny"
 	LogNameClassAudit = "varmor_np_audit"
 
@@ -94,14 +92,7 @@ func (a AuditSinkConfig) clusterName() string {
 	return DefaultALSClusterName
 }
 
-// denyLogName returns the log_name embedded into the deny access_log entry,
-// encoded as "<LogNameClassDeny>:<ProfileName>".
-func (a AuditSinkConfig) denyLogName() string {
-	return LogNameClassDeny + ":" + a.ProfileName
-}
-
-// auditLogName returns the log_name embedded into the shadow/audit access_log
-// entry, encoded as "<LogNameClassAudit>:<ProfileName>".
-func (a AuditSinkConfig) auditLogName() string {
-	return LogNameClassAudit + ":" + a.ProfileName
+// eventLogName identifies a stream that may contain both denied and audited events.
+func (a AuditSinkConfig) eventLogName() string {
+	return LogNameClassEvent + ":" + a.ProfileName
 }

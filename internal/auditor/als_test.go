@@ -49,19 +49,20 @@ var (
 // violationLogger. Only the fields the NetworkProxy collector populates are
 // declared; the rest are ignored by the JSON decoder.
 type recordedViolation struct {
-	NodeName        string            `json:"nodeName"`
-	PodName         string            `json:"podName"`
-	PodNamespace    string            `json:"podNamespace"`
-	PodUID          string            `json:"podUID"`
-	ContainerID     string            `json:"containerID"`
-	Enforcer        string            `json:"enforcer"`
-	Action          string            `json:"action"`
-	ProfileName     string            `json:"profileName"`
-	PolicyKind      string            `json:"policyKind"`
-	PolicyName      string            `json:"policyName"`
-	PolicyNamespace string            `json:"policyNamespace"`
-	EventTimestamp  uint64            `json:"eventTimestamp"`
-	Event           NetworkProxyEvent `json:"event"`
+	Metadata        map[string]interface{} `json:"metadata"`
+	NodeName        string                 `json:"nodeName"`
+	PodName         string                 `json:"podName"`
+	PodNamespace    string                 `json:"podNamespace"`
+	PodUID          string                 `json:"podUID"`
+	ContainerID     string                 `json:"containerID"`
+	Enforcer        string                 `json:"enforcer"`
+	Action          string                 `json:"action"`
+	ProfileName     string                 `json:"profileName"`
+	PolicyKind      string                 `json:"policyKind"`
+	PolicyName      string                 `json:"policyName"`
+	PolicyNamespace string                 `json:"policyNamespace"`
+	EventTimestamp  uint64                 `json:"eventTimestamp"`
+	Event           NetworkProxyEvent      `json:"event"`
 }
 
 // newTestAuditor builds an Auditor whose violationLogger writes JSON lines to
@@ -99,24 +100,26 @@ func TestParseLogName(t *testing.T) {
 	tests := []struct {
 		name        string
 		logName     string
-		wantAction  string
+		wantClass   string
 		wantProfile string
 		wantOK      bool
 	}{
 		{
 			name:        "deny",
 			logName:     varmorprofile.LogNameClassDeny + ":profile-a",
-			wantAction:  actionDenied,
+			wantClass:   varmorprofile.LogNameClassDeny,
 			wantProfile: "profile-a",
 			wantOK:      true,
 		},
 		{
 			name:        "audit",
 			logName:     varmorprofile.LogNameClassAudit + ":profile-b",
-			wantAction:  actionAudit,
+			wantClass:   varmorprofile.LogNameClassAudit,
 			wantProfile: "profile-b",
 			wantOK:      true,
 		},
+		{name: "event", logName: varmorprofile.LogNameClassEvent + ":profile-c", wantClass: varmorprofile.LogNameClassEvent, wantProfile: "profile-c", wantOK: true},
+		{name: "empty event profile", logName: varmorprofile.LogNameClassEvent + ":", wantOK: false},
 		{name: "unknown class", logName: "unknown:profile", wantOK: false},
 		{name: "missing separator", logName: "profile", wantOK: false},
 		{name: "empty profile", logName: varmorprofile.LogNameClassDeny + ":", wantOK: false},
@@ -124,10 +127,10 @@ func TestParseLogName(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotAction, gotProfile, gotOK := parseLogName(tt.logName)
-			if gotOK != tt.wantOK || gotAction != tt.wantAction || gotProfile != tt.wantProfile {
+			gotClass, gotProfile, gotOK := parseLogName(tt.logName)
+			if gotOK != tt.wantOK || gotClass != tt.wantClass || gotProfile != tt.wantProfile {
 				t.Fatalf("parseLogName(%q) = (%q, %q, %v), want (%q, %q, %v)",
-					tt.logName, gotAction, gotProfile, gotOK, tt.wantAction, tt.wantProfile, tt.wantOK)
+					tt.logName, gotClass, gotProfile, gotOK, tt.wantClass, tt.wantProfile, tt.wantOK)
 			}
 		})
 	}
@@ -590,4 +593,58 @@ func TestALSStreamAccessLogsPolicyIdentity(t *testing.T) {
 			t.Fatalf("profileName = %q, want profile-a", ev.ProfileName)
 		}
 	})
+}
+
+func TestALSStreamClassifiesEveryEntry(t *testing.T) {
+	for _, class := range []string{varmorprofile.LogNameClassEvent, varmorprofile.LogNameClassAudit, varmorprofile.LogNameClassDeny} {
+		t.Run(class, func(t *testing.T) {
+			var buf bytes.Buffer
+			a := newTestAuditor(&buf)
+			// A single stream carries mixed outcomes, including an upstream 403.
+			// Repeat the batches without identifiers to catch cached-action bugs.
+			reasons := []string{"rbac_access_denied_matched_policy[http_0]", "via_upstream", "", "rbac_access_denied_matched_policy[none]"}
+			var httpEntries []*dataaccesslogv3.HTTPAccessLogEntry
+			var tcpEntries []*dataaccesslogv3.TCPAccessLogEntry
+			for _, reason := range reasons {
+				h := httpAccessLogEntry()
+				h.Response.ResponseCodeDetails = reason
+				httpEntries = append(httpEntries, h)
+				c := tcpAccessLogEntry()
+				c.CommonProperties.ConnectionTerminationDetails = reason
+				tcpEntries = append(tcpEntries, c)
+			}
+			httpBatch := &accesslogv3.StreamAccessLogsMessage_HttpLogs{
+				HttpLogs: &accesslogv3.StreamAccessLogsMessage_HTTPAccessLogEntries{LogEntry: httpEntries},
+			}
+			tcpBatch := &accesslogv3.StreamAccessLogsMessage_TcpLogs{
+				TcpLogs: &accesslogv3.StreamAccessLogsMessage_TCPAccessLogEntries{LogEntry: tcpEntries},
+			}
+			stream := &fakeALSStream{ctx: context.Background(), messages: []*accesslogv3.StreamAccessLogsMessage{
+				{Identifier: &accesslogv3.StreamAccessLogsMessage_Identifier{LogName: class + ":profile-a", Node: podNode("workload-a", "team-x", "uid-123")}, LogEntries: httpBatch},
+				{LogEntries: tcpBatch},
+				{LogEntries: httpBatch},
+				{LogEntries: tcpBatch},
+			}}
+			if err := (&alsServer{auditor: a}).StreamAccessLogs(stream); err != nil {
+				t.Fatal(err)
+			}
+			events := decodeViolations(t, &buf)
+			if len(events) != 16 {
+				t.Fatalf("got %d events, want 16", len(events))
+			}
+			want := []string{"DENIED", "AUDIT", "AUDIT", "DENIED"}
+			for i, ev := range events {
+				action := want[i%len(want)]
+				if class == varmorprofile.LogNameClassDeny {
+					action = "DENIED"
+				}
+				if ev.Action != action || ev.ProfileName != "profile-a" {
+					t.Errorf("event[%d] action/profile = %s/%s, want %s/profile-a", i, ev.Action, ev.ProfileName, action)
+				}
+				if ev.PodUID != "uid-123" || ev.Metadata["cluster"] != "test" {
+					t.Errorf("event[%d] lost attribution: %+v", i, ev)
+				}
+			}
+		})
+	}
 }

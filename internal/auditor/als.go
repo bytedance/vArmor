@@ -93,32 +93,33 @@ type NetworkProxyEvent struct {
 	DurationMs   uint64 `json:"durationMs,omitempty"`
 }
 
-// parseLogName decodes an ALS identifier log_name of the form
-// "<class>:<profileName>" into the normalised action and the profile name. The
-// class prefix selects the action: a deny class maps to DENIED, an audit class
-// to AUDIT. Because deny and audit (shadow) events are rendered as two separate
-// access_log entries with distinct log_name prefixes, the action is decided
-// entirely by the prefix and never by inspecting the entry body. An
-// unrecognised class or an empty profile name yields ok=false so the caller can
-// drop the stream defensively. The class vocabulary is a shared convention
-// between the renderer and this auditor.
-func parseLogName(logName string) (action, profileName string, ok bool) {
+// parseLogName decodes the stream class and profile, not the per-entry action.
+// Accept legacy classes so existing sidecars can keep using their configurations.
+func parseLogName(logName string) (class, profileName string, ok bool) {
 	idx := strings.IndexByte(logName, ':')
 	if idx < 0 {
 		return "", "", false
 	}
-	class, profileName := logName[:idx], logName[idx+1:]
+	class, profileName = logName[:idx], logName[idx+1:]
 	if profileName == "" {
 		return "", "", false
 	}
 	switch class {
-	case varmorprofile.LogNameClassDeny:
-		return actionDenied, profileName, true
-	case varmorprofile.LogNameClassAudit:
-		return actionAudit, profileName, true
+	case varmorprofile.LogNameClassDeny, varmorprofile.LogNameClassAudit, varmorprofile.LogNameClassEvent:
+		return class, profileName, true
 	default:
 		return "", "", false
 	}
+}
+
+// networkProxyAction uses Envoy's RBAC reason, never the HTTP status code:
+// an upstream 403 is not a policy denial. Legacy deny streams remain DENIED
+// even when older entries omit their reason; shadow streams may also be denied.
+func networkProxyAction(class, reason string) string {
+	if class == varmorprofile.LogNameClassDeny || strings.HasPrefix(reason, "rbac_access_denied") {
+		return actionDenied
+	}
+	return actionAudit
 }
 
 // podIdentity carries the Pod attribution parsed once from the ALS Identifier's
@@ -143,15 +144,15 @@ type alsServer struct {
 
 // StreamAccessLogs consumes a single sidecar's access-log stream. Per the ALS
 // contract the identifier (carrying log_name and node.metadata) is sent only on
-// the first message and reused for the rest of the stream, so the action,
+// the first message and reused for the rest of the stream, so the class,
 // profile name and Pod identity are parsed once and cached. Entries arrive as
 // either HTTP (L7) or TCP (L4) batches; each entry is normalised and written to
 // the violations log.
 func (s *alsServer) StreamAccessLogs(stream accesslogv3.AccessLogService_StreamAccessLogsServer) error {
 	var (
-		action, profileName string
-		pod                 podIdentity
-		identified          bool
+		class, profileName string
+		pod                podIdentity
+		identified         bool
 	)
 	for {
 		msg, err := stream.Recv()
@@ -171,24 +172,24 @@ func (s *alsServer) StreamAccessLogs(stream accesslogv3.AccessLogService_StreamA
 				s.auditor.log.V(1).Info("dropping ALS stream without identifier")
 				return nil
 			}
-			a, p, ok := parseLogName(id.GetLogName())
+			c, p, ok := parseLogName(id.GetLogName())
 			if !ok {
 				s.auditor.log.V(1).Info("dropping ALS stream with unrecognised log_name",
 					"logName", id.GetLogName())
 				return nil
 			}
-			action, profileName = a, p
+			class, profileName = c, p
 			pod = parsePodIdentity(id.GetNode())
 			identified = true
 		}
 
 		for _, e := range msg.GetHttpLogs().GetLogEntry() {
 			event, eventTime := buildHTTPNetworkProxyEvent(e)
-			s.auditor.recordNetworkProxyViolation(action, profileName, pod, eventTime, event)
+			s.auditor.recordNetworkProxyViolation(networkProxyAction(class, event.Reason), profileName, pod, eventTime, event)
 		}
 		for _, e := range msg.GetTcpLogs().GetLogEntry() {
 			event, eventTime := buildTCPNetworkProxyEvent(e)
-			s.auditor.recordNetworkProxyViolation(action, profileName, pod, eventTime, event)
+			s.auditor.recordNetworkProxyViolation(networkProxyAction(class, event.Reason), profileName, pod, eventTime, event)
 		}
 	}
 }

@@ -22,8 +22,8 @@ import (
 	varmorconfig "github.com/bytedance/vArmor/internal/config"
 )
 
-// alsFixtureEgress builds a deny-default egress that exercises all four
-// access_log entries: L4 deny + L4 shadow (listener) and L7 deny + L7 shadow
+// alsFixtureEgress builds a deny-default egress that exercises both
+// access_log entries: L4 deny/shadow (listener) and L7 deny/shadow
 // (HCM). The deny default turns on the deny CEL on both layers; the allow+audit
 // egress rule produces shadow_rules on the TLS/TCP path, and the allow+audit
 // HTTP rule produces shadow_rules on the HTTP chain.
@@ -64,7 +64,7 @@ func renderALSAudit(t *testing.T, mitm *MITMInput, audit AuditSinkConfig) (lds, 
 
 // TestAuditSink_GRPCALS_ListenerAndHCM verifies that the grpc_als sink renders
 // TcpGrpcAccessLogConfig at the listener (L4) and HttpGrpcAccessLogConfig at
-// the HCM (L7), each as two SEPARATE entries (deny + shadow) carrying the
+// the HCM (L7), each as one entry selecting deny OR shadow events, carrying the
 // correct log_name class prefix and the ALS cluster_name.
 func TestAuditSink_GRPCALS_ListenerAndHCM(t *testing.T) {
 	audit := AuditSinkConfig{
@@ -86,24 +86,20 @@ func TestAuditSink_GRPCALS_ListenerAndHCM(t *testing.T) {
 		t.Errorf("expected HttpGrpcAccessLogConfig (L7) in LDS")
 	}
 
-	// log_name class prefixes with the profile suffix. Deny appears at L4+L7,
-	// shadow/audit appears at L4+L7.
-	wantDeny := `log_name: "varmor_np_deny:` + alsTestProfile + `"`
-	wantAudit := `log_name: "varmor_np_audit:` + alsTestProfile + `"`
-	if c := strings.Count(lds, wantDeny); c != 2 {
-		t.Errorf("expected 2 deny log_name entries (L4+L7), got %d", c)
+	// Each logging location emits at most once, even if both conditions match.
+	wantEvent := `log_name: "varmor_np_event:` + alsTestProfile + `"`
+	if c := strings.Count(lds, wantEvent); c != 2 {
+		t.Errorf("expected 2 event log_name entries (L4+L7), got %d", c)
 	}
-	if c := strings.Count(lds, wantAudit); c != 2 {
-		t.Errorf("expected 2 audit log_name entries (L4+L7), got %d", c)
+	if c := strings.Count(lds, "or_filter:"); c != 2 {
+		t.Errorf("expected 2 independent OR filters (L4+L7), got %d", c)
 	}
-
-	// Every ALS entry must dial the shared cluster name (4 entries total).
-	if c := strings.Count(lds, "cluster_name: "+DefaultALSClusterName); c != 4 {
-		t.Errorf("expected 4 envoy_grpc cluster_name references, got %d", c)
+	if c := strings.Count(lds, "cluster_name: "+DefaultALSClusterName); c != 2 {
+		t.Errorf("expected 2 envoy_grpc cluster references, got %d", c)
 	}
 
 	// The CEL filters must be preserved on the ALS entries (deny + shadow,
-	// not merged into one). Deny expressions contain double-quotes, so they
+	// not joined into a CEL expression). Deny expressions contain double-quotes, so they
 	// appear YAML-escaped in the rendered scalar; compare against that form.
 	if !strings.Contains(lds, yamlCEL(celListenerDeny)) || !strings.Contains(lds, yamlCEL(celListenerShadow)) {
 		t.Errorf("listener deny/shadow CEL filters not preserved on ALS entries")
@@ -268,11 +264,11 @@ func TestAuditSink_ALSBufferConfig(t *testing.T) {
 
 	// Four access_log entries (L4 deny+shadow, L7 deny+shadow) each carry the
 	// buffer bounds.
-	if c := strings.Count(lds, "buffer_flush_interval: 1s"); c != 4 {
-		t.Errorf("expected 4 buffer_flush_interval entries, got %d", c)
+	if c := strings.Count(lds, "buffer_flush_interval: 1s"); c != 2 {
+		t.Errorf("expected 2 buffer_flush_interval entries, got %d", c)
 	}
-	if c := strings.Count(lds, "buffer_size_bytes: 16384"); c != 4 {
-		t.Errorf("expected 4 buffer_size_bytes entries, got %d", c)
+	if c := strings.Count(lds, "buffer_size_bytes: 16384"); c != 2 {
+		t.Errorf("expected 2 buffer_size_bytes entries, got %d", c)
 	}
 
 	// Zero-value buffer omits both fields entirely.

@@ -30,9 +30,9 @@ import (
 
 // --- CEL Expression Constants ---
 //
-// All access_log filtering uses CEL (Common Expression Language) exclusively.
-// This eliminates response_flag_filter (UAEX), metadata_filter, and or_filter,
-// providing a single, consistent mechanism across all layers.
+// Access-log predicates use CEL (Common Expression Language). When both deny
+// and shadow conditions are enabled, an OrFilter joins independent CEL filters.
+// No response_flag_filter (UAEX) or metadata_filter is used.
 //
 // Background: Envoy's RBAC filters do NOT set the UAEX response flag.
 // UAEX is only set by ext_authz. Network RBAC sets CONNECTION_TERMINATION_DETAILS,
@@ -61,12 +61,9 @@ const (
 	// HCM-level CEL: detect shadow_rules match (HTTP RBAC audit) via dynamic metadata.
 	celHCMShadow = `'shadow_effective_policy_id' in metadata.filter_metadata['envoy.filters.http.rbac']`
 
-	// NOTE: The "DenyOrShadow" combined constants have been intentionally removed.
-	// Envoy's CEL evaluator does NOT properly short-circuit "error || true":
-	// when connection.termination_details is null (allow path), .matches()
-	// produces a CEL error that poisons the entire || expression, preventing
-	// the shadow side from being evaluated. Instead, deny and shadow CEL are
-	// rendered as SEPARATE access_log entries.
+	// Keep each condition in its own CEL filter: a missing attribute should
+	// make only that condition false. OrFilter combines their results in a
+	// single access logger without duplicate emission on overlapping matches.
 )
 
 // yamlCEL wraps a CEL expression for safe embedding in YAML.
@@ -174,26 +171,11 @@ resources:
       "@type": type.googleapis.com/envoy.extensions.filters.listener.http_inspector.v3.HttpInspector
 `)
 
-	// Listener-level access_log: captures connection-level events across ALL filter chains
-	// (TLS chain + TCP default chain). Uses CEL to detect Network RBAC deny events
-	// and/or shadow_rules metadata matches.
-	//
-	// IMPORTANT: deny and shadow CEL are rendered as SEPARATE access_log entries
-	// (not combined with ||) because Envoy CEL short-circuit evaluation fails when
-	// connection.termination_details is null (allow path): the .matches() call
-	// produces a CEL error that poisons the entire || expression, preventing the
-	// shadow side from being evaluated.
-	//
-	// HTTP chain events are handled separately at the HCM level, so there is no
-	// namespace conflict between envoy.filters.network.rbac and envoy.filters.http.rbac.
+	// Network RBAC logging is shared by TLS passthrough and TCP chains.
+	// HTTP RBAC logging uses the HCM's separate metadata namespace.
 	if listenerAccessLogEnabled && (listenerDenyCEL != "" || listenerShadowCEL != "") {
 		sb.WriteString("\n  access_log:\n")
-		if listenerDenyCEL != "" {
-			renderALSAccessLogEntry(&sb, "  ", listenerDenyCEL, audit.denyLogName(), audit.clusterName(), "", false, audit.ALSBufferFlushInterval, audit.ALSBufferSizeBytes)
-		}
-		if listenerShadowCEL != "" {
-			renderALSAccessLogEntry(&sb, "  ", listenerShadowCEL, audit.auditLogName(), audit.clusterName(), "", false, audit.ALSBufferFlushInterval, audit.ALSBufferSizeBytes)
-		}
+		renderALSAccessLogEntry(&sb, "  ", listenerDenyCEL, listenerShadowCEL, audit.eventLogName(), audit.clusterName(), "", false, audit.ALSBufferFlushInterval, audit.ALSBufferSizeBytes)
 	}
 
 	sb.WriteString("\n  filter_chains:\n")
@@ -448,18 +430,11 @@ func renderHTTPConnManagerYAML(f *NetworkFilter, indent int) string {
 	sb.WriteString(fmt.Sprintf("%s    normalize_path: true\n", prefix))
 	sb.WriteString(fmt.Sprintf("%s    merge_slashes: true\n", prefix))
 
-	// HCM access_log: SEPARATE entries for deny and shadow CEL.
-	// Same rationale as listener-level: Envoy CEL || does not short-circuit
-	// properly when the left operand produces an evaluation error.
+	// One logger selects the union of deny and audit events, without duplicates.
 	if cfg.AccessLogEnabled && (cfg.AccessLogDenyCEL != "" || cfg.AccessLogShadowCEL != "") {
 		sb.WriteString(fmt.Sprintf("%s    access_log:\n", prefix))
 		listPrefix := prefix + "    "
-		if cfg.AccessLogDenyCEL != "" {
-			renderALSAccessLogEntry(&sb, listPrefix, cfg.AccessLogDenyCEL, cfg.AuditSink.denyLogName(), cfg.AuditSink.clusterName(), cfg.FilterChainName, true, cfg.AuditSink.ALSBufferFlushInterval, cfg.AuditSink.ALSBufferSizeBytes)
-		}
-		if cfg.AccessLogShadowCEL != "" {
-			renderALSAccessLogEntry(&sb, listPrefix, cfg.AccessLogShadowCEL, cfg.AuditSink.auditLogName(), cfg.AuditSink.clusterName(), cfg.FilterChainName, true, cfg.AuditSink.ALSBufferFlushInterval, cfg.AuditSink.ALSBufferSizeBytes)
-		}
+		renderALSAccessLogEntry(&sb, listPrefix, cfg.AccessLogDenyCEL, cfg.AccessLogShadowCEL, cfg.AuditSink.eventLogName(), cfg.AuditSink.clusterName(), cfg.FilterChainName, true, cfg.AuditSink.ALSBufferFlushInterval, cfg.AuditSink.ALSBufferSizeBytes)
 	}
 
 	// Route config
@@ -820,23 +795,42 @@ func alsGRPCConfigType(l7 bool) string {
 	return "type.googleapis.com/envoy.extensions.access_loggers.grpc.v3.TcpGrpcAccessLogConfig"
 }
 
-// renderALSAccessLogEntry renders a single gRPC ALS access_log list item gated
-// by a CEL expression filter, routing records to the gRPC ALS cluster over UDS.
-//
-// itemPrefix is the indentation of the leading "- " list marker. For L7 entries
-// a custom_tags entry carrying the filter_chain name is emitted so the agent can
-// attribute records to a specific filter chain; L4 listener-level access_log is
-// shared across passthrough chains, so filterChain is passed empty and no tag is
-// emitted.
-func renderALSAccessLogEntry(sb *strings.Builder, itemPrefix, celExpr, logName, clusterName, filterChain string, l7 bool, bufferFlushInterval string, bufferSizeBytes uint32) {
+// renderAccessLogFilter combines independently evaluated CEL filters in one
+// logger. CEL evaluation errors become false within each child; OrFilter
+// selects the logger once even when both deny and shadow rules match.
+// Callers omit the logger entirely when neither condition is enabled.
+func renderAccessLogFilter(sb *strings.Builder, prefix, denyCEL, shadowCEL string) {
+	sb.WriteString(prefix + "filter:\n")
+	if denyCEL != "" && shadowCEL != "" {
+		sb.WriteString(prefix + "  or_filter:\n")
+		sb.WriteString(prefix + "    filters:\n")
+		for _, expr := range []string{denyCEL, shadowCEL} {
+			sb.WriteString(prefix + "    - extension_filter:\n")
+			renderCELFilterConfig(sb, prefix+"        ", expr)
+		}
+		return
+	}
+	expr := denyCEL
+	if expr == "" {
+		expr = shadowCEL
+	}
+	sb.WriteString(prefix + "  extension_filter:\n")
+	renderCELFilterConfig(sb, prefix+"    ", expr)
+}
+
+func renderCELFilterConfig(sb *strings.Builder, prefix, expr string) {
+	sb.WriteString(prefix + "name: envoy.access_loggers.extension_filters.cel\n")
+	sb.WriteString(prefix + "typed_config:\n")
+	sb.WriteString(prefix + "  \"@type\": type.googleapis.com/envoy.extensions.access_loggers.filters.cel.v3.ExpressionFilter\n")
+	sb.WriteString(prefix + "  expression: " + yamlCEL(expr) + "\n")
+}
+
+// renderALSAccessLogEntry renders one logger for all selected events. L7 uses
+// an HTTP ALS config with a filter-chain tag; L4 uses a TCP ALS config.
+func renderALSAccessLogEntry(sb *strings.Builder, itemPrefix, denyCEL, shadowCEL, logName, clusterName, filterChain string, l7 bool, bufferFlushInterval string, bufferSizeBytes uint32) {
 	b := itemPrefix + "  "
 	sb.WriteString(itemPrefix + "- name: envoy.access_loggers.grpc\n")
-	sb.WriteString(b + "filter:\n")
-	sb.WriteString(b + "  extension_filter:\n")
-	sb.WriteString(b + "    name: envoy.access_loggers.extension_filters.cel\n")
-	sb.WriteString(b + "    typed_config:\n")
-	sb.WriteString(b + "      \"@type\": type.googleapis.com/envoy.extensions.access_loggers.filters.cel.v3.ExpressionFilter\n")
-	sb.WriteString(b + "      expression: " + yamlCEL(celExpr) + "\n")
+	renderAccessLogFilter(sb, b, denyCEL, shadowCEL)
 	sb.WriteString(b + "typed_config:\n")
 	sb.WriteString(b + "  \"@type\": " + alsGRPCConfigType(l7) + "\n")
 	sb.WriteString(b + "  common_config:\n")
