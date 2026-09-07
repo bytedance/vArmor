@@ -37,9 +37,9 @@ package profile
 //     filter_chain_match, we emit TWO filter chains with SEPARATE HCMs:
 //       - DNS chain:  filter_chain_match {server_names=[...], transport_protocol=tls}
 //       - IP  chain:  filter_chain_match {prefix_ranges=[...], transport_protocol=tls}
-//     Each HCM carries only the VirtualHosts and RBAC rules relevant to
-//     its chain type. This is the minimum chain count required to cover
-//     both dimensions without sacrificing matching specificity.
+//     Each HCM scopes VirtualHosts and HTTP host rules to its domains,
+//     but retains all L4 rules for runtime destination matching. This
+//     covers both chain types without sacrificing matching specificity.
 //
 //  5. Port is intentionally NOT restricted -- any port may carry TLS
 //     (e.g., k8s apiserver on 6443). Envoy's tls_inspector listener
@@ -290,62 +290,12 @@ func filterHTTPRulesForDomains(rules []varmor.NetworkProxyHTTPRule, domains []st
 	return filtered
 }
 
-// filterEgressRulesForDomains returns a copy of egressRules where each rule's
-// IP or CIDR is checked against the given domain set. Rules whose IP/CIDR is
-// not present in the domain set are dropped. This ensures each MITM chain's
-// RBAC only references L4 destinations that can actually reach that chain.
-//
-// Matching logic:
-//   - Bare IP rule ("1.1.1.1") matches domain "1.1.1.1" or "1.1.1.1/32"
-//   - CIDR rule ("8.8.8.8/32") matches domain "8.8.8.8/32" or bare "8.8.8.8"
-//   - Rules with no IP/CIDR are kept (they apply everywhere)
-func filterEgressRulesForDomains(rules []varmor.NetworkProxyEgressRule, domains []string) []varmor.NetworkProxyEgressRule {
-	domainSet := make(map[string]bool, len(domains)*2)
-	for _, d := range domains {
-		domainSet[d] = true
-		// For bare IPs, also add /32 (or /128) so CIDR rules can match
-		if ip := net.ParseIP(d); ip != nil {
-			if ip.To4() != nil {
-				domainSet[d+"/32"] = true
-			} else {
-				domainSet[d+"/128"] = true
-			}
-		}
-		// For /32 or /128 CIDRs, also register the bare IP
-		if ip, ipNet, err := net.ParseCIDR(d); err == nil {
-			ones, bits := ipNet.Mask.Size()
-			if (bits == 32 && ones == 32) || (bits == 128 && ones == 128) {
-				domainSet[ip.String()] = true
-			}
-		}
-	}
-
-	var filtered []varmor.NetworkProxyEgressRule
-	for _, r := range rules {
-		if r.IP == "" && r.CIDR == "" {
-			// No IP/CIDR constraint: rule applies everywhere, keep it
-			filtered = append(filtered, r)
-			continue
-		}
-		key := r.IP
-		if key == "" {
-			key = r.CIDR
-		}
-		if domainSet[key] {
-			filtered = append(filtered, r)
-		}
-	}
-	return filtered
-}
-
 // buildMITMChains emits up to two filter chains: one matching by SNI
 // (DNS / wildcard entries) and one matching by destination IP CIDR.
-// Each chain gets its OWN HCM with VirtualHosts and RBAC rules scoped
-// to the domains that can actually enter that chain. A DNS chain only
-// carries DNS-type VHs/RBAC; an IP chain only carries IP-type VHs/RBAC.
-// Sharing a single HCM between both chains would produce unreachable
-// VirtualHosts and RBAC rules (e.g., IP VHs in a DNS chain that only
-// matches by server_names).
+// Each chain gets its OWN HCM with VirtualHosts and HTTP host rules scoped
+// to its domains. Both retain the complete L4 rules: a DNS/SNI-selected
+// connection still has a destination IP, and an IP-selected connection can
+// match a broader CIDR. Envoy evaluates those destination constraints.
 func buildMITMChains(cls egressClassification, mitm *MITMInput, audit AuditSinkConfig) []FilterChain {
 	dnsNames, ipPrefixes := splitMITMDomains(mitm.Domains)
 
@@ -393,24 +343,21 @@ func buildMITMChains(cls egressClassification, mitm *MITMInput, audit AuditSinkC
 // allow then router) so that the 10-row audit semantic matrix applies
 // uniformly to plaintext HTTP, MITM'd HTTPS by DNS, and MITM'd HTTPS by IP.
 func buildMITMHCMFilter(cls egressClassification, domains []string, headersByDomain map[string][]HeaderToAdd, audit AuditSinkConfig, chainName string) NetworkFilter {
-	// Filter both HTTP rules and L4 egress rules to only contain entries
-	// reachable via this chain. Without this, an egress rule for a CIDR
-	// not in mitm.domains (e.g., 10.0.0.0/24) would leak into the MITM
-	// chain's RBAC, allowing traffic that should only be handled by the
-	// passthrough tls_chain.
+	// Scope HTTP host rules to this chain, but do not prune L4 rules by
+	// MITM domain strings. SNI does not determine the destination IP, and
+	// a CIDR can contain an IP domain without being textually equal to it.
+	// Keep original IP/CIDR and port constraints for Envoy to match against
+	// the connection's destination; unrelated rules simply do not match.
 	chainAllowHTTPRules := filterHTTPRulesForDomains(cls.allowHTTPRules, domains)
 	chainDenyHTTPRules := filterHTTPRulesForDomains(cls.denyHTTPRules, domains)
 	chainAuditShadowHTTPRules := filterHTTPRulesForDomains(cls.auditCfg.AuditShadowHTTPRules, domains)
-	chainAllowEgressRules := filterEgressRulesForDomains(cls.allowEgressRules, domains)
-	chainDenyEgressRules := filterEgressRulesForDomains(cls.denyEgressRules, domains)
-	chainAuditShadowEgressRules := filterEgressRulesForDomains(cls.auditCfg.AuditShadowEgressRules, domains)
 
 	var httpFilters []HTTPFilter
 
 	// Shadow RBAC must precede enforcement RBAC: a denied request short-
 	// circuits subsequent filters, so shadow metadata would otherwise
 	// never be emitted.
-	auditShadowRBAC := buildHTTPRBACForHTTP(RBACActionAllow, chainAuditShadowEgressRules, chainAuditShadowHTTPRules)
+	auditShadowRBAC := buildHTTPRBACForHTTP(RBACActionAllow, cls.auditCfg.AuditShadowEgressRules, chainAuditShadowHTTPRules)
 	hasHTTPShadow := auditShadowRBAC != nil
 	if hasHTTPShadow {
 		httpFilters = append(httpFilters, HTTPFilter{
@@ -420,7 +367,7 @@ func buildMITMHCMFilter(cls egressClassification, domains []string, headersByDom
 	}
 
 	// Deny HTTP RBAC (applies regardless of defaultAction).
-	if denyRBAC := buildHTTPRBACForHTTP(RBACActionDeny, chainDenyEgressRules, chainDenyHTTPRules); denyRBAC != nil {
+	if denyRBAC := buildHTTPRBACForHTTP(RBACActionDeny, cls.denyEgressRules, chainDenyHTTPRules); denyRBAC != nil {
 		httpFilters = append(httpFilters, HTTPFilter{
 			Name:        "envoy.filters.http.rbac",
 			TypedConfig: &RBACConfig{Rules: denyRBAC},
@@ -429,7 +376,7 @@ func buildMITMHCMFilter(cls egressClassification, domains []string, headersByDom
 
 	// Allow HTTP RBAC (only for deny-default).
 	if cls.defaultDeny {
-		allowRBAC := buildHTTPRBACForHTTP(RBACActionAllow, chainAllowEgressRules, chainAllowHTTPRules)
+		allowRBAC := buildHTTPRBACForHTTP(RBACActionAllow, cls.allowEgressRules, chainAllowHTTPRules)
 		if allowRBAC == nil {
 			allowRBAC = &RBACRules{Action: RBACActionAllow, Policies: map[string]*RBACPolicy{}}
 		}
