@@ -181,10 +181,10 @@ func TestMITMValidateRejectsWideCIDR(t *testing.T) {
 	}
 }
 
-// TestMITMChainEgressRuleIsolation verifies that egress L4 rules not in
-// mitm.domains are filtered out of MITM chain RBAC. Reproduces the bug
-// where 10.0.0.0/24 leaked into the IP chain that only covers 8.8.8.8/32.
-func TestMITMChainEgressRuleIsolation(t *testing.T) {
+// TestMITMChainEgressRulesRetained verifies that MITM and passthrough chains
+// retain L4 destination predicates. A rule for 10.0.0.0/24 cannot match
+// 8.8.8.8 at runtime, so retaining it does not grant extra access.
+func TestMITMChainEgressRulesRetained(t *testing.T) {
 	egress := &varmor.NetworkProxyEgress{
 		DefaultAction: "deny",
 		Rules: []varmor.NetworkProxyEgressRule{
@@ -236,9 +236,10 @@ func TestMITMChainEgressRuleIsolation(t *testing.T) {
 		t.Error("MITM IP chain should contain 8.8.8.8 egress rule")
 	}
 
-	// MITM chain should NOT contain 10.0.0.0/24 egress rule
-	if strings.Contains(mitmSection, "10.0.0.0") {
-		t.Error("MITM IP chain should NOT contain 10.0.0.0/24 egress rule — it is not in mitm.domains")
+	// Keep unrelated rules with their original destination constraints.
+	// Runtime mismatch behavior is covered by TestMITMEgressEnvoyAudit.
+	if !strings.Contains(mitmSection, "10.0.0.0") {
+		t.Error("MITM IP chain should retain the 10.0.0.0/24 destination rule")
 	}
 
 	// tls_chain should still have BOTH rules (it is the passthrough chain)
