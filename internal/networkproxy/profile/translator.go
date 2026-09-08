@@ -1082,12 +1082,26 @@ func isDefaultHTTPPort(port uint16) bool {
 	return port == 80 || port == 443
 }
 
+// ipv6HostLiteral recognizes a bare IPv6 HTTP host or exactly one pair of
+// enclosing brackets. It preserves the address spelling and does not accept
+// ports, zones, nested brackets or bracketed IPv4 addresses.
+func ipv6HostLiteral(host string) (string, bool) {
+	literal := host
+	if strings.HasPrefix(host, "[") && strings.HasSuffix(host, "]") {
+		literal = host[1 : len(host)-1]
+	}
+	// IPv4-mapped IPv6 literals also need brackets; do not use To4 here.
+	if strings.Contains(literal, ":") && net.ParseIP(literal) != nil {
+		return literal, true
+	}
+	return "", false
+}
+
 // httpAuthorityHost brackets IPv6 literals for HTTP host/port matching.
 // Keep the input spelling and leave DNS names, wildcards and IPv4 unchanged.
-// Test the literal syntax rather than To4: IPv4-mapped IPv6 also needs brackets.
 func httpAuthorityHost(host string) string {
-	if strings.Contains(host, ":") && net.ParseIP(host) != nil {
-		return "[" + host + "]"
+	if literal, ok := ipv6HostLiteral(host); ok {
+		return "[" + literal + "]"
 	}
 	return host
 }
@@ -1139,7 +1153,7 @@ func authorityMatcherForHostPort(host string, port uint16) PermissionRule {
 				"exact_match": authorityHost,
 			},
 		}
-		if authorityHost != host {
+		if _, isIPv6 := ipv6HostLiteral(host); isIPv6 {
 			// Accept both legal default-port forms. The caller still
 			// enforces the actual destination port independently.
 			return PermissionRule{Type: "or_rules", Value: []PermissionRule{

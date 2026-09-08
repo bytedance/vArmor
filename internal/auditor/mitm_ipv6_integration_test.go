@@ -76,7 +76,11 @@ func TestMITMIPv6EnvoyAudit(t *testing.T) {
 		{"allow_wrong_port", "allow", [][]string{{"deny", "audit"}}, 200, "", "port"},
 		{"deny_wrong_port", "deny", [][]string{{"allow", "audit"}}, 403, "DENIED", "port"},
 	}
-	type destination struct{ name, domain, authorityMode, ruleKind string }
+	type destination struct {
+		name, domain, authorityMode, ruleKind string
+		bracketedHost                         bool
+		originalPort                          uint16
+	}
 	var destinations []destination
 	for _, domain := range []string{"::1", "::1/128"} {
 		label := "bare"
@@ -85,14 +89,34 @@ func TestMITMIPv6EnvoyAudit(t *testing.T) {
 		}
 		for _, mode := range []string{"no_port", "default_port", "nondefault_port"} {
 			for _, kind := range []string{"l4", "http"} {
-				destinations = append(destinations, destination{label + "_" + mode + "_" + kind, domain, mode, kind})
+				destinations = append(destinations, destination{label + "_" + mode + "_" + kind, domain, mode, kind, false, 0})
 			}
 		}
-		destinations = append(destinations, destination{label + "_nondefault_port_http_exact", domain, "nondefault_port", "http_exact"})
-		destinations = append(destinations, destination{label + "_nondefault_port_http_range", domain, "nondefault_port", "http_range"})
+		destinations = append(destinations, destination{label + "_nondefault_port_http_exact", domain, "nondefault_port", "http_exact", false, 0})
+		destinations = append(destinations, destination{label + "_nondefault_port_http_range", domain, "nondefault_port", "http_range", false, 0})
+		for _, port := range []uint16{80, 443} {
+			for _, mode := range []string{"no_port", "default_port"} {
+				destinations = append(destinations, destination{
+					fmt.Sprintf("%s_bound_%d_%s_bracketed_host", label, port, mode),
+					domain, mode, "http_exact", true, port,
+				})
+			}
+		}
+	}
+	// Repeat HTTP scenarios with bracketed policy hosts, not just bracketed
+	// request authorities. L4 rules have no HTTP host spelling to vary.
+	for _, dst := range append([]destination(nil), destinations...) {
+		if dst.ruleKind != "l4" && !dst.bracketedHost {
+			dst.name += "_bracketed_host"
+			dst.bracketedHost = true
+			destinations = append(destinations, dst)
+		}
 	}
 	for _, dst := range destinations {
 		for _, row := range rows {
+			if dst.originalPort != 0 && row.mismatch != "" && row.mismatch != "host" && row.mismatch != "port" {
+				continue
+			}
 			// Check method, path and port constraints on both HTTP port
 			// translation paths without repeating them for every authority.
 			if row.mismatch != "" && row.mismatch != "host" &&
@@ -132,10 +156,14 @@ func TestMITMIPv6EnvoyAudit(t *testing.T) {
 				for adminPort == proxyPort {
 					adminPort = mitmEgressFreePort(t, "127.0.0.1")
 				}
+				destinationPort := proxyPort
+				if dst.originalPort != 0 {
+					destinationPort = int(dst.originalPort)
+				}
 
 				e := &varmor.NetworkProxyEgress{DefaultAction: row.defaultAction}
 				wrongPort := uint16(1)
-				if proxyPort == 1 {
+				if destinationPort == 1 {
 					wrongPort = 2
 				}
 				// A nonmatching audited rule keeps the logger present for
@@ -156,8 +184,11 @@ func TestMITMIPv6EnvoyAudit(t *testing.T) {
 						})
 					} else {
 						match := varmor.HTTPMatch{Hosts: []string{"::1"}, Methods: []string{"GET"}, Paths: []varmor.HTTPPathMatch{{Exact: "/secret"}}}
+						if dst.bracketedHost {
+							match.Hosts = []string{"[::1]"}
+						}
 						if dst.ruleKind == "http_exact" {
-							match.Ports = []varmor.Port{{Port: uint16(proxyPort)}}
+							match.Ports = []varmor.Port{{Port: uint16(destinationPort)}}
 						} else if dst.ruleKind == "http_range" {
 							match.Ports = []varmor.Port{{Port: uint16(proxyPort - 1), EndPort: uint16(proxyPort)}}
 						}
@@ -197,6 +228,17 @@ func TestMITMIPv6EnvoyAudit(t *testing.T) {
 					if raw.(map[string]interface{})["name"] != "envoy.filters.listener.original_dst" {
 						filters = append(filters, raw)
 					}
+				}
+				if dst.originalPort != 0 {
+					// Supply the original destination via PROXY protocol so
+					// RBAC actually sees port 80/443 without binding privileged
+					// ports or rewriting any generated permission.
+					filters = append([]interface{}{map[string]interface{}{
+						"name": "envoy.filters.listener.proxy_protocol",
+						"typed_config": map[string]interface{}{
+							"@type": "type.googleapis.com/envoy.extensions.filters.listener.proxy_protocol.v3.ProxyProtocol",
+						},
+					}}, filters...)
 				}
 				envoyListener["listener_filters"] = filters
 				var clusters []interface{}
@@ -266,7 +308,20 @@ func TestMITMIPv6EnvoyAudit(t *testing.T) {
 					Proxy:           nil,
 					TLSClientConfig: &tls.Config{RootCAs: roots, ServerName: "::1", MinVersion: tls.VersionTLS12},
 					DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
-						return (&net.Dialer{}).DialContext(ctx, "tcp", net.JoinHostPort("::1", strconv.Itoa(proxyPort)))
+						conn, err := (&net.Dialer{}).DialContext(ctx, "tcp", net.JoinHostPort("::1", strconv.Itoa(proxyPort)))
+						if err != nil {
+							return nil, err
+						}
+						if dst.originalPort != 0 {
+							_ = conn.SetWriteDeadline(time.Now().Add(time.Second))
+							_, err = fmt.Fprintf(conn, "PROXY TCP6 ::1 ::1 %d %d\r\n", conn.LocalAddr().(*net.TCPAddr).Port, destinationPort)
+							if err != nil {
+								conn.Close()
+								return nil, err
+							}
+							_ = conn.SetWriteDeadline(time.Time{})
+						}
+						return conn, nil
 					},
 				}
 				client := &http.Client{Transport: transport, Timeout: 3 * time.Second}
@@ -275,9 +330,19 @@ func TestMITMIPv6EnvoyAudit(t *testing.T) {
 				authority := "[::1]"
 				switch dst.authorityMode {
 				case "default_port":
-					authority += ":443"
+					port := 443
+					if dst.originalPort != 0 {
+						port = destinationPort
+					}
+					authority = net.JoinHostPort("::1", strconv.Itoa(port))
 				case "nondefault_port":
 					authority = net.JoinHostPort("::1", strconv.Itoa(proxyPort))
+				}
+				if dst.originalPort != 0 && row.mismatch == "port" {
+					// Match the rule's authority but not its destination port.
+					// This detects accidentally dropping destination_port from
+					// the conjunction, independently of the Host matcher.
+					authority = net.JoinHostPort("::1", strconv.Itoa(int(wrongPort)))
 				}
 				request, err := http.NewRequest("GET", "https://"+authority+"/secret", nil)
 				if err != nil {
@@ -323,7 +388,7 @@ func TestMITMIPv6EnvoyAudit(t *testing.T) {
 				if len(got) != wantCount {
 					t.Fatalf("events=%+v; want count=%d", got, wantCount)
 				}
-				if wantCount == 1 && (got[0].Action != row.action || got[0].Path != "/secret" || got[0].FilterChain != "mitm_tls_ip_chain" || got[0].DstAddress != net.JoinHostPort("::1", strconv.Itoa(proxyPort))) {
+				if wantCount == 1 && (got[0].Action != row.action || got[0].Path != "/secret" || got[0].FilterChain != "mitm_tls_ip_chain" || got[0].DstAddress != net.JoinHostPort("::1", strconv.Itoa(destinationPort))) {
 					t.Fatalf("event=%+v; want action=%s on MITM /secret", got[0], row.action)
 				}
 			})
