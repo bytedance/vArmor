@@ -16,6 +16,7 @@ package profile
 
 import (
 	"fmt"
+	"net"
 	"strings"
 
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
@@ -1081,10 +1082,21 @@ func isDefaultHTTPPort(port uint16) bool {
 	return port == 80 || port == 443
 }
 
+// httpAuthorityHost brackets IPv6 literals for HTTP host/port matching.
+// Keep the input spelling and leave DNS names, wildcards and IPv4 unchanged.
+// Test the literal syntax rather than To4: IPv4-mapped IPv6 also needs brackets.
+func httpAuthorityHost(host string) string {
+	if strings.Contains(host, ":") && net.ParseIP(host) != nil {
+		return "[" + host + "]"
+	}
+	return host
+}
+
 // authorityMatcherForHostPort returns a single PermissionRule that matches
 // the :authority header for the given (host, port) combination.
 //
 // For default ports (80, 443): :authority = "host" (no port suffix).
+// IPv6 literals also accept an explicit default port, e.g. "[::1]:443".
 // For non-default ports:       :authority = "host:port".
 //
 // This eliminates dead rules by binding the port into the matcher value.
@@ -1117,22 +1129,35 @@ func authorityMatcherForHostPort(host string, port uint16) PermissionRule {
 		}
 	}
 
-	// Exact host
+	// Exact host. HTTP authorities use brackets around IPv6 literals.
+	authorityHost := httpAuthorityHost(host)
 	if isDefaultHTTPPort(port) {
-		return PermissionRule{
+		rule := PermissionRule{
 			Type: "header",
 			Value: map[string]string{
 				"name":        ":authority",
-				"exact_match": host,
+				"exact_match": authorityHost,
 			},
 		}
+		if authorityHost != host {
+			// Accept both legal default-port forms. The caller still
+			// enforces the actual destination port independently.
+			return PermissionRule{Type: "or_rules", Value: []PermissionRule{
+				rule,
+				{Type: "header", Value: map[string]string{
+					"name":        ":authority",
+					"exact_match": fmt.Sprintf("%s:%d", authorityHost, port),
+				}},
+			}}
+		}
+		return rule
 	}
 	// Non-default port: bake "host:port" into exact_match
 	return PermissionRule{
 		Type: "header",
 		Value: map[string]string{
 			"name":        ":authority",
-			"exact_match": fmt.Sprintf("%s:%d", host, port),
+			"exact_match": fmt.Sprintf("%s:%d", authorityHost, port),
 		},
 	}
 }
@@ -1165,6 +1190,7 @@ func portAgnosticHostRules(hosts []string) []PermissionRule {
 			})
 		} else {
 			// or_rules wrapping exact + prefix, treated as atomic unit
+			host = httpAuthorityHost(host)
 			rules = append(rules, PermissionRule{
 				Type: "or_rules",
 				Value: []PermissionRule{

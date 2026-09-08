@@ -484,7 +484,7 @@ func buildMITMVirtualHosts(domains []string, headersByDomain map[string][]Header
 			ones, bits := ipNet.Mask.Size()
 			if (bits == 32 && ones == 32) || (bits == 128 && ones == 128) {
 				// Single-host CIDR (/32 or /128): emit a VH matching the IP
-				ip := ipNet.IP.String()
+				ip := httpAuthorityHost(ipNet.IP.String())
 				vhosts = append(vhosts, VirtualHost{
 					Name:                fmt.Sprintf("mitm_vh_%d", i),
 					Domains:             []string{ip, ip + ":*"},
@@ -505,9 +505,10 @@ func buildMITMVirtualHosts(domains []string, headersByDomain map[string][]Header
 
 		// Bare IP (without CIDR notation): emit VH matching the IP.
 		if ip := net.ParseIP(d); ip != nil {
+			authorityHost := httpAuthorityHost(d)
 			vhosts = append(vhosts, VirtualHost{
 				Name:                fmt.Sprintf("mitm_vh_%d", i),
-				Domains:             []string{d, d + ":*"},
+				Domains:             []string{authorityHost, authorityHost + ":*"},
 				RequestHeadersToAdd: headers,
 				Routes: []Route{{
 					Match:  RouteMatch{Prefix: "/"},

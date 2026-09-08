@@ -15,19 +15,11 @@
 package audit
 
 import (
-	"bytes"
 	"context"
-	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rand"
 	"crypto/tls"
-	"crypto/x509"
-	"crypto/x509/pkix"
 	"encoding/json"
-	"encoding/pem"
 	"fmt"
 	"io"
-	"math/big"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -35,13 +27,12 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
-	"sync"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	accesslogv3 "github.com/envoyproxy/go-control-plane/envoy/service/accesslog/v3"
-	"github.com/rs/zerolog"
 	"google.golang.org/grpc"
 	"sigs.k8s.io/yaml"
 
@@ -49,15 +40,11 @@ import (
 	profile "github.com/bytedance/vArmor/internal/networkproxy/profile"
 )
 
-// TestMITMEgressEnvoyAudit is opt-in: ENVOY_BINARY must name an installed
-// Envoy executable. It exercises actual TLS, RBAC, CEL, gRPC ALS and this
-// package's production consumer. No Docker, Kubernetes or iptables is needed.
-// Only transport plumbing is adapted: listen on loopback and replace
-// ORIGINAL_DST upstream clusters with a local HTTP server. Generated MITM
-// chains, virtual hosts, RBAC predicates and access loggers remain in use.
-// The listener's actual loopback destination is used in IP/CIDR/port rules;
-// DNS cases keep SNI independent of that address. No DNS lookup is needed.
-func TestMITMEgressEnvoyAudit(t *testing.T) {
+// TestMITMIPv6EnvoyAudit exercises generated IPv6 virtual hosts and RBAC
+// through real TLS and ALS. It reuses the local-only Envoy plumbing from
+// TestMITMEgressEnvoyAudit; ENVOY_BINARY opts in. Virtual hosts and HTTP
+// filters are never rewritten by the test.
+func TestMITMIPv6EnvoyAudit(t *testing.T) {
 	binary := os.Getenv("ENVOY_BINARY")
 	if binary == "" {
 		t.Skip("set ENVOY_BINARY to run local Envoy integration tests")
@@ -81,24 +68,40 @@ func TestMITMEgressEnvoyAudit(t *testing.T) {
 		{"deny_allow", "deny", [][]string{{"allow"}}, 200, "", ""},
 		{"deny_allow_audit", "deny", [][]string{{"allow", "audit"}}, 200, "AUDIT", ""},
 		{"deny_overlap", "deny", [][]string{{"deny"}, {"allow", "audit"}}, 403, "DENIED", ""},
-		{"allow_wrong_ip", "allow", [][]string{{"deny", "audit"}}, 200, "", "ip"},
-		{"deny_wrong_ip", "deny", [][]string{{"allow", "audit"}}, 403, "DENIED", "ip"},
+		{"allow_wrong_host", "allow", nil, 404, "", "host"},
+		{"allow_wrong_method", "allow", [][]string{{"deny", "audit"}}, 200, "", "method"},
+		{"deny_wrong_method", "deny", [][]string{{"allow", "audit"}}, 403, "DENIED", "method"},
+		{"allow_wrong_path", "allow", [][]string{{"deny", "audit"}}, 200, "", "path"},
+		{"deny_wrong_path", "deny", [][]string{{"allow", "audit"}}, 403, "DENIED", "path"},
 		{"allow_wrong_port", "allow", [][]string{{"deny", "audit"}}, 200, "", "port"},
 		{"deny_wrong_port", "deny", [][]string{{"allow", "audit"}}, 403, "DENIED", "port"},
 	}
-	// Exercise IPv6 destinations through DNS/SNI here. Direct bracketed
-	// IPv6 authorities are covered by TestMITMIPv6EnvoyAudit.
-	destinations := []struct{ name, localIP, domain, ruleIP, ruleCIDR, chain string }{
-		{"dns_ipv4_ip", "127.0.0.1", "api.example.com", "127.0.0.1", "", "mitm_tls_dns_chain"},
-		{"dns_ipv4_cidr", "127.0.0.1", "api.example.com", "", "127.0.0.0/8", "mitm_tls_dns_chain"},
-		{"ip_ipv4_cidr", "127.0.0.1", "127.0.0.1", "", "127.0.0.0/8", "mitm_tls_ip_chain"},
-		{"dns_ipv6_cidr", "::1", "api.example.com", "", "::/64", "mitm_tls_dns_chain"},
+	type destination struct{ name, domain, authorityMode, ruleKind string }
+	var destinations []destination
+	for _, domain := range []string{"::1", "::1/128"} {
+		label := "bare"
+		if strings.Contains(domain, "/") {
+			label = "host_cidr"
+		}
+		for _, mode := range []string{"no_port", "default_port", "nondefault_port"} {
+			for _, kind := range []string{"l4", "http"} {
+				destinations = append(destinations, destination{label + "_" + mode + "_" + kind, domain, mode, kind})
+			}
+		}
+		destinations = append(destinations, destination{label + "_nondefault_port_http_exact", domain, "nondefault_port", "http_exact"})
+		destinations = append(destinations, destination{label + "_nondefault_port_http_range", domain, "nondefault_port", "http_range"})
 	}
 	for _, dst := range destinations {
 		for _, row := range rows {
+			// Check method, path and port constraints on both HTTP port
+			// translation paths without repeating them for every authority.
+			if row.mismatch != "" && row.mismatch != "host" &&
+				dst.ruleKind != "http_exact" && dst.ruleKind != "http_range" {
+				continue
+			}
 			t.Run(dst.name+"/"+row.name, func(t *testing.T) {
 				dir := t.TempDir()
-				cert, key, roots := mitmEgressTestCertificate(t, dir, dst.domain)
+				cert, key, roots := mitmEgressTestCertificate(t, dir, "::1")
 				// Keep the UDS path short even for long subtest names.
 				socketDir, err := os.MkdirTemp("", "mitm-als-")
 				if err != nil {
@@ -118,11 +121,14 @@ func TestMITMEgressEnvoyAudit(t *testing.T) {
 				var upstreamCalls atomic.Int32
 				upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					upstreamCalls.Add(1)
+					if r.Header.Get("X-MITM-Probe") != "injected" {
+						t.Error("MITM header injection missing")
+					}
 					w.WriteHeader(http.StatusOK)
 				}))
 				t.Cleanup(upstream.Close)
 				upstreamPort := upstream.Listener.Addr().(*net.TCPAddr).Port
-				proxyPort, adminPort := mitmEgressFreePort(t, dst.localIP), mitmEgressFreePort(t, "127.0.0.1")
+				proxyPort, adminPort := mitmEgressFreePort(t, "::1"), mitmEgressFreePort(t, "127.0.0.1")
 				for adminPort == proxyPort {
 					adminPort = mitmEgressFreePort(t, "127.0.0.1")
 				}
@@ -136,29 +142,41 @@ func TestMITMEgressEnvoyAudit(t *testing.T) {
 				// silent rows and detects accidental removal of port limits.
 				e.Rules = []varmor.NetworkProxyEgressRule{{
 					Qualifiers: []string{"allow", "audit"},
-					IP:         dst.localIP, Ports: []varmor.Port{{Port: wrongPort}},
+					IP:         "::1", Ports: []varmor.Port{{Port: wrongPort}},
 				}}
+
+				// Every matrix row uses the same HTTP host, method and path.
+				// Only qualifiers change. The nonmatching shadow rule above
+				// keeps silent cases meaningful even when ALS is configured.
 				for _, q := range row.qualifiers {
-					rule := varmor.NetworkProxyEgressRule{
-						Qualifiers: q, IP: dst.ruleIP, CIDR: dst.ruleCIDR,
-						Ports: []varmor.Port{{Port: uint16(proxyPort - 1), EndPort: uint16(proxyPort)}},
-					}
-					switch row.mismatch {
-					case "ip":
-						rule.IP, rule.CIDR = "192.0.2.1", ""
-						if net.ParseIP(dst.localIP).To4() == nil {
-							rule.IP = "2001:db8::1"
+					if dst.ruleKind == "l4" {
+						e.Rules = append(e.Rules, varmor.NetworkProxyEgressRule{
+							Qualifiers: q, CIDR: "::/64",
+							Ports: []varmor.Port{{Port: uint16(proxyPort - 1), EndPort: uint16(proxyPort)}},
+						})
+					} else {
+						match := varmor.HTTPMatch{Hosts: []string{"::1"}, Methods: []string{"GET"}, Paths: []varmor.HTTPPathMatch{{Exact: "/secret"}}}
+						if dst.ruleKind == "http_exact" {
+							match.Ports = []varmor.Port{{Port: uint16(proxyPort)}}
+						} else if dst.ruleKind == "http_range" {
+							match.Ports = []varmor.Port{{Port: uint16(proxyPort - 1), EndPort: uint16(proxyPort)}}
 						}
-					case "port":
-						rule.Ports = []varmor.Port{{Port: wrongPort}}
+						switch row.mismatch {
+						case "method":
+							match.Methods = []string{"POST"}
+						case "path":
+							match.Paths = []varmor.HTTPPathMatch{{Exact: "/other"}}
+						case "port":
+							match.Ports = []varmor.Port{{Port: wrongPort}}
+							if dst.ruleKind == "http_range" {
+								match.Ports[0].EndPort = wrongPort + 1
+							}
+						}
+						e.HTTPRules = append(e.HTTPRules, varmor.NetworkProxyHTTPRule{Qualifiers: q, Match: match})
 					}
-					e.Rules = append(e.Rules, rule)
 				}
-				ipStack := profile.IPStackConfig{IPv4: true}
-				if net.ParseIP(dst.localIP).To4() == nil {
-					ipStack = profile.IPStackConfig{IPv6: true}
-				}
-				result, err := profile.TranslateEgressRules(e, 1, uint16(proxyPort), &profile.MITMInput{Domains: []string{dst.domain}, LeafCertPath: cert, LeafKeyPath: key}, ipStack, profile.AuditSinkConfig{ProfileName: "mitm-egress-test", ALSUDSPath: socket})
+				ipStack := profile.IPStackConfig{IPv6: true}
+				result, err := profile.TranslateEgressRules(e, 1, uint16(proxyPort), &profile.MITMInput{Domains: []string{dst.domain}, LeafCertPath: cert, LeafKeyPath: key, HeadersByDomain: map[string][]profile.HeaderToAdd{dst.domain: {{Name: "X-MITM-Probe", Value: "injected"}}}}, ipStack, profile.AuditSinkConfig{ProfileName: "mitm-ipv6-test", ALSUDSPath: socket})
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -172,7 +190,7 @@ func TestMITMEgressEnvoyAudit(t *testing.T) {
 				envoyListener := lds["resources"].([]interface{})[0].(map[string]interface{})
 				delete(envoyListener, "@type")
 				envoyListener["address"] = mitmEgressSocketAddress(proxyPort)
-				envoyListener["address"].(map[string]interface{})["socket_address"].(map[string]interface{})["address"] = dst.localIP
+				envoyListener["address"].(map[string]interface{})["socket_address"].(map[string]interface{})["address"] = "::1"
 				// The test connects directly rather than via transparent redirection.
 				var filters []interface{}
 				for _, raw := range envoyListener["listener_filters"].([]interface{}) {
@@ -199,7 +217,7 @@ func TestMITMEgressEnvoyAudit(t *testing.T) {
 				// Shorten ALS batching, not audit selection, for bounded silent checks.
 				mitmEgressSetFlushInterval(envoyListener)
 				bootstrap := map[string]interface{}{
-					"node":             map[string]interface{}{"id": "mitm-egress-test", "cluster": "mitm-egress-test"},
+					"node":             map[string]interface{}{"id": "mitm-ipv6-test", "cluster": "mitm-ipv6-test"},
 					"admin":            map[string]interface{}{"address": mitmEgressSocketAddress(adminPort)},
 					"static_resources": map[string]interface{}{"listeners": []interface{}{envoyListener}, "clusters": clusters},
 				}
@@ -246,14 +264,29 @@ func TestMITMEgressEnvoyAudit(t *testing.T) {
 				}
 				transport := &http.Transport{
 					Proxy:           nil,
-					TLSClientConfig: &tls.Config{RootCAs: roots, ServerName: dst.domain, MinVersion: tls.VersionTLS12},
+					TLSClientConfig: &tls.Config{RootCAs: roots, ServerName: "::1", MinVersion: tls.VersionTLS12},
 					DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
-						return (&net.Dialer{}).DialContext(ctx, "tcp", net.JoinHostPort(dst.localIP, strconv.Itoa(proxyPort)))
+						return (&net.Dialer{}).DialContext(ctx, "tcp", net.JoinHostPort("::1", strconv.Itoa(proxyPort)))
 					},
 				}
 				client := &http.Client{Transport: transport, Timeout: 3 * time.Second}
 				t.Cleanup(client.CloseIdleConnections)
-				resp, err := client.Get("https://" + net.JoinHostPort(dst.domain, "443") + "/secret")
+
+				authority := "[::1]"
+				switch dst.authorityMode {
+				case "default_port":
+					authority += ":443"
+				case "nondefault_port":
+					authority = net.JoinHostPort("::1", strconv.Itoa(proxyPort))
+				}
+				request, err := http.NewRequest("GET", "https://"+authority+"/secret", nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if row.mismatch == "host" {
+					request.Host = "other.example.com"
+				}
+				resp, err := client.Do(request)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -282,6 +315,7 @@ func TestMITMEgressEnvoyAudit(t *testing.T) {
 				}
 				time.Sleep(300 * time.Millisecond)
 				got := events()
+				t.Logf("HTTP=%d upstream=%d events=%+v", resp.StatusCode, upstreamCalls.Load(), got)
 				wantCount := 0
 				if row.action != "" {
 					wantCount = 1
@@ -289,115 +323,10 @@ func TestMITMEgressEnvoyAudit(t *testing.T) {
 				if len(got) != wantCount {
 					t.Fatalf("events=%+v; want count=%d", got, wantCount)
 				}
-				if wantCount == 1 && (got[0].Action != row.action || got[0].Path != "/secret" || got[0].FilterChain != dst.chain || got[0].DstAddress != net.JoinHostPort(dst.localIP, strconv.Itoa(proxyPort))) {
+				if wantCount == 1 && (got[0].Action != row.action || got[0].Path != "/secret" || got[0].FilterChain != "mitm_tls_ip_chain" || got[0].DstAddress != net.JoinHostPort("::1", strconv.Itoa(proxyPort))) {
 					t.Fatalf("event=%+v; want action=%s on MITM /secret", got[0], row.action)
 				}
 			})
 		}
 	}
-}
-
-type mitmEgressObservedEvent struct{ Action, Path, FilterChain, DstAddress string }
-
-func mitmEgressTestConsumer(t *testing.T) (accesslogv3.AccessLogServiceServer, func() []mitmEgressObservedEvent) {
-	t.Helper()
-	var out mitmEgressLockedBuffer
-	a := newTestAuditor(&bytes.Buffer{})
-	a.violationLogger = zerolog.New(&out)
-	return &alsServer{auditor: a}, func() []mitmEgressObservedEvent {
-		var events []mitmEgressObservedEvent
-		dec := json.NewDecoder(bytes.NewReader(out.snapshot()))
-		for {
-			var ev recordedViolation
-			err := dec.Decode(&ev)
-			if err == io.EOF {
-				break
-			}
-			if err != nil {
-				t.Fatal(err)
-			}
-			events = append(events, mitmEgressObservedEvent{Action: ev.Action, Path: ev.Event.Path, FilterChain: ev.Event.FilterChain, DstAddress: ev.Event.DstAddress})
-		}
-		return events
-	}
-}
-
-type mitmEgressLockedBuffer struct {
-	sync.Mutex
-	buffer bytes.Buffer
-}
-
-func (b *mitmEgressLockedBuffer) Write(p []byte) (int, error) {
-	b.Lock()
-	defer b.Unlock()
-	return b.buffer.Write(p)
-}
-func (b *mitmEgressLockedBuffer) snapshot() []byte {
-	b.Lock()
-	defer b.Unlock()
-	return append([]byte(nil), b.buffer.Bytes()...)
-}
-
-func mitmEgressFreePort(t *testing.T, address string) int {
-	t.Helper()
-	l, err := net.Listen("tcp", net.JoinHostPort(address, "0"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	port := l.Addr().(*net.TCPAddr).Port
-	if err := l.Close(); err != nil {
-		t.Fatal(err)
-	}
-	return port
-}
-func mitmEgressSocketAddress(port int) map[string]interface{} {
-	return map[string]interface{}{"socket_address": map[string]interface{}{"address": "127.0.0.1", "port_value": port}}
-}
-func mitmEgressSetFlushInterval(node interface{}) {
-	switch v := node.(type) {
-	case map[string]interface{}:
-		if _, ok := v["log_name"]; ok {
-			v["buffer_flush_interval"] = "0.05s"
-		}
-		for _, child := range v {
-			mitmEgressSetFlushInterval(child)
-		}
-	case []interface{}:
-		for _, child := range v {
-			mitmEgressSetFlushInterval(child)
-		}
-	}
-}
-func mitmEgressTestCertificate(t *testing.T, dir, host string) (string, string, *x509.CertPool) {
-	t.Helper()
-	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	if err != nil {
-		t.Fatal(err)
-	}
-	template := &x509.Certificate{SerialNumber: big.NewInt(1), Subject: pkix.Name{CommonName: host}, DNSNames: []string{host}, NotBefore: time.Now().Add(-time.Hour), NotAfter: time.Now().Add(time.Hour), KeyUsage: x509.KeyUsageDigitalSignature, ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}}
-	if ip := net.ParseIP(host); ip != nil {
-		template.DNSNames = nil
-		template.IPAddresses = []net.IP{ip}
-	}
-	der, err := x509.CreateCertificate(rand.Reader, template, template, &key.PublicKey, key)
-	if err != nil {
-		t.Fatal(err)
-	}
-	keyDER, err := x509.MarshalECPrivateKey(key)
-	if err != nil {
-		t.Fatal(err)
-	}
-	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der})
-	certPath, keyPath := filepath.Join(dir, "leaf.crt"), filepath.Join(dir, "leaf.key")
-	if err := os.WriteFile(certPath, certPEM, 0600); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(keyPath, pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER}), 0600); err != nil {
-		t.Fatal(err)
-	}
-	roots := x509.NewCertPool()
-	if !roots.AppendCertsFromPEM(certPEM) {
-		t.Fatal("invalid test certificate")
-	}
-	return certPath, keyPath, roots
 }
