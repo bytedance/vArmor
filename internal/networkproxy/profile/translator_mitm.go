@@ -235,8 +235,8 @@ func splitMITMDomains(domains []string) (dnsNames, ipPrefixes []string) {
 }
 
 // filterHTTPRulesForDomains returns a copy of httpRules where each rule's
-// Match.Hosts is filtered to only contain hosts that are present in the
-// given domain set. Rules whose host list becomes empty after filtering
+// Match.Hosts is filtered to only contain patterns that overlap the
+// given MITM domains. Rules whose host list becomes empty after filtering
 // are dropped entirely. This ensures each MITM chain's RBAC only
 // references hosts that can actually reach that chain.
 //
@@ -268,14 +268,19 @@ func filterHTTPRulesForDomains(rules []varmor.NetworkProxyHTTPRule, domains []st
 		}
 		var keepHosts []string
 		for _, h := range r.Match.Hosts {
-			// A catch-all "*" host matches every domain, so it is reachable
-			// via every MITM chain. Keep it verbatim; downstream
-			// httpRuleToHTTPPermissions converts "*" into a match-any
-			// (any: true) :authority rule. Without this, "*" would fail the
-			// exact domainSet lookup, the whole rule would be dropped, and
-			// the MITM chain would emit no shadow RBAC / access_log -- so
-			// MITM'd domains produced no audit records for catch-all rules.
-			if isMatchAllHost(h) || domainSet[h] {
+			keep := isMatchAllHost(h) || domainSet[h]
+			if !keep {
+				for d := range domainSet {
+					if mitmHostPatternsOverlap(h, d) {
+						keep = true
+						break
+					}
+				}
+			}
+			if keep {
+				// Preserve the original host and all other match constraints.
+				// Replacing a wildcard with a MITM domain (or vice versa)
+				// would change the rule's runtime matching semantics.
 				keepHosts = append(keepHosts, h)
 			}
 		}
@@ -288,6 +293,32 @@ func filterHTTPRulesForDomains(rules []varmor.NetworkProxyHTTPRule, domains []st
 		filtered = append(filtered, rCopy)
 	}
 	return filtered
+}
+
+// mitmHostPatternsOverlap conservatively checks whether a rule host and a
+// MITM domain can match the same authority. This is a reachability check,
+// not a replacement for Envoy's runtime matchers or certificate validation.
+// Suffix wildcards may overlap in either direction, including nested suffixes.
+// Keep the leading dot so "*.example.com" does not overlap "notexample.com"
+// or the bare parent "example.com". Case folding only affects retention;
+// the original patterns are rendered unchanged.
+func mitmHostPatternsOverlap(host, domain string) bool {
+	host, domain = strings.ToLower(host), strings.ToLower(domain)
+	if host == domain || isMatchAllHost(host) || isMatchAllHost(domain) {
+		return true
+	}
+	hostWildcard, domainWildcard := isWildcardDomain(host), isWildcardDomain(domain)
+	if hostWildcard && domainWildcard {
+		hostSuffix, domainSuffix := wildcardToSuffix(host), wildcardToSuffix(domain)
+		return strings.HasSuffix(hostSuffix, domainSuffix) || strings.HasSuffix(domainSuffix, hostSuffix)
+	}
+	if hostWildcard {
+		return strings.HasSuffix(domain, wildcardToSuffix(host))
+	}
+	if domainWildcard {
+		return strings.HasSuffix(host, wildcardToSuffix(domain))
+	}
+	return false
 }
 
 // buildMITMChains emits up to two filter chains: one matching by SNI

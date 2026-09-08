@@ -100,3 +100,46 @@ func TestMITMEgressRulesPreserved(t *testing.T) {
 		}
 	}
 }
+
+// L4 destination rules and overlapping HTTP host rules must coexist after
+// combining the MITM egress and wildcard fixes.
+func TestMITMEgressAndWildcardHTTPRulesPreserved(t *testing.T) {
+	for _, domain := range []string{"api.example.com", "*.svc.example.com"} {
+		for _, defaultAction := range []string{"allow", "deny"} {
+			t.Run(domain+"/"+defaultAction, func(t *testing.T) {
+				e := &varmor.NetworkProxyEgress{DefaultAction: defaultAction}
+				for _, qualifiers := range [][]string{{"deny", "audit"}, {"allow", "audit"}} {
+					e.Rules = append(e.Rules, varmor.NetworkProxyEgressRule{
+						Qualifiers: qualifiers, CIDR: "10.0.0.0/24",
+						Ports: []varmor.Port{{Port: 443}},
+					})
+					e.HTTPRules = append(e.HTTPRules, varmor.NetworkProxyHTTPRule{
+						Qualifiers: qualifiers,
+						Match: varmor.HTTPMatch{
+							Hosts: []string{"*.example.com"}, Methods: []string{"GET"},
+							Paths: []varmor.HTTPPathMatch{{Exact: "/secret"}},
+						},
+					})
+				}
+				original := e.DeepCopy()
+				cls := classifyEgress(e)
+				plain := buildHTTPChain(cls.defaultDeny, cls.denyEgressRules, cls.allowEgressRules, cls.denyHTTPRules, cls.allowHTTPRules, cls.auditCfg, AuditSinkConfig{})
+				want := plain.Filters[0].TypedConfig.(*HTTPConnManagerConfig)
+				chains := buildMITMChains(cls, &MITMInput{Domains: []string{domain}}, AuditSinkConfig{})
+				if len(chains) != 1 {
+					t.Fatalf("got %d MITM chains, want 1", len(chains))
+				}
+				cfg := chains[0].Filters[0].TypedConfig.(*HTTPConnManagerConfig)
+				if !reflect.DeepEqual(cfg.HTTPFilters, want.HTTPFilters) {
+					t.Fatal("MITM lost or changed combined L4 and wildcard HTTP enforcement/shadow predicates")
+				}
+				if cfg.AccessLogDenyCEL != want.AccessLogDenyCEL || cfg.AccessLogShadowCEL != want.AccessLogShadowCEL {
+					t.Fatal("MITM changed combined audit selection")
+				}
+				if !reflect.DeepEqual(e, original) {
+					t.Fatal("input egress rules mutated")
+				}
+			})
+		}
+	}
+}
