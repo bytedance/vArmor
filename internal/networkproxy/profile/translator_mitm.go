@@ -244,9 +244,9 @@ func splitMITMDomains(domains []string) (dnsNames, ipPrefixes []string) {
 // "1.1.1.1", "8.8.4.4/32"). For IP/CIDR domains, we also strip the CIDR
 // suffix when matching against httpRule hosts (which don't have /32).
 func filterHTTPRulesForDomains(rules []varmor.NetworkProxyHTTPRule, domains []string) []varmor.NetworkProxyHTTPRule {
-	// Build a lookup set from domains. For CIDR /32 entries like
-	// "8.8.4.4/32", also add the bare IP "8.8.4.4" since httpRule
-	// hosts use bare IPs.
+	// Build a lookup set from domains. For single-host /32 or /128
+	// CIDRs, also add the bare IP alias. HTTP hosts do not contain
+	// CIDR suffixes; IPv6 hosts may use brackets.
 	domainSet := make(map[string]bool, len(domains)*2)
 	for _, d := range domains {
 		domainSet[d] = true
@@ -303,9 +303,24 @@ func filterHTTPRulesForDomains(rules []varmor.NetworkProxyHTTPRule, domains []st
 // or the bare parent "example.com". Case folding only affects retention;
 // the original patterns are rendered unchanged.
 func mitmHostPatternsOverlap(host, domain string) bool {
+	// HTTP hosts may enclose IPv6 in brackets while MITM IP targets are
+	// bare literals. Strip only valid IPv6 brackets without rewriting rules.
+	if literal, ok := ipv6HostLiteral(host); ok {
+		host = literal
+	}
+	if literal, ok := ipv6HostLiteral(domain); ok {
+		domain = literal
+	}
 	host, domain = strings.ToLower(host), strings.ToLower(domain)
 	if host == domain || isMatchAllHost(host) || isMatchAllHost(domain) {
 		return true
+	}
+	// Single-host CIDR aliases use canonical IP text. Retain equivalent
+	// address spellings conservatively; runtime Host constraints stay intact.
+	if hostIP := net.ParseIP(host); hostIP != nil {
+		if domainIP := net.ParseIP(domain); domainIP != nil {
+			return hostIP.Equal(domainIP)
+		}
 	}
 	hostWildcard, domainWildcard := isWildcardDomain(host), isWildcardDomain(domain)
 	if hostWildcard && domainWildcard {
@@ -484,7 +499,7 @@ func buildMITMVirtualHosts(domains []string, headersByDomain map[string][]Header
 			ones, bits := ipNet.Mask.Size()
 			if (bits == 32 && ones == 32) || (bits == 128 && ones == 128) {
 				// Single-host CIDR (/32 or /128): emit a VH matching the IP
-				ip := ipNet.IP.String()
+				ip := httpAuthorityHost(ipNet.IP.String())
 				vhosts = append(vhosts, VirtualHost{
 					Name:                fmt.Sprintf("mitm_vh_%d", i),
 					Domains:             []string{ip, ip + ":*"},
@@ -505,9 +520,10 @@ func buildMITMVirtualHosts(domains []string, headersByDomain map[string][]Header
 
 		// Bare IP (without CIDR notation): emit VH matching the IP.
 		if ip := net.ParseIP(d); ip != nil {
+			authorityHost := httpAuthorityHost(d)
 			vhosts = append(vhosts, VirtualHost{
 				Name:                fmt.Sprintf("mitm_vh_%d", i),
-				Domains:             []string{d, d + ":*"},
+				Domains:             []string{authorityHost, authorityHost + ":*"},
 				RequestHeadersToAdd: headers,
 				Routes: []Route{{
 					Match:  RouteMatch{Prefix: "/"},
@@ -644,7 +660,11 @@ func filterHTTPRulesForTLSChain(rules []varmor.NetworkProxyHTTPRule, dnsSet map[
 				continue // exact DNS or wildcard DNS match
 			}
 			// Check if host is an IP that matches MITM IP set
-			if ip := net.ParseIP(h); ip != nil {
+			ipHost := h
+			if literal, ok := ipv6HostLiteral(h); ok {
+				ipHost = literal
+			}
+			if ip := net.ParseIP(ipHost); ip != nil {
 				if ipSet[ip.String()] {
 					continue
 				}
