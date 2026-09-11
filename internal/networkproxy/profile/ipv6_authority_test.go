@@ -126,11 +126,4 @@ func TestIPv6HTTPAuthorityRules(t *testing.T) {
 			}
 		})
 	}
-	// IPv4 and DNS rules retain their existing default-port semantics.
-	for _, host := range []string{"192.0.2.1", "api.example.com"} {
-		want := ipv6AuthorityHeader("exact_match", host)
-		if got := authorityMatcherForHostPort(host, 443); !reflect.DeepEqual(got, want) {
-			t.Errorf("%s matcher changed: %+v", host, got)
-		}
-	}
 }

@@ -59,7 +59,7 @@ import (
 // The listener's actual loopback destination is used in IP/CIDR/port rules;
 // DNS cases keep SNI independent of that address. No DNS lookup is needed.
 func TestMITMEgressEnvoyAudit(t *testing.T) {
-	runMITMEgressEnvoyAudit(t, "", false, false)
+	runMITMEgressEnvoyAudit(t, httpHostTestOptions{})
 }
 
 // Exercise all eight audit rows with mixed-case HTTP authorities after TLS
@@ -75,11 +75,35 @@ func TestHTTPHostCaseEnvoyAudit(t *testing.T) {
 		{"suffix", "*.Example.COM", true, true},
 		{"regex", "*.Example.COM", false, true},
 	} {
-		t.Run(tc.name, func(t *testing.T) { runMITMEgressEnvoyAudit(t, tc.pattern, tc.bindPort, tc.authorityPort) })
+		t.Run(tc.name, func(t *testing.T) {
+			runMITMEgressEnvoyAudit(t, httpHostTestOptions{pattern: tc.pattern, bindPort: tc.bindPort, authorityPort: tc.authorityPort})
+		})
 	}
 }
 
-func runMITMEgressEnvoyAudit(t *testing.T, hostPattern string, bindPort, authorityPort bool) {
+// Supply the original destination using PROXY protocol without changing RBAC
+// predicates or binding privileged ports. Port 80 uses HTTP; 443 uses MITM TLS.
+func TestHTTPDefaultPortEnvoyAudit(t *testing.T) {
+	for _, host := range []struct{ name, pattern string }{
+		{"dns", "Api.Example.COM"}, {"ipv4", "127.0.0.1"}, {"wildcard", "*.Example.COM"},
+	} {
+		for _, port := range []uint16{80, 443} {
+			for _, explicit := range []bool{false, true} {
+				t.Run(fmt.Sprintf("%s/%d/explicit_%t", host.name, port, explicit), func(t *testing.T) {
+					runMITMEgressEnvoyAudit(t, httpHostTestOptions{pattern: host.pattern, bindPort: true, authorityPort: explicit, defaultPort: port})
+				})
+			}
+		}
+	}
+}
+
+type httpHostTestOptions struct {
+	pattern                 string
+	bindPort, authorityPort bool
+	defaultPort             uint16
+}
+
+func runMITMEgressEnvoyAudit(t *testing.T, options httpHostTestOptions) {
 	binary := os.Getenv("ENVOY_BINARY")
 	if binary == "" {
 		t.Skip("set ENVOY_BINARY to run local Envoy integration tests")
@@ -89,12 +113,13 @@ func runMITMEgressEnvoyAudit(t *testing.T, hostPattern string, bindPort, authori
 	if err != nil {
 		t.Fatal(err)
 	}
-	rows := []struct {
+	type auditRow struct {
 		name, defaultAction string
 		qualifiers          [][]string
 		status              int
 		action, mismatch    string
-	}{
+	}
+	rows := []auditRow{
 		{"allow_unmatched", "allow", nil, 200, "", ""},
 		{"allow_deny_silent", "allow", [][]string{{"deny"}}, 403, "", ""},
 		{"allow_deny_audit", "allow", [][]string{{"deny", "audit"}}, 403, "DENIED", ""},
@@ -116,9 +141,31 @@ func runMITMEgressEnvoyAudit(t *testing.T, hostPattern string, bindPort, authori
 		{"ip_ipv4_cidr", "127.0.0.1", "127.0.0.1", "", "127.0.0.0/8", "mitm_tls_ip_chain"},
 		{"dns_ipv6_cidr", "::1", "api.example.com", "", "::/64", "mitm_tls_dns_chain"},
 	}
-	if hostPattern != "" {
+	if options.pattern != "" {
 		destinations = destinations[:1]
-		rows = rows[:8]
+		if options.defaultPort == 0 {
+			rows = rows[:8]
+		} else {
+			if net.ParseIP(options.pattern) != nil {
+				destinations[0].domain = options.pattern
+				destinations[0].chain = "mitm_tls_ip_chain"
+			}
+			if options.defaultPort == 80 {
+				destinations[0].chain = "http_chain"
+			}
+			for i := range rows {
+				if rows[i].mismatch == "ip" {
+					rows[i].name = strings.ReplaceAll(rows[i].name, "ip", "host")
+					rows[i].mismatch = "host"
+				}
+			}
+			for _, mismatch := range []string{"authority_port", "method", "path"} {
+				rows = append(rows,
+					auditRow{"allow_wrong_" + mismatch, "allow", [][]string{{"deny", "audit"}}, 200, "", mismatch},
+					auditRow{"deny_wrong_" + mismatch, "deny", [][]string{{"allow", "audit"}}, 403, "DENIED", mismatch},
+				)
+			}
+		}
 	}
 	for _, dst := range destinations {
 		for _, row := range rows {
@@ -153,6 +200,14 @@ func runMITMEgressEnvoyAudit(t *testing.T, hostPattern string, bindPort, authori
 					adminPort = mitmEgressFreePort(t, "127.0.0.1")
 				}
 
+				rulePort, destinationPort := proxyPort, proxyPort
+				if options.defaultPort != 0 {
+					rulePort, destinationPort = int(options.defaultPort), int(options.defaultPort)
+					if row.mismatch == "port" {
+						destinationPort++
+					}
+				}
+
 				e := &varmor.NetworkProxyEgress{DefaultAction: row.defaultAction}
 				wrongPort := uint16(1)
 				if proxyPort == 1 {
@@ -180,11 +235,23 @@ func runMITMEgressEnvoyAudit(t *testing.T, hostPattern string, bindPort, authori
 					}
 					e.Rules = append(e.Rules, rule)
 				}
-				if hostPattern != "" {
+				if options.pattern != "" {
 					for _, rule := range e.Rules[1:] {
-						match := varmor.HTTPMatch{Hosts: []string{hostPattern}}
-						if bindPort {
-							match.Ports = []varmor.Port{{Port: uint16(proxyPort)}}
+						match := varmor.HTTPMatch{Hosts: []string{options.pattern}}
+						if options.bindPort {
+							match.Ports = []varmor.Port{{Port: uint16(rulePort)}}
+						}
+						if options.defaultPort != 0 {
+							match.Methods = []string{"GET"}
+							match.Paths = []varmor.HTTPPathMatch{{Exact: "/secret"}}
+							switch row.mismatch {
+							case "host":
+								match.Hosts = []string{"other.example.com"}
+							case "method":
+								match.Methods = []string{"POST"}
+							case "path":
+								match.Paths = []varmor.HTTPPathMatch{{Exact: "/Secret"}}
+							}
 						}
 						e.HTTPRules = append(e.HTTPRules, varmor.NetworkProxyHTTPRule{Qualifiers: rule.Qualifiers, Match: match})
 					}
@@ -194,7 +261,11 @@ func runMITMEgressEnvoyAudit(t *testing.T, hostPattern string, bindPort, authori
 				if net.ParseIP(dst.localIP).To4() == nil {
 					ipStack = profile.IPStackConfig{IPv6: true}
 				}
-				result, err := profile.TranslateEgressRules(e, 1, uint16(proxyPort), &profile.MITMInput{Domains: []string{dst.domain}, LeafCertPath: cert, LeafKeyPath: key}, ipStack, profile.AuditSinkConfig{ProfileName: "mitm-egress-test", ALSUDSPath: socket})
+				mitm := &profile.MITMInput{Domains: []string{dst.domain}, LeafCertPath: cert, LeafKeyPath: key}
+				if options.defaultPort == 80 {
+					mitm = nil
+				}
+				result, err := profile.TranslateEgressRules(e, 1, uint16(proxyPort), mitm, ipStack, profile.AuditSinkConfig{ProfileName: "mitm-egress-test", ALSUDSPath: socket})
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -215,6 +286,12 @@ func runMITMEgressEnvoyAudit(t *testing.T, hostPattern string, bindPort, authori
 					if raw.(map[string]interface{})["name"] != "envoy.filters.listener.original_dst" {
 						filters = append(filters, raw)
 					}
+				}
+				if options.defaultPort != 0 {
+					filters = append([]interface{}{map[string]interface{}{
+						"name":         "envoy.filters.listener.proxy_protocol",
+						"typed_config": map[string]interface{}{"@type": "type.googleapis.com/envoy.extensions.filters.listener.proxy_protocol.v3.ProxyProtocol"},
+					}}, filters...)
 				}
 				envoyListener["listener_filters"] = filters
 				var clusters []interface{}
@@ -284,19 +361,49 @@ func runMITMEgressEnvoyAudit(t *testing.T, hostPattern string, bindPort, authori
 					Proxy:           nil,
 					TLSClientConfig: &tls.Config{RootCAs: roots, ServerName: dst.domain, MinVersion: tls.VersionTLS12},
 					DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
-						return (&net.Dialer{}).DialContext(ctx, "tcp", net.JoinHostPort(dst.localIP, strconv.Itoa(proxyPort)))
+						conn, err := (&net.Dialer{}).DialContext(ctx, "tcp", net.JoinHostPort(dst.localIP, strconv.Itoa(proxyPort)))
+						if err != nil {
+							return nil, err
+						}
+						if options.defaultPort != 0 {
+							if err := conn.SetWriteDeadline(time.Now().Add(time.Second)); err != nil {
+								conn.Close()
+								return nil, err
+							}
+							_, err = fmt.Fprintf(conn, "PROXY TCP4 127.0.0.1 %s %d %d\r\n", dst.localIP, conn.LocalAddr().(*net.TCPAddr).Port, destinationPort)
+							if err != nil {
+								conn.Close()
+								return nil, err
+							}
+							if err := conn.SetWriteDeadline(time.Time{}); err != nil {
+								conn.Close()
+								return nil, err
+							}
+						}
+						return conn, nil
 					},
 				}
 				client := &http.Client{Transport: transport, Timeout: 3 * time.Second}
 				t.Cleanup(client.CloseIdleConnections)
-				req, err := http.NewRequest(http.MethodGet, "https://"+net.JoinHostPort(dst.domain, "443")+"/secret", nil)
+				scheme, urlPort := "https", 443
+				if options.defaultPort != 0 {
+					urlPort = rulePort
+				}
+				if options.defaultPort == 80 {
+					scheme = "http"
+				}
+				req, err := http.NewRequest(http.MethodGet, scheme+"://"+net.JoinHostPort(dst.domain, strconv.Itoa(urlPort))+"/secret", nil)
 				if err != nil {
 					t.Fatal(err)
 				}
-				if hostPattern != "" {
+				if options.pattern != "" {
 					req.Host = strings.ToUpper(dst.domain)
-					if authorityPort {
-						req.Host = net.JoinHostPort(req.Host, strconv.Itoa(proxyPort))
+					if options.authorityPort || row.mismatch == "authority_port" {
+						port := rulePort
+						if row.mismatch == "authority_port" {
+							port++
+						}
+						req.Host = net.JoinHostPort(req.Host, strconv.Itoa(port))
 					}
 				}
 				resp, err := client.Do(req)
@@ -335,8 +442,8 @@ func runMITMEgressEnvoyAudit(t *testing.T, hostPattern string, bindPort, authori
 				if len(got) != wantCount {
 					t.Fatalf("events=%+v; want count=%d", got, wantCount)
 				}
-				if wantCount == 1 && (got[0].Action != row.action || got[0].Path != "/secret" || got[0].FilterChain != dst.chain || got[0].DstAddress != net.JoinHostPort(dst.localIP, strconv.Itoa(proxyPort))) {
-					t.Fatalf("event=%+v; want action=%s on MITM /secret", got[0], row.action)
+				if wantCount == 1 && (got[0].Action != row.action || got[0].Path != "/secret" || got[0].FilterChain != dst.chain || got[0].DstAddress != net.JoinHostPort(dst.localIP, strconv.Itoa(destinationPort))) {
+					t.Fatalf("event=%+v; want action=%s chain=%s on /secret", got[0], row.action, dst.chain)
 				}
 			})
 		}
