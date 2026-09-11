@@ -610,6 +610,8 @@ func renderPermissionRuleYAML(rule PermissionRule, indent int, rbacType string) 
 		}
 
 	case "header":
+		// Fold HTTP host values only; methods, paths and other headers retain
+		// their case-sensitive semantics. Do not rewrite the forwarded request.
 		headerVal := rule.Value.(map[string]string)
 		name := headerVal["name"]
 		sb.WriteString(fmt.Sprintf("%s- header:\n", prefix))
@@ -617,13 +619,26 @@ func renderPermissionRuleYAML(rule PermissionRule, indent int, rbacType string) 
 		if exact, ok := headerVal["exact_match"]; ok {
 			sb.WriteString(fmt.Sprintf("%s    string_match:\n", prefix))
 			sb.WriteString(fmt.Sprintf("%s      exact: \"%s\"\n", prefix, yamlEscapeScalar(exact)))
+			if name == ":authority" {
+				sb.WriteString(fmt.Sprintf("%s      ignore_case: true\n", prefix))
+			}
 		} else if prefix_, ok := headerVal["prefix_match"]; ok {
 			sb.WriteString(fmt.Sprintf("%s    string_match:\n", prefix))
 			sb.WriteString(fmt.Sprintf("%s      prefix: \"%s\"\n", prefix, yamlEscapeScalar(prefix_)))
+			if name == ":authority" {
+				sb.WriteString(fmt.Sprintf("%s      ignore_case: true\n", prefix))
+			}
 		} else if suffix, ok := headerVal["suffix_match"]; ok {
 			sb.WriteString(fmt.Sprintf("%s    string_match:\n", prefix))
 			sb.WriteString(fmt.Sprintf("%s      suffix: \"%s\"\n", prefix, yamlEscapeScalar(suffix)))
+			if name == ":authority" {
+				sb.WriteString(fmt.Sprintf("%s      ignore_case: true\n", prefix))
+			}
 		} else if safeRegex, ok := headerVal["safe_regex_match"]; ok {
+			// StringMatcher.ignore_case does not apply to regular expressions.
+			if name == ":authority" {
+				safeRegex = "(?i)" + safeRegex
+			}
 			sb.WriteString(fmt.Sprintf("%s    string_match:\n", prefix))
 			sb.WriteString(fmt.Sprintf("%s      safe_regex:\n", prefix))
 			sb.WriteString(fmt.Sprintf("%s        regex: \"%s\"\n", prefix, yamlEscapeScalar(safeRegex)))
