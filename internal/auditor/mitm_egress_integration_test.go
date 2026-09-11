@@ -35,6 +35,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -58,6 +59,27 @@ import (
 // The listener's actual loopback destination is used in IP/CIDR/port rules;
 // DNS cases keep SNI independent of that address. No DNS lookup is needed.
 func TestMITMEgressEnvoyAudit(t *testing.T) {
+	runMITMEgressEnvoyAudit(t, "", false, false)
+}
+
+// Exercise all eight audit rows with mixed-case HTTP authorities after TLS
+// termination. SNI stays lowercase so the test isolates HTTP RBAC matching.
+func TestHTTPHostCaseEnvoyAudit(t *testing.T) {
+	for _, tc := range []struct {
+		name, pattern           string
+		bindPort, authorityPort bool
+	}{
+		{"exact", "api.example.com", false, false},
+		{"prefix", "Api.Example.COM", false, true},
+		{"exact_nondefault", "api.example.com", true, true},
+		{"suffix", "*.Example.COM", true, true},
+		{"regex", "*.Example.COM", false, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) { runMITMEgressEnvoyAudit(t, tc.pattern, tc.bindPort, tc.authorityPort) })
+	}
+}
+
+func runMITMEgressEnvoyAudit(t *testing.T, hostPattern string, bindPort, authorityPort bool) {
 	binary := os.Getenv("ENVOY_BINARY")
 	if binary == "" {
 		t.Skip("set ENVOY_BINARY to run local Envoy integration tests")
@@ -93,6 +115,10 @@ func TestMITMEgressEnvoyAudit(t *testing.T) {
 		{"dns_ipv4_cidr", "127.0.0.1", "api.example.com", "", "127.0.0.0/8", "mitm_tls_dns_chain"},
 		{"ip_ipv4_cidr", "127.0.0.1", "127.0.0.1", "", "127.0.0.0/8", "mitm_tls_ip_chain"},
 		{"dns_ipv6_cidr", "::1", "api.example.com", "", "::/64", "mitm_tls_dns_chain"},
+	}
+	if hostPattern != "" {
+		destinations = destinations[:1]
+		rows = rows[:8]
 	}
 	for _, dst := range destinations {
 		for _, row := range rows {
@@ -153,6 +179,16 @@ func TestMITMEgressEnvoyAudit(t *testing.T) {
 						rule.Ports = []varmor.Port{{Port: wrongPort}}
 					}
 					e.Rules = append(e.Rules, rule)
+				}
+				if hostPattern != "" {
+					for _, rule := range e.Rules[1:] {
+						match := varmor.HTTPMatch{Hosts: []string{hostPattern}}
+						if bindPort {
+							match.Ports = []varmor.Port{{Port: uint16(proxyPort)}}
+						}
+						e.HTTPRules = append(e.HTTPRules, varmor.NetworkProxyHTTPRule{Qualifiers: rule.Qualifiers, Match: match})
+					}
+					e.Rules = e.Rules[:1] // Keep only the nonmatching audit control.
 				}
 				ipStack := profile.IPStackConfig{IPv4: true}
 				if net.ParseIP(dst.localIP).To4() == nil {
@@ -253,7 +289,17 @@ func TestMITMEgressEnvoyAudit(t *testing.T) {
 				}
 				client := &http.Client{Transport: transport, Timeout: 3 * time.Second}
 				t.Cleanup(client.CloseIdleConnections)
-				resp, err := client.Get("https://" + net.JoinHostPort(dst.domain, "443") + "/secret")
+				req, err := http.NewRequest(http.MethodGet, "https://"+net.JoinHostPort(dst.domain, "443")+"/secret", nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if hostPattern != "" {
+					req.Host = strings.ToUpper(dst.domain)
+					if authorityPort {
+						req.Host = net.JoinHostPort(req.Host, strconv.Itoa(proxyPort))
+					}
+				}
+				resp, err := client.Do(req)
 				if err != nil {
 					t.Fatal(err)
 				}
