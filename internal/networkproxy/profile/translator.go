@@ -1106,74 +1106,32 @@ func httpAuthorityHost(host string) string {
 	return host
 }
 
-// authorityMatcherForHostPort returns a single PermissionRule that matches
-// the :authority header for the given (host, port) combination.
-//
-// For default ports (80, 443): :authority = "host" (no port suffix).
-// IPv6 literals also accept an explicit default port, e.g. "[::1]:443".
-// For non-default ports:       :authority = "host:port".
-//
-// This eliminates dead rules by binding the port into the matcher value.
+// authorityMatcherForHostPort matches the :authority header for a host and port.
+// Default ports (80, 443) accept both "host" and "host:port". Non-default ports
+// require "host:port". IPv6 literals are bracketed; wildcard domains use suffixes.
+// The caller enforces the actual destination port in a separate AND condition.
 func authorityMatcherForHostPort(host string, port uint16) PermissionRule {
 	if isMatchAllHost(host) {
-		// Catch-all "*": match any :authority. The TCP port is enforced
-		// separately via the destination_port rule, so the authority
-		// matcher is match-any. A literal exact/prefix on "*" never matches.
+		// The actual destination port is still constrained by the caller.
 		return PermissionRule{Type: "any", Value: true}
 	}
+	kind, value := "exact_match", httpAuthorityHost(host)
 	if isWildcardDomain(host) {
-		suffix := wildcardToSuffix(host) // "*.openai.com" -> ".openai.com"
-		if isDefaultHTTPPort(port) {
-			return PermissionRule{
-				Type: "header",
-				Value: map[string]string{
-					"name":         ":authority",
-					"suffix_match": suffix,
-				},
-			}
-		}
-		// Non-default port: suffix includes ":port"
-		// e.g., ".openai.com:6443" matches "api.openai.com:6443"
-		return PermissionRule{
-			Type: "header",
-			Value: map[string]string{
-				"name":         ":authority",
-				"suffix_match": fmt.Sprintf("%s:%d", suffix, port),
-			},
-		}
+		kind, value = "suffix_match", wildcardToSuffix(host)
 	}
-
-	// Exact host. HTTP authorities use brackets around IPv6 literals.
-	authorityHost := httpAuthorityHost(host)
-	if isDefaultHTTPPort(port) {
-		rule := PermissionRule{
-			Type: "header",
-			Value: map[string]string{
-				"name":        ":authority",
-				"exact_match": authorityHost,
-			},
-		}
-		if _, isIPv6 := ipv6HostLiteral(host); isIPv6 {
-			// Accept both legal default-port forms. The caller still
-			// enforces the actual destination port independently.
-			return PermissionRule{Type: "or_rules", Value: []PermissionRule{
-				rule,
-				{Type: "header", Value: map[string]string{
-					"name":        ":authority",
-					"exact_match": fmt.Sprintf("%s:%d", authorityHost, port),
-				}},
-			}}
-		}
-		return rule
+	explicit := PermissionRule{
+		Type:  "header",
+		Value: map[string]string{"name": ":authority", kind: fmt.Sprintf("%s:%d", value, port)},
 	}
-	// Non-default port: bake "host:port" into exact_match
-	return PermissionRule{
-		Type: "header",
-		Value: map[string]string{
-			"name":        ":authority",
-			"exact_match": fmt.Sprintf("%s:%d", authorityHost, port),
-		},
+	if !isDefaultHTTPPort(port) {
+		return explicit
 	}
+	// Accept both legal default-port spellings without accepting arbitrary ports
+	// in the authority or weakening the separate destination_port constraint.
+	return PermissionRule{Type: "or_rules", Value: []PermissionRule{
+		{Type: "header", Value: map[string]string{"name": ":authority", kind: value}},
+		explicit,
+	}}
 }
 
 // portAgnosticHostRules generates :authority matchers that work regardless
