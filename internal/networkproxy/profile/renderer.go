@@ -448,6 +448,10 @@ func renderHTTPConnManagerYAML(f *NetworkFilter, indent int) string {
 		if cfg.RouteConfig.IgnorePortInHostMatching {
 			sb.WriteString(fmt.Sprintf("%s      ignore_port_in_host_matching: true\n", prefix))
 		}
+		// CDS and LDS file notifications are consumed asynchronously. Accept the
+		// route while its dynamic cluster is loading; a missing cluster produces
+		// a local error instead of rejecting the new listener and retaining old RBAC.
+		sb.WriteString(fmt.Sprintf("%s      validate_clusters: false\n", prefix))
 		sb.WriteString(fmt.Sprintf("%s      virtual_hosts:\n", prefix))
 		for _, vh := range cfg.RouteConfig.VirtualHosts {
 			sb.WriteString(fmt.Sprintf("%s      - name: %s\n", prefix, vh.Name))
