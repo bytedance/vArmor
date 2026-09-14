@@ -445,6 +445,9 @@ func renderHTTPConnManagerYAML(f *NetworkFilter, indent int) string {
 	if cfg.RouteConfig != nil {
 		sb.WriteString(fmt.Sprintf("%s    route_config:\n", prefix))
 		sb.WriteString(fmt.Sprintf("%s      name: %s\n", prefix, cfg.RouteConfig.Name))
+		if cfg.RouteConfig.IgnorePortInHostMatching {
+			sb.WriteString(fmt.Sprintf("%s      ignore_port_in_host_matching: true\n", prefix))
+		}
 		sb.WriteString(fmt.Sprintf("%s      virtual_hosts:\n", prefix))
 		for _, vh := range cfg.RouteConfig.VirtualHosts {
 			sb.WriteString(fmt.Sprintf("%s      - name: %s\n", prefix, vh.Name))

@@ -80,16 +80,59 @@ func TestMITMWildcardEnvoyAudit(t *testing.T) {
 		{"deny_allow_audit", "deny", [][]string{{"allow", "audit"}}, 200, "AUDIT"},
 		{"deny_overlap", "deny", [][]string{{"deny"}, {"allow", "audit"}}, 403, "DENIED"},
 	}
-	overlaps := []struct{ name, host, domain, requestHost string }{
-		{"wildcard_rule", "*.example.com", "api.example.com", "api.example.com"},
-		{"wildcard_MITM", "api.example.com", "*.example.com", "api.example.com"},
-		{"nested_wildcards", "*.svc.example.com", "*.example.com", "api.svc.example.com"},
+	overlaps := []struct {
+		name, host, domain, requestHost, requestPort, serverName string
+		rejectRoute, checkPort, unmatchedPort                    bool
+	}{
+		{name: "wildcard_rule", host: "*.example.com", domain: "api.example.com", requestHost: "api.example.com"},
+		{name: "wildcard_MITM", host: "api.example.com", domain: "*.example.com", requestHost: "api.example.com"},
+		{name: "nested_wildcards", host: "*.svc.example.com", domain: "*.example.com", requestHost: "api.svc.example.com"},
+		{name: "exact_default_port", host: "api.example.com", domain: "api.example.com", requestHost: "api.example.com", requestPort: ":443"},
+		{name: "exact_custom_port", host: "api.example.com", domain: "api.example.com", requestHost: "api.example.com", requestPort: ":8834"},
+		{name: "wildcard_default_port", host: "api.example.com", domain: "*.example.com", requestHost: "api.example.com", requestPort: ":443"},
+		{name: "wildcard_custom_port", host: "api.example.com", domain: "*.example.com", requestHost: "api.example.com", requestPort: ":8834"},
+		{name: "nested_wildcards_custom_port", host: "*.svc.example.com", domain: "*.example.com", requestHost: "api.svc.example.com", requestPort: ":8834"},
+		{name: "unrelated_authority", host: "other.invalid", domain: "*.example.com", requestHost: "other.invalid", requestPort: ":8834", serverName: "api.example.com", rejectRoute: true},
+		{name: "parent_authority", host: "example.com", domain: "*.example.com", requestHost: "example.com", requestPort: ":8834", serverName: "api.example.com", rejectRoute: true},
+		{name: "suffix_spoof_authority", host: "api.example.com.evil", domain: "*.example.com", requestHost: "api.example.com.evil", requestPort: ":8834", serverName: "api.example.com", rejectRoute: true},
+		{name: "destination_port_match", host: "api.example.com", domain: "*.example.com", requestHost: "api.example.com", checkPort: true},
+		{name: "destination_port_mismatch", host: "api.example.com", domain: "*.example.com", requestHost: "api.example.com", checkPort: true, unmatchedPort: true},
 	}
 	for _, overlap := range overlaps {
 		for _, row := range rows {
 			t.Run(overlap.name+"/"+row.name, func(t *testing.T) {
 				dir := t.TempDir()
-				cert, key, roots := wildcardTestCertificate(t, dir, overlap.requestHost)
+				serverName := overlap.serverName
+				if serverName == "" {
+					serverName = overlap.requestHost
+				}
+				cert, key, roots := wildcardTestCertificate(t, dir, serverName)
+				proxyPort, adminPort := wildcardFreePort(t), wildcardFreePort(t)
+				for adminPort == proxyPort {
+					adminPort = wildcardFreePort(t)
+				}
+				requestPort := overlap.requestPort
+				rulePort := proxyPort
+				if overlap.unmatchedPort {
+					rulePort = adminPort
+				}
+				if overlap.checkPort {
+					// Match the authority's port but independently verify the actual
+					// destination (the proxy socket in this transport-only fixture).
+					requestPort = ":" + strconv.Itoa(rulePort)
+				}
+				wantStatus, wantAction := row.status, row.action
+				// HTTP rules outside the MITM domain set are excluded from this
+				// chain, and a mismatched destination port also leaves no match.
+				if overlap.unmatchedPort || overlap.rejectRoute {
+					wantStatus, wantAction = http.StatusOK, ""
+					if row.defaultAction == "deny" {
+						wantStatus, wantAction = http.StatusForbidden, "DENIED"
+					}
+				}
+				if overlap.rejectRoute && wantStatus == http.StatusOK {
+					wantStatus = http.StatusNotFound
+				}
 				// Keep the UDS path short even for long subtest names.
 				socketDir, err := os.MkdirTemp("", "mitm-als-")
 				if err != nil {
@@ -109,14 +152,16 @@ func TestMITMWildcardEnvoyAudit(t *testing.T) {
 				var upstreamCalls atomic.Int32
 				upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					upstreamCalls.Add(1)
+					if r.Host != overlap.requestHost+requestPort {
+						t.Errorf("upstream Host=%q want %q", r.Host, overlap.requestHost+requestPort)
+					}
+					if got := r.Header.Get("X-MITM-Probe"); got != "injected" {
+						t.Errorf("upstream X-MITM-Probe=%q want injected", got)
+					}
 					w.WriteHeader(http.StatusOK)
 				}))
 				t.Cleanup(upstream.Close)
 				upstreamPort := upstream.Listener.Addr().(*net.TCPAddr).Port
-				proxyPort, adminPort := wildcardFreePort(t), wildcardFreePort(t)
-				for adminPort == proxyPort {
-					adminPort = wildcardFreePort(t)
-				}
 				e := &varmor.NetworkProxyEgress{DefaultAction: row.defaultAction}
 				// Keep an audit logger present even for silent rows. Its shadow
 				// rule does not match /secret, so these rows also detect false
@@ -131,7 +176,12 @@ func TestMITMWildcardEnvoyAudit(t *testing.T) {
 				for _, q := range row.qualifiers {
 					e.HTTPRules = append(e.HTTPRules, varmor.NetworkProxyHTTPRule{Qualifiers: q, Match: varmor.HTTPMatch{Hosts: []string{overlap.host}, Paths: []varmor.HTTPPathMatch{{Exact: "/secret"}}, Methods: []string{"GET"}}})
 				}
-				result, err := profile.TranslateEgressRules(e, 1, uint16(proxyPort), &profile.MITMInput{Domains: []string{overlap.domain}, LeafCertPath: cert, LeafKeyPath: key}, profile.IPStackConfig{IPv4: true}, profile.AuditSinkConfig{ProfileName: "wildcard-test", ALSUDSPath: socket})
+				if overlap.checkPort {
+					for i := range e.HTTPRules {
+						e.HTTPRules[i].Match.Ports = []varmor.Port{{Port: uint16(rulePort)}}
+					}
+				}
+				result, err := profile.TranslateEgressRules(e, 1, uint16(proxyPort), &profile.MITMInput{Domains: []string{overlap.domain}, LeafCertPath: cert, LeafKeyPath: key, HeadersByDomain: map[string][]profile.HeaderToAdd{overlap.domain: {{Name: "X-MITM-Probe", Value: "injected"}}}}, profile.IPStackConfig{IPv4: true}, profile.AuditSinkConfig{ProfileName: "wildcard-test", ALSUDSPath: socket})
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -218,14 +268,14 @@ func TestMITMWildcardEnvoyAudit(t *testing.T) {
 				}
 				transport := &http.Transport{
 					Proxy:           nil,
-					TLSClientConfig: &tls.Config{RootCAs: roots, ServerName: overlap.requestHost, MinVersion: tls.VersionTLS12},
+					TLSClientConfig: &tls.Config{RootCAs: roots, ServerName: serverName, MinVersion: tls.VersionTLS12},
 					DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
 						return (&net.Dialer{}).DialContext(ctx, "tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(proxyPort)))
 					},
 				}
 				client := &http.Client{Transport: transport, Timeout: 3 * time.Second}
 				t.Cleanup(client.CloseIdleConnections)
-				resp, err := client.Get("https://" + overlap.requestHost + "/secret")
+				resp, err := client.Get("https://" + overlap.requestHost + requestPort + "/secret")
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -234,11 +284,11 @@ func TestMITMWildcardEnvoyAudit(t *testing.T) {
 				if readErr != nil {
 					t.Fatal(readErr)
 				}
-				if resp.StatusCode != row.status {
-					t.Errorf("HTTP=%d want %d", resp.StatusCode, row.status)
+				if resp.StatusCode != wantStatus {
+					t.Errorf("HTTP=%d want %d", resp.StatusCode, wantStatus)
 				}
 				wantCalls := int32(0)
-				if row.status == 200 {
+				if wantStatus == 200 {
 					wantCalls = 1
 				}
 				if got := upstreamCalls.Load(); got != wantCalls {
@@ -247,7 +297,7 @@ func TestMITMWildcardEnvoyAudit(t *testing.T) {
 				// Poll for expected delivery, then observe several extra flush periods
 				// to detect duplicates. Silent rows observe the same bounded window.
 				deadline = time.Now().Add(3 * time.Second)
-				if row.action != "" {
+				if wantAction != "" {
 					for len(events()) == 0 && time.Now().Before(deadline) {
 						time.Sleep(20 * time.Millisecond)
 					}
@@ -255,14 +305,14 @@ func TestMITMWildcardEnvoyAudit(t *testing.T) {
 				time.Sleep(300 * time.Millisecond)
 				got := events()
 				wantCount := 0
-				if row.action != "" {
+				if wantAction != "" {
 					wantCount = 1
 				}
 				if len(got) != wantCount {
 					t.Fatalf("events=%+v; want count=%d", got, wantCount)
 				}
-				if wantCount == 1 && (got[0].Action != row.action || got[0].Path != "/secret" || got[0].FilterChain != "mitm_tls_dns_chain") {
-					t.Fatalf("event=%+v; want action=%s on MITM /secret", got[0], row.action)
+				if wantCount == 1 && (got[0].Action != wantAction || got[0].Path != "/secret" || got[0].FilterChain != "mitm_tls_dns_chain") {
+					t.Fatalf("event=%+v; want action=%s on MITM /secret", got[0], wantAction)
 				}
 			})
 		}
