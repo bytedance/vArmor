@@ -465,7 +465,10 @@ func renderHTTPConnManagerYAML(f *NetworkFilter, indent int) string {
 				for _, h := range vh.RequestHeadersToAdd {
 					sb.WriteString(fmt.Sprintf("%s        - header:\n", prefix))
 					sb.WriteString(fmt.Sprintf("%s            key: \"%s\"\n", prefix, yamlEscapeScalar(h.Name)))
-					sb.WriteString(fmt.Sprintf("%s            value: \"%s\"\n", prefix, yamlEscapeScalar(h.Value)))
+					// Envoy expands %...% in header values. Policy values are literal,
+					// including resolved Secret data, so escape formatter syntax first.
+					value := strings.ReplaceAll(h.Value, "%", "%%")
+					sb.WriteString(fmt.Sprintf("%s            value: \"%s\"\n", prefix, yamlEscapeScalar(value)))
 					sb.WriteString(fmt.Sprintf("%s          append_action: OVERWRITE_IF_EXISTS_OR_ADD\n", prefix))
 				}
 			}
