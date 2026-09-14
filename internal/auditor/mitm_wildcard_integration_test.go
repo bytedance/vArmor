@@ -82,6 +82,7 @@ func TestMITMWildcardEnvoyAudit(t *testing.T) {
 	}
 	overlaps := []struct {
 		name, host, domain, requestHost, requestPort, serverName string
+		headerValue                                              string
 		rejectRoute, checkPort, unmatchedPort                    bool
 	}{
 		{name: "wildcard_rule", host: "*.example.com", domain: "api.example.com", requestHost: "api.example.com"},
@@ -97,11 +98,22 @@ func TestMITMWildcardEnvoyAudit(t *testing.T) {
 		{name: "suffix_spoof_authority", host: "api.example.com.evil", domain: "*.example.com", requestHost: "api.example.com.evil", requestPort: ":8834", serverName: "api.example.com", rejectRoute: true},
 		{name: "destination_port_match", host: "api.example.com", domain: "*.example.com", requestHost: "api.example.com", checkPort: true},
 		{name: "destination_port_mismatch", host: "api.example.com", domain: "*.example.com", requestHost: "api.example.com", checkPort: true, unmatchedPort: true},
+		// Literal header values must survive Envoy formatter and YAML parsing.
+		{name: "header_percent_single", host: "api.example.com", domain: "api.example.com", requestHost: "api.example.com", headerValue: "Bearer ab%cd"},
+		{name: "header_percent_pair", host: "api.example.com", domain: "api.example.com", requestHost: "api.example.com", headerValue: "Bearer ab%%cd"},
+		{name: "header_formatter", host: "api.example.com", domain: "api.example.com", requestHost: "api.example.com", headerValue: "%REQ(X-Client-Token)%"},
+		{name: "header_percent_only", host: "api.example.com", domain: "api.example.com", requestHost: "api.example.com", headerValue: "%"},
+		{name: "header_percent_url", host: "api.example.com", domain: "api.example.com", requestHost: "api.example.com", headerValue: "https://api.example.com/a%2Fb?q=100%25"},
+		{name: "header_percent_yaml", host: "api.example.com", domain: "api.example.com", requestHost: "api.example.com", headerValue: "quoted \"ab%cd\" \\ path"},
 	}
 	for _, overlap := range overlaps {
 		for _, row := range rows {
 			t.Run(overlap.name+"/"+row.name, func(t *testing.T) {
 				dir := t.TempDir()
+				headerValue := overlap.headerValue
+				if headerValue == "" {
+					headerValue = "Bearer static-token"
+				}
 				serverName := overlap.serverName
 				if serverName == "" {
 					serverName = overlap.requestHost
@@ -158,6 +170,9 @@ func TestMITMWildcardEnvoyAudit(t *testing.T) {
 					if got := r.Header.Get("X-MITM-Probe"); got != "injected" {
 						t.Errorf("upstream X-MITM-Probe=%q want injected", got)
 					}
+					if values := r.Header.Values("Authorization"); len(values) != 1 || values[0] != headerValue {
+						t.Errorf("upstream Authorization=%q want one literal %q", values, headerValue)
+					}
 					w.WriteHeader(http.StatusOK)
 				}))
 				t.Cleanup(upstream.Close)
@@ -181,7 +196,7 @@ func TestMITMWildcardEnvoyAudit(t *testing.T) {
 						e.HTTPRules[i].Match.Ports = []varmor.Port{{Port: uint16(rulePort)}}
 					}
 				}
-				result, err := profile.TranslateEgressRules(e, 1, uint16(proxyPort), &profile.MITMInput{Domains: []string{overlap.domain}, LeafCertPath: cert, LeafKeyPath: key, HeadersByDomain: map[string][]profile.HeaderToAdd{overlap.domain: {{Name: "X-MITM-Probe", Value: "injected"}}}}, profile.IPStackConfig{IPv4: true}, profile.AuditSinkConfig{ProfileName: "wildcard-test", ALSUDSPath: socket})
+				result, err := profile.TranslateEgressRules(e, 1, uint16(proxyPort), &profile.MITMInput{Domains: []string{overlap.domain}, LeafCertPath: cert, LeafKeyPath: key, HeadersByDomain: map[string][]profile.HeaderToAdd{overlap.domain: {{Name: "X-MITM-Probe", Value: "injected"}, {Name: "Authorization", Value: headerValue}}}}, profile.IPStackConfig{IPv4: true}, profile.AuditSinkConfig{ProfileName: "wildcard-test", ALSUDSPath: socket})
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -275,7 +290,13 @@ func TestMITMWildcardEnvoyAudit(t *testing.T) {
 				}
 				client := &http.Client{Transport: transport, Timeout: 3 * time.Second}
 				t.Cleanup(client.CloseIdleConnections)
-				resp, err := client.Get("https://" + overlap.requestHost + requestPort + "/secret")
+				request, err := http.NewRequest(http.MethodGet, "https://"+overlap.requestHost+requestPort+"/secret", nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				request.Header.Set("Authorization", "forged-client-value")
+				request.Header.Set("X-Client-Token", "client-controlled")
+				resp, err := client.Do(request)
 				if err != nil {
 					t.Fatal(err)
 				}
