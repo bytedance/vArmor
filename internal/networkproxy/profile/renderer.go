@@ -604,13 +604,16 @@ func renderPermissionRuleYAML(rule PermissionRule, indent int, rbacType string) 
 		sb.WriteString(fmt.Sprintf("%s    end: %d\n", prefix, rangeVal["end"]))
 
 	case "requested_server_name":
+		// SNI carries a DNS name; fold case for both exact and wildcard hosts.
 		sniVal := rule.Value.(map[string]string)
 		if exact, ok := sniVal["exact"]; ok {
 			sb.WriteString(fmt.Sprintf("%s- requested_server_name:\n", prefix))
 			sb.WriteString(fmt.Sprintf("%s    exact: \"%s\"\n", prefix, yamlEscapeScalar(exact)))
+			sb.WriteString(fmt.Sprintf("%s    ignore_case: true\n", prefix))
 		} else if suffix, ok := sniVal["suffix"]; ok {
 			sb.WriteString(fmt.Sprintf("%s- requested_server_name:\n", prefix))
 			sb.WriteString(fmt.Sprintf("%s    suffix: \"%s\"\n", prefix, yamlEscapeScalar(suffix)))
+			sb.WriteString(fmt.Sprintf("%s    ignore_case: true\n", prefix))
 		}
 
 	case "header":
