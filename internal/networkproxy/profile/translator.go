@@ -158,6 +158,9 @@ type HTTPConnManagerConfig struct {
 type RouteConfig struct {
 	Name         string
 	VirtualHosts []VirtualHost
+	// IgnorePortInHostMatching selects a virtual host by hostname without
+	// rewriting the forwarded authority or changing RBAC port checks.
+	IgnorePortInHostMatching bool
 }
 
 type VirtualHost struct {

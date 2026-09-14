@@ -451,8 +451,9 @@ func buildMITMHCMFilter(cls egressClassification, domains []string, headersByDom
 			AuditSink:          audit,
 			FilterChainName:    chainName,
 			RouteConfig: &RouteConfig{
-				Name:         "mitm_route",
-				VirtualHosts: buildMITMVirtualHosts(domains, headersByDomain),
+				Name:                     "mitm_route",
+				VirtualHosts:             buildMITMVirtualHosts(domains, headersByDomain),
+				IgnorePortInHostMatching: true,
 			},
 		},
 	}
