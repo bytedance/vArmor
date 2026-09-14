@@ -427,6 +427,10 @@ func renderHTTPConnManagerYAML(f *NetworkFilter, indent int) string {
 	// [M1] Enable path normalization to prevent RBAC path-based rule bypass.
 	// Without these, attackers can use "/api/../admin" or "//api//v1" to
 	// evade path-matching DENY rules. Envoy defaults both to false.
+	// Decode escaped separators before normalization and RBAC, and forward
+	// that same path upstream. normalize_path alone preserves %2F and %5C,
+	// which a backend may decode into a different, protected resource.
+	sb.WriteString(fmt.Sprintf("%s    path_with_escaped_slashes_action: UNESCAPE_AND_FORWARD\n", prefix))
 	sb.WriteString(fmt.Sprintf("%s    normalize_path: true\n", prefix))
 	sb.WriteString(fmt.Sprintf("%s    merge_slashes: true\n", prefix))
 
