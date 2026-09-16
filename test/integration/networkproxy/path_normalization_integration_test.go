@@ -1,3 +1,5 @@
+//go:build envoyintegration
+
 // Copyright 2026 vArmor Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,20 +14,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package audit
+package networkproxy
 
 import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -33,9 +33,7 @@ import (
 	"testing"
 	"time"
 
-	accesslogv3 "github.com/envoyproxy/go-control-plane/envoy/service/accesslog/v3"
 	"github.com/stretchr/testify/assert"
-	"google.golang.org/grpc"
 	"sigs.k8s.io/yaml"
 
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
@@ -57,14 +55,7 @@ type pathNormalizationRow struct {
 // ENVOY_BINARY enables real HTTP/TLS, generated RBAC and production ALS tests.
 // Only listener/upstream transport and ALS flush timing are adapted for loopback.
 func TestHTTPPathNormalizationEnvoyAudit(t *testing.T) {
-	binary := os.Getenv("ENVOY_BINARY")
-	if binary == "" {
-		t.Skip("set ENVOY_BINARY to run local Envoy integration tests")
-	}
-	binary, err := exec.LookPath(binary)
-	if !assert.NoError(t, err) {
-		return
-	}
+	binary := envoyBinary(t)
 	rows := []pathNormalizationRow{
 		{"allow_unmatched", "allow", nil, 200, ""},
 		{"allow_deny_silent", "allow", [][]string{{"deny"}}, 403, ""},
@@ -121,22 +112,8 @@ type pathNormalizationUpstream struct {
 func runPathNormalizationEnvoy(t *testing.T, binary, mode string, path pathNormalizationCase, row pathNormalizationRow) {
 	t.Helper()
 	dir := t.TempDir()
-	cert, key, roots := mitmEgressTestCertificate(t, dir, "api.example.com")
-	socketDir, err := os.MkdirTemp("", "path-als-")
-	if !assert.NoError(t, err) {
-		return
-	}
-	t.Cleanup(func() { os.RemoveAll(socketDir) })
-	socket := filepath.Join(socketDir, "als.sock")
-	listener, err := net.Listen("unix", socket)
-	if !assert.NoError(t, err) {
-		return
-	}
-	service, events := mitmEgressTestConsumer(t)
-	server := grpc.NewServer()
-	accesslogv3.RegisterAccessLogServiceServer(server, service)
-	go server.Serve(listener)
-	t.Cleanup(func() { server.Stop(); listener.Close() })
+	cert, key, roots := testCertificate(t, dir, "api.example.com")
+	socket, events := startAuditCollector(t)
 	var upstreamCalls atomic.Int32
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		upstreamCalls.Add(1)
@@ -149,9 +126,9 @@ func runPathNormalizationEnvoy(t *testing.T, binary, mode string, path pathNorma
 	}))
 	t.Cleanup(upstream.Close)
 	upstreamPort := upstream.Listener.Addr().(*net.TCPAddr).Port
-	proxyPort, adminPort := mitmEgressFreePort(t, "127.0.0.1"), mitmEgressFreePort(t, "127.0.0.1")
+	proxyPort, adminPort := freePort(t, "127.0.0.1"), freePort(t, "127.0.0.1")
 	for adminPort == proxyPort {
-		adminPort = mitmEgressFreePort(t, "127.0.0.1")
+		adminPort = freePort(t, "127.0.0.1")
 	}
 	e := &varmor.NetworkProxyEgress{DefaultAction: row.defaultAction}
 	// Retain an active audit logger even when the tested row must be silent.
@@ -169,7 +146,7 @@ func runPathNormalizationEnvoy(t *testing.T, binary, mode string, path pathNorma
 	scheme, chain := "http", "http_chain"
 	if mode == "mitm" {
 		scheme, chain = "https", "mitm_tls_dns_chain"
-		mitm = &profile.MITMInput{Domains: []string{"api.example.com"}, CertificateSDSPath: mitmCertificateSDS(t, cert, key)}
+		mitm = &profile.MITMInput{Domains: []string{"api.example.com"}, CertificateSDSPath: certificateSDS(t, cert, key)}
 	}
 	result, err := profile.TranslateEgressRules(e, 1, uint16(proxyPort), mitm, profile.IPStackConfig{IPv4: true}, profile.AuditSinkConfig{ProfileName: "path-normalization-test", ALSUDSPath: socket})
 	if !assert.NoError(t, err) {
@@ -184,7 +161,7 @@ func runPathNormalizationEnvoy(t *testing.T, binary, mode string, path pathNorma
 	}
 	envoyListener := lds["resources"].([]interface{})[0].(map[string]interface{})
 	delete(envoyListener, "@type")
-	envoyListener["address"] = mitmEgressSocketAddress(proxyPort)
+	envoyListener["address"] = socketAddress(proxyPort)
 	// The test connects directly rather than via transparent redirection.
 	var filters []interface{}
 	for _, raw := range envoyListener["listener_filters"].([]interface{}) {
@@ -202,17 +179,17 @@ func runPathNormalizationEnvoy(t *testing.T, binary, mode string, path pathNorma
 			cluster = map[string]interface{}{
 				"name": name, "type": "STATIC", "connect_timeout": "1s",
 				"load_assignment": map[string]interface{}{"cluster_name": name, "endpoints": []interface{}{
-					map[string]interface{}{"lb_endpoints": []interface{}{map[string]interface{}{"endpoint": map[string]interface{}{"address": mitmEgressSocketAddress(upstreamPort)}}}},
+					map[string]interface{}{"lb_endpoints": []interface{}{map[string]interface{}{"endpoint": map[string]interface{}{"address": socketAddress(upstreamPort)}}}},
 				}},
 			}
 		}
 		clusters = append(clusters, cluster)
 	}
 	// Shorten ALS batching, not audit selection, for bounded silent checks.
-	mitmEgressSetFlushInterval(envoyListener)
+	setALSFlushInterval(envoyListener)
 	bootstrap := map[string]interface{}{
 		"node":             map[string]interface{}{"id": "path-normalization-test", "cluster": "path-normalization-test"},
-		"admin":            map[string]interface{}{"address": mitmEgressSocketAddress(adminPort)},
+		"admin":            map[string]interface{}{"address": socketAddress(adminPort)},
 		"static_resources": map[string]interface{}{"listeners": []interface{}{envoyListener}, "clusters": clusters},
 	}
 	data, err := json.Marshal(bootstrap)
@@ -223,40 +200,8 @@ func runPathNormalizationEnvoy(t *testing.T, binary, mode string, path pathNorma
 	if err := os.WriteFile(configPath, data, 0600); err != nil {
 		t.Fatal(err)
 	}
-	var output mitmEgressLockedBuffer
-	cmd := exec.Command(binary, "-c", configPath, "--concurrency", "1", "--disable-hot-restart", "--log-level", "error")
-	cmd.Stdout, cmd.Stderr = &output, &output
-	if err := cmd.Start(); err != nil {
-		t.Fatal(err)
-	}
-	done := make(chan error, 1)
-	go func() { done <- cmd.Wait() }()
-	t.Cleanup(func() {
-		_ = cmd.Process.Kill()
-		<-done
-		if t.Failed() {
-			t.Logf("Envoy output: %s", output.snapshot())
-		}
-	})
-	adminClient := &http.Client{Transport: &http.Transport{Proxy: nil}, Timeout: 200 * time.Millisecond}
-	t.Cleanup(adminClient.CloseIdleConnections)
-	deadline := time.Now().Add(5 * time.Second)
-	for {
-		resp, err := adminClient.Get(fmt.Sprintf("http://127.0.0.1:%d/ready", adminPort))
-		ready := false
-		if err == nil {
-			ready = resp.StatusCode == 200
-			resp.Body.Close()
-		}
-		if ready {
-			break
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("Envoy did not become ready: %s", output.snapshot())
-		}
-		time.Sleep(20 * time.Millisecond)
-	}
-
+	output := startEnvoy(t, binary, configPath)
+	waitEnvoyReady(t, adminPort, output)
 	transport := &http.Transport{
 		Proxy:           nil,
 		TLSClientConfig: &tls.Config{RootCAs: roots, ServerName: "api.example.com", MinVersion: tls.VersionTLS12},
@@ -296,7 +241,7 @@ func runPathNormalizationEnvoy(t *testing.T, binary, mode string, path pathNorma
 		}
 	}
 	assert.Equal(t, wantCalls, upstreamCalls.Load())
-	deadline = time.Now().Add(3 * time.Second)
+	deadline := time.Now().Add(3 * time.Second)
 	if row.action != "" {
 		for len(events()) == 0 && time.Now().Before(deadline) {
 			time.Sleep(20 * time.Millisecond)
@@ -308,7 +253,7 @@ func runPathNormalizationEnvoy(t *testing.T, binary, mode string, path pathNorma
 	if row.action == "" {
 		assert.Empty(t, got)
 	} else {
-		assert.Equal(t, []mitmEgressObservedEvent{{Action: row.action, Path: path.forwardedURI, FilterChain: chain, DstAddress: net.JoinHostPort("127.0.0.1", strconv.Itoa(proxyPort))}}, got)
+		assert.Equal(t, []observedEvent{{Action: row.action, Path: path.forwardedURI, FilterChain: chain, DstAddress: net.JoinHostPort("127.0.0.1", strconv.Itoa(proxyPort))}}, got)
 	}
 	t.Logf("request=%s HTTP=%d upstream=%s events=%+v", path.requestURI, resp.StatusCode, strings.TrimSpace(string(body)), got)
 }

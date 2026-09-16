@@ -1,3 +1,5 @@
+//go:build envoyintegration
+
 // Copyright 2026 vArmor Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,7 +14,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package profile
+package networkproxy
 
 import (
 	"bytes"
@@ -27,13 +29,13 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	profile "github.com/bytedance/vArmor/internal/networkproxy/profile"
 
 	"sigs.k8s.io/yaml"
 
@@ -45,10 +47,7 @@ import (
 // throughout. Only local transport addresses are adapted; both generated TLS
 // contexts and certificate validation remain enabled. No Docker or iptables.
 func TestTLSSecretRotationEnvoy(t *testing.T) {
-	binary := os.Getenv("ENVOY_BINARY")
-	if binary == "" {
-		t.Skip("set ENVOY_BINARY to run local Envoy integration tests")
-	}
+	binary := envoyBinary(t)
 	for _, mode := range []string{"atomic_files", "kubernetes_projection", "static_tls_control"} {
 		t.Run(mode, func(t *testing.T) { testTLSSecretRotation(t, binary, mode) })
 	}
@@ -91,16 +90,16 @@ func testTLSSecretRotation(t *testing.T, binary, mode string) {
 	upstream.StartTLS()
 	upstream.Config.SetKeepAlivesEnabled(false)
 	t.Cleanup(upstream.Close)
-	proxyPort, adminPort := sdsFreePort(t), sdsFreePort(t)
+	proxyPort, adminPort := freePort(t, "127.0.0.1"), freePort(t, "127.0.0.1")
 	for proxyPort == adminPort {
-		adminPort = sdsFreePort(t)
+		adminPort = freePort(t, "127.0.0.1")
 	}
 	port := uint16(proxyPort)
 	p := varmor.Policy{Enforcer: "NetworkProxy", Mode: varmor.EnhanceProtectMode,
 		NetworkProxyConfig: &varmor.NetworkProxyConfig{ProxyPort: &port},
 		EnhanceProtect:     &varmor.EnhanceProtect{NetworkProxyRawRules: &varmor.NetworkProxyRules{Egress: &varmor.NetworkProxyEgress{DefaultAction: "allow"}}},
 	}
-	lds, cds, err := GenerateEnvoyConfig(p, 1, &MITMInput{Domains: []string{"api.example.test"}}, IPStackConfig{IPv4: true}, AuditSinkConfig{ProfileName: "sds-test", ALSUDSPath: filepath.Join(dir, "als.sock")})
+	lds, cds, err := profile.GenerateEnvoyConfig(p, 1, &profile.MITMInput{Domains: []string{"api.example.test"}}, profile.IPStackConfig{IPv4: true}, profile.AuditSinkConfig{ProfileName: "sds-test", ALSUDSPath: filepath.Join(dir, "als.sock")})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -114,7 +113,7 @@ func testTLSSecretRotation(t *testing.T, binary, mode string) {
 		t.Fatal(err)
 	}
 	listener := l["resources"].([]interface{})[0].(map[string]interface{})
-	listener["address"] = sdsSocket(proxyPort)
+	listener["address"] = socketAddress(proxyPort)
 	delete(listener, "additional_addresses")
 	var filters []interface{}
 	for _, f := range listener["listener_filters"].([]interface{}) {
@@ -131,7 +130,7 @@ func testTLSSecretRotation(t *testing.T, binary, mode string) {
 		cluster["type"], cluster["lb_policy"] = "STATIC", "ROUND_ROBIN"
 		delete(cluster, "original_dst_lb_config")
 		cluster["load_assignment"] = map[string]interface{}{"cluster_name": cluster["name"], "endpoints": []interface{}{
-			map[string]interface{}{"lb_endpoints": []interface{}{map[string]interface{}{"endpoint": map[string]interface{}{"address": sdsSocket(upstream.Listener.Addr().(*net.TCPAddr).Port)}}}},
+			map[string]interface{}{"lb_endpoints": []interface{}{map[string]interface{}{"endpoint": map[string]interface{}{"address": socketAddress(upstream.Listener.Addr().(*net.TCPAddr).Port)}}}},
 		}}
 	}
 	if mode == "static_tls_control" {
@@ -161,11 +160,11 @@ func testTLSSecretRotation(t *testing.T, binary, mode string) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		sdsAtomicWrite(t, path, data)
+		atomicWrite(t, path, data)
 	}
 	writeJSON(filepath.Join(dir, "lds.yaml"), l)
 	writeJSON(filepath.Join(dir, "cds.yaml"), c)
-	certSDS, validationSDS, err := GenerateTLSSecrets(a.Leaf.CertPEM, a.Leaf.KeyPEM, a.CA.CertPEM)
+	certSDS, validationSDS, err := profile.GenerateTLSSecrets(a.Leaf.CertPEM, a.Leaf.KeyPEM, a.CA.CertPEM)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -177,10 +176,10 @@ func testTLSSecretRotation(t *testing.T, binary, mode string) {
 			if err := os.Mkdir(filepath.Join(tlsDir, subdir), 0700); err != nil {
 				t.Fatal(err)
 			}
-			sdsAtomicWrite(t, filepath.Join(tlsDir, subdir, MITMCertSDSFile), cert)
-			sdsAtomicWrite(t, filepath.Join(tlsDir, subdir, MITMValidationSDSFile), trust)
+			atomicWrite(t, filepath.Join(tlsDir, subdir, profile.MITMCertSDSFile), cert)
+			atomicWrite(t, filepath.Join(tlsDir, subdir, profile.MITMValidationSDSFile), trust)
 			if revision == 1 {
-				for _, name := range []string{MITMCertSDSFile, MITMValidationSDSFile} {
+				for _, name := range []string{profile.MITMCertSDSFile, profile.MITMValidationSDSFile} {
 					if err := os.Symlink(filepath.Join("..data", name), filepath.Join(tlsDir, name)); err != nil {
 						t.Fatal(err)
 					}
@@ -193,35 +192,21 @@ func testTLSSecretRotation(t *testing.T, binary, mode string) {
 				t.Fatal(err)
 			}
 		} else {
-			sdsAtomicWrite(t, filepath.Join(tlsDir, MITMValidationSDSFile), trust)
-			sdsAtomicWrite(t, filepath.Join(tlsDir, MITMCertSDSFile), cert)
+			atomicWrite(t, filepath.Join(tlsDir, profile.MITMValidationSDSFile), trust)
+			atomicWrite(t, filepath.Join(tlsDir, profile.MITMCertSDSFile), cert)
 		}
 	}
 	publish(certSDS, validationSDS)
-	sdsAtomicWrite(t, filepath.Join(tlsDir, "leaf.crt"), a.Leaf.CertPEM)
-	sdsAtomicWrite(t, filepath.Join(tlsDir, "leaf.key"), a.Leaf.KeyPEM)
-	sdsAtomicWrite(t, filepath.Join(tlsDir, "ca-bundle.crt"), a.CA.CertPEM)
+	atomicWrite(t, filepath.Join(tlsDir, "leaf.crt"), a.Leaf.CertPEM)
+	atomicWrite(t, filepath.Join(tlsDir, "leaf.key"), a.Leaf.KeyPEM)
+	atomicWrite(t, filepath.Join(tlsDir, "ca-bundle.crt"), a.CA.CertPEM)
 	pathSource := func(name string) interface{} {
 		return map[string]interface{}{"path_config_source": map[string]interface{}{"path": filepath.Join(dir, name), "watched_directory": map[string]interface{}{"path": dir}}}
 	}
-	bootstrap := map[string]interface{}{"node": map[string]interface{}{"id": "sds-test", "cluster": "sds-test"}, "admin": map[string]interface{}{"address": sdsSocket(adminPort)}, "dynamic_resources": map[string]interface{}{"lds_config": pathSource("lds.yaml"), "cds_config": pathSource("cds.yaml")}}
+	bootstrap := map[string]interface{}{"node": map[string]interface{}{"id": "sds-test", "cluster": "sds-test"}, "admin": map[string]interface{}{"address": socketAddress(adminPort)}, "dynamic_resources": map[string]interface{}{"lds_config": pathSource("lds.yaml"), "cds_config": pathSource("cds.yaml")}}
 	configPath := filepath.Join(dir, "bootstrap.json")
 	writeJSON(configPath, bootstrap)
-	var output sdsLockedBuffer
-	cmd := exec.Command(binary, "-c", configPath, "--concurrency", "1", "--disable-hot-restart", "--log-level", "error")
-	cmd.Stdout, cmd.Stderr = &output, &output
-	if err := cmd.Start(); err != nil {
-		t.Fatal(err)
-	}
-	done := make(chan error, 1)
-	go func() { done <- cmd.Wait() }()
-	t.Cleanup(func() {
-		_ = cmd.Process.Kill()
-		<-done
-		if t.Failed() {
-			t.Log(output.String())
-		}
-	})
+	startEnvoy(t, binary, configPath)
 	admin := &http.Client{Timeout: time.Second, Transport: &http.Transport{Proxy: nil}}
 	t.Cleanup(admin.CloseIdleConnections)
 	adminGet := func(path string) []byte {
@@ -233,7 +218,7 @@ func testTLSSecretRotation(t *testing.T, binary, mode string) {
 		b, _ := io.ReadAll(resp.Body)
 		return b
 	}
-	sdsAwait(t, "Envoy ready", func() bool { return strings.Contains(string(adminGet("ready")), "LIVE") })
+	awaitCondition(t, "Envoy ready", func() bool { return strings.Contains(string(adminGet("ready")), "LIVE") })
 	roots := x509.NewCertPool()
 	roots.AddCert(a.CA.Cert)
 	roots.AddCert(b.CA.Cert)
@@ -251,15 +236,15 @@ func testTLSSecretRotation(t *testing.T, binary, mode string) {
 		_, _ = io.Copy(io.Discard, resp.Body)
 		return resp.StatusCode == status && resp.TLS != nil && len(resp.TLS.VerifiedChains) > 0 && bytes.Equal(resp.TLS.PeerCertificates[0].Raw, expected.Certificate[0])
 	}
-	sdsAwait(t, "initial TLS and upstream validation", func() bool { return probe(pairA, 200) })
-	certRenewed, _, err := GenerateTLSSecrets(renewed.CertPEM, renewed.KeyPEM, a.CA.CertPEM)
+	awaitCondition(t, "initial TLS and upstream validation", func() bool { return probe(pairA, 200) })
+	certRenewed, _, err := profile.GenerateTLSSecrets(renewed.CertPEM, renewed.KeyPEM, a.CA.CertPEM)
 	if err != nil {
 		t.Fatal(err)
 	}
 	pairRenewed := pair(renewed.CertPEM, renewed.KeyPEM)
 	if mode == "static_tls_control" {
-		sdsAtomicWrite(t, filepath.Join(tlsDir, "leaf.crt"), renewed.CertPEM)
-		sdsAtomicWrite(t, filepath.Join(tlsDir, "leaf.key"), renewed.KeyPEM)
+		atomicWrite(t, filepath.Join(tlsDir, "leaf.crt"), renewed.CertPEM)
+		atomicWrite(t, filepath.Join(tlsDir, "leaf.key"), renewed.KeyPEM)
 		// Re-notify xDS with byte-identical resources, as in the original defect.
 		writeJSON(filepath.Join(dir, "lds.yaml"), l)
 		writeJSON(filepath.Join(dir, "cds.yaml"), c)
@@ -268,7 +253,7 @@ func testTLSSecretRotation(t *testing.T, binary, mode string) {
 			t.Fatal("static control should retain the old handshake certificate")
 		}
 		upstreamPair.Store(pairB)
-		sdsAtomicWrite(t, filepath.Join(tlsDir, "ca-bundle.crt"), b.CA.CertPEM)
+		atomicWrite(t, filepath.Join(tlsDir, "ca-bundle.crt"), b.CA.CertPEM)
 		time.Sleep(300 * time.Millisecond)
 		if !probe(pairA, 503) {
 			t.Fatal("static control should retain the old upstream trust")
@@ -276,27 +261,27 @@ func testTLSSecretRotation(t *testing.T, binary, mode string) {
 		return
 	}
 	publish(certRenewed, validationSDS)
-	sdsAwait(t, "leaf and private key rotation", func() bool { return probe(pairRenewed, 200) })
+	awaitCondition(t, "leaf and private key rotation", func() bool { return probe(pairRenewed, 200) })
 	// Changing the upstream first proves the new trust is actually required.
 	upstreamPair.Store(pairB)
-	sdsAwait(t, "untrusted upstream rejected", func() bool { return probe(pairRenewed, 503) })
-	certB, trustB, err := GenerateTLSSecrets(b.Leaf.CertPEM, b.Leaf.KeyPEM, b.CA.CertPEM)
+	awaitCondition(t, "untrusted upstream rejected", func() bool { return probe(pairRenewed, 503) })
+	certB, trustB, err := profile.GenerateTLSSecrets(b.Leaf.CertPEM, b.Leaf.KeyPEM, b.CA.CertPEM)
 	if err != nil {
 		t.Fatal(err)
 	}
 	publish(certRenewed, trustB)
-	sdsAwait(t, "trust bundle rotation", func() bool { return probe(pairRenewed, 200) })
+	awaitCondition(t, "trust bundle rotation", func() bool { return probe(pairRenewed, 200) })
 	upstreamPair.Store(pairA)
-	sdsAwait(t, "removed upstream CA rejected", func() bool { return probe(pairRenewed, 503) })
+	awaitCondition(t, "removed upstream CA rejected", func() bool { return probe(pairRenewed, 503) })
 	upstreamPair.Store(pairB)
 	publish(certB, trustB)
-	sdsAwait(t, "CA and certificate rotation", func() bool { return probe(pairB, 200) })
+	awaitCondition(t, "CA and certificate rotation", func() bool { return probe(pairB, 200) })
 	upstreamPair.Store(pairA)
 	publish(certSDS, validationSDS)
-	sdsAwait(t, "combined CA rotation", func() bool { return probe(pairA, 200) })
+	awaitCondition(t, "combined CA rotation", func() bool { return probe(pairA, 200) })
 	upstreamPair.Store(pairB)
 	publish(certB, trustB)
-	sdsAwait(t, "combined CA rotation again", func() bool { return probe(pairB, 200) })
+	awaitCondition(t, "combined CA rotation again", func() bool { return probe(pairB, 200) })
 	rejected := func() uint64 {
 		var stats struct {
 			Stats []struct {
@@ -336,17 +321,17 @@ func testTLSSecretRotation(t *testing.T, binary, mode string) {
 			}
 		}
 		publish(badCert, badTrust)
-		sdsAwait(t, badKind+" rejected by SDS", func() bool { return rejected() > before })
+		awaitCondition(t, badKind+" rejected by SDS", func() bool { return rejected() > before })
 		if !probe(pairB, 200) {
 			t.Fatal("invalid SDS replaced last usable TLS material")
 		}
 		publish(certRenewed, trustB)
-		sdsAwait(t, "recovery after invalid SDS", func() bool { return probe(pairRenewed, 200) })
+		awaitCondition(t, "recovery after invalid SDS", func() bool { return probe(pairRenewed, 200) })
 		publish(certB, trustB)
-		sdsAwait(t, "successive rotation", func() bool { return probe(pairB, 200) })
+		awaitCondition(t, "successive rotation", func() bool { return probe(pairB, 200) })
 	}
 	// Projecting a temporarily missing resource retains existing TLS state.
-	missing := filepath.Join(tlsDir, MITMCertSDSFile)
+	missing := filepath.Join(tlsDir, profile.MITMCertSDSFile)
 	if err := os.Remove(missing); err != nil {
 		t.Fatal(err)
 	}
@@ -354,61 +339,13 @@ func testTLSSecretRotation(t *testing.T, binary, mode string) {
 		t.Fatal("missing resource invalidated active TLS state")
 	}
 	if mode == "kubernetes_projection" {
-		if err := os.Symlink(filepath.Join("..data", MITMCertSDSFile), missing); err != nil {
+		if err := os.Symlink(filepath.Join("..data", profile.MITMCertSDSFile), missing); err != nil {
 			t.Fatal(err)
 		}
 	}
 	publish(certRenewed, trustB)
-	sdsAwait(t, "recovery after missing resource", func() bool { return probe(pairRenewed, 200) })
-	if !strings.Contains(string(adminGet("config_dump?resource=dynamic_active_secrets")), MITMCertSecretName) {
+	awaitCondition(t, "recovery after missing resource", func() bool { return probe(pairRenewed, 200) })
+	if !strings.Contains(string(adminGet("config_dump?resource=dynamic_active_secrets")), profile.MITMCertSecretName) {
 		t.Fatal("dynamic certificate secret not visible in Envoy admin state")
 	}
 }
-
-func sdsSocket(port int) map[string]interface{} {
-	return map[string]interface{}{"socket_address": map[string]interface{}{"address": "127.0.0.1", "port_value": port}}
-}
-func sdsFreePort(t *testing.T) int {
-	t.Helper()
-	l, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	p := l.Addr().(*net.TCPAddr).Port
-	if err := l.Close(); err != nil {
-		t.Fatal(err)
-	}
-	return p
-}
-func sdsAtomicWrite(t *testing.T, path string, b []byte) {
-	t.Helper()
-	if err := os.WriteFile(path+".tmp", b, 0600); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Rename(path+".tmp", path); err != nil {
-		t.Fatal(err)
-	}
-}
-func sdsAwait(t *testing.T, what string, f func() bool) {
-	t.Helper()
-	deadline := time.Now().Add(8 * time.Second)
-	for time.Now().Before(deadline) {
-		if f() {
-			return
-		}
-		time.Sleep(25 * time.Millisecond)
-	}
-	t.Fatalf("timed out waiting for %s", what)
-}
-
-type sdsLockedBuffer struct {
-	mu sync.Mutex
-	b  bytes.Buffer
-}
-
-func (b *sdsLockedBuffer) Write(p []byte) (int, error) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	return b.b.Write(p)
-}
-func (b *sdsLockedBuffer) String() string { b.mu.Lock(); defer b.mu.Unlock(); return b.b.String() }
