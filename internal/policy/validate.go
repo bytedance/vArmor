@@ -116,9 +116,9 @@ func ValidateAddPolicy(policy interface{}, behaviorModelingEnabled bool) (bool, 
 		if ok, msg := validateProxyResources(spec.Policy.NetworkProxyConfig.Resources); !ok {
 			return false, msg
 		}
-		if spec.Policy.NetworkProxyConfig.ProxyPort != nil &&
-			spec.Policy.NetworkProxyConfig.ProxyAdminPort != nil &&
-			*spec.Policy.NetworkProxyConfig.ProxyPort == *spec.Policy.NetworkProxyConfig.ProxyAdminPort {
+		// Omitted fields still bind their runtime default ports.
+		_, proxyPort, proxyAdminPort := normalizedProxyConfigImmutableFields(spec.Policy.NetworkProxyConfig)
+		if proxyPort == proxyAdminPort {
 			return false, "proxyPort and proxyAdminPort must be different"
 		}
 	}
@@ -253,9 +253,9 @@ func ValidateUpdatePolicy(policy interface{}, oldEnforcer string, oldTarget varm
 		if ok, msg := validateProxyResources(newSpec.Policy.NetworkProxyConfig.Resources); !ok {
 			return false, msg
 		}
-		if newSpec.Policy.NetworkProxyConfig.ProxyPort != nil &&
-			newSpec.Policy.NetworkProxyConfig.ProxyAdminPort != nil &&
-			*newSpec.Policy.NetworkProxyConfig.ProxyPort == *newSpec.Policy.NetworkProxyConfig.ProxyAdminPort {
+		// Omitted fields still bind their runtime default ports.
+		_, proxyPort, proxyAdminPort := normalizedProxyConfigImmutableFields(newSpec.Policy.NetworkProxyConfig)
+		if proxyPort == proxyAdminPort {
 			return false, "proxyPort and proxyAdminPort must be different"
 		}
 	}
