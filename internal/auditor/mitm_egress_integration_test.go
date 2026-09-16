@@ -286,7 +286,7 @@ func runMITMEgressEnvoyAudit(t *testing.T, options httpHostTestOptions) {
 				if net.ParseIP(dst.localIP).To4() == nil {
 					ipStack = profile.IPStackConfig{IPv6: true}
 				}
-				mitm := &profile.MITMInput{Domains: []string{mitmDomain}, LeafCertPath: cert, LeafKeyPath: key}
+				mitm := &profile.MITMInput{Domains: []string{mitmDomain}, CertificateSDSPath: mitmCertificateSDS(t, cert, key)}
 				if options.defaultPort == 80 {
 					mitm = nil
 				}
@@ -581,4 +581,27 @@ func mitmEgressTestCertificate(t *testing.T, dir, host string) (string, string, 
 		t.Fatal("invalid test certificate")
 	}
 	return certPath, keyPath, roots
+}
+
+// mitmCertificateSDS publishes the certificate fixture through the production
+// SDS encoder, keeping the audit matrix on the actual dynamic TLS path.
+func mitmCertificateSDS(t *testing.T, certPath, keyPath string) string {
+	t.Helper()
+	cert, err := os.ReadFile(certPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	key, err := os.ReadFile(keyPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	secret, _, err := profile.GenerateTLSSecrets(cert, key, cert)
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := certPath + ".sds.json"
+	if err := os.WriteFile(path, secret, 0600); err != nil {
+		t.Fatal(err)
+	}
+	return path
 }

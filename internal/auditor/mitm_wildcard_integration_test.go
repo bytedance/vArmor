@@ -196,7 +196,7 @@ func TestMITMWildcardEnvoyAudit(t *testing.T) {
 						e.HTTPRules[i].Match.Ports = []varmor.Port{{Port: uint16(rulePort)}}
 					}
 				}
-				result, err := profile.TranslateEgressRules(e, 1, uint16(proxyPort), &profile.MITMInput{Domains: []string{overlap.domain}, LeafCertPath: cert, LeafKeyPath: key, HeadersByDomain: map[string][]profile.HeaderToAdd{overlap.domain: {{Name: "X-MITM-Probe", Value: "injected"}, {Name: "Authorization", Value: headerValue}}}}, profile.IPStackConfig{IPv4: true}, profile.AuditSinkConfig{ProfileName: "wildcard-test", ALSUDSPath: socket})
+				result, err := profile.TranslateEgressRules(e, 1, uint16(proxyPort), &profile.MITMInput{Domains: []string{overlap.domain}, CertificateSDSPath: mitmCertificateSDS(t, cert, key), HeadersByDomain: map[string][]profile.HeaderToAdd{overlap.domain: {{Name: "X-MITM-Probe", Value: "injected"}, {Name: "Authorization", Value: headerValue}}}}, profile.IPStackConfig{IPv4: true}, profile.AuditSinkConfig{ProfileName: "wildcard-test", ALSUDSPath: socket})
 				if err != nil {
 					t.Fatal(err)
 				}

@@ -33,7 +33,6 @@ import (
 	"k8s.io/client-go/kubernetes"
 
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
-	varmorconfig "github.com/bytedance/vArmor/internal/config"
 )
 
 // ResolveMITMInput transforms a policy-side MITMConfig into the
@@ -45,8 +44,7 @@ import (
 //   - Drop HeaderMutation entries whose Domain is not present in
 //     MITMConfig.Domains (spec invariant: every mutation targets a
 //     declared MITM domain).
-//   - Leave the leaf cert/key paths at their varmorconfig defaults so the
-//     translator can reference them without another lookup.
+//   - Use the default SDS certificate path for the generated listener.
 //
 // Returns (nil, nil) when MITM is not configured on the policy. Returns a
 // disabled *MITMInput only if explicitly requested via an empty Domains
@@ -100,8 +98,6 @@ func ResolveMITMInput(
 	return &MITMInput{
 		Domains:         append([]string(nil), cfg.Domains...),
 		HeadersByDomain: headersByDomain,
-		LeafCertPath:    varmorconfig.MITMLeafCertPath,
-		LeafKeyPath:     varmorconfig.MITMLeafKeyPath,
 	}, nil
 }
 

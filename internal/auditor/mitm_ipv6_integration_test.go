@@ -207,7 +207,7 @@ func TestMITMIPv6EnvoyAudit(t *testing.T) {
 					}
 				}
 				ipStack := profile.IPStackConfig{IPv6: true}
-				result, err := profile.TranslateEgressRules(e, 1, uint16(proxyPort), &profile.MITMInput{Domains: []string{dst.domain}, LeafCertPath: cert, LeafKeyPath: key, HeadersByDomain: map[string][]profile.HeaderToAdd{dst.domain: {{Name: "X-MITM-Probe", Value: "injected"}}}}, ipStack, profile.AuditSinkConfig{ProfileName: "mitm-ipv6-test", ALSUDSPath: socket})
+				result, err := profile.TranslateEgressRules(e, 1, uint16(proxyPort), &profile.MITMInput{Domains: []string{dst.domain}, CertificateSDSPath: mitmCertificateSDS(t, cert, key), HeadersByDomain: map[string][]profile.HeaderToAdd{dst.domain: {{Name: "X-MITM-Probe", Value: "injected"}}}}, ipStack, profile.AuditSinkConfig{ProfileName: "mitm-ipv6-test", ALSUDSPath: socket})
 				if err != nil {
 					t.Fatal(err)
 				}

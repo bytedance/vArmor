@@ -164,6 +164,8 @@ ${IPT6} -t filter -A OUTPUT -p tcp --dport ${ENVOY_ADMIN_PORT} -m owner ! --uid-
 			Secret: &coreV1.SecretVolumeSource{
 				// Name set per-policy at runtime.
 				Items: []coreV1.KeyToPath{
+					{Key: "mitm-cert-sds.yaml", Path: "mitm-cert-sds.yaml"},
+					{Key: "mitm-validation-sds.yaml", Path: "mitm-validation-sds.yaml"},
 					{Key: "mitm-leaf.crt", Path: "leaf.crt"},
 					{Key: "mitm-leaf.key", Path: "leaf.key"},
 					{Key: "mitm-ca-bundle.crt", Path: "ca-bundle.crt"},

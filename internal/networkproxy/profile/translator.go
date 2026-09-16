@@ -41,13 +41,9 @@ type FilterChain struct {
 // DownstreamTLSContext is a minimal representation of Envoy's
 // envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext.
 //
-// The translator only produces file-backed tls_certificates because the
-// controller writes the leaf cert/key into the policy's unified Secret
-// and projects them into the sidecar at fixed paths; Envoy's
-// watched_directory picks up rotations in place.
+// Certificate material is loaded through a file-based dynamic TLS secret.
 type DownstreamTLSContext struct {
-	CertPath string
-	KeyPath  string
+	SecretPath string
 }
 
 // FilterChainMatch defines the match criteria for a filter chain.

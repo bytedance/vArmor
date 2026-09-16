@@ -792,6 +792,8 @@ func buildNetworkProxyPatch(profileName string, id varmorpolicy.AuditPolicyIdent
 		sb.WriteString(fmt.Sprintf(
 			`{"op": "add", "path": "%s/spec/volumes/-", "value": `+
 				`{"name": "varmor-network-proxy-mitm-tls", "secret": {"secretName": "%s", "items": [`+
+				`{"key": "mitm-cert-sds.yaml", "path": "mitm-cert-sds.yaml"}, `+
+				`{"key": "mitm-validation-sds.yaml", "path": "mitm-validation-sds.yaml"}, `+
 				`{"key": "mitm-leaf.crt", "path": "leaf.crt"}, `+
 				`{"key": "mitm-leaf.key", "path": "leaf.key"}, `+
 				`{"key": "mitm-ca-bundle.crt", "path": "ca-bundle.crt"}]}}},`,

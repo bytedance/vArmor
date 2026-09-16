@@ -238,7 +238,13 @@ func Test_applyMITMVolumes(t *testing.T) {
 	assert.Equal(t, len(volumes), 3)
 	assert.Equal(t, volumes[1].Name, "varmor-network-proxy-mitm-tls")
 	assert.Equal(t, volumes[1].Secret.SecretName, profileName)
-	assert.Equal(t, len(volumes[1].Secret.Items), 3)
+	assert.Equal(t, len(volumes[1].Secret.Items), 5)
+	expected := map[string]string{"mitm-leaf.crt": "leaf.crt", "mitm-leaf.key": "leaf.key", "mitm-ca-bundle.crt": "ca-bundle.crt", "mitm-cert-sds.yaml": "mitm-cert-sds.yaml", "mitm-validation-sds.yaml": "mitm-validation-sds.yaml"}
+	for _, item := range volumes[1].Secret.Items {
+		assert.Equal(t, expected[item.Key], item.Path)
+		delete(expected, item.Key)
+	}
+	assert.Equal(t, len(expected), 0)
 	assert.Equal(t, volumes[2].Name, "varmor-network-proxy-mitm-ca-bundle")
 	assert.Equal(t, volumes[2].Secret.SecretName, profileName)
 	assert.Equal(t, len(volumes[2].Secret.Items), 1)

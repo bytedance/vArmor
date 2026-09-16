@@ -83,7 +83,7 @@ func TestLDSCDSReloadEnvoy(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			next, err := profile.TranslateEgressRules(&varmor.NetworkProxyEgress{DefaultAction: "deny", HTTPRules: []varmor.NetworkProxyHTTPRule{{Qualifiers: []string{"allow", "audit"}, Match: varmor.HTTPMatch{Hosts: []string{"api.example.com"}, Paths: []varmor.HTTPPathMatch{{Exact: "/allowed"}}}}}}, 2, uint16(proxyPort), &profile.MITMInput{Domains: []string{"api.example.com"}, LeafCertPath: cert, LeafKeyPath: key}, profile.IPStackConfig{IPv4: true}, audit)
+			next, err := profile.TranslateEgressRules(&varmor.NetworkProxyEgress{DefaultAction: "deny", HTTPRules: []varmor.NetworkProxyHTTPRule{{Qualifiers: []string{"allow", "audit"}, Match: varmor.HTTPMatch{Hosts: []string{"api.example.com"}, Paths: []varmor.HTTPPathMatch{{Exact: "/allowed"}}}}}}, 2, uint16(proxyPort), &profile.MITMInput{Domains: []string{"api.example.com"}, CertificateSDSPath: mitmCertificateSDS(t, cert, key)}, profile.IPStackConfig{IPv4: true}, audit)
 			if err != nil {
 				t.Fatal(err)
 			}

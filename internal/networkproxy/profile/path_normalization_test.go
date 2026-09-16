@@ -31,7 +31,7 @@ func TestHTTPPathNormalizationConfig(t *testing.T) {
 		wantChains := []string{"http_chain"}
 		if mitmEnabled {
 			name = "mitm"
-			mitm = &MITMInput{Domains: []string{"api.example.com", "127.0.0.1"}, LeafCertPath: "/cert.pem", LeafKeyPath: "/key.pem"}
+			mitm = &MITMInput{Domains: []string{"api.example.com", "127.0.0.1"}, CertificateSDSPath: "/cert.pem"}
 			wantChains = append(wantChains, "mitm_tls_dns_chain", "mitm_tls_ip_chain")
 		}
 		t.Run(name, func(t *testing.T) {

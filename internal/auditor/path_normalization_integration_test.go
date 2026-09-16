@@ -169,7 +169,7 @@ func runPathNormalizationEnvoy(t *testing.T, binary, mode string, path pathNorma
 	scheme, chain := "http", "http_chain"
 	if mode == "mitm" {
 		scheme, chain = "https", "mitm_tls_dns_chain"
-		mitm = &profile.MITMInput{Domains: []string{"api.example.com"}, LeafCertPath: cert, LeafKeyPath: key}
+		mitm = &profile.MITMInput{Domains: []string{"api.example.com"}, CertificateSDSPath: mitmCertificateSDS(t, cert, key)}
 	}
 	result, err := profile.TranslateEgressRules(e, 1, uint16(proxyPort), mitm, profile.IPStackConfig{IPv4: true}, profile.AuditSinkConfig{ProfileName: "path-normalization-test", ALSUDSPath: socket})
 	if !assert.NoError(t, err) {
