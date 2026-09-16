@@ -98,6 +98,7 @@ func TestHTTPDefaultPortEnvoyAudit(t *testing.T) {
 }
 
 type httpHostTestOptions struct {
+	hostCIDRCertificate     bool
 	pattern                 string
 	bindPort, authorityPort bool
 	defaultPort             uint16
@@ -141,6 +142,17 @@ func runMITMEgressEnvoyAudit(t *testing.T, options httpHostTestOptions) {
 		{"ip_ipv4_cidr", "127.0.0.1", "127.0.0.1", "", "127.0.0.0/8", "mitm_tls_ip_chain"},
 		{"dns_ipv6_cidr", "::1", "api.example.com", "", "::/64", "mitm_tls_dns_chain"},
 	}
+	if options.hostCIDRCertificate {
+		ipDestination := destinations[0]
+		destinations = destinations[:0]
+		for _, host := range []string{"127.0.0.1", "::1"} {
+			dst := ipDestination
+			dst.name, dst.localIP, dst.domain = "host_cidr_"+host, host, host
+			dst.ruleIP, dst.ruleCIDR, dst.chain = host, "", "mitm_tls_ip_chain"
+			destinations = append(destinations, dst)
+		}
+		rows = rows[:8]
+	}
 	if options.pattern != "" {
 		destinations = destinations[:1]
 		if options.defaultPort == 0 {
@@ -171,7 +183,20 @@ func runMITMEgressEnvoyAudit(t *testing.T, options httpHostTestOptions) {
 		for _, row := range rows {
 			t.Run(dst.name+"/"+row.name, func(t *testing.T) {
 				dir := t.TempDir()
-				cert, key, roots := mitmEgressTestCertificate(t, dir, dst.domain)
+				var cert, key string
+				var roots *x509.CertPool
+				var expectedLeaf []byte
+				mitmDomain := dst.domain
+				if options.hostCIDRCertificate {
+					prefix := "/128"
+					if net.ParseIP(dst.domain).To4() != nil {
+						prefix = "/32"
+					}
+					mitmDomain += prefix
+					cert, key, roots, expectedLeaf = mitmHostCIDRTestCertificate(t, dir, mitmDomain)
+				} else {
+					cert, key, roots = mitmEgressTestCertificate(t, dir, dst.domain)
+				}
 				// Keep the UDS path short even for long subtest names.
 				socketDir, err := os.MkdirTemp("", "mitm-als-")
 				if err != nil {
@@ -261,7 +286,7 @@ func runMITMEgressEnvoyAudit(t *testing.T, options httpHostTestOptions) {
 				if net.ParseIP(dst.localIP).To4() == nil {
 					ipStack = profile.IPStackConfig{IPv6: true}
 				}
-				mitm := &profile.MITMInput{Domains: []string{dst.domain}, LeafCertPath: cert, LeafKeyPath: key}
+				mitm := &profile.MITMInput{Domains: []string{mitmDomain}, LeafCertPath: cert, LeafKeyPath: key}
 				if options.defaultPort == 80 {
 					mitm = nil
 				}
@@ -409,6 +434,9 @@ func runMITMEgressEnvoyAudit(t *testing.T, options httpHostTestOptions) {
 				resp, err := client.Do(req)
 				if err != nil {
 					t.Fatal(err)
+				}
+				if options.hostCIDRCertificate && (resp.TLS == nil || len(resp.TLS.VerifiedChains) == 0 || len(resp.TLS.PeerCertificates) == 0 || !bytes.Equal(resp.TLS.PeerCertificates[0].Raw, expectedLeaf)) {
+					t.Error("Envoy did not present the verified production-issued certificate")
 				}
 				_, readErr := io.Copy(io.Discard, resp.Body)
 				resp.Body.Close()
