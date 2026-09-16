@@ -159,6 +159,11 @@ test-unit: ## Run unit tests.
 	@echo "[+] Running unit tests."
 	go test ./... -coverprofile coverage.out
 
+.PHONY: test-networkproxy-integration
+test-networkproxy-integration: ## Run local Envoy integration tests (requires ENVOY_BINARY).
+	@test -n "$(ENVOY_BINARY)" || { echo "Set ENVOY_BINARY to an Envoy executable"; exit 1; }
+	ENVOY_BINARY="$(ENVOY_BINARY)" go test -tags=envoyintegration -count=1 ./test/integration/networkproxy
+
 .PHONY: test
 test: manifests generate fmt verify-mozilla-bundle vet test-unit ## Run tests.
 

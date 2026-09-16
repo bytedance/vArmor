@@ -188,9 +188,8 @@ func TestAuditSink_GRPCALS_MITMChain(t *testing.T) {
 		ProfileName: alsTestProfile,
 	}
 	mitm := &MITMInput{
-		Domains:      []string{"httpbin.org"},
-		LeafCertPath: "/etc/envoy/tls/leaf.crt",
-		LeafKeyPath:  "/etc/envoy/tls/leaf.key",
+		Domains:            []string{"httpbin.org"},
+		CertificateSDSPath: "/etc/envoy/tls/leaf.crt",
 	}
 	lds, _ := renderALSAudit(t, mitm, audit)
 
@@ -221,9 +220,8 @@ func TestAuditSink_GRPCALS_FilterChainCustomTag(t *testing.T) {
 		ProfileName: alsTestProfile,
 	}
 	mitm := &MITMInput{
-		Domains:      []string{"httpbin.org"},
-		LeafCertPath: "/etc/envoy/tls/leaf.crt",
-		LeafKeyPath:  "/etc/envoy/tls/leaf.key",
+		Domains:            []string{"httpbin.org"},
+		CertificateSDSPath: "/etc/envoy/tls/leaf.crt",
 	}
 	lds, _ := renderALSAudit(t, mitm, audit)
 

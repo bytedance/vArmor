@@ -46,6 +46,11 @@ func Test_buildNetworkProxyPatch_MITMEnabled(t *testing.T) {
 	assert.Assert(t, strings.Contains(patch, `"name": "varmor-network-proxy-mitm-ca-bundle", "secret": {"secretName"`),
 		"patch should contain MITM CA bundle volume definition")
 
+	// SDS resources are visible only to the sidecar TLS volume.
+	assert.Assert(t, strings.Contains(patch, `"key": "mitm-cert-sds.yaml", "path": "mitm-cert-sds.yaml"`))
+	assert.Assert(t, strings.Contains(patch, `"key": "mitm-validation-sds.yaml", "path": "mitm-validation-sds.yaml"`))
+	assert.Assert(t, !strings.Contains(patch, `"key": "mitm-ca.key"`))
+
 	// Should reference Secret key mappings
 	assert.Assert(t, strings.Contains(patch, `"key": "mitm-leaf.crt", "path": "leaf.crt"`),
 		"patch should project mitm-leaf.crt as leaf.crt")

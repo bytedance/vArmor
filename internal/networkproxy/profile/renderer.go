@@ -17,11 +17,10 @@ package profile
 import (
 	"fmt"
 	"net"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
-
-	varmorconfig "github.com/bytedance/vArmor/internal/config"
 )
 
 // ============================================================================
@@ -288,7 +287,7 @@ func cidrToPrefixRange(cidr string) (string, int) {
 }
 
 // renderDownstreamTLSContextYAML emits Envoy's listener-side TLS context
-// with file-backed leaf cert/key. Paths come from the translator input.
+// using a file-based dynamic TLS secret.
 func renderDownstreamTLSContextYAML(ctx *DownstreamTLSContext, indent int) string {
 	prefix := strings.Repeat(" ", indent)
 	var sb strings.Builder
@@ -303,11 +302,13 @@ func renderDownstreamTLSContextYAML(ctx *DownstreamTLSContext, indent int) strin
 	sb.WriteString(fmt.Sprintf("%s      alpn_protocols:\n", prefix))
 	sb.WriteString(fmt.Sprintf("%s      - h2\n", prefix))
 	sb.WriteString(fmt.Sprintf("%s      - http/1.1\n", prefix))
-	sb.WriteString(fmt.Sprintf("%s      tls_certificates:\n", prefix))
-	sb.WriteString(fmt.Sprintf("%s      - certificate_chain:\n", prefix))
-	sb.WriteString(fmt.Sprintf("%s          filename: \"%s\"\n", prefix, ctx.CertPath))
-	sb.WriteString(fmt.Sprintf("%s        private_key:\n", prefix))
-	sb.WriteString(fmt.Sprintf("%s          filename: \"%s\"\n", prefix, ctx.KeyPath))
+	sb.WriteString(fmt.Sprintf("%s      tls_certificate_sds_secret_configs:\n", prefix))
+	sb.WriteString(fmt.Sprintf("%s      - name: %s\n", prefix, MITMCertSecretName))
+	sb.WriteString(fmt.Sprintf("%s        sds_config:\n", prefix))
+	sb.WriteString(fmt.Sprintf("%s          path_config_source:\n", prefix))
+	sb.WriteString(fmt.Sprintf("%s            path: \"%s\"\n", prefix, yamlEscapeScalar(ctx.SecretPath)))
+	sb.WriteString(fmt.Sprintf("%s            watched_directory:\n", prefix))
+	sb.WriteString(fmt.Sprintf("%s              path: \"%s\"\n", prefix, yamlEscapeScalar(filepath.Dir(ctx.SecretPath))))
 	return sb.String()
 }
 
@@ -750,8 +751,11 @@ func renderClustersYAML(version int64, mitmEnabled bool, audit AuditSinkConfig) 
 		sb.WriteString("    typed_config:\n")
 		sb.WriteString("      \"@type\": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext\n")
 		sb.WriteString("      common_tls_context:\n")
-		sb.WriteString("        validation_context:\n")
-		sb.WriteString(fmt.Sprintf("          trusted_ca:\n            filename: %s\n", varmorconfig.MITMUpstreamTrustedCAPath))
+		sb.WriteString("        validation_context_sds_secret_config:\n")
+		sb.WriteString(fmt.Sprintf("          name: %s\n", MITMValidationSecretName))
+		sb.WriteString("          sds_config:\n            path_config_source:\n")
+		sb.WriteString(fmt.Sprintf("              path: %s\n", MITMValidationSDSPath))
+		sb.WriteString("              watched_directory:\n                path: /etc/envoy/tls\n")
 	}
 	renderALSClusterYAML(&sb, audit)
 	return sb.String()

@@ -1,3 +1,5 @@
+//go:build envoyintegration
+
 // Copyright 2026 vArmor Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,37 +14,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package audit
+package networkproxy
 
 import (
-	"bytes"
 	"context"
-	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rand"
 	"crypto/tls"
-	"crypto/x509"
-	"crypto/x509/pkix"
 	"encoding/json"
-	"encoding/pem"
-	"fmt"
 	"io"
-	"math/big"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
-	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
-	accesslogv3 "github.com/envoyproxy/go-control-plane/envoy/service/accesslog/v3"
-	"github.com/rs/zerolog"
-	"google.golang.org/grpc"
 	"sigs.k8s.io/yaml"
 
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
@@ -56,15 +44,7 @@ import (
 // ORIGINAL_DST upstream clusters with a local HTTP server. Generated MITM
 // chains, virtual hosts, RBAC predicates and access loggers remain in use.
 func TestMITMWildcardEnvoyAudit(t *testing.T) {
-	binary := os.Getenv("ENVOY_BINARY")
-	if binary == "" {
-		t.Skip("set ENVOY_BINARY to run local Envoy integration tests")
-	}
-	var err error
-	binary, err = exec.LookPath(binary)
-	if err != nil {
-		t.Fatal(err)
-	}
+	binary := envoyBinary(t)
 	rows := []struct {
 		name, defaultAction string
 		qualifiers          [][]string
@@ -118,10 +98,10 @@ func TestMITMWildcardEnvoyAudit(t *testing.T) {
 				if serverName == "" {
 					serverName = overlap.requestHost
 				}
-				cert, key, roots := wildcardTestCertificate(t, dir, serverName)
-				proxyPort, adminPort := wildcardFreePort(t), wildcardFreePort(t)
+				cert, key, roots := testCertificate(t, dir, serverName)
+				proxyPort, adminPort := freePort(t, "127.0.0.1"), freePort(t, "127.0.0.1")
 				for adminPort == proxyPort {
-					adminPort = wildcardFreePort(t)
+					adminPort = freePort(t, "127.0.0.1")
 				}
 				requestPort := overlap.requestPort
 				rulePort := proxyPort
@@ -146,21 +126,7 @@ func TestMITMWildcardEnvoyAudit(t *testing.T) {
 					wantStatus = http.StatusNotFound
 				}
 				// Keep the UDS path short even for long subtest names.
-				socketDir, err := os.MkdirTemp("", "mitm-als-")
-				if err != nil {
-					t.Fatal(err)
-				}
-				t.Cleanup(func() { os.RemoveAll(socketDir) })
-				socket := filepath.Join(socketDir, "als.sock")
-				listener, err := net.Listen("unix", socket)
-				if err != nil {
-					t.Fatal(err)
-				}
-				service, events := wildcardTestConsumer(t)
-				server := grpc.NewServer()
-				accesslogv3.RegisterAccessLogServiceServer(server, service)
-				go server.Serve(listener)
-				t.Cleanup(func() { server.Stop(); listener.Close() })
+				socket, events := startAuditCollector(t)
 				var upstreamCalls atomic.Int32
 				upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					upstreamCalls.Add(1)
@@ -196,7 +162,7 @@ func TestMITMWildcardEnvoyAudit(t *testing.T) {
 						e.HTTPRules[i].Match.Ports = []varmor.Port{{Port: uint16(rulePort)}}
 					}
 				}
-				result, err := profile.TranslateEgressRules(e, 1, uint16(proxyPort), &profile.MITMInput{Domains: []string{overlap.domain}, LeafCertPath: cert, LeafKeyPath: key, HeadersByDomain: map[string][]profile.HeaderToAdd{overlap.domain: {{Name: "X-MITM-Probe", Value: "injected"}, {Name: "Authorization", Value: headerValue}}}}, profile.IPStackConfig{IPv4: true}, profile.AuditSinkConfig{ProfileName: "wildcard-test", ALSUDSPath: socket})
+				result, err := profile.TranslateEgressRules(e, 1, uint16(proxyPort), &profile.MITMInput{Domains: []string{overlap.domain}, CertificateSDSPath: certificateSDS(t, cert, key), HeadersByDomain: map[string][]profile.HeaderToAdd{overlap.domain: {{Name: "X-MITM-Probe", Value: "injected"}, {Name: "Authorization", Value: headerValue}}}}, profile.IPStackConfig{IPv4: true}, profile.AuditSinkConfig{ProfileName: "wildcard-test", ALSUDSPath: socket})
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -209,7 +175,7 @@ func TestMITMWildcardEnvoyAudit(t *testing.T) {
 				}
 				envoyListener := lds["resources"].([]interface{})[0].(map[string]interface{})
 				delete(envoyListener, "@type")
-				envoyListener["address"] = wildcardSocketAddress(proxyPort)
+				envoyListener["address"] = socketAddress(proxyPort)
 				// The test connects directly rather than via transparent redirection.
 				var filters []interface{}
 				for _, raw := range envoyListener["listener_filters"].([]interface{}) {
@@ -227,17 +193,17 @@ func TestMITMWildcardEnvoyAudit(t *testing.T) {
 						cluster = map[string]interface{}{
 							"name": name, "type": "STATIC", "connect_timeout": "1s",
 							"load_assignment": map[string]interface{}{"cluster_name": name, "endpoints": []interface{}{
-								map[string]interface{}{"lb_endpoints": []interface{}{map[string]interface{}{"endpoint": map[string]interface{}{"address": wildcardSocketAddress(upstreamPort)}}}},
+								map[string]interface{}{"lb_endpoints": []interface{}{map[string]interface{}{"endpoint": map[string]interface{}{"address": socketAddress(upstreamPort)}}}},
 							}},
 						}
 					}
 					clusters = append(clusters, cluster)
 				}
 				// Shorten ALS batching, not audit selection, for bounded silent checks.
-				wildcardSetFlushInterval(envoyListener)
+				setALSFlushInterval(envoyListener)
 				bootstrap := map[string]interface{}{
 					"node":             map[string]interface{}{"id": "wildcard-test", "cluster": "wildcard-test"},
-					"admin":            map[string]interface{}{"address": wildcardSocketAddress(adminPort)},
+					"admin":            map[string]interface{}{"address": socketAddress(adminPort)},
 					"static_resources": map[string]interface{}{"listeners": []interface{}{envoyListener}, "clusters": clusters},
 				}
 				data, err := json.Marshal(bootstrap)
@@ -248,39 +214,8 @@ func TestMITMWildcardEnvoyAudit(t *testing.T) {
 				if err := os.WriteFile(configPath, data, 0600); err != nil {
 					t.Fatal(err)
 				}
-				var output wildcardLockedBuffer
-				cmd := exec.Command(binary, "-c", configPath, "--concurrency", "1", "--disable-hot-restart", "--log-level", "error")
-				cmd.Stdout, cmd.Stderr = &output, &output
-				if err := cmd.Start(); err != nil {
-					t.Fatal(err)
-				}
-				done := make(chan error, 1)
-				go func() { done <- cmd.Wait() }()
-				t.Cleanup(func() {
-					_ = cmd.Process.Kill()
-					<-done
-					if t.Failed() {
-						t.Logf("Envoy output: %s", output.snapshot())
-					}
-				})
-				adminClient := &http.Client{Transport: &http.Transport{Proxy: nil}, Timeout: 200 * time.Millisecond}
-				t.Cleanup(adminClient.CloseIdleConnections)
-				deadline := time.Now().Add(5 * time.Second)
-				for {
-					resp, err := adminClient.Get(fmt.Sprintf("http://127.0.0.1:%d/ready", adminPort))
-					ready := false
-					if err == nil {
-						ready = resp.StatusCode == 200
-						resp.Body.Close()
-					}
-					if ready {
-						break
-					}
-					if time.Now().After(deadline) {
-						t.Fatalf("Envoy did not become ready: %s", output.snapshot())
-					}
-					time.Sleep(20 * time.Millisecond)
-				}
+				output := startEnvoy(t, binary, configPath)
+				waitEnvoyReady(t, adminPort, output)
 				transport := &http.Transport{
 					Proxy:           nil,
 					TLSClientConfig: &tls.Config{RootCAs: roots, ServerName: serverName, MinVersion: tls.VersionTLS12},
@@ -317,7 +252,7 @@ func TestMITMWildcardEnvoyAudit(t *testing.T) {
 				}
 				// Poll for expected delivery, then observe several extra flush periods
 				// to detect duplicates. Silent rows observe the same bounded window.
-				deadline = time.Now().Add(3 * time.Second)
+				deadline := time.Now().Add(3 * time.Second)
 				if wantAction != "" {
 					for len(events()) == 0 && time.Now().Before(deadline) {
 						time.Sleep(20 * time.Millisecond)
@@ -338,105 +273,4 @@ func TestMITMWildcardEnvoyAudit(t *testing.T) {
 			})
 		}
 	}
-}
-
-type wildcardObservedEvent struct{ Action, Path, FilterChain string }
-
-func wildcardTestConsumer(t *testing.T) (accesslogv3.AccessLogServiceServer, func() []wildcardObservedEvent) {
-	t.Helper()
-	var out wildcardLockedBuffer
-	a := newTestAuditor(&bytes.Buffer{})
-	a.violationLogger = zerolog.New(&out)
-	return &alsServer{auditor: a}, func() []wildcardObservedEvent {
-		var events []wildcardObservedEvent
-		dec := json.NewDecoder(bytes.NewReader(out.snapshot()))
-		for {
-			var ev recordedViolation
-			err := dec.Decode(&ev)
-			if err == io.EOF {
-				break
-			}
-			if err != nil {
-				t.Fatal(err)
-			}
-			events = append(events, wildcardObservedEvent{Action: ev.Action, Path: ev.Event.Path, FilterChain: ev.Event.FilterChain})
-		}
-		return events
-	}
-}
-
-type wildcardLockedBuffer struct {
-	sync.Mutex
-	buffer bytes.Buffer
-}
-
-func (b *wildcardLockedBuffer) Write(p []byte) (int, error) {
-	b.Lock()
-	defer b.Unlock()
-	return b.buffer.Write(p)
-}
-func (b *wildcardLockedBuffer) snapshot() []byte {
-	b.Lock()
-	defer b.Unlock()
-	return append([]byte(nil), b.buffer.Bytes()...)
-}
-
-func wildcardFreePort(t *testing.T) int {
-	t.Helper()
-	l, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	port := l.Addr().(*net.TCPAddr).Port
-	if err := l.Close(); err != nil {
-		t.Fatal(err)
-	}
-	return port
-}
-func wildcardSocketAddress(port int) map[string]interface{} {
-	return map[string]interface{}{"socket_address": map[string]interface{}{"address": "127.0.0.1", "port_value": port}}
-}
-func wildcardSetFlushInterval(node interface{}) {
-	switch v := node.(type) {
-	case map[string]interface{}:
-		if _, ok := v["log_name"]; ok {
-			v["buffer_flush_interval"] = "0.05s"
-		}
-		for _, child := range v {
-			wildcardSetFlushInterval(child)
-		}
-	case []interface{}:
-		for _, child := range v {
-			wildcardSetFlushInterval(child)
-		}
-	}
-}
-func wildcardTestCertificate(t *testing.T, dir, host string) (string, string, *x509.CertPool) {
-	t.Helper()
-	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	if err != nil {
-		t.Fatal(err)
-	}
-	template := &x509.Certificate{SerialNumber: big.NewInt(1), Subject: pkix.Name{CommonName: host}, DNSNames: []string{host}, NotBefore: time.Now().Add(-time.Hour), NotAfter: time.Now().Add(time.Hour), KeyUsage: x509.KeyUsageDigitalSignature, ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}}
-	der, err := x509.CreateCertificate(rand.Reader, template, template, &key.PublicKey, key)
-	if err != nil {
-		t.Fatal(err)
-	}
-	keyDER, err := x509.MarshalECPrivateKey(key)
-	if err != nil {
-		t.Fatal(err)
-	}
-	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der})
-	certPath, keyPath := filepath.Join(dir, "leaf.crt"), filepath.Join(dir, "leaf.key")
-	if err := os.WriteFile(certPath, certPEM, 0600); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(keyPath, pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER}), 0600); err != nil {
-		t.Fatal(err)
-	}
-	roots := x509.NewCertPool()
-	if !roots.AppendCertsFromPEM(certPEM) {
-		t.Fatal("invalid test certificate")
-	}
-	return certPath, keyPath, roots
 }

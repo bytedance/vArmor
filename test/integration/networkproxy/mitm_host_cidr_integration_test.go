@@ -1,3 +1,5 @@
+//go:build envoyintegration
+
 // Copyright 2026 vArmor Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,16 +14,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package audit
+package networkproxy
 
 import (
-	"crypto/tls"
-	"crypto/x509"
-	"os"
-	"path/filepath"
 	"testing"
-
-	mitm "github.com/bytedance/vArmor/internal/networkproxy/mitm"
 )
 
 // Use production-issued certificates, not the synthetic certificates used by
@@ -29,26 +25,4 @@ import (
 // peer certificate, so stale TLS material cannot hide a signing regression.
 func TestMITMHostCIDREnvoyAudit(t *testing.T) {
 	runMITMEgressEnvoyAudit(t, httpHostTestOptions{hostCIDRCertificate: true})
-}
-
-func mitmHostCIDRTestCertificate(t *testing.T, dir, domain string) (string, string, *x509.CertPool, []byte) {
-	t.Helper()
-	material, err := mitm.GenerateMITMMaterial([]string{domain})
-	if err != nil {
-		t.Fatal(err)
-	}
-	pair, err := tls.X509KeyPair(material.Leaf.CertPEM, material.Leaf.KeyPEM)
-	if err != nil {
-		t.Fatal(err)
-	}
-	certPath, keyPath := filepath.Join(dir, "leaf.crt"), filepath.Join(dir, "leaf.key")
-	if err := os.WriteFile(certPath, material.Leaf.CertPEM, 0600); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(keyPath, material.Leaf.KeyPEM, 0600); err != nil {
-		t.Fatal(err)
-	}
-	roots := x509.NewCertPool()
-	roots.AddCert(material.CA.Cert)
-	return certPath, keyPath, roots, pair.Certificate[0]
 }

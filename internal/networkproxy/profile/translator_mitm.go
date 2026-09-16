@@ -56,7 +56,6 @@ import (
 	"strings"
 
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
-	varmorconfig "github.com/bytedance/vArmor/internal/config"
 )
 
 // ============================================================================
@@ -82,11 +81,9 @@ type MITMInput struct {
 	// HeaderMutation.Domain exactly (no wildcard expansion).
 	HeadersByDomain map[string][]HeaderToAdd
 
-	// LeafCertPath / LeafKeyPath are the in-sidecar file paths where the
-	// policy's unified Secret projects the MITM leaf certificate and key.
-	// If empty, defaults from internal/config are applied.
-	LeafCertPath string
-	LeafKeyPath  string
+	// CertificateSDSPath overrides the default file-based SDS source.
+	// Production uses MITMCertSDSPath; tests can use an isolated directory.
+	CertificateSDSPath string
 }
 
 // Enabled reports whether a valid, non-empty MITM configuration was supplied.
@@ -345,15 +342,11 @@ func mitmHostPatternsOverlap(host, domain string) bool {
 func buildMITMChains(cls egressClassification, mitm *MITMInput, audit AuditSinkConfig) []FilterChain {
 	dnsNames, ipPrefixes := splitMITMDomains(mitm.Domains)
 
-	certPath := mitm.LeafCertPath
-	if certPath == "" {
-		certPath = varmorconfig.MITMLeafCertPath
+	secretPath := mitm.CertificateSDSPath
+	if secretPath == "" {
+		secretPath = MITMCertSDSPath
 	}
-	keyPath := mitm.LeafKeyPath
-	if keyPath == "" {
-		keyPath = varmorconfig.MITMLeafKeyPath
-	}
-	tlsCtx := &DownstreamTLSContext{CertPath: certPath, KeyPath: keyPath}
+	tlsCtx := &DownstreamTLSContext{SecretPath: secretPath}
 
 	var chains []FilterChain
 	if len(dnsNames) > 0 {

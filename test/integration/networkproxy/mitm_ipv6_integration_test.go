@@ -1,3 +1,5 @@
+//go:build envoyintegration
+
 // Copyright 2026 vArmor Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,7 +14,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package audit
+package networkproxy
 
 import (
 	"context"
@@ -24,7 +26,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -32,8 +33,6 @@ import (
 	"testing"
 	"time"
 
-	accesslogv3 "github.com/envoyproxy/go-control-plane/envoy/service/accesslog/v3"
-	"google.golang.org/grpc"
 	"sigs.k8s.io/yaml"
 
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
@@ -45,15 +44,7 @@ import (
 // TestMITMEgressEnvoyAudit; ENVOY_BINARY opts in. Virtual hosts and HTTP
 // filters are never rewritten by the test.
 func TestMITMIPv6EnvoyAudit(t *testing.T) {
-	binary := os.Getenv("ENVOY_BINARY")
-	if binary == "" {
-		t.Skip("set ENVOY_BINARY to run local Envoy integration tests")
-	}
-	var err error
-	binary, err = exec.LookPath(binary)
-	if err != nil {
-		t.Fatal(err)
-	}
+	binary := envoyBinary(t)
 	rows := []struct {
 		name, defaultAction string
 		qualifiers          [][]string
@@ -125,23 +116,9 @@ func TestMITMIPv6EnvoyAudit(t *testing.T) {
 			}
 			t.Run(dst.name+"/"+row.name, func(t *testing.T) {
 				dir := t.TempDir()
-				cert, key, roots := mitmEgressTestCertificate(t, dir, "::1")
+				cert, key, roots := testCertificate(t, dir, "::1")
 				// Keep the UDS path short even for long subtest names.
-				socketDir, err := os.MkdirTemp("", "mitm-als-")
-				if err != nil {
-					t.Fatal(err)
-				}
-				t.Cleanup(func() { os.RemoveAll(socketDir) })
-				socket := filepath.Join(socketDir, "als.sock")
-				listener, err := net.Listen("unix", socket)
-				if err != nil {
-					t.Fatal(err)
-				}
-				service, events := mitmEgressTestConsumer(t)
-				server := grpc.NewServer()
-				accesslogv3.RegisterAccessLogServiceServer(server, service)
-				go server.Serve(listener)
-				t.Cleanup(func() { server.Stop(); listener.Close() })
+				socket, events := startAuditCollector(t)
 				var upstreamCalls atomic.Int32
 				upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					upstreamCalls.Add(1)
@@ -152,9 +129,9 @@ func TestMITMIPv6EnvoyAudit(t *testing.T) {
 				}))
 				t.Cleanup(upstream.Close)
 				upstreamPort := upstream.Listener.Addr().(*net.TCPAddr).Port
-				proxyPort, adminPort := mitmEgressFreePort(t, "::1"), mitmEgressFreePort(t, "127.0.0.1")
+				proxyPort, adminPort := freePort(t, "::1"), freePort(t, "127.0.0.1")
 				for adminPort == proxyPort {
-					adminPort = mitmEgressFreePort(t, "127.0.0.1")
+					adminPort = freePort(t, "127.0.0.1")
 				}
 				destinationPort := proxyPort
 				if dst.originalPort != 0 {
@@ -207,7 +184,7 @@ func TestMITMIPv6EnvoyAudit(t *testing.T) {
 					}
 				}
 				ipStack := profile.IPStackConfig{IPv6: true}
-				result, err := profile.TranslateEgressRules(e, 1, uint16(proxyPort), &profile.MITMInput{Domains: []string{dst.domain}, LeafCertPath: cert, LeafKeyPath: key, HeadersByDomain: map[string][]profile.HeaderToAdd{dst.domain: {{Name: "X-MITM-Probe", Value: "injected"}}}}, ipStack, profile.AuditSinkConfig{ProfileName: "mitm-ipv6-test", ALSUDSPath: socket})
+				result, err := profile.TranslateEgressRules(e, 1, uint16(proxyPort), &profile.MITMInput{Domains: []string{dst.domain}, CertificateSDSPath: certificateSDS(t, cert, key), HeadersByDomain: map[string][]profile.HeaderToAdd{dst.domain: {{Name: "X-MITM-Probe", Value: "injected"}}}}, ipStack, profile.AuditSinkConfig{ProfileName: "mitm-ipv6-test", ALSUDSPath: socket})
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -220,7 +197,7 @@ func TestMITMIPv6EnvoyAudit(t *testing.T) {
 				}
 				envoyListener := lds["resources"].([]interface{})[0].(map[string]interface{})
 				delete(envoyListener, "@type")
-				envoyListener["address"] = mitmEgressSocketAddress(proxyPort)
+				envoyListener["address"] = socketAddress(proxyPort)
 				envoyListener["address"].(map[string]interface{})["socket_address"].(map[string]interface{})["address"] = "::1"
 				// The test connects directly rather than via transparent redirection.
 				var filters []interface{}
@@ -250,17 +227,17 @@ func TestMITMIPv6EnvoyAudit(t *testing.T) {
 						cluster = map[string]interface{}{
 							"name": name, "type": "STATIC", "connect_timeout": "1s",
 							"load_assignment": map[string]interface{}{"cluster_name": name, "endpoints": []interface{}{
-								map[string]interface{}{"lb_endpoints": []interface{}{map[string]interface{}{"endpoint": map[string]interface{}{"address": mitmEgressSocketAddress(upstreamPort)}}}},
+								map[string]interface{}{"lb_endpoints": []interface{}{map[string]interface{}{"endpoint": map[string]interface{}{"address": socketAddress(upstreamPort)}}}},
 							}},
 						}
 					}
 					clusters = append(clusters, cluster)
 				}
 				// Shorten ALS batching, not audit selection, for bounded silent checks.
-				mitmEgressSetFlushInterval(envoyListener)
+				setALSFlushInterval(envoyListener)
 				bootstrap := map[string]interface{}{
 					"node":             map[string]interface{}{"id": "mitm-ipv6-test", "cluster": "mitm-ipv6-test"},
-					"admin":            map[string]interface{}{"address": mitmEgressSocketAddress(adminPort)},
+					"admin":            map[string]interface{}{"address": socketAddress(adminPort)},
 					"static_resources": map[string]interface{}{"listeners": []interface{}{envoyListener}, "clusters": clusters},
 				}
 				data, err := json.Marshal(bootstrap)
@@ -271,39 +248,8 @@ func TestMITMIPv6EnvoyAudit(t *testing.T) {
 				if err := os.WriteFile(configPath, data, 0600); err != nil {
 					t.Fatal(err)
 				}
-				var output mitmEgressLockedBuffer
-				cmd := exec.Command(binary, "-c", configPath, "--concurrency", "1", "--disable-hot-restart", "--log-level", "error")
-				cmd.Stdout, cmd.Stderr = &output, &output
-				if err := cmd.Start(); err != nil {
-					t.Fatal(err)
-				}
-				done := make(chan error, 1)
-				go func() { done <- cmd.Wait() }()
-				t.Cleanup(func() {
-					_ = cmd.Process.Kill()
-					<-done
-					if t.Failed() {
-						t.Logf("Envoy output: %s", output.snapshot())
-					}
-				})
-				adminClient := &http.Client{Transport: &http.Transport{Proxy: nil}, Timeout: 200 * time.Millisecond}
-				t.Cleanup(adminClient.CloseIdleConnections)
-				deadline := time.Now().Add(5 * time.Second)
-				for {
-					resp, err := adminClient.Get(fmt.Sprintf("http://127.0.0.1:%d/ready", adminPort))
-					ready := false
-					if err == nil {
-						ready = resp.StatusCode == 200
-						resp.Body.Close()
-					}
-					if ready {
-						break
-					}
-					if time.Now().After(deadline) {
-						t.Fatalf("Envoy did not become ready: %s", output.snapshot())
-					}
-					time.Sleep(20 * time.Millisecond)
-				}
+				output := startEnvoy(t, binary, configPath)
+				waitEnvoyReady(t, adminPort, output)
 				transport := &http.Transport{
 					Proxy:           nil,
 					TLSClientConfig: &tls.Config{RootCAs: roots, ServerName: "::1", MinVersion: tls.VersionTLS12},
@@ -372,7 +318,7 @@ func TestMITMIPv6EnvoyAudit(t *testing.T) {
 				}
 				// Poll for expected delivery, then observe several extra flush periods
 				// to detect duplicates. Silent rows observe the same bounded window.
-				deadline = time.Now().Add(3 * time.Second)
+				deadline := time.Now().Add(3 * time.Second)
 				if row.action != "" {
 					for len(events()) == 0 && time.Now().Before(deadline) {
 						time.Sleep(20 * time.Millisecond)
