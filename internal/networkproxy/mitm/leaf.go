@@ -74,9 +74,10 @@ type MITMMaterial struct {
 //
 // Entries are classified as they are written into the certificate:
 //
-//   - IP literals (parsed by net.ParseIP) become IPAddresses entries;
-//   - anything else — bare hostnames and wildcard names such as
-//     "*.openai.com" — become DNSNames entries.
+//   - IP literals and single-host CIDRs (/32 for IPv4, /128 for IPv6)
+//     become IPAddresses entries, deduplicated by canonical IP identity;
+//   - bare hostnames and wildcard names such as "*.openai.com" become
+//     DNSNames entries. Invalid or wider CIDRs are rejected.
 //
 // Wildcard matching happens at the verifier side per RFC 6125: a
 // wildcard matches exactly one DNS label and does not match the bare
@@ -218,15 +219,10 @@ func RenewLeafAt(ca *CACertificate, domains []string, now time.Time) (*LeafCerti
 	return SignLeafCertificateAt(ca, domains, now)
 }
 
-// classifyDomains splits the user-supplied SAN inputs into DNS names
-// and IP addresses. It rejects empty entries and duplicates so that the
-// controller never writes a malformed certificate or a Secret whose
-// content depends on the order in which deduplication happens later.
-//
-// Syntactic checks beyond "non-empty and unique" live in the webhook
-// validator; this function stays deliberately tolerant because it is
-// the last stop before DER encoding and must not diverge from what the
-// admission layer already accepted.
+// classifyDomains splits SAN inputs into DNS names and IP addresses. Only
+// single-host CIDRs identify a certificate endpoint; wider or malformed CIDRs
+// must not fall through to DNS SANs. IP aliases share one canonical identity.
+// Empty entries and duplicate DNS names retain their existing rejection behavior.
 func classifyDomains(domains []string) (dns []string, ips []net.IP, err error) {
 	if len(domains) == 0 {
 		return nil, nil, fmt.Errorf("at least one domain is required")
@@ -234,22 +230,39 @@ func classifyDomains(domains []string) (dns []string, ips []net.IP, err error) {
 
 	dns = make([]string, 0, len(domains))
 	ips = make([]net.IP, 0)
-	seen := make(map[string]struct{}, len(domains))
+	seenDNS := make(map[string]struct{}, len(domains))
+	seenIP := make(map[string]struct{}, len(domains))
 
 	for _, raw := range domains {
 		d := strings.TrimSpace(raw)
 		if d == "" {
 			return nil, nil, fmt.Errorf("empty domain entry")
 		}
-		if _, dup := seen[d]; dup {
-			return nil, nil, fmt.Errorf("duplicate domain entry: %q", d)
+		ip := net.ParseIP(d)
+		if strings.Contains(d, "/") {
+			var network *net.IPNet
+			ip, network, err = net.ParseCIDR(d)
+			if err != nil {
+				return nil, nil, fmt.Errorf("invalid MITM CIDR %q: %w", d, err)
+			}
+			ones, bits := network.Mask.Size()
+			if !((bits == 32 && ones == 32) || (bits == 128 && ones == 128)) {
+				return nil, nil, fmt.Errorf("MITM CIDR %q must identify a single host (/32 for IPv4 or /128 for IPv6)", d)
+			}
 		}
-		seen[d] = struct{}{}
-
-		if ip := net.ParseIP(d); ip != nil {
+		if ip != nil {
+			identity := ip.String()
+			if _, dup := seenIP[identity]; dup {
+				continue
+			}
+			seenIP[identity] = struct{}{}
 			ips = append(ips, ip)
 			continue
 		}
+		if _, dup := seenDNS[d]; dup {
+			return nil, nil, fmt.Errorf("duplicate domain entry: %q", d)
+		}
+		seenDNS[d] = struct{}{}
 		dns = append(dns, d)
 	}
 
