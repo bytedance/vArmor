@@ -12,6 +12,8 @@ renderer and TLS-material unit tests remain in the profile package.
   DNS/IP TLS selection, including eight-row HTTP/L4 audit matrices.
 - `mitm_ip_reload_integration_test.go`: live addition/removal of MITM IP targets,
   HTTP/1.1, h2c, HTTP/2 TLS, domain/header boundaries and raw TCP fallback.
+- `mitm_identity_integration_test.go`: reject equivalent MITM identities before
+  publication, then verify a corrected live update enforces and audits denial.
 - `*_integration_test.go`: audit matrices, IPv6/HTTP matching, path handling,
   LDS/CDS reload ordering and TLS Secret rotation assertions.
 
