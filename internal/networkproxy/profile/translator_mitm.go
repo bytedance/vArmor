@@ -32,14 +32,10 @@ package profile
 //     domains; IP chain VHs only contain IP/CIDR domains. This prevents
 //     unreachable VirtualHosts (e.g., IP VHs in a DNS-only chain).
 //
-//  4. MITM must support both DNS-named and plain-IP targets. Because
-//     Envoy AND-combines server_names and prefix_ranges within a single
-//     filter_chain_match, we emit TWO filter chains with SEPARATE HCMs:
-//       - DNS chain:  filter_chain_match {server_names=[...], transport_protocol=tls}
-//       - IP  chain:  filter_chain_match {prefix_ranges=[...], transport_protocol=tls}
-//     Each HCM scopes VirtualHosts and HTTP host rules to its domains,
-//     but retains all L4 rules for runtime destination matching. This
-//     covers both chain types without sacrificing matching specificity.
+//  4. Envoy chooses destination IP before SNI or transport protocol and does
+//     not backtrack. IP targets therefore need plaintext HTTP and DNS MITM
+//     candidates inside the same prefix_ranges branch, in addition to the
+//     IP TLS chain. DNS and IP TLS chains keep separate, scoped VirtualHosts.
 //
 //  5. Port is intentionally NOT restricted -- any port may carry TLS
 //     (e.g., k8s apiserver on 6443). Envoy's tls_inspector listener
@@ -333,12 +329,10 @@ func mitmHostPatternsOverlap(host, domain string) bool {
 	return false
 }
 
-// buildMITMChains emits up to two filter chains: one matching by SNI
-// (DNS / wildcard entries) and one matching by destination IP CIDR.
-// Each chain gets its OWN HCM with VirtualHosts and HTTP host rules scoped
-// to its domains. Both retain the complete L4 rules: a DNS/SNI-selected
-// connection still has a destination IP, and an IP-selected connection can
-// match a broader CIDR. Envoy evaluates those destination constraints.
+// buildMITMChains emits DNS/IP TLS chains plus the HTTP and DNS TLS
+// candidates needed inside an IP-specific branch. Each TLS HCM scopes its
+// VirtualHosts and HTTP rules to the corresponding DNS or IP domains while
+// retaining all L4 destination predicates. Plain HTTP retains all HTTP rules.
 func buildMITMChains(cls egressClassification, mitm *MITMInput, audit AuditSinkConfig) []FilterChain {
 	dnsNames, ipPrefixes := splitMITMDomains(mitm.Domains)
 
@@ -372,7 +366,31 @@ func buildMITMChains(cls egressClassification, mitm *MITMInput, audit AuditSinkC
 			TransportSocket: tlsCtx,
 			Filters:         []NetworkFilter{ipHCM},
 		})
+
+		// Destination IP matching eliminates the general HTTP and DNS chains.
+		// Supply equivalent candidates at the same IP specificity. raw_buffer
+		// plus HTTP inspection keeps arbitrary TCP traffic on the TCP fallback.
+		httpChain := buildHTTPChainWithName(FilterChainNameHTTPIP, cls.defaultDeny,
+			cls.denyEgressRules, cls.allowEgressRules, cls.denyHTTPRules, cls.allowHTTPRules,
+			cls.auditCfg, audit)
+		httpChain.FilterChainMatch.PrefixRanges = ipPrefixes
+		httpChain.FilterChainMatch.TransportProtocol = "raw_buffer"
+		chains = append(chains, httpChain)
+
+		if len(dnsNames) > 0 {
+			chains = append(chains, FilterChain{
+				Name: FilterChainNameMITMTLSDNSIP,
+				FilterChainMatch: &FilterChainMatch{
+					PrefixRanges:      ipPrefixes,
+					ServerNames:       dnsNames,
+					TransportProtocol: "tls",
+				},
+				TransportSocket: tlsCtx,
+				Filters:         []NetworkFilter{buildMITMHCMFilter(cls, dnsNames, mitm.HeadersByDomain, audit, FilterChainNameMITMTLSDNSIP)},
+			})
+		}
 	}
+
 	return chains
 }
 

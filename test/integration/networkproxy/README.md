@@ -8,6 +8,10 @@ renderer and TLS-material unit tests remain in the profile package.
 - `harness_test.go`: Envoy discovery, startup/shutdown, readiness, loopback ALS
   collection, captured logs, temporary ports and atomic file publication.
 - `tls_fixtures_test.go`: TLS certificates and SDS fixtures shared by scenarios.
+- `mitm_ip_selection_integration_test.go`: IP MITM plaintext HTTP and overlapping
+  DNS/IP TLS selection, including eight-row HTTP/L4 audit matrices.
+- `mitm_ip_reload_integration_test.go`: live addition/removal of MITM IP targets,
+  HTTP/1.1, h2c, HTTP/2 TLS, domain/header boundaries and raw TCP fallback.
 - `*_integration_test.go`: audit matrices, IPv6/HTTP matching, path handling,
   LDS/CDS reload ordering and TLS Secret rotation assertions.
 

@@ -32,7 +32,7 @@ func TestHTTPPathNormalizationConfig(t *testing.T) {
 		if mitmEnabled {
 			name = "mitm"
 			mitm = &MITMInput{Domains: []string{"api.example.com", "127.0.0.1"}, CertificateSDSPath: "/cert.pem"}
-			wantChains = append(wantChains, "mitm_tls_dns_chain", "mitm_tls_ip_chain")
+			wantChains = append(wantChains, "mitm_tls_dns_chain", "mitm_tls_ip_chain", "http_ip_chain", "mitm_tls_dns_ip_chain")
 		}
 		t.Run(name, func(t *testing.T) {
 			e := &varmor.NetworkProxyEgress{DefaultAction: "allow", HTTPRules: []varmor.NetworkProxyHTTPRule{{

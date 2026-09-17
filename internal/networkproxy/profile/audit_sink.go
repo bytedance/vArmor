@@ -52,11 +52,13 @@ const (
 // lets the HCM carry its owning chain name for the gRPC ALS custom_tag
 // without re-deriving the string in two places.
 const (
-	FilterChainNameHTTP       = "http_chain"
-	FilterChainNameMITMTLSDNS = "mitm_tls_dns_chain"
-	FilterChainNameMITMTLSIP  = "mitm_tls_ip_chain"
-	FilterChainNameTLS        = "tls_chain"
-	FilterChainNameTCPDefault = "tcp_default_chain"
+	FilterChainNameHTTP         = "http_chain"
+	FilterChainNameMITMTLSDNS   = "mitm_tls_dns_chain"
+	FilterChainNameMITMTLSIP    = "mitm_tls_ip_chain"
+	FilterChainNameHTTPIP       = "http_ip_chain"
+	FilterChainNameMITMTLSDNSIP = "mitm_tls_dns_ip_chain"
+	FilterChainNameTLS          = "tls_chain"
+	FilterChainNameTCPDefault   = "tcp_default_chain"
 )
 
 // AuditSinkConfig parameterises the Envoy gRPC ALS access_log sink used for

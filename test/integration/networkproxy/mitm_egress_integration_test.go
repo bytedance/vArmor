@@ -88,7 +88,16 @@ func TestHTTPDefaultPortEnvoyAudit(t *testing.T) {
 	}
 }
 
+// Selection options exercise the same IP branch with different protocols and
+// authorities. An empty DNS target deliberately configures IP-only MITM.
+type mitmIPSelectionOptions struct {
+	ip, dns         string
+	expectedChain   string
+	plaintext, ipv6 bool
+}
+
 type httpHostTestOptions struct {
+	mitmIPSelection         *mitmIPSelectionOptions
 	hostCIDRCertificate     bool
 	pattern                 string
 	bindPort, authorityPort bool
@@ -160,6 +169,28 @@ func runMITMEgressEnvoyAudit(t *testing.T, options httpHostTestOptions) {
 					auditRow{"deny_wrong_" + mismatch, "deny", [][]string{{"allow", "audit"}}, 403, "DENIED", mismatch},
 				)
 			}
+		}
+	}
+	if sel := options.mitmIPSelection; sel != nil {
+		destinations = destinations[:1]
+		dst := &destinations[0]
+		if sel.ipv6 {
+			dst.localIP = "::1"
+		}
+		dst.name = "selection"
+		dst.ruleIP = dst.localIP
+		if net.ParseIP(options.pattern) != nil {
+			dst.domain = options.pattern
+		}
+		if sel.plaintext {
+			dst.chain = "http_ip_chain"
+		} else if sel.dns != "" {
+			dst.chain = "mitm_tls_dns_ip_chain"
+		} else {
+			dst.chain = "mitm_tls_ip_chain"
+		}
+		if sel.expectedChain != "" {
+			dst.chain = sel.expectedChain
 		}
 	}
 	for _, dst := range destinations {
@@ -259,6 +290,12 @@ func runMITMEgressEnvoyAudit(t *testing.T, options httpHostTestOptions) {
 				if options.defaultPort == 80 {
 					mitm = nil
 				}
+				if sel := options.mitmIPSelection; sel != nil {
+					mitm = &profile.MITMInput{Domains: []string{sel.ip}, CertificateSDSPath: certificateSDS(t, cert, key)}
+					if sel.dns != "" {
+						mitm.Domains = append(mitm.Domains, sel.dns)
+					}
+				}
 				result, err := profile.TranslateEgressRules(e, 1, uint16(proxyPort), mitm, ipStack, profile.AuditSinkConfig{ProfileName: "mitm-egress-test", ALSUDSPath: socket})
 				if err != nil {
 					t.Fatal(err)
@@ -352,7 +389,7 @@ func runMITMEgressEnvoyAudit(t *testing.T, options httpHostTestOptions) {
 				if options.defaultPort != 0 {
 					urlPort = rulePort
 				}
-				if options.defaultPort == 80 {
+				if options.defaultPort == 80 || (options.mitmIPSelection != nil && options.mitmIPSelection.plaintext) {
 					scheme = "http"
 				}
 				req, err := http.NewRequest(http.MethodGet, scheme+"://"+net.JoinHostPort(dst.domain, strconv.Itoa(urlPort))+"/secret", nil)

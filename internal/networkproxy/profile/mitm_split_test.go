@@ -46,7 +46,7 @@ func TestMITMChainVHIsolation(t *testing.T) {
 	dnsChainStart := strings.Index(lds, "mitm_tls_dns_chain")
 	dnsChainEnd := strings.Index(lds, "mitm_tls_ip_chain")
 	ipChainStart := dnsChainEnd
-	ipChainEnd := strings.Index(lds, "tls_chain")
+	ipChainEnd := strings.Index(lds, "http_ip_chain")
 
 	if dnsChainStart < 0 || ipChainStart < 0 || ipChainEnd < 0 {
 		t.Fatalf("Could not find expected chain sections in LDS")

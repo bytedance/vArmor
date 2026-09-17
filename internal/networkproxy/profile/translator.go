@@ -55,9 +55,9 @@ type FilterChainMatch struct {
 	// MITMConfig.Domains. Literal entries and single-label wildcards
 	// (e.g., "*.openai.com") are supported by Envoy natively.
 	ServerNames []string
-	// PrefixRanges is the destination-IP CIDR match list, used by MITM
-	// IP chains to intercept plain-IP TLS connections (no SNI) whose
-	// destination appears in MITMConfig.Domains as an IP literal.
+	// PrefixRanges constrains the destination IP. MITM IP targets use
+	// identical prefixes for their IP TLS, plaintext HTTP and DNS TLS
+	// candidates so Envoy can select each protocol within that IP branch.
 	PrefixRanges []string
 }
 
@@ -370,9 +370,9 @@ type TranslateResult struct {
 // The optional mitm argument enables TLS MITM + HTTP header injection.
 // When mitm is nil or MITMInput.Enabled() reports false, the emitted
 // listener is identical to the pre-Phase-4 output (three filter chains:
-// TLS passthrough, HTTP, TCP default). When enabled, one or two MITM
-// filter chains are prepended so Envoy's most-specific-match precedence
-// intercepts targeted TLS while other TLS falls through unchanged.
+// TLS passthrough, HTTP, TCP default). MITM adds scoped TLS chains and,
+// for IP targets, matching HTTP/DNS candidates within the IP-specific branch.
+// Selection follows Envoy's specificity rules, not list order.
 func TranslateEgressRules(egress *varmor.NetworkProxyEgress, version int64, proxyPort uint16, mitm *MITMInput, ipStack IPStackConfig, audit AuditSinkConfig) (*TranslateResult, error) {
 	if egress == nil {
 		return nil, fmt.Errorf("network proxy egress rules is nil")
@@ -601,8 +601,17 @@ func buildHTTPChain(defaultDeny bool,
 	denyHTTPRules, allowHTTPRules []varmor.NetworkProxyHTTPRule,
 	auditCfg AuditConfig, audit AuditSinkConfig,
 ) FilterChain {
+	return buildHTTPChainWithName(FilterChainNameHTTP, defaultDeny, denyEgressRules, allowEgressRules,
+		denyHTTPRules, allowHTTPRules, auditCfg, audit)
+}
+
+func buildHTTPChainWithName(chainName string, defaultDeny bool,
+	denyEgressRules, allowEgressRules []varmor.NetworkProxyEgressRule,
+	denyHTTPRules, allowHTTPRules []varmor.NetworkProxyHTTPRule,
+	auditCfg AuditConfig, audit AuditSinkConfig,
+) FilterChain {
 	chain := FilterChain{
-		Name: FilterChainNameHTTP,
+		Name: chainName,
 		FilterChainMatch: &FilterChainMatch{
 			ApplicationProtocols: []string{"http/1.0", "http/1.1", "h2c"},
 		},
@@ -669,7 +678,7 @@ func buildHTTPChain(defaultDeny bool,
 			AccessLogDenyCEL:   hcmDenyCEL,
 			AccessLogShadowCEL: hcmShadowCEL,
 			AuditSink:          audit,
-			FilterChainName:    FilterChainNameHTTP,
+			FilterChainName:    chainName,
 			RouteConfig: &RouteConfig{
 				Name: "local_route",
 				VirtualHosts: []VirtualHost{{

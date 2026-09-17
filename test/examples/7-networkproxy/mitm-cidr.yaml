@@ -13,11 +13,9 @@
 #   so entries like "10.0.0.0/24" cannot be written into mitm.domains.
 #   Broad CIDRs can only appear in L4 egress rules for port-level allow/deny.
 #
-# Bare /32 CIDR MITM limitation:
-#   MITM rules based on /32 CIDR cause plaintext HTTP L7 access control to become ineffective
-#   - Same as mitm-ip-literal, plaintext HTTP to 8.8.8.8 falls into tcp_default_chain
-#   - The L7 RBAC rules generated for 8.8.8.8/32 in http_chain become dead code
-#   - Only affects IP rules, does not affect domain rules
+# Plaintext HTTP to the MITM IP uses http_ip_chain and retains all HTTP
+# host/path/method rules, including rules whose Host is a DNS name.
+# When DNS and IP MITM targets overlap, matching SNI uses mitm_tls_dns_ip_chain.
 #
 # Verification:
 #   # /32 — should be able to establish a MITM connection (note: 8.8.8.8:443 is dns.google, may return non-standard response)
