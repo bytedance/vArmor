@@ -6,11 +6,9 @@
 # - Injects X-Request-Source: varmor-ip-literal
 # - httpRules allow ports 443 and 6443 for 1.1.1.1
 #
-# Bare IP MITM limitation:
-#   MITM rules based on IP cause plaintext HTTP L7 access control to become ineffective
-#   - curl http://1.1.1.1:443 (plaintext HTTP) → prefix_ranges eliminates http_chain → falls into tcp_default_chain and is denied by the fallback rule
-#   - The L7 RBAC rules generated for 1.1.1.1 in http_chain become dead code
-#   - Only affects IP rules, does not affect domain rules
+# Plaintext HTTP to the MITM IP uses http_ip_chain and retains all HTTP
+# host/path/method rules, including rules whose Host is a DNS name.
+# When DNS and IP MITM targets overlap, matching SNI uses mitm_tls_dns_ip_chain.
 #
 # Verification:
 #   kubectl exec -it -n demo deploy/mitm-ip-literal -- curl -sSLk https://1.1.1.1/cdn-cgi/trace

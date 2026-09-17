@@ -44,6 +44,14 @@ import (
 // ORIGINAL_DST upstream clusters with a local HTTP server. Generated MITM
 // chains, virtual hosts, RBAC predicates and access loggers remain in use.
 func TestMITMWildcardEnvoyAudit(t *testing.T) {
+	runMITMWildcardEnvoyAudit(t, false)
+}
+
+func TestMITMWildcardIPOverlapEnvoyAudit(t *testing.T) {
+	runMITMWildcardEnvoyAudit(t, true)
+}
+
+func runMITMWildcardEnvoyAudit(t *testing.T, ipOverlap bool) {
 	binary := envoyBinary(t)
 	rows := []struct {
 		name, defaultAction string
@@ -162,7 +170,13 @@ func TestMITMWildcardEnvoyAudit(t *testing.T) {
 						e.HTTPRules[i].Match.Ports = []varmor.Port{{Port: uint16(rulePort)}}
 					}
 				}
-				result, err := profile.TranslateEgressRules(e, 1, uint16(proxyPort), &profile.MITMInput{Domains: []string{overlap.domain}, CertificateSDSPath: certificateSDS(t, cert, key), HeadersByDomain: map[string][]profile.HeaderToAdd{overlap.domain: {{Name: "X-MITM-Probe", Value: "injected"}, {Name: "Authorization", Value: headerValue}}}}, profile.IPStackConfig{IPv4: true}, profile.AuditSinkConfig{ProfileName: "wildcard-test", ALSUDSPath: socket})
+				domains := []string{overlap.domain}
+				expectedChain := "mitm_tls_dns_chain"
+				if ipOverlap {
+					domains = append(domains, "127.0.0.1")
+					expectedChain = "mitm_tls_dns_ip_chain"
+				}
+				result, err := profile.TranslateEgressRules(e, 1, uint16(proxyPort), &profile.MITMInput{Domains: domains, CertificateSDSPath: certificateSDS(t, cert, key), HeadersByDomain: map[string][]profile.HeaderToAdd{overlap.domain: {{Name: "X-MITM-Probe", Value: "injected"}, {Name: "Authorization", Value: headerValue}}}}, profile.IPStackConfig{IPv4: true}, profile.AuditSinkConfig{ProfileName: "wildcard-test", ALSUDSPath: socket})
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -267,7 +281,7 @@ func TestMITMWildcardEnvoyAudit(t *testing.T) {
 				if len(got) != wantCount {
 					t.Fatalf("events=%+v; want count=%d", got, wantCount)
 				}
-				if wantCount == 1 && (got[0].Action != wantAction || got[0].Path != "/secret" || got[0].FilterChain != "mitm_tls_dns_chain") {
+				if wantCount == 1 && (got[0].Action != wantAction || got[0].Path != "/secret" || got[0].FilterChain != expectedChain) {
 					t.Fatalf("event=%+v; want action=%s on MITM /secret", got[0], wantAction)
 				}
 			})

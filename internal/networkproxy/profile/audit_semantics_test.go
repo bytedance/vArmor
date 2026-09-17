@@ -237,7 +237,7 @@ func TestAuditLoggerLocations(t *testing.T) {
 					if enabled {
 						want = 2
 						if mitmEnabled {
-							want = 4
+							want = 6 // Listener ALS and five HCM loggers; each request selects one HCM.
 						}
 					}
 					if locations != want {

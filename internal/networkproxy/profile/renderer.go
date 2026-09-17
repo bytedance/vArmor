@@ -179,10 +179,8 @@ resources:
 
 	sb.WriteString("\n  filter_chains:\n")
 
-	// MITM chains (optional): listed BEFORE the Phase 1 TLS chain so that
-	// Envoy's most-specific filter_chain_match precedence picks them up
-	// when server_names or prefix_ranges match, while other TLS traffic
-	// falls through to the passthrough TLS chain below.
+	// Optional MITM chains and their IP-specific HTTP/DNS candidates.
+	// Envoy selects by match specificity, independently of list order.
 	for i := range mitmChains {
 		sb.WriteString(renderFilterChainYAML(&mitmChains[i], 2))
 	}

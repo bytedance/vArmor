@@ -87,7 +87,7 @@ func TestMITMEgressRulesPreserved(t *testing.T) {
 					}
 					for _, vh := range cfg.RouteConfig.VirtualHosts {
 						for _, host := range vh.Domains {
-							if host == "*" {
+							if chain.TransportSocket != nil && host == "*" {
 								t.Fatal("MITM virtual host boundary expanded")
 							}
 						}
