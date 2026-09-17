@@ -21,6 +21,7 @@ import (
 
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
 	varmorconfig "github.com/bytedance/vArmor/internal/config"
+	networkprofile "github.com/bytedance/vArmor/internal/networkproxy/profile"
 	varmorprofile "github.com/bytedance/vArmor/internal/profile"
 	varmortypes "github.com/bytedance/vArmor/internal/types"
 )
@@ -355,6 +356,10 @@ func validateMITMConfig(mitm *varmor.MITMConfig) (bool, string) {
 			return false, msg
 		}
 		domainSet[d] = true
+	}
+
+	if err := networkprofile.ValidateMITMDomains(mitm.Domains); err != nil {
+		return false, err.Error()
 	}
 
 	for i, hm := range mitm.HeaderMutations {

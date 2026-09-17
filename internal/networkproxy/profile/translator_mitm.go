@@ -87,27 +87,13 @@ func (m *MITMInput) Enabled() bool {
 	return m != nil && len(m.Domains) > 0
 }
 
-// Validate checks that MITMInput contains only supported domain forms.
-// In particular, CIDR entries wider than a single host (/32 for IPv4,
-// /128 for IPv6) are rejected because they would silently break all TLS
-// connections in the range: Envoy terminates TLS but no VirtualHost
-// matches the decrypted :authority, resulting in a 404 for every request.
+// Validate rejects unsupported CIDRs and equivalent MITM identities before
+// rendering virtual hosts or filter-chain matches.
 func (m *MITMInput) Validate() error {
 	if m == nil {
 		return nil
 	}
-	for _, d := range m.Domains {
-		if _, ipNet, err := net.ParseCIDR(d); err == nil {
-			ones, bits := ipNet.Mask.Size()
-			if !((bits == 32 && ones == 32) || (bits == 128 && ones == 128)) {
-				return fmt.Errorf(
-					"mitm.domains: CIDR %q has prefix length /%d which is wider than a single host; "+
-						"only /32 (IPv4) or /128 (IPv6) CIDRs are allowed for TLS MITM — "+
-						"use individual IPs or DNS names instead", d, ones)
-			}
-		}
-	}
-	return nil
+	return ValidateMITMDomains(m.Domains)
 }
 
 // ============================================================================

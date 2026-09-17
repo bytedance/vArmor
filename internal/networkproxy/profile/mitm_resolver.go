@@ -62,6 +62,9 @@ func ResolveMITMInput(
 		return nil, nil
 	}
 	cfg := npc.MITM
+	if err := ValidateMITMDomains(cfg.Domains); err != nil {
+		return nil, err
+	}
 
 	// Build a set of declared domains for O(1) lookup while resolving
 	// HeaderMutations. Any mutation targeting an undeclared domain is
