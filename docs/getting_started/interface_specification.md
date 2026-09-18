@@ -233,6 +233,8 @@ English | [简体中文](interface_specification.zh_CN.md)
 |value<br />*string*|Optional. A literal header value. Use this for non-sensitive values. Mutually exclusive with `secretRef`. |
 |secretRef<br />*[SecretKeyRef](#secretkeyref)*|Optional. References a Kubernetes Secret key containing the header value. Use this for sensitive values such as API keys or tokens. The referenced Secret must be pre-created by the user in the same namespace as the target workload. The controller reads the Secret value at reconcile time and inlines it into the Envoy xDS configuration. Mutually exclusive with `value`. |
 
+SecretRef values must be nonempty; nonempty values are preserved verbatim. This check runs during reconciliation, not admission. An empty value sets the policy status to Error with Ready=false. An invalid create publishes no configuration Secret in that namespace; an invalid update retains its previous complete configuration. Cluster policies do not provide atomic updates across namespaces. After correcting the referenced Secret, trigger reconciliation through an existing supported policy update; Secret changes alone are not watched.
+
 ### SecretKeyRef
 
 | Field | Description |

@@ -233,6 +233,8 @@
 |value<br />*string*|可选字段。字面头部值。用于非敏感值。与 `secretRef` 互斥。|
 |secretRef<br />*[SecretKeyRef](#secretkeyref)*|可选字段。引用一个 Kubernetes Secret 键，该键包含头部值。用于 API 密钥或令牌等敏感值。被引用的 Secret 必须由用户在目标工作负载所在的同一命名空间中预先创建。控制器在 reconcile 时读取 Secret 值，并将其内联到 Envoy xDS 配置中。与 `value` 互斥。|
 
+SecretRef 引用值不能为空；非空内容保持原样。此校验在调和阶段执行，不在 admission 阶段执行。空值会使策略状态变为 Error、Ready=false；创建失败不在该 namespace 发布配置 Secret，更新失败保留该 namespace 上一份完整配置。集群策略不提供跨 namespace 原子更新。修正引用 Secret 后，需通过现有支持的策略更新入口重新触发调和；不会单独监听引用 Secret 的变化。
+
 ### SecretKeyRef
 
 | 字段 | 描述 |
