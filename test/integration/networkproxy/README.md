@@ -10,6 +10,8 @@ renderer and TLS-material unit tests remain in the profile package.
 - `tls_fixtures_test.go`: TLS certificates and SDS fixtures shared by scenarios.
 - `mitm_ip_selection_integration_test.go`: IP MITM plaintext HTTP and overlapping
   DNS/IP TLS selection, including eight-row HTTP/L4 audit matrices.
+- `ipv6_l4_integration_test.go`: exact IPv6 host matching in TCP RBAC,
+  same-prefix neighbor rejection, explicit `/128` controls and audit results.
 - `mitm_ip_reload_integration_test.go`: live addition/removal of MITM IP targets,
   HTTP/1.1, h2c, HTTP/2 TLS, domain/header boundaries and raw TCP fallback.
 - `mitm_identity_integration_test.go`: reject equivalent MITM identities before

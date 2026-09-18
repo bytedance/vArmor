@@ -266,8 +266,8 @@ func renderFilterChainYAML(chain *FilterChain, indent int) string {
 
 // cidrToPrefixRange parses an IPv4/IPv6 CIDR or bare IP string into the
 // (address_prefix, prefix_len) pair required by Envoy's
-// filter_chain_match.prefix_ranges. A bare IPv4 becomes /32, a bare IPv6
-// becomes /128.
+// filter-chain prefix ranges and RBAC destination IPs. A bare IPv4 becomes
+// /32, a bare IPv6 becomes /128.
 func cidrToPrefixRange(cidr string) (string, int) {
 	if ip, ipNet, err := net.ParseCIDR(cidr); err == nil {
 		ones, _ := ipNet.Mask.Size()
@@ -589,18 +589,10 @@ func renderPermissionRuleYAML(rule PermissionRule, indent int, rbacType string) 
 		sb.WriteString(fmt.Sprintf("%s- any: true\n", prefix))
 
 	case "destination_ip":
-		ipStr := rule.Value.(string)
-		ip, cidrNet, err := net.ParseCIDR(ipStr)
-		if err != nil {
-			sb.WriteString(fmt.Sprintf("%s- destination_ip:\n", prefix))
-			sb.WriteString(fmt.Sprintf("%s    address_prefix: \"%s\"\n", prefix, yamlEscapeScalar(ipStr)))
-			sb.WriteString(fmt.Sprintf("%s    prefix_len: 32\n", prefix))
-		} else {
-			ones, _ := cidrNet.Mask.Size()
-			sb.WriteString(fmt.Sprintf("%s- destination_ip:\n", prefix))
-			sb.WriteString(fmt.Sprintf("%s    address_prefix: \"%s\"\n", prefix, ip.Mask(cidrNet.Mask).String()))
-			sb.WriteString(fmt.Sprintf("%s    prefix_len: %d\n", prefix, ones))
-		}
+		address, bits := cidrToPrefixRange(rule.Value.(string))
+		sb.WriteString(fmt.Sprintf("%s- destination_ip:\n", prefix))
+		sb.WriteString(fmt.Sprintf("%s    address_prefix: \"%s\"\n", prefix, yamlEscapeScalar(address)))
+		sb.WriteString(fmt.Sprintf("%s    prefix_len: %d\n", prefix, bits))
 
 	case "destination_port":
 		port := rule.Value.(uint16)
