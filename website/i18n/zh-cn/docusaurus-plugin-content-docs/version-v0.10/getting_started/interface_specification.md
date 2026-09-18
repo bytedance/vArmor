@@ -298,7 +298,7 @@ description: vArmor 的接口规范。
 |hosts<br />*string array*|可选字段。Hosts 指定要匹配的目标服务域名。支持精确匹配（"api.openai.com"）和通配符（"*.openai.com"）。多个值之间为逻辑“或”关系。|
 |ports<br />*[Port](#port) array*|可选字段。Ports 将规则限制为特定的目标端口。|
 |paths<br />*[HTTPPathMatch](#httppathmatch) array*|可选字段。Paths 指定 HTTP 请求路径匹配。对于 HTTPS 流量，路径匹配需要配置 MITM。|
-|methods<br />*string array*|可选字段。Methods 指定要匹配的 HTTP 方法（例如 GET、POST）。对于 HTTPS 流量，方法匹配需要配置 MITM。|
+|methods<br />*string array*|可选字段。Methods 指定要匹配的 HTTP 方法（例如 GET、POST）。对于 HTTPS 流量，方法匹配需要配置 MITM。值按原始大小写精确匹配，不自动转成大写；`GET`、`get`、`Get` 是不同的方法。升级前若用 `get` 表达标准 `GET`，请显式改为 `GET`。|
 
 ### HTTPPathMatch
 

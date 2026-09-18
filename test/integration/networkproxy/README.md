@@ -8,6 +8,8 @@ renderer and TLS-material unit tests remain in the profile package.
 - `harness_test.go`: Envoy discovery, startup/shutdown, readiness, loopback ALS
   collection, captured logs, temporary ports and atomic file publication.
 - `tls_fixtures_test.go`: TLS certificates and SDS fixtures shared by scenarios.
+- `method_case_integration_test.go`: literal policy method case, mixed-case and
+  multiple spellings across HTTP chains/protocols and the eight-row audit matrix.
 - `custom_methods_integration_test.go`: production bootstrap runtime settings,
   custom and standard methods across HTTP/IP-MITM/TLS/h2c/HTTP2 audit matrices,
   exact method matching, fragmented request lines and non-HTTP TCP fallback.
