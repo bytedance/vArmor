@@ -77,3 +77,76 @@ func TestValidatePolicy_EquivalentMITMDomains(t *testing.T) {
 		}
 	}
 }
+
+func TestValidatePolicy_MITMDomainReferences(t *testing.T) {
+	for _, tc := range []struct {
+		name, declared, mutation string
+		withoutMutation          bool
+		errorField, errorText    string
+	}{
+		{name: "lowercase", declared: "api.example.com", mutation: "api.example.com"},
+		{name: "uppercase", declared: "API.example.com", mutation: "API.example.com"},
+		{name: "wildcard", declared: "*.Example.COM", mutation: "*.Example.COM"},
+		{name: "IPv4 CIDR", declared: "192.0.2.1/32", mutation: "192.0.2.1/32"},
+		{name: "IPv6 CIDR", declared: "2001:DB8::1/128", mutation: "2001:DB8::1/128"},
+		{name: "no mutation", declared: "API.example.com", withoutMutation: true},
+		{name: "declaration leading space", declared: " api.example.com", mutation: "api.example.com", errorField: "mitm.domains[0]", errorText: "remove leading and trailing whitespace"},
+		{name: "declaration trailing space", declared: "api.example.com ", mutation: "api.example.com", errorField: "mitm.domains[0]", errorText: "remove leading and trailing whitespace"},
+		{name: "mutation leading space", declared: "api.example.com", mutation: " api.example.com", errorField: "mitm.headerMutations[0].domain", errorText: "remove leading and trailing whitespace"},
+		{name: "mutation trailing space", declared: "api.example.com", mutation: "api.example.com ", errorField: "mitm.headerMutations[0].domain", errorText: "remove leading and trailing whitespace"},
+		{name: "same padded strings", declared: " api.example.com ", mutation: " api.example.com ", errorField: "mitm.domains[0]", errorText: "remove leading and trailing whitespace"},
+		{name: "declaration tab newline", declared: "\tapi.example.com\n", mutation: "api.example.com", errorField: "mitm.domains[0]", errorText: "remove leading and trailing whitespace"},
+		{name: "mutation tab newline", declared: "api.example.com", mutation: "\tapi.example.com\n", errorField: "mitm.headerMutations[0].domain", errorText: "remove leading and trailing whitespace"},
+		{name: "declaration Unicode whitespace", declared: "\u2003api.example.com\u00a0", withoutMutation: true, errorField: "mitm.domains[0]", errorText: "remove leading and trailing whitespace"},
+		{name: "mutation Unicode whitespace", declared: "api.example.com", mutation: "\u2003api.example.com\u00a0", errorField: "mitm.headerMutations[0].domain", errorText: "remove leading and trailing whitespace"},
+		{name: "whitespace without mutation", declared: " api.example.com ", withoutMutation: true, errorField: "mitm.domains[0]", errorText: "remove leading and trailing whitespace"},
+		{name: "case mismatch", declared: "API.example.com", mutation: "api.example.com", errorField: "mitm.headerMutations[0].domain", errorText: "must exactly match an entry in mitm.domains (including case)"},
+		{name: "wildcard case mismatch", declared: "*.Example.COM", mutation: "*.example.com", errorField: "mitm.headerMutations[0].domain", errorText: "must exactly match an entry in mitm.domains (including case)"},
+		{name: "no wildcard expansion", declared: "*.example.com", mutation: "api.example.com", errorField: "mitm.headerMutations[0].domain", errorText: "must exactly match an entry in mitm.domains (including case)"},
+		{name: "no IP alias expansion", declared: "192.0.2.1", mutation: "192.0.2.1/32", errorField: "mitm.headerMutations[0].domain", errorText: "must exactly match an entry in mitm.domains (including case)"},
+		{name: "unrelated", declared: "api.example.com", mutation: "other.example.com", errorField: "mitm.headerMutations[0].domain", errorText: "must exactly match an entry in mitm.domains (including case)"},
+		{name: "empty", declared: "", withoutMutation: true, errorField: "mitm.domains[0]", errorText: "must not be empty"},
+		{name: "blank", declared: " \t ", withoutMutation: true, errorField: "mitm.domains[0]", errorText: "remove leading and trailing whitespace"},
+		{name: "internal control", declared: "api.\nexample.com", mutation: "api.\nexample.com", errorField: "mitm.domains[0]", errorText: "contains control characters"},
+	} {
+		for _, clusterScope := range []bool{false, true} {
+			kind := "VarmorPolicy"
+			if clusterScope {
+				kind = "VarmorClusterPolicy"
+			}
+			t.Run(tc.name+"/"+kind, func(t *testing.T) {
+				mitm := &varmor.MITMConfig{Domains: []string{tc.declared}}
+				if !tc.withoutMutation {
+					mitm.HeaderMutations = []varmor.HeaderMutation{{Domain: tc.mutation,
+						Headers: []varmor.HeaderAction{{Name: "Authorization", Value: " exact VALUE "}}}}
+				}
+				spec := varmor.VarmorPolicySpec{Target: varmor.Target{Kind: "Pod", Name: "sandbox"},
+					Policy: varmor.Policy{Enforcer: "NetworkProxy", Mode: varmor.AlwaysAllowMode,
+						NetworkProxyConfig: &varmor.NetworkProxyConfig{MITM: mitm}}}
+				var obj interface{} = &varmor.VarmorPolicy{Spec: spec}
+				if clusterScope {
+					obj = &varmor.VarmorClusterPolicy{Spec: spec}
+				}
+				before, err := json.Marshal(obj)
+				assert.NoError(t, err)
+				check := func(valid bool, msg string) {
+					t.Helper()
+					assert.Equal(t, tc.errorText == "", valid, msg)
+					if tc.errorText != "" {
+						assert.Contains(t, msg, tc.errorField)
+						assert.Contains(t, msg, tc.errorText)
+					} else {
+						assert.Empty(t, msg)
+					}
+				}
+				check(ValidateAddPolicy(obj, true))
+				check(ValidateUpdatePolicy(obj, "NetworkProxy", spec.Target, nil))
+				check(ValidateUpdatePolicy(obj, "NetworkProxy", spec.Target,
+					&varmor.NetworkProxyConfig{MITM: &varmor.MITMConfig{Domains: []string{"api.example.com"}}}))
+				after, err := json.Marshal(obj)
+				assert.NoError(t, err)
+				assert.Equal(t, string(before), string(after), "validation must not rewrite domains or credentials")
+			})
+		}
+	}
+}
