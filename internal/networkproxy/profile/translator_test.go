@@ -567,7 +567,7 @@ func TestHostPortMethodPathFullCombination(t *testing.T) {
 	assertContains(t, lds, "and_rules:", "all 4 dimensions ANDed")
 }
 
-func TestMethodCaseNormalization(t *testing.T) {
+func TestMethodCasePreservation(t *testing.T) {
 	egress := &varmor.NetworkProxyEgress{
 		DefaultAction: "deny",
 		HTTPRules: []varmor.NetworkProxyHTTPRule{
@@ -584,8 +584,8 @@ func TestMethodCaseNormalization(t *testing.T) {
 		t.Fatalf("TranslateEgressRules failed: %v", err)
 	}
 
-	assertContains(t, result.LDS, `exact: "GET"`, "lowercase 'get' normalized to 'GET'")
-	assertContains(t, result.LDS, `exact: "POST"`, "mixed case 'Post' normalized to 'POST'")
+	assertContains(t, result.LDS, `exact: "get"`, "lowercase method preserved")
+	assertContains(t, result.LDS, `exact: "Post"`, "mixed-case method preserved")
 }
 
 func TestMethodPathDenyRule(t *testing.T) {

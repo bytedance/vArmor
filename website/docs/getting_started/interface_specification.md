@@ -298,7 +298,7 @@ Built-in defaults:
 |hosts<br />*string array*|Optional. Hosts specifies the target service domains to match. Supports exact match ("api.openai.com") and wildcard ("*.openai.com"). Multiple values are OR'd.|
 |ports<br />*[Port](#port) array*|Optional. Ports restricts the rule to specific destination ports.|
 |paths<br />*[HTTPPathMatch](#httppathmatch) array*|Optional. Paths specifies HTTP request path matching. For HTTPS traffic, path matching requires MITM to be configured.|
-|methods<br />*string array*|Optional. Methods specifies HTTP methods to match (e.g., GET, POST). For HTTPS traffic, method matching requires MITM to be configured.|
+|methods<br />*string array*|Optional. Methods specifies HTTP methods to match (e.g., GET, POST). For HTTPS traffic, method matching requires MITM to be configured. Values are matched exactly and case-sensitively without uppercasing; `GET`, `get`, and `Get` are distinct methods. Existing policies that used `get` to mean standard `GET` must explicitly use `GET` when upgrading.|
 
 ### HTTPPathMatch
 

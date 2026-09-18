@@ -253,7 +253,7 @@ func runPathNormalizationEnvoy(t *testing.T, binary, mode string, path pathNorma
 	if row.action == "" {
 		assert.Empty(t, got)
 	} else {
-		assert.Equal(t, []observedEvent{{Action: row.action, Path: path.forwardedURI, FilterChain: chain, DstAddress: net.JoinHostPort("127.0.0.1", strconv.Itoa(proxyPort))}}, got)
+		assert.Equal(t, []observedEvent{{Action: row.action, Method: http.MethodPost, Path: path.forwardedURI, FilterChain: chain, DstAddress: net.JoinHostPort("127.0.0.1", strconv.Itoa(proxyPort))}}, got)
 	}
 	t.Logf("request=%s HTTP=%d upstream=%s events=%+v", path.requestURI, resp.StatusCode, strings.TrimSpace(string(body)), got)
 }

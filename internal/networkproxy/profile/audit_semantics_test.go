@@ -207,6 +207,9 @@ func TestAuditLoggerLocations(t *testing.T) {
 											if err := cfg.ValidateAll(); err != nil {
 												t.Fatal(err)
 											}
+											if headers := cfg.GetAdditionalRequestHeadersToLog(); len(headers) != 1 || headers[0] != ":method" {
+												t.Fatalf("L7 ALS must capture only the raw method, got %v", headers)
+											}
 											common = cfg.CommonConfig
 										} else {
 											var cfg grpcv3.TcpGrpcAccessLogConfig

@@ -39,7 +39,7 @@ import (
 
 // All scenarios use the actual ALS decoder and event classification. This
 // harness supplies only loopback transport, process lifecycle and log capture.
-type observedEvent struct{ Action, Path, FilterChain, DstAddress string }
+type observedEvent struct{ Action, Path, FilterChain, DstAddress, Method string }
 
 func startAuditCollector(t *testing.T) (string, func() []observedEvent) {
 	t.Helper()
@@ -76,6 +76,7 @@ func startAuditCollector(t *testing.T) (string, func() []observedEvent) {
 			var event struct {
 				Action string `json:"action"`
 				Event  struct {
+					Method      string `json:"method"`
 					Path        string `json:"path"`
 					FilterChain string `json:"filterChain"`
 					DstAddress  string `json:"dstAddress"`
@@ -88,7 +89,7 @@ func startAuditCollector(t *testing.T) (string, func() []observedEvent) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			events = append(events, observedEvent{event.Action, event.Event.Path, event.Event.FilterChain, event.Event.DstAddress})
+			events = append(events, observedEvent{Action: event.Action, Path: event.Event.Path, FilterChain: event.Event.FilterChain, DstAddress: event.Event.DstAddress, Method: event.Event.Method})
 		}
 		return events
 	}

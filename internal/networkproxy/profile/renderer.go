@@ -422,6 +422,11 @@ func renderHTTPConnManagerYAML(f *NetworkFilter, indent int) string {
 	sb.WriteString(fmt.Sprintf("%s    stat_prefix: %s\n", prefix, cfg.StatPrefix))
 	sb.WriteString(fmt.Sprintf("%s    internal_address_config: {}\n", prefix))
 
+	// The listener inspector recognizes custom methods. Accept them in every
+	// HTTP chain too, so HTTP RBAC and audit run instead of a codec rejection.
+	sb.WriteString(fmt.Sprintf("%s    http_protocol_options:\n", prefix))
+	sb.WriteString(fmt.Sprintf("%s      allow_custom_methods: true\n", prefix))
+
 	// [H3] Disable stream idle timeout. Envoy default is 5 minutes, which
 	// kills SSE, long-polling, streaming AI inference, and similar long-lived
 	// HTTP streams. Setting to 0s means "no timeout" — the upstream service
@@ -865,6 +870,10 @@ func renderALSAccessLogEntry(sb *strings.Builder, itemPrefix, denyCEL, shadowCEL
 	renderAccessLogFilter(sb, b, denyCEL, shadowCEL)
 	sb.WriteString(b + "typed_config:\n")
 	sb.WriteString(b + "  \"@type\": " + alsGRPCConfigType(l7) + "\n")
+	if l7 {
+		// The ALS method enum cannot represent extension methods or their case.
+		sb.WriteString(b + "  additional_request_headers_to_log: [\":method\"]\n")
+	}
 	sb.WriteString(b + "  common_config:\n")
 	sb.WriteString(b + "    log_name: \"" + yamlEscapeScalar(logName) + "\"\n")
 	sb.WriteString(b + "    transport_api_version: V3\n")

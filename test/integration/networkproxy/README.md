@@ -8,6 +8,11 @@ renderer and TLS-material unit tests remain in the profile package.
 - `harness_test.go`: Envoy discovery, startup/shutdown, readiness, loopback ALS
   collection, captured logs, temporary ports and atomic file publication.
 - `tls_fixtures_test.go`: TLS certificates and SDS fixtures shared by scenarios.
+- `method_case_integration_test.go`: literal policy method case, mixed-case and
+  multiple spellings across HTTP chains/protocols and the eight-row audit matrix.
+- `custom_methods_integration_test.go`: production bootstrap runtime settings,
+  custom and standard methods across HTTP/IP-MITM/TLS/h2c/HTTP2 audit matrices,
+  exact method matching, fragmented request lines and non-HTTP TCP fallback.
 - `mitm_ip_selection_integration_test.go`: IP MITM plaintext HTTP and overlapping
   DNS/IP TLS selection, including eight-row HTTP/L4 audit matrices.
 - `ipv6_l4_integration_test.go`: exact IPv6 host matching in TCP RBAC,
@@ -39,7 +44,7 @@ The ordinary `make test` target continues to run unit tests; setting
 Tests use temporary directories and local TCP/Unix sockets. No Kubernetes,
 Docker daemon, iptables changes or running guard instance is required. IPv6
 scenarios require loopback IPv6. TLS tests require the Envoy extensions used
-by the product; the validated local version is Envoy 1.38.3.
+by the product; the source regression uses Envoy 1.38.4; local port validation also covers Envoy 1.38.3.
 
 Some transport details are adapted for local execution (for example,
 ORIGINAL_DST clusters are redirected to test servers). Assertions on generated

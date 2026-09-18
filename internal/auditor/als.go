@@ -272,9 +272,10 @@ func buildHTTPNetworkProxyEvent(e *dataaccesslogv3.HTTPAccessLogEntry) (NetworkP
 		// lets an analyst detect domain fronting, where the TLS SNI (an allowed
 		// front domain) deliberately differs from the encrypted Host that names
 		// the real backend. The Host is recorded separately in Authority.
-		SNI:          c.GetTlsProperties().GetTlsSniHostname(),
-		Authority:    firstNonEmpty(req.GetRequestHeaders()[":authority"], req.GetAuthority()),
-		Method:       requestMethodString(req.GetRequestMethod()),
+		SNI:       c.GetTlsProperties().GetTlsSniHostname(),
+		Authority: firstNonEmpty(req.GetRequestHeaders()[":authority"], req.GetAuthority()),
+		// Prefer the raw method; older sidecars only send the ALS enum.
+		Method:       firstNonEmpty(req.GetRequestHeaders()[":method"], requestMethodString(req.GetRequestMethod())),
 		Path:         req.GetPath(),
 		ResponseCode: responseCode(resp),
 		Reason:       resp.GetResponseCodeDetails(),
