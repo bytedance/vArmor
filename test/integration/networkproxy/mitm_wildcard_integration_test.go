@@ -107,20 +107,7 @@ func runMITMWildcardEnvoyAudit(t *testing.T, ipOverlap bool) {
 					serverName = overlap.requestHost
 				}
 				cert, key, roots := testCertificate(t, dir, serverName)
-				proxyPort, adminPort := freePort(t, "127.0.0.1"), freePort(t, "127.0.0.1")
-				for adminPort == proxyPort {
-					adminPort = freePort(t, "127.0.0.1")
-				}
 				requestPort := overlap.requestPort
-				rulePort := proxyPort
-				if overlap.unmatchedPort {
-					rulePort = adminPort
-				}
-				if overlap.checkPort {
-					// Match the authority's port but independently verify the actual
-					// destination (the proxy socket in this transport-only fixture).
-					requestPort = ":" + strconv.Itoa(rulePort)
-				}
 				wantStatus, wantAction := row.status, row.action
 				// HTTP rules outside the MITM domain set are excluded from this
 				// chain, and a mismatched destination port also leaves no match.
@@ -136,7 +123,7 @@ func runMITMWildcardEnvoyAudit(t *testing.T, ipOverlap bool) {
 				// Keep the UDS path short even for long subtest names.
 				socket, events := startAuditCollector(t)
 				var upstreamCalls atomic.Int32
-				upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				upstream := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					upstreamCalls.Add(1)
 					if r.Host != overlap.requestHost+requestPort {
 						t.Errorf("upstream Host=%q want %q", r.Host, overlap.requestHost+requestPort)
@@ -151,6 +138,22 @@ func runMITMWildcardEnvoyAudit(t *testing.T, ipOverlap bool) {
 				}))
 				t.Cleanup(upstream.Close)
 				upstreamPort := upstream.Listener.Addr().(*net.TCPAddr).Port
+				// Reserve the upstream socket before choosing Envoy ports, so the
+				// backend cannot reuse adminPort and answer its readiness probe.
+				proxyPort, adminPort := freePort(t, "127.0.0.1"), freePort(t, "127.0.0.1")
+				for adminPort == proxyPort {
+					adminPort = freePort(t, "127.0.0.1")
+				}
+				rulePort := proxyPort
+				if overlap.unmatchedPort {
+					rulePort = adminPort
+				}
+				if overlap.checkPort {
+					// Match the authority's port but independently verify the actual
+					// destination (the proxy socket in this transport-only fixture).
+					requestPort = ":" + strconv.Itoa(rulePort)
+				}
+				upstream.Start()
 				e := &varmor.NetworkProxyEgress{DefaultAction: row.defaultAction}
 				// Keep an audit logger present even for silent rows. Its shadow
 				// rule does not match /secret, so these rows also detect false
