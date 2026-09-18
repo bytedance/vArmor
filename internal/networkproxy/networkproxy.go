@@ -171,6 +171,12 @@ func checkSecretSize(secret *v1.Secret, logger logr.Logger) error {
 var envoyBootstrapTemplate = `node:
   id: varmor-network-proxy
   cluster: varmor-network-proxy
+layered_runtime:
+  layers:
+  - name: varmor_http_inspector
+    static_layer:
+      # Recognize custom HTTP methods before selecting HTTP versus TCP RBAC.
+      envoy.reloadable_features.http_inspector_use_balsa_parser: true
 admin:
   address:
     socket_address:
