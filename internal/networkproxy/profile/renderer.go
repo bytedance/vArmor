@@ -267,10 +267,16 @@ func renderFilterChainYAML(chain *FilterChain, indent int) string {
 // cidrToPrefixRange parses an IPv4/IPv6 CIDR or bare IP string into the
 // (address_prefix, prefix_len) pair required by Envoy's
 // filter-chain prefix ranges and RBAC destination IPs. A bare IPv4 becomes
-// /32, a bare IPv6 becomes /128.
+// /32, a bare IPv6 becomes /128. Mapped IPv6 subnets within ::ffff:0:0/96
+// become equivalent IPv4 subnets, with the prefix length reduced by 96.
 func cidrToPrefixRange(cidr string) (string, int) {
 	if ip, ipNet, err := net.ParseCIDR(cidr); err == nil {
-		ones, _ := ipNet.Mask.Size()
+		ones, bits := ipNet.Mask.Size()
+		// IP.String renders mapped addresses as IPv4. Convert the mask too,
+		// but keep wider IPv6 ranges in their original address family.
+		if bits == net.IPv6len*8 && ones >= 96 && ip.To4() != nil {
+			ones -= 96
+		}
 		return ip.Mask(ipNet.Mask).String(), ones
 	}
 	if ip := net.ParseIP(cidr); ip != nil {

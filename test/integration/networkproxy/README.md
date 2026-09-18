@@ -12,6 +12,8 @@ renderer and TLS-material unit tests remain in the profile package.
   DNS/IP TLS selection, including eight-row HTTP/L4 audit matrices.
 - `ipv6_l4_integration_test.go`: exact IPv6 host matching in TCP RBAC,
   same-prefix neighbor rejection, explicit `/128` controls and audit results.
+- `mapped_cidr_integration_test.go`: IPv4-mapped IPv6 subnet matching in HTTP
+  and TCP, prefix boundaries and execution/shadow audit matrices.
 - `mitm_ip_reload_integration_test.go`: live addition/removal of MITM IP targets,
   HTTP/1.1, h2c, HTTP/2 TLS, domain/header boundaries and raw TCP fallback.
 - `mitm_identity_integration_test.go`: reject equivalent MITM identities before
