@@ -29,6 +29,7 @@ import (
 	accesslogv3 "github.com/envoyproxy/go-control-plane/envoy/service/accesslog/v3"
 	"github.com/go-logr/logr"
 	"github.com/rs/zerolog"
+	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
@@ -334,6 +335,32 @@ func TestBuildTCPNetworkProxyEventDurationFromDurationField(t *testing.T) {
 	}
 	if !gotTime.Equal(tcpStartTime) {
 		t.Fatalf("event time = %s, want %s", gotTime, tcpStartTime)
+	}
+}
+
+// Raw :method preserves extension methods that the ALS enum cannot represent.
+// Old sidecars omit the extra header, so their enum remains a valid fallback.
+func TestBuildHTTPNetworkProxyEvent_Method(t *testing.T) {
+	tests := []struct {
+		name    string
+		request *dataaccesslogv3.HTTPRequestProperties
+		want    string
+	}{
+		{"standard raw", &dataaccesslogv3.HTTPRequestProperties{RequestMethod: corev3.RequestMethod_GET, RequestHeaders: map[string]string{":method": "GET"}}, "GET"},
+		{"custom raw", &dataaccesslogv3.HTTPRequestProperties{RequestHeaders: map[string]string{":method": "FOO"}}, "FOO"},
+		{"lowercase raw wins over enum", &dataaccesslogv3.HTTPRequestProperties{RequestMethod: corev3.RequestMethod_GET, RequestHeaders: map[string]string{":method": "get"}}, "get"},
+		{"mixed case raw", &dataaccesslogv3.HTTPRequestProperties{RequestHeaders: map[string]string{":method": "MiXeD"}}, "MiXeD"},
+		{"token punctuation", &dataaccesslogv3.HTTPRequestProperties{RequestHeaders: map[string]string{":method": "X!#$%&'*+-.^_`|~9"}}, "X!#$%&'*+-.^_`|~9"},
+		{"legacy enum", &dataaccesslogv3.HTTPRequestProperties{RequestMethod: corev3.RequestMethod_POST}, "POST"},
+		{"empty raw falls back", &dataaccesslogv3.HTTPRequestProperties{RequestMethod: corev3.RequestMethod_POST, RequestHeaders: map[string]string{":method": ""}}, "POST"},
+		{"missing method", &dataaccesslogv3.HTTPRequestProperties{}, ""},
+		{"missing request", nil, ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, _ := buildHTTPNetworkProxyEvent(&dataaccesslogv3.HTTPAccessLogEntry{Request: tt.request})
+			assert.Equal(t, tt.want, got.Method)
+		})
 	}
 }
 

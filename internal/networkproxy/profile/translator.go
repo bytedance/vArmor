@@ -948,12 +948,13 @@ func httpRuleToSNIPermissions(r varmor.NetworkProxyHTTPRule) []Permission {
 func httpRuleToHTTPPermissions(r varmor.NetworkProxyHTTPRule) []Permission {
 	// ── Phase 1: Build method & path dimensions (unchanged) ──────────
 	var methodRules []PermissionRule
+	// HTTP method tokens are case-sensitive; preserve the policy spelling.
 	for _, method := range r.Match.Methods {
 		methodRules = append(methodRules, PermissionRule{
 			Type: "header",
 			Value: map[string]string{
 				"name":        ":method",
-				"exact_match": strings.ToUpper(method),
+				"exact_match": method,
 			},
 		})
 	}
