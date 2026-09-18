@@ -352,6 +352,9 @@ func validateMITMConfig(mitm *varmor.MITMConfig) (bool, string) {
 
 	domainSet := make(map[string]bool, len(mitm.Domains))
 	for i, d := range mitm.Domains {
+		if strings.TrimSpace(d) != d {
+			return false, fmt.Sprintf("mitm.domains[%d] %q: remove leading and trailing whitespace", i, d)
+		}
 		if ok, msg := validateNoYAMLUnsafeChars(fmt.Sprintf("mitm.domains[%d]", i), d); !ok {
 			return false, msg
 		}
@@ -363,9 +366,12 @@ func validateMITMConfig(mitm *varmor.MITMConfig) (bool, string) {
 	}
 
 	for i, hm := range mitm.HeaderMutations {
+		if strings.TrimSpace(hm.Domain) != hm.Domain {
+			return false, fmt.Sprintf("mitm.headerMutations[%d].domain %q: remove leading and trailing whitespace", i, hm.Domain)
+		}
 		if !domainSet[hm.Domain] {
 			return false, fmt.Sprintf(
-				"mitm.headerMutations[%d].domain %q is not in mitm.domains",
+				"mitm.headerMutations[%d].domain %q is not in mitm.domains; must exactly match an entry in mitm.domains (including case)",
 				i, hm.Domain)
 		}
 

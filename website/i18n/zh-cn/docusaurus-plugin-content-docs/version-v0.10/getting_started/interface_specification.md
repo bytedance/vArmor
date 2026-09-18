@@ -218,14 +218,14 @@ description: vArmor 的接口规范。
 
 | 字段 | 描述 |
 |-----|------|
-|domains<br />*string array*|指定哪些 TLS 连接应被终止以进行 L7 检查。只有到这些域名的连接才会被解密；所有其他 TLS 流量原样通过。支持精确匹配（"api.openai.com"）和通配符（"*.openai.com"）。通配符匹配遵循 RFC 6125。|
-|headerMutations<br />*[HeaderMutation](#headermutation) array*|可选字段。逐域名的 HTTP 头部注入规则。每个条目的 domain 必须字面等于 `domains` 中的某一项（不执行通配符展开）。通常用于向特定上游服务的请求中注入 API 密钥或认证令牌，实现代理层的集中式凭证管理。|
+|domains<br />*string array*|指定哪些 TLS 连接应被终止以进行 L7 检查。只有到这些域名的连接才会被解密；所有其他 TLS 流量原样通过。支持精确匹配（"api.openai.com"）和通配符（"*.openai.com"）。通配符匹配遵循 RFC 6125。拒绝首尾空白以及等价的重复 MITM 身份。|
+|headerMutations<br />*[HeaderMutation](#headermutation) array*|可选字段。逐域名的 HTTP 头部注入规则。每个条目的 domain 必须与 `domains` 中的某一项完全一致，包括大小写（不展开通配符或 IP/CIDR 别名）。拒绝首尾空白。通常用于向特定上游服务的请求中注入 API 密钥或认证令牌，实现代理层的集中式凭证管理。|
 
 ### HeaderMutation
 
 | 字段 | 描述 |
 |-----|------|
-|domain<br />*string*|指定此变异应用于哪个 MITM 域名。必须字面等于 `MITMConfig.Domains` 中的某一项。|
+|domain<br />*string*|指定此变异应用于哪个 MITM 域名。必须与 `MITMConfig.Domains` 中的某一项完全一致，包括大小写。拒绝首尾空白。|
 |headers<br />*[HeaderAction](#headeraction) array*|要为此域名注入的头部列表。|
 
 ### HeaderAction

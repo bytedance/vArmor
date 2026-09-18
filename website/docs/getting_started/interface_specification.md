@@ -218,14 +218,14 @@ description: The interface specification of vArmor.
 
 | Field | Description |
 |-------|-------------|
-|domains<br />*string array*|Specifies which TLS connections should be terminated for L7 inspection. Only connections to these domains will be decrypted; all other TLS traffic passes through unmodified. Supports exact match ("api.openai.com") and wildcard ("*.openai.com"). Wildcard matching follows RFC 6125. |
-|headerMutations<br />*[HeaderMutation](#headermutation) array*|Optional. Per-domain HTTP header injection rules. Each entry's domain must literally equal one of the entries in `domains` (no wildcard expansion is performed). Typically used for injecting API keys or authentication tokens into requests destined for specific upstream services, enabling centralized credential management at the proxy layer. |
+|domains<br />*string array*|Specifies which TLS connections should be terminated for L7 inspection. Only connections to these domains will be decrypted; all other TLS traffic passes through unmodified. Supports exact match (`"api.openai.com"`) and wildcard (`"*.openai.com"`). Wildcard matching follows RFC 6125. Leading and trailing whitespace is rejected. Equivalent duplicate MITM identities are rejected. |
+|headerMutations<br />*[HeaderMutation](#headermutation) array*|Optional. Per-domain HTTP header injection rules. Each entry's domain must literally equal one of the entries in `domains`, including case (no wildcard or IP/CIDR alias expansion is performed). Leading and trailing whitespace is rejected. Typically used for injecting API keys or authentication tokens into requests destined for specific upstream services, enabling centralized credential management at the proxy layer. |
 
 ### HeaderMutation
 
 | Field | Description |
 |-------|-------------|
-|domain<br />*string*|Specifies which MITM domain this mutation applies to. Must literally equal one of the entries in `MITMConfig.Domains`. |
+|domain<br />*string*|Specifies which MITM domain this mutation applies to. Must literally equal one of the entries in `MITMConfig.Domains`, including case. Leading and trailing whitespace is rejected. |
 |headers<br />*[HeaderAction](#headeraction) array*|The list of headers to inject for this domain. |
 
 ### HeaderAction
