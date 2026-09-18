@@ -133,6 +133,11 @@ func resolveHeaderActionValue(
 	if !ok {
 		return "", fmt.Errorf("secret %s/%s has no key %q", namespace, h.SecretRef.Name, h.SecretRef.Key)
 	}
+	// Envoy skips empty header mutations, leaving client-supplied values intact.
+	// Reject them before publishing a profile that cannot enforce the overwrite.
+	if len(raw) == 0 {
+		return "", fmt.Errorf("secret %s/%s key %q must not be empty", namespace, h.SecretRef.Name, h.SecretRef.Key)
+	}
 	return string(raw), nil
 }
 
