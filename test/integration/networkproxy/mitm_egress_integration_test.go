@@ -126,12 +126,19 @@ func runMITMEgressEnvoyAudit(t *testing.T, options httpHostTestOptions) {
 		{"allow_wrong_port", "allow", [][]string{{"deny", "audit"}}, 200, "", "port"},
 		{"deny_wrong_port", "deny", [][]string{{"allow", "audit"}}, 403, "DENIED", "port"},
 	}
+	if options.pattern == "" {
+		rows = append(rows,
+			auditRow{"allow_same_prefix_ip", "allow", [][]string{{"deny", "audit"}}, 200, "", "same_prefix_ip"},
+			auditRow{"deny_same_prefix_ip", "deny", [][]string{{"allow", "audit"}}, 403, "DENIED", "same_prefix_ip"},
+		)
+	}
 	// Exercise IPv6 destinations through DNS/SNI here. Direct bracketed
 	// IPv6 authorities are covered by TestMITMIPv6EnvoyAudit.
 	destinations := []struct{ name, localIP, domain, ruleIP, ruleCIDR, chain string }{
 		{"dns_ipv4_ip", "127.0.0.1", "api.example.com", "127.0.0.1", "", "mitm_tls_dns_chain"},
 		{"dns_ipv4_cidr", "127.0.0.1", "api.example.com", "", "127.0.0.0/8", "mitm_tls_dns_chain"},
 		{"ip_ipv4_cidr", "127.0.0.1", "127.0.0.1", "", "127.0.0.0/8", "mitm_tls_ip_chain"},
+		{"dns_ipv6_ip", "::1", "api.example.com", "::1", "", "mitm_tls_dns_chain"},
 		{"dns_ipv6_cidr", "::1", "api.example.com", "", "::/64", "mitm_tls_dns_chain"},
 	}
 	if options.hostCIDRCertificate {
@@ -254,6 +261,12 @@ func runMITMEgressEnvoyAudit(t *testing.T, options httpHostTestOptions) {
 						rule.IP, rule.CIDR = "192.0.2.1", ""
 						if net.ParseIP(dst.localIP).To4() == nil {
 							rule.IP = "2001:db8::1"
+						}
+					case "same_prefix_ip":
+						// ::2 and ::1 share /32, but are distinct host addresses.
+						rule.IP, rule.CIDR = "127.0.0.2", ""
+						if net.ParseIP(dst.localIP).To4() == nil {
+							rule.IP = "::2"
 						}
 					case "port":
 						rule.Ports = []varmor.Port{{Port: wrongPort}}
