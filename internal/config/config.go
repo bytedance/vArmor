@@ -375,6 +375,10 @@ func loadAuditEventMetadata() map[string]interface{} {
 	if s != "" {
 		json.Unmarshal([]byte(s), &metadata)
 	}
+	// JSON null replaces the allocated map with nil.
+	if metadata == nil {
+		metadata = make(map[string]interface{})
+	}
 	metadata["varmorNamespace"] = getVarmorNamespace()
 	return metadata
 }
