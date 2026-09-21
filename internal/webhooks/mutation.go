@@ -644,11 +644,13 @@ func buildNetworkProxyPatch(profileName string, id varmorpolicy.AuditPolicyIdent
 	))
 
 	// --- 2. initContainer: varmor-network-proxy-init ---
+	// Override Pod-level UID/non-root defaults for iptables initialization.
+	// The sidecar below also needs an explicit non-root override to start as root.
 	sb.WriteString(fmt.Sprintf(
 		`{"op": "add", "path": "%s/spec/initContainers/-", "value": `+
 			`{"name": "varmor-network-proxy-init", `+
 			`"image": "%s", `+
-			`"securityContext": {"capabilities": {"add": ["NET_ADMIN"]}}, `+
+			`"securityContext": {"runAsUser": 0, "runAsNonRoot": false, "capabilities": {"add": ["NET_ADMIN"]}}, `+
 			`"resources": {"requests": {"cpu": "10m", "memory": "16Mi"}}, `+
 			`"command": ["sh", "-c", %s]}},`,
 		pathPrefix, varmorconfig.ProxyInitImage, iptablesScript(proxyUID, proxyPort, proxyAdminPort),
@@ -745,7 +747,7 @@ func buildNetworkProxyPatch(profileName string, id varmorpolicy.AuditPolicyIdent
 			// and, on kata, bind the in-sidecar audit sink before dropping to the
 			// Envoy uid (VARMOR_ENVOY_UID = proxyUID) and exec-ing Envoy. On runc
 			// the entrypoint drops to proxyUID immediately, so this is harmless.
-			`"securityContext": {"runAsUser": %d}, `+
+			`"securityContext": {"runAsUser": %d, "runAsNonRoot": false}, `+
 			// codeql[go/unsafe-quote-injection]: false positive. The token spliced
 			// here is the json.Marshal output above (a fully-quoted, escaped JSON
 			// string literal), NOT the raw overlay — hence no surrounding quotes.
