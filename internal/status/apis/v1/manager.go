@@ -106,7 +106,7 @@ func NewStatusManager(coreInterface corev1.CoreV1Interface,
 		modelingStatuses:   make(map[string]varmortypes.ModelingStatus),
 		ResetCh:            make(chan string, 50),
 		DeleteCh:           make(chan string, 50),
-		UpdateStatusCh:     make(chan string, 100),
+		UpdateStatusCh:     make(chan string, 400),
 		UpdateModeCh:       make(chan string, 50),
 		statusQueue:        workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "status"),
 		dataQueue:          workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "data"),
@@ -390,10 +390,14 @@ func (m *StatusManager) updateAllCRStatus(logger logr.Logger) {
 	}
 	m.policyStatusesLock.Unlock()
 
-	// Update the objects' status.
+	// Schedule updates through batchWorker. This function runs in reconcileStatus,
+	// so sending directly to its bounded channel can deadlock the sole consumer.
+	now := time.Now()
+	m.pendingUpdatesLock.Lock()
 	for _, key := range statusKeys {
-		m.UpdateStatusCh <- key
+		m.pendingUpdates[key] = now
 	}
+	m.pendingUpdatesLock.Unlock()
 
 	// Force agents to update profile that do not meet the expectations.
 	for _, p := range profiles {
