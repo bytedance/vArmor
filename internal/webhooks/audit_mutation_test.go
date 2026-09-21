@@ -77,8 +77,7 @@ func Test_buildNetworkProxyPatch_AuditInjected(t *testing.T) {
 
 	// Sidecar starts as root so the entrypoint can bind the micro-VM sink before
 	// dropping to the Envoy uid.
-	assert.Assert(t, strings.Contains(patch, `"securityContext": {"runAsUser": 0}`),
-		"patch should start the sidecar as root (runAsUser 0)")
+	assertProxyPatchRootStart(t, patch)
 
 	// PodSpec gains the ALS socket hostPath volume.
 	assert.Assert(t, strings.Contains(patch, `"name": "`+varmorconfig.AuditNetworkProxyVolumeName+`", "hostPath": {"path": "`+varmorconfig.AuditNetworkProxySocketDir+`", "type": "DirectoryOrCreate"}`),
@@ -129,8 +128,7 @@ func Test_buildNetworkProxyPatch_MicroVM(t *testing.T) {
 		"micro-VM patch should still inject VARMOR_NAMESPACE with the vArmor component namespace")
 	assert.Assert(t, strings.Contains(patch, `{"name": "VARMOR_ENVOY_UID", "value": "1337"}`),
 		"micro-VM patch should still inject VARMOR_ENVOY_UID")
-	assert.Assert(t, strings.Contains(patch, `"securityContext": {"runAsUser": 0}`),
-		"micro-VM patch should still start the sidecar as root")
+	assertProxyPatchRootStart(t, patch)
 }
 
 // Test_buildNetworkProxyPatch_GlobalDefaultResources asserts that cluster-global
