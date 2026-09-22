@@ -5,12 +5,14 @@ import clsx from 'clsx';
 import Layout from '@theme/Layout';
 import styles from './index.module.css';
 import Link from '@docusaurus/Link';
+import {useLatestVersion} from '@docusaurus/plugin-content-docs/client';
 import Translate, {translate} from '@docusaurus/Translate';
 import { Analytics } from "@vercel/analytics/react";
 import ThemeImage from '@site/src/components/ThemeImage';
 import CodeBlock from '@theme/CodeBlock';
 
 function HomepageHeader() {
+  const docsVersion = useLatestVersion();
   return (
     <header className={clsx('hero', styles.heroBanner)}>
       <div className={styles.heroBgImage}></div>
@@ -32,7 +34,7 @@ function HomepageHeader() {
             <div className={styles.buttons}>
               <Link
                 className={clsx("button button--lg", styles.primaryButton)}
-                to="/docs/main/introduction">
+                to={`${docsVersion.path}/introduction`}>
                 <Translate id="homepage.hero.getStarted">Get Started</Translate>
               </Link>
               <Link
@@ -159,6 +161,7 @@ function Architecture() {
 }
 
 function QuickStart() {
+  const docsVersion = useLatestVersion();
   return (
     <section className={styles.quickStart}>
       <div className="container">
@@ -188,7 +191,7 @@ function QuickStart() {
             </p>
             <Link
               className="button button--primary"
-              to="/docs/main/introduction#quick-start">
+              to={`${docsVersion.path}/introduction#quick-start`}>
               <Translate id="homepage.quickStart.viewGuide">View Full Guide</Translate>
             </Link>
           </div>

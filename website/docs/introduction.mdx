@@ -65,7 +65,7 @@ When the Manager detects the creation event of a VarmorPolicy or VarmorClusterPo
 
 ### Key Terms
 #### The Enforcer
-vArmor abstracts AppArmor, BPF, Seccomp and NetworkProxy as enforcers. The policy can use them individually or in combination to harden workloads, such as: AppArmorBPF, AppArmorSeccomp, AppArmorNetworkProxy, AppArmorBPFSeccomp etc.
+vArmor abstracts AppArmor, BPF, Seccomp and NetworkProxy as enforcers. The policy can use supported enforcers individually or in supported combinations to harden workloads, such as: AppArmorBPF, AppArmorSeccomp, AppArmorNetworkProxy, AppArmorBPFSeccomp etc.
 
 You can specify the enforcer through the `spec.policy.enforcer` field of [VarmorPolicy](getting_started/usage_instructions.md#varmorpolicy) or [VarmorClusterPolicy](getting_started/usage_instructions.md#varmorclusterpolicy) objects. 
 
@@ -91,124 +91,14 @@ The prerequisites required by different enforcers are as shown in the following 
 
 
 ## Quick Start
-### Step 1. Fetch chart
-```
-helm pull oci://elkeid-ap-southeast-1.cr.volces.com/varmor/varmor --version 0.10.5
-```
+Choose a guide that matches your environment:
 
-### Step 2. Install
-The default configuration enables the AppArmor and Seccomp enforcers. Please refer to the documentation for more [configuration options](getting_started/installation#configuration).
+- [Installation](getting_started/installation.md): prerequisites, Helm options and upgrades.
+- [Enforcers](guides/enforcers/index.md): choose file, syscall or network controls.
+- [Writing Policies](guides/policies_and_rules/writing_policies.md): select a workload, apply a policy, verify allowed and denied operations, and clean up.
 
-```
-helm install varmor varmor-0.10.5.tgz \
-    --namespace varmor --create-namespace \
-    --set image.registry="elkeid-ap-southeast-1.cr.volces.com"
-```
-*You can use the domain `elkeid-cn-beijing.cr.volces.com` inside of the CN region.*
+For an AppArmor-specific worked example, see [the existing usage example](getting_started/usage_instructions.md#example) and adapt it only after checking AppArmor support. `AlwaysAllow` establishes a profile without adding restrictions; it is not evidence that a prohibited operation is blocked.
 
-### Step 3. Try with this example
-Create demo namespace.
-```
-kubectl create namespace demo
-```
-Create a VarmorPolicy object to enable the **AlwaysAllow mode** for `deployments` that match the `spec.target.selector`.
-```
-cat << EOF | kubectl create -f -
-apiVersion: crd.varmor.org/v1beta1
-kind: VarmorPolicy
-metadata:
-  name: demo-1
-  namespace: demo
-spec:
-  target:
-    kind: Deployment
-    selector:
-      matchLabels:
-        app: demo-1
-  policy:
-    enforcer: AppArmor
-    mode: AlwaysAllow
-EOF
-```
-View the status of VarmorPolicy & ArmorProfile object.
-```
-kubectl get VarmorPolicy -n demo
-kubectl get ArmorProfile -n demo
-```
-Create the target Deployment object.
-```
-cat << EOF | kubectl create -f -
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: demo-1
-  namespace: demo
-  labels:
-    sandbox.varmor.org/enable: "true"
-    app: demo-1
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: demo-1
-  template:
-    metadata:
-      labels:
-        app: demo-1
-      annotations:
-        # Use this annotation to explicitly disable the protection for the container named c0.
-        # It always takes precedence over the '.spec.target.containers' field.
-        container.apparmor.security.beta.varmor.org/c0: unconfined
-    spec:
-      containers:
-      - name: c0
-        image: debian:10
-        command: ["/bin/sh", "-c", "sleep infinity"]
-        imagePullPolicy: IfNotPresent
-      - name: c1
-        image: debian:10
-        command: ["/bin/sh", "-c", "sleep infinity"]
-        imagePullPolicy: IfNotPresent
-
-EOF
-```
-Retrieve the Pod name of the target Deployment object.
-```
-POD_NAME=$(kubectl get Pods -n demo -l app=demo-1 -o name)
-```
-Execute a command in container `c1` to read the SA token.
-```
-kubectl exec -n demo $POD_NAME -c c1 -- cat /run/secrets/kubernetes.io/serviceaccount/token
-```
-Switch the VarmorPolicy object to **EnhancedProtect mode** to prohibit the container `c1` from reading the secret token.
-```
-cat << EOF | kubectl apply -f -
-apiVersion: crd.varmor.org/v1beta1
-kind: VarmorPolicy
-metadata:
-  name: demo-1
-  namespace: demo
-spec:
-  target:
-    kind: Deployment
-    selector:
-      matchLabels:
-        app: demo-1
-  policy:
-    enforcer: AppArmor
-    mode: EnhanceProtect
-    enhanceProtect:
-      hardeningRules:
-      - disable-cap-privileged
-      attackProtectionRules:
-      - rules:
-        - mitigate-sa-leak
-EOF
-```
-Execute a command in container `c1` to read the SA token and verify that the reading behavior is prohibited.
-```
-kubectl exec -n demo $POD_NAME -c c1 -- cat /run/secrets/kubernetes.io/serviceaccount/token
-```
 
 ## Demo
 Below is a demonstration of using vArmor to harden a Deployment and defend against CVE-2021-22555 (The exploit is modified from [cve-2021-22555](https://github.com/google/security-research/tree/master/pocs/linux/cve-2021-22555)).
