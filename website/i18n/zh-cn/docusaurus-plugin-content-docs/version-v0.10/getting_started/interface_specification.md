@@ -206,6 +206,9 @@ description: vArmor 的接口规范。
 
 ## NetworkProxyConfig
 
+行为、示例和运行边界见 [NetworkProxy 指南](../guides/enforcers/networkproxy/index.md)。本页定义字段，不代表所有修改都会自动应用到已有 Pod。
+
+
 | 字段 | 描述 |
 |-----|------|
 |mitm<br />*[MITMConfig](#mitmconfig)*|可选字段。配置 TLS Man-in-the-Middle，用于在 HTTP 层面检查加密的 HTTPS 流量。vArmor 自动为每个策略生成自签名 CA，并将 CA bundle 注入应用容器。|
@@ -234,9 +237,9 @@ description: vArmor 的接口规范。
 |-----|------|
 |name<br />*string*|HTTP 头部名称（例如 "Authorization"、"x-api-key"）。|
 |value<br />*string*|可选字段。字面头部值。用于非敏感值。与 `secretRef` 互斥。|
-|secretRef<br />*[SecretKeyRef](#secretkeyref)*|可选字段。引用一个 Kubernetes Secret 键，该键包含头部值。用于 API 密钥或令牌等敏感值。被引用的 Secret 必须由用户在目标工作负载所在的同一命名空间中预先创建。控制器在 reconcile 时读取 Secret 值，并将其内联到 Envoy xDS 配置中。与 `value` 互斥。|
+|secretRef<br />*[SecretKeyRef](#secretkeyref)*|可选字段。引用一个 Kubernetes Secret 键，该键包含头部值。用于 API 密钥或令牌等敏感值。被引用的 Secret 必须由用户在目标工作负载所在的同一命名空间中预先创建。vArmor 处理策略时读取 Secret 值，将解析值保存到生成的代理配置 Secret 中，并挂载到 sidecar。与 `value` 互斥。|
 
-SecretRef 引用值不能为空；非空内容保持原样。此校验在调和阶段执行，不在 admission 阶段执行。空值会使策略状态变为 Error、Ready=false；创建失败不在该 namespace 发布配置 Secret，更新失败保留该 namespace 上一份完整配置。集群策略不提供跨 namespace 原子更新。修正引用 Secret 后，需通过现有支持的策略更新入口重新触发调和；不会单独监听引用 Secret 的变化。
+SecretRef 引用值不能为空；非空内容保持原样。vArmor 在处理策略时检查引用值，因此 API 提交成功不代表配置已经有效。空值会使策略状态变为 Error、Ready=false；创建失败不在该 namespace 发布配置 Secret，更新失败保留该 namespace 上一份完整配置。集群策略不提供跨 namespace 原子更新。修正引用 Secret 后，需按[凭据轮换](../guides/enforcers/networkproxy/tls-and-credentials.md#rotate-and-verify)更新策略 spec；仅修改 Secret 不会使新值生效。
 
 ### SecretKeyRef
 

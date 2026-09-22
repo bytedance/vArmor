@@ -1,0 +1,101 @@
+---
+sidebar_position: 1
+sidebar_label: Quick Start
+---
+
+# Quick Start: allow and deny HTTP requests
+
+import CodeBlock from '@theme/CodeBlock';
+import backend from '@site/static/examples/networkproxy/v0.10.5/backend.yaml?raw';
+import policy from '@site/static/examples/networkproxy/v0.10.5/policy.yaml?raw';
+import client from '@site/static/examples/networkproxy/v0.10.5/client.yaml?raw';
+
+This tutorial creates an owned HTTP backend and an injected client in `varmor-networkproxy-demo`. Only `GET /allow/…` to the backend is allowed. The backend itself returns 200 for any GET path, so its access log can distinguish proxy denial from a backend error.
+
+## Prerequisites
+
+- Install vArmor v0.10.5 with its matching custom Envoy/proxyinit images; see [Installation](../../../getting_started/installation.md).
+- Use Linux Pods with their own network namespaces and admission settings that permit the injected root containers and `NET_ADMIN`. Check [Security and Compatibility](security-and-compatibility.md).
+- The example assumes the cluster DNS suffix `cluster.local`; replace it consistently in the policy and request URLs if yours differs.
+- Use a namespace name that is not already in use. The cleanup deletes this entire dedicated namespace. Do not reuse a business namespace.
+
+The application UID is 1000, distinct from the default proxy UID 1337. No external API credentials or MITM certificates are needed.
+
+## 1. Create the backend
+
+Save the following as `backend.yaml`, then apply it:
+
+<CodeBlock language="yaml" title="backend.yaml">{backend}</CodeBlock>
+
+```bash
+kubectl apply -f backend.yaml
+kubectl rollout status deployment/backend -n varmor-networkproxy-demo --timeout=120s
+```
+
+The backend is not labeled for vArmor injection. Its readiness check opens a TCP connection without generating an HTTP test request.
+
+## 2. Create the policy before the client
+
+Save as `policy.yaml`:
+
+<CodeBlock language="yaml" title="policy.yaml">{policy}</CodeBlock>
+
+```bash
+kubectl apply -f policy.yaml
+kubectl wait -n varmor-networkproxy-demo --for=jsonpath='{.status.ready}'=true varmorpolicy/http-guide --timeout=120s
+```
+
+On timeout, inspect the policy's status/conditions before continuing. Next, create the client and verify its requests.
+
+## 3. Create and inspect the client
+
+Save as `client.yaml`:
+
+<CodeBlock language="yaml" title="client.yaml">{client}</CodeBlock>
+
+```bash
+kubectl apply -f client.yaml
+kubectl wait -n varmor-networkproxy-demo --for=condition=Ready pod/client --timeout=120s
+kubectl get pod client -n varmor-networkproxy-demo -o jsonpath='{.spec.initContainers[*].name}{"\n"}{.spec.containers[*].name}{"\n"}'
+```
+
+Expect init container `varmor-network-proxy-init` and containers `client` and `varmor-network-proxy`. If either injected container is missing, check the policy target and Pod events before continuing.
+
+## 4. Verify allowed and denied requests
+
+Run each once, keeping its status code and response:
+
+```bash
+kubectl exec -n varmor-networkproxy-demo client -c client -- \
+  curl --noproxy '*' --max-time 10 -sS -w '\nHTTP %{http_code}\n' \
+  'http://backend.varmor-networkproxy-demo.svc.cluster.local:8000/allow/?case=allow-1'
+
+kubectl exec -n varmor-networkproxy-demo client -c client -- \
+  curl --noproxy '*' --max-time 10 -sS -w '\nHTTP %{http_code}\n' \
+  'http://backend.varmor-networkproxy-demo.svc.cluster.local:8000/deny/?case=deny-1'
+
+kubectl logs -n varmor-networkproxy-demo deployment/backend -c backend
+```
+
+| Request | Client | Backend access log | Selected audit |
+| --- | --- | --- | --- |
+| `/allow/?case=allow-1` | 200, `backend reached` | One matching GET | AUDIT |
+| `/deny/?case=deny-1` | 403 from proxy | No matching GET | DENIED |
+
+Curl can exit successfully for HTTP 403; check the HTTP code. A timeout or connection refusal is not the expected deny result for this example. If the initial configuration is not usable, inspect [Troubleshooting](troubleshooting.md).
+
+Find the audit records at the node or sidecar location described in [Observability](observability.md), filtered to this namespace and Pod.
+
+## 5. Change one rule and verify again
+
+Change the allow rule's path prefix from `/allow/` to `/deny/` in `policy.yaml` and apply it. Inspect policy status and proxy reload logs; wait for the configuration files to update and the proxy to load them. Then repeat the pair using new `case` values: `/allow/` should now be denied and `/deny/` allowed.
+
+This rule change takes effect without recreating the client Pod. For other changes, see [Lifecycle and Upgrades](lifecycle-and-upgrades.md).
+
+## 6. Clean up
+
+```bash
+kubectl delete namespace varmor-networkproxy-demo
+```
+
+This removes only the dedicated tutorial resources. Continue with [Policy Semantics](policy-semantics.md), then [TLS and Credentials](tls-and-credentials.md) for HTTPS.

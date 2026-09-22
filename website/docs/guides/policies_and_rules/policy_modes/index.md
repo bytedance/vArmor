@@ -7,7 +7,7 @@ sidebar_position: 1
 
 ## Overview
 
-The modes can be specified through the `spec.policy.mode` field of [VarmorPolicy](../../getting_started/usage_instructions#varmorpolicy) or [VarmorClusterPolicy](../../getting_started/usage_instructions#varmorclusterpolicy) objects. The modes supported by different enforcers are shown in the following table.
+The modes can be specified through the `spec.policy.mode` field of [VarmorPolicy](../../../getting_started/usage_instructions.md#varmorpolicy) or [VarmorClusterPolicy](../../../getting_started/usage_instructions.md#varmorclusterpolicy) objects. The modes supported by different enforcers are shown in the following table.
 
 |Policy Mode|AppArmor|BPF|Seccomp|NetworkProxy|Description|
 |-----------|--------|---|-------|------------|-----------|
@@ -54,11 +54,11 @@ DefenseInDepth describes the overall disposition and auditing behavior of the **
 
 ### NetworkProxy: Disposition and Auditing of Custom Network Rules
 
-Whether in the EnhanceProtect or the DefenseInDepth mode, the disposition and auditing behavior of user-defined NetworkProxy rules differs from that of AppArmor / BPF / Seccomp: it is **not governed by `allowViolations` and is self-contained** — its blocking and auditing behavior is determined entirely by its own rule qualifiers and `defaultAction`, and it **never produces `ALLOWED`** (it maps only to `DENIED` / `AUDIT`). See [Custom Rules](../custom_rules.md) for details.
+Whether in the EnhanceProtect or the DefenseInDepth mode, the disposition and auditing behavior of user-defined NetworkProxy rules differs from that of AppArmor / BPF / Seccomp: it is **not governed by `allowViolations` and is self-contained** — its blocking and auditing behavior is determined entirely by its own rule qualifiers and `defaultAction`, and it **never produces `ALLOWED`** (it maps only to `DENIED` / `AUDIT`). See the [NetworkProxy audit matrix](../../enforcers/networkproxy/observability.md#audit-decision-matrix) for details.
 
 ## Notes
 
-* vArmor policy supports dynamic switching the running mode and updating sandbox rules without restarting the workloads. The following scenarios require special handling:
+* Update behavior depends on the enforcer and the change. Existing AppArmor/BPF rules can be updated dynamically; attaching a new enforcer is a separate workload lifecycle operation. In particular:
   * When using the **Seccomp enforcer**, the workload needs to be restarted for changes to the **Seccomp Profile** to take effect.
   * The **BehaviorModeling** mode can only be switched to other modes after the modeling is completed.
   * When switching to **BehaviorModeling** mode from other modes or when the modeling has already been completed, you need to update the modeling duration and restart the target workload to restart the modeling process.
@@ -66,6 +66,8 @@ Whether in the EnhanceProtect or the DefenseInDepth mode, the disposition and au
 * vArmor supports modifying policies to remove the BPF enforcer.
 * When using the **NetworkProxy enforcer**, it is recommended to work with the AppArmor/BPF enforcer to drop the *NET_ADMIN* capability of the target container and prohibit creation of and switching to the [ProxyUID](../../../getting_started/interface_specification.md#networkproxyconfig), so as to prevent it from bypassing network proxy rules.
 * When using the **NetworkProxy enforcer**, it is recommended to block business containers from accessing the [admin ports](../../../getting_started/interface_specification.md#networkproxyconfig) of all network proxy sidecars in the Pod CIDR.
+
+* For NetworkProxy, see [Lifecycle and Upgrades](../../enforcers/networkproxy/lifecycle-and-upgrades.md). Enabling MITM for the first time requires replacement Pods with TLS mounts.
 
 ## Experimentals
 

@@ -5,7 +5,7 @@ description: Understand how to use vArmor.
 # Usage Instructions
 
 ## Interface Operations
-vArmor provides API interfaces through [VarmorPolicy](interface_specification.md#varmorpolicy) and [VarmorClusterPolicy](interface_specification.md#varmorclusterpolicy) CR. The VarmorClusterPolicy CR have higher priority than VarmorPolicy CR. It means prioritizing the use of VarmorClusterPolicy objects to protect matched workloads. You can create, modify, and delete VarmorPolicy or VarmorClusterPolicy objects in the cluster to protect specified workloads.
+vArmor provides API interfaces through [VarmorPolicy](interface_specification.md#varmorpolicy--varmorclusterpolicy) and [VarmorClusterPolicy](interface_specification.md#varmorpolicy--varmorclusterpolicy) CR. The VarmorClusterPolicy CR have higher priority than VarmorPolicy CR. It means prioritizing the use of VarmorClusterPolicy objects to protect matched workloads. You can create, modify, and delete VarmorPolicy or VarmorClusterPolicy objects in the cluster to protect specified workloads.
 
 vArmor supports performing a rolling restart of existing workloads that meet the matching conditions when a VarmorPolicy or VarmorClusterPolicy object is created or deleted. This rolling restart enables or disables protection for those workloads.
 
@@ -234,7 +234,7 @@ Notes:
 ### VarmorPolicy
 * Namespace-scoped resource, consistent with the namespace of the protected object.
 * The VarmorPolicy interface details can be found in [Interface Specification](interface_specification.md).
-* The definition of VarmorPolicy can be found in [VarmorPolicy CRD](https://github.com/bytedance/vArmor/tree/main/config/crds/crd.varmor.org_varmorpolicies.yaml).
+* The definition of VarmorPolicy can be found in [VarmorPolicy CRD](https://github.com/bytedance/vArmor/tree/v0.10.5/config/crds/crd.varmor.org_varmorpolicies.yaml).
 * Explanation of `VarmorPolicy/Status`:
 
   | Fields | Value | Interpretation |
@@ -254,13 +254,13 @@ Notes:
 ### VarmorClusterPolicy
 * Cluster-scoped resource.
 * The VarmorClusterPolicy interface details can be found in [Interface Specification](interface_specification.md)
-* The definition of VarmorClusterPolicy can be found in [VarmorClusterPolicy CRD](https://github.com/bytedance/vArmor/tree/main/config/crds/crd.varmor.org_varmorclusterpolicies.yaml)
+* The definition of VarmorClusterPolicy can be found in [VarmorClusterPolicy CRD](https://github.com/bytedance/vArmor/tree/v0.10.5/config/crds/crd.varmor.org_varmorclusterpolicies.yaml)
 * `VarmorClusterPolicy/Status` same as `VarmorPolicy/Status`
 
 ### ArmorProfile
 * Namespace-scoped resource, consistent with the namespace of the protected object or the namespace of the vArmor components.
 * **As an internal interface, used by vArmor only.**
-* The definition of ArmorProfile can be found in [ArmorProfile CRD](https://github.com/bytedance/vArmor/tree/main/config/crds/crd.varmor.org_armorprofiles.yaml).
+* The definition of ArmorProfile can be found in [ArmorProfile CRD](https://github.com/bytedance/vArmor/tree/v0.10.5/config/crds/crd.varmor.org_armorprofiles.yaml).
 * Explanation of `ArmorProfile/Status`:
 
   | Fields | Value | Interpretation |
@@ -293,8 +293,8 @@ spec:
     mode: EnhanceProtect
     enhanceProtect:
       hardeningRules:
-      - disable_cap_privileged
-      - disable_cap_net_raw
+      - disable-cap-privileged
+      - disable-cap-net-raw
       attackProtectionRules:
       - rules: 
         - disable-write-etc
@@ -320,4 +320,4 @@ The built-in rules used are as follows:
 - Prohibit shell and its subprocesses from accessing the container's ServiceAccount information
 
 ## Demos
-Here are some [demos](https://github.com/bytedance/vArmor/tree/main/test/demos) on how to use vArmor to mitigate vulnerabilities or harden containers with privileged capabilities.
+Here are some [demos](https://github.com/bytedance/vArmor/tree/v0.10.5/test/demos) on how to use vArmor to mitigate vulnerabilities or harden containers with privileged capabilities.

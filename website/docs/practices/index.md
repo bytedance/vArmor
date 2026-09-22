@@ -108,6 +108,8 @@ vArmor has the following features, making it a choice for core business hardenin
 * **Out-of-the-box**: Based on ByteDance's practices in the field of container security, it provides a series of built-in rules. Users can choose to use them in policy objects as needed. vArmor will generate and manage AppArmor, BPF, and Seccomp Profiles in the Allow-by-Default mode according to the configuration of policy objects, reducing the requirement for professional knowledge.
 * **Ease of use**: It provides a behavior modeling feature and a policy advisor to assist in policy formulation, further reducing the usage threshold.
 
+Follow the [NetworkProxy Quick Start](../guides/enforcers/networkproxy/quick-start.mdx), [policy semantics](../guides/enforcers/networkproxy/policy-semantics.md) and [TLS/credential guide](../guides/enforcers/networkproxy/tls-and-credentials.md) before adapting the following fragments.
+
 #### Common Usage Methods
 
 The rich features of vArmor provide diverse choices for the formulation and operation of security policies. The following are some common usage methods:
@@ -210,7 +212,7 @@ spec:
 kubectl patch vcpol $POLICY_NAME --type='json' -p='[{"op": "replace", "path": "/spec/policy/mode", "value":"AlwaysAllow"}]'
 ```
 
-* **Behavior Modeling Mode**: You can use the experimental function, the [behavior modeling mode](../guides/policies_and_rules/policy_modes/behavior_modeling.md) to model the target application. After the modeling is completed, use the [policy advisor](../guides/policy_advisor.md) to generate a sandbox policy template to assist in the formulation of the sandbox policy.
+* **Behavior Modeling Mode**: You can use the experimental function, the [behavior modeling mode](../guides/policies_and_rules/policy_modes/behavior_modeling.md) to model the target application. After the modeling is completed, use the [policy advisor](../guides/policy_tools/policy_advisor.md) to generate a sandbox policy template to assist in the formulation of the sandbox policy.
 
 ```yaml
 spec:
@@ -298,19 +300,21 @@ As can be seen, "access control at the application protocol layer" and "credenti
 
 #### Using the NetworkProxy Enforcer
 
-vArmor provides the NetworkProxy enforcer based on an Envoy Sidecar proxy, which implements both network access control at the application protocol layer and credential injection within a single enforcer. vArmor injects an Envoy sidecar and an init container into the target Pod via a mutation webhook. The init container uses iptables to redirect egress traffic to the sidecar, which then enforces access control according to the policy. Its main capabilities include:
+vArmor provides the NetworkProxy enforcer based on an Envoy Sidecar proxy, which implements both network access control at the application protocol layer and credential injection within a single enforcer. vArmor injects an Envoy sidecar and an init container into the target Pod automatically. The init container uses iptables to redirect egress traffic to the sidecar, which then enforces access control according to the policy. Its main capabilities include:
 
 * **L4 egress control**: Control outbound connections based on target IP, CIDR, and port.
 * **L7 HTTP/HTTPS control**: Control requests based on host, path, and method; for HTTPS, match domain names via TLS SNI, and after configuring TLS MITM, it can further decrypt traffic to match and inspect path and method.
-* **Per-domain HTTP header injection**: Automatically inject authentication headers by target domain (such as referencing a Kubernetes Secret to inject an API key), so that business containers never touch the real credentials, thereby achieving credential isolation while providing access control.
-* **Anti-domain-fronting**: Verify the consistency between the TLS SNI and the HTTP Host.
+* **Per-domain HTTP header injection**: Add or replace authentication headers by destination domain in HTTPS requests intercepted by MITM, using a directly configured value or a Kubernetes Secret reference. See [TLS and Credentials](../guides/enforcers/networkproxy/tls-and-credentials.md) for credential storage and updates.
+* **Anti-domain-fronting**: Restrict decrypted HTTP requests to the applicable MITM destination scope and validate the upstream TLS identity. This does not enforce one-to-one equality between downstream SNI and HTTP Host.
 * **Blacklist/whitelist modes and audit logs**: Support setting `defaultAction` to `deny` (whitelist) or `allow` (blacklist), and audit logs can be recorded as needed.
 
-Unlike solutions that require combining multiple tools to cover both access control and credential isolation, the NetworkProxy enforcer converges the two into a single policy. Policies support dynamic updates without restarting the Pod. Furthermore, by combining kernel-level mandatory access control (AppArmor/BPF/Seccomp) with application-protocol-level network access control (NetworkProxy), vArmor can provide defense-in-depth from system calls to network protocols for workloads such as AI Agents.
+Unlike solutions that require combining multiple tools to cover both access control and credential isolation, the NetworkProxy enforcer converges the two into a single policy. Existing rules support dynamic updates; changes to injected containers, TLS mounts or proxy startup settings require workload updates and replacement Pods as described in the [lifecycle guide](../guides/enforcers/networkproxy/lifecycle-and-upgrades.md). Furthermore, by combining kernel-level mandatory access control (AppArmor/BPF/Seccomp) with application-protocol-level network access control (NetworkProxy), vArmor can provide defense-in-depth from system calls to network protocols for workloads such as AI Agents.
+
+Follow the [NetworkProxy Quick Start](../guides/enforcers/networkproxy/quick-start.mdx), [policy semantics](../guides/enforcers/networkproxy/policy-semantics.md) and [TLS/credential guide](../guides/enforcers/networkproxy/tls-and-credentials.md) before adapting the following fragments.
 
 #### Common Usage Methods
 
-For example, use a whitelist approach to restrict an AI Agent to only access a specified large language model service, and deny all other egress traffic:
+For example, use a whitelist approach to restrict an AI Agent to only access a specified large language model service, and deny other redirected TCP traffic. UDP/QUIC and exempt traffic require separate controls:
 
 ```yaml
 policy:

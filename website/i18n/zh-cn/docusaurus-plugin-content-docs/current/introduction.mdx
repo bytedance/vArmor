@@ -11,7 +11,7 @@ import ThemeImage from '@site/src/components/ThemeImage';
 
 ## 关于 vArmor
 
-vArmor 是一个云原生容器加固系统，它借助 Linux 的 [AppArmor LSM](https://en.wikipedia.org/wiki/AppArmor)、[BPF LSM](https://docs.kernel.org/bpf/prog_lsm.html)、[Seccomp](https://en.wikipedia.org/wiki/Seccomp) 以及**网络代理**（基于 [Envoy](https://www.envoyproxy.io/) 的 Sidecar）技术实现强制访问控制器（即 enforcer），从而对容器进行安全加固。它可以用于增强容器隔离性、减少内核攻击面、在 L4/L7 层级实施网络出站访问控制——包括 TLS MITM 解密 HTTPS 流量检查、HTTP 请求头注入、防域前置攻击——增加容器逃逸或横向移动攻击的难度与成本。
+vArmor 是一个云原生容器加固系统，它借助 Linux 的 [AppArmor LSM](https://en.wikipedia.org/wiki/AppArmor)、[BPF LSM](https://docs.kernel.org/bpf/prog_lsm.html)、[Seccomp](https://en.wikipedia.org/wiki/Seccomp) 以及**网络代理**（基于 [Envoy](https://www.envoyproxy.io/) 的 Sidecar）技术实现强制访问控制器（即 enforcer），从而对容器进行安全加固。它可以用于增强容器隔离性、减少内核攻击面、在 L4/L7 层级实施网络出站访问控制——包括 TLS MITM 解密 HTTPS 流量检查、HTTP 请求头注入、MITM 请求目标范围限制——增加容器逃逸或横向移动攻击的难度与成本。
 
 您可以借助 vArmor 在以下场景对 Kubernetes 集群中的容器进行沙箱防护
 * 业务场景存在多租户（多租户共享同一个集群），由于成本、技术条件等原因无法使用硬件虚拟化容器。
@@ -22,14 +22,14 @@ vArmor 是一个云原生容器加固系统，它借助 Linux 的 [AppArmor LSM]
 :::tip
 - 安全防御的核心在于平衡风险与收益，通过选择不同类型的安全边界和防御技术，将不可控风险转化为可控成本。
 - runc + vArmor 不提供等同硬件虚拟化容器（如 Kata Container 等轻量级虚拟机）的隔离等级。如果您需要高强度的隔离方案，请优先考虑使用硬件虚拟化容器（如 Kata Container）进行计算隔离，并借助 CNI 的 NetworkPolicy 进行网络隔离。
-- vArmor 的 NetworkProxy enforcer 进一步补充了 NetworkPolicy 的不足，提供了 HTTP/HTTPS 的 L7 访问控制（基于 TLS MITM）、基于 TLS SNI 的域名过滤、逐域名 HTTP 请求头注入、防域前置攻击以及全面的审计日志能力——这些是 NetworkPolicy 所不具备的。
+- vArmor 的 NetworkProxy enforcer 进一步补充了 NetworkPolicy 的不足，提供了 HTTP/HTTPS 的 L7 访问控制（基于 TLS MITM）、基于 TLS SNI 的域名过滤、逐域名 HTTP 请求头注入、MITM 请求目标范围限制以及按条件选择的审计日志能力——这些是 NetworkPolicy 所不具备的。
 :::
 
 
 **vArmor 的特点**
 * **Cloud-Native**. vArmor 遵循 Kubernetes Operator 设计模式，用户可通过操作 [CRD API](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/) 对特定的 Workloads 进行加固。从而以更贴近业务的视角，实现对容器化微服务的沙箱加固。
 * **Multiple Enforcers**. vArmor 将 AppArmor、BPF、Seccomp、NetworkProxy 抽象为 Enforcer，并支持单独或组合使用，从而对容器的文件访问、进程执行、网络外联（L3–L7）、系统调用等进行访问控制。
-* **Network Proxy Enforcer**. vArmor 引入了基于 Sidecar 代理（Envoy）的 enforcer，能够透明拦截并控制容器的网络出站流量，支持 L4（TCP）、L7（HTTP/HTTPS）和 TLS SNI 三个层级的访问控制。它支持 TLS MITM 终止、逐域名 HTTP 请求头注入（如 API 密钥注入）、防域前置攻击，同时支持黑名单和白名单两种策略模式，提供审计日志能力，且策略支持动态更新，无需重启 Pod。
+* **Network Proxy Enforcer**. vArmor 引入了基于 Sidecar 代理（Envoy）的 enforcer，能够透明拦截并控制容器的网络出站流量，支持 L4（TCP）、L7（HTTP/HTTPS）和 TLS SNI 三个层级的访问控制。它支持 TLS MITM 终止、逐域名 HTTP 请求头注入（如 API 密钥注入）、MITM 请求目标范围限制，同时支持黑名单和白名单两种策略模式，提供审计日志能力，已有规则支持动态更新；注入、TLS 挂载、镜像和代理启动配置 有各自的[生命周期要求](guides/enforcers/networkproxy/lifecycle-and-upgrades.md)。
 * **AI Agent 防护**. vArmor 通过内核级强制访问控制（AppArmor/BPF/Seccomp）与应用协议级网络访问控制（NetworkProxy）的组合，为 AI Agent 工作负载提供纵深防御，有效缓解提示词注入诱导的工具滥用、密钥泄露和数据外泄风险。
 * **Allow-by-Default**. vArmor 当前重点支持此安全模型，即只有显式声明的行为会被阻断，从而减少性能损失和增加易用性。vArmor 支持对违反访问控制规则的行为进行审计，并支持放行违反访问控制规则的行为。
 * **Built-in Rules**. vArmor 提供了一系列开箱即用的内置规则。这些规则为 Allow-by-Default 安全模型设计，从而极大降低对用户专业知识的要求。
@@ -44,12 +44,12 @@ vArmor 项目由字节跳动终端安全团队的 **Elkeid Team** 创建，目�
 ### 架构
 vArmor 主要由 Manager 和 Agent 两个组件构成。Manager 用于响应和管理安全策略，而 Agent 则在集群节点上管理 enforcer（强制访问控制器）和 profile（安全配置文件）。
 
-vArmor 还支持 NetworkProxy enforcer，通过 mutation webhook 向目标 Pod 注入 Envoy sidecar 代理和 init 容器。Init 容器通过 iptables 规则将出站流量重定向到 Envoy sidecar，后者根据 Manager 生成并通过统一 Secret 下发的策略执行 L4/L7 访问控制，包括 TLS MITM 终止、HTTPS 流量解密检查、HTTP 请求头注入、防域前置攻击等能力。
+vArmor 还支持 NetworkProxy enforcer，向目标 Pod 自动注入 Envoy sidecar 代理和 init 容器。Init 容器通过 iptables 规则将出站流量重定向到 Envoy sidecar，后者根据 Manager 生成并通过统一 Secret 下发的策略执行 L4/L7 访问控制，包括 TLS MITM 终止、HTTPS 流量解密检查、HTTP 请求头注入、MITM 请求目标范围限制等能力。
 
-<ThemeImage 
-  lightSrc="/img/architecture.svg" 
-  darkSrc="/img/architecture.svg" 
-  alt="vArmor Architecture" 
+<ThemeImage
+  lightSrc="/img/architecture.svg"
+  darkSrc="/img/architecture.svg"
+  alt="vArmor Architecture"
   width="100%"
 />
 
@@ -58,10 +58,10 @@ vArmor 还支持 NetworkProxy enforcer，通过 mutation webhook 向目标 Pod �
 * 您可以通过管理 VarmorPolicy 或 VarmorClusterPolicy CR 策略对象，使用不同的强制访问控制器及其规则来加固容器。
 * ArmorProfile CR 作为内部接口，用于安全配置文件的管理。
 
-<ThemeImage 
-  lightSrc="/img/principle.svg" 
-  darkSrc="/img/principle-dark.svg" 
-  alt="vArmor Principle" 
+<ThemeImage
+  lightSrc="/img/principle.svg"
+  darkSrc="/img/principle-dark.svg"
+  alt="vArmor Principle"
 />
 
 当 Manager 监听到 VarmorPolicy 或 VarmorClusterPolicy 对象的创建事件时，它会为其创建一个对应的 ArmorProfile 内部对象。Agent 监听并响应这个 ArmorProfile 对象，处理安全配置文件后将状态报告回 Manager。当用户创建工作负载时，APIServer 通过准入 webhook 将创建请求发送到 Manager。Manager 评估是否应该加固工作负载。如果需要，Manager 通过添加注释和修改 securityContext 等来变异工作负载。最后，工作负载的 Pod 将被调度到节点上，并在创建容器时为其设置安全上下文。
@@ -90,144 +90,22 @@ vArmor 的策略可以运行在五种模式中：*AlwaysAllow, RuntimeDefault, E
 |AppArmor    |1. Linux Kernel 4.15+<br />2. 系统需开启 AppArmor LSM|GKE with Container-Optimized OS<br />AKS with Ubuntu<br />[VKE](https://www.volcengine.com/product/vke) with veLinux<br />Debian 10 及以上版本<br />Ubuntu 18.04.0 LTS 及以上版本<br />[veLinux](https://www.volcengine.com/docs/6396/74967) 等
 |BPF         |1. Linux Kernel 5.10+ (x86_64) 或 6.6+ (arm64)<br />2. containerd v1.6.0+<br />3. 系统需开启 BPF LSM|EKS with Amazon Linux 2<br />GKE with Container-Optimized OS<br />[VKE](https://www.volcengine.com/product/vke) with veLinux (with 5.10 kernel)<br />AKS with Ubuntu 22.04 LTS <sup>\*</sup><br />ACK with Alibaba Cloud Linux 3 <sup>\*</sup><br />OpenSUSE 15.4  <sup>\*</sup><br />Debian 11 <sup>\*</sup><br />Fedora 37<br />[veLinux (with 5.10 kernel)](https://www.volcengine.com/docs/6396/74967) 等<br /><br />* *需手动启用节点的 BPF LSM*
 |Seccomp     |1. Kubernetes v1.19+|所有 Linux 发行版
-|NetworkProxy|-|所有 Linux 发行版
+|NetworkProxy|业务命名空间允许注入以 root 启动的代理容器，以及使用 NET_ADMIN 的 init 容器|见[安全与兼容性](guides/enforcers/networkproxy/security-and-compatibility.md)|
 
 
-## 快速入门
-### 步骤 1. 拉取 chart 包
+<a id="快速入门" />
 
-```bash
-helm pull oci://elkeid-ap-southeast-1.cr.volces.com/varmor/varmor --version 0.10.5
-```
+## 快速入门 {#quick-start}
 
-### 步骤 2. 安装
-vArmor 默认支持 AppArmor 和 Seccomp enforcer。请参照 [配置选项](getting_started/installation#配置选项) 查看更多信息。
+选择与环境匹配的入口：
 
-```bash
-helm install varmor varmor-0.10.5.tgz \
-    --namespace varmor --create-namespace \
-    --set image.registry="elkeid-cn-beijing.cr.volces.com"
-```
-*您可以在非中国地区使用 elkeid-ap-southeast-1.cr.volces.com 域名*
+- [安装](getting_started/installation.md)：前提、Helm 选项和升级。
+- [强制访问控制器](guides/enforcers/index.md)：选择文件、系统调用或网络控制。
+- [NetworkProxy 快速开始](guides/enforcers/networkproxy/quick-start.mdx)：先验证 HTTP 允许/拒绝，再配置 TLS 拦截。
+- [编写策略](guides/policies_and_rules/writing_policies.md)：选择目标、应用策略、验证和清理。
 
-### 步骤 3. 尝试以下用例
-创建 demo 命名空间。
+AppArmor 环境可以参考[现有使用示例](getting_started/usage_instructions.md#example)，先检查节点支持再修改。AlwaysAllow 仅建立 profile 而不增加限制，不能用它证明禁止操作已被阻断。
 
-```bash
-kubectl create namespace demo
-```
-
-创建一个运行在 **AlwaysAllow 模式** 中的 VarmorPolicy 对象，为符合 `spec.target.selector` 条件的 `deployments` 开启“防护”。
-
-```yaml
-cat << EOF | kubectl create -f -
-apiVersion: crd.varmor.org/v1beta1
-kind: VarmorPolicy
-metadata:
-  name: demo-1
-  namespace: demo
-spec:
-  target:
-    kind: Deployment
-    selector:
-      matchLabels:
-        app: demo-1
-  policy:
-    enforcer: AppArmor
-    mode: AlwaysAllow
-EOF
-```
-
-查看 VarmorPolicy 和 ArmorProfile 对象的状态。
-
-```bash
-kubectl get VarmorPolicy -n demo
-kubectl get ArmorProfile -n demo
-```
-
-创建目标工作负载。
-
-```yaml
-cat << EOF | kubectl create -f -
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: demo-1
-  namespace: demo
-  labels:
-    sandbox.varmor.org/enable: "true"
-    app: demo-1
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: demo-1
-  template:
-    metadata:
-      labels:
-        app: demo-1
-      annotations:
-        # Use this annotation to explicitly disable the protection for the container named c0.
-        # It always takes precedence over the '.spec.target.containers' field.
-        container.apparmor.security.beta.varmor.org/c0: unconfined
-    spec:
-      containers:
-      - name: c0
-        image: debian:10
-        command: ["/bin/sh", "-c", "sleep infinity"]
-        imagePullPolicy: IfNotPresent
-      - name: c1
-        image: debian:10
-        command: ["/bin/sh", "-c", "sleep infinity"]
-        imagePullPolicy: IfNotPresent
-
-EOF
-```
-
-获取目标 Deployment 的 Pod 名称。
-
-```bash
-POD_NAME=$(kubectl get Pods -n demo -l app=demo-1 -o name)
-```
-
-在容器 `c1` 中执行命令，读取其 SA token。
-
-```bash
-kubectl exec -n demo $POD_NAME -c c1 -- cat /run/secrets/kubernetes.io/serviceaccount/token
-```
-
-切换 VarmorPolicy 对象到 **EnhancedProtect 模式**，并阻止 `c1` 容器读取 SA token。
-
-```yaml
-cat << EOF | kubectl apply -f -
-apiVersion: crd.varmor.org/v1beta1
-kind: VarmorPolicy
-metadata:
-  name: demo-1
-  namespace: demo
-spec:
-  target:
-    kind: Deployment
-    selector:
-      matchLabels:
-        app: demo-1
-  policy:
-    enforcer: AppArmor
-    mode: EnhanceProtect
-    enhanceProtect:
-      hardeningRules:
-      - disable-cap-privileged
-      attackProtectionRules:
-      - rules:
-        - mitigate-sa-leak
-EOF
-```
-
-在容器 `c1` 中执行命令，读取其 SA token。验证读取行为是否被禁止。
-
-```bash
-kubectl exec -n demo $POD_NAME -c c1 -- cat /run/secrets/kubernetes.io/serviceaccount/token
-```
 
 ## 演示
 

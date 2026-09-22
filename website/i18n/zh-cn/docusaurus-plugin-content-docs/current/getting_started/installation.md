@@ -13,7 +13,7 @@ description: 了解如何安装、配置、更新和卸载 vArmor。
 |AppArmor    |1. Linux Kernel 4.15+<br />2. 系统需开启 AppArmor LSM|GKE with Container-Optimized OS<br />AKS with Ubuntu<br />[VKE](https://www.volcengine.com/product/vke) with veLinux<br />Debian 10 及以上版本<br />Ubuntu 18.04.0 LTS 及以上版本<br />[veLinux](https://www.volcengine.com/docs/6396/74967) 等
 |BPF         |1. Linux Kernel 5.10+ (x86_64) 或 6.6+ (arm64)<br />2. containerd v1.6.0+<br />3. 系统需开启 BPF LSM|EKS with Amazon Linux 2<br />GKE with Container-Optimized OS<br />[VKE](https://www.volcengine.com/product/vke) with veLinux (with 5.10 kernel)<br />AKS with Ubuntu 22.04 LTS <sup>\*</sup><br />ACK with Alibaba Cloud Linux 3 <sup>\*</sup><br />OpenSUSE 15.4  <sup>\*</sup><br />Debian 11 <sup>\*</sup><br />Fedora 37<br />[veLinux (with 5.10 kernel)](https://www.volcengine.com/docs/6396/74967) 等<br /><br />* *需手动启用节点的 BPF LSM*
 |Seccomp     |1. Kubernetes v1.19+|所有 Linux 发行版
-|NetworkProxy|-|所有 Linux 发行版
+|NetworkProxy|业务命名空间允许注入以 root 启动的代理容器，以及使用 NET_ADMIN 的 init 容器|见[安全与兼容性](../guides/enforcers/networkproxy/security-and-compatibility.md)|
 
 ## 安装
 
@@ -85,7 +85,9 @@ Agent 和 Manager 的日志格式默认为文本格式，您可以使用下面�
 --set jsonLogFormat.enabled=true
 ```
 
-#### 注入元数据到违规事件
+<a id="注入元数据到违规事件" />
+
+#### 注入元数据到违规事件 {#inject-metadata-into-violation-events}
 此功能使您能够将自定义元数据注入到违规事件。它通过将违规事件与特定于环境的上下文相关联来增强 vArmor 审计日志的可观测性。默认值为空。
 
 您可以使用类似下面的选项来添加元数据的键值对。
@@ -112,11 +114,13 @@ vArmor 只会对包含此 label 的 Workloads 开启沙箱防护。你可以使�
 --set restartExistWorkloads.enabled=false
 ```
 
-#### 开启 Pod 出口控制
-此功能扩展了网络访问控制，以限制容器对特定 Pod IPs 的访问。您可以使用下面的选项关闭它。默认值：关闭。
+<a id="开启-pod-出口控制" />
+
+#### 开启 Pod 出口控制 {#enable-pod-egress-control}
+此功能扩展了网络访问控制，以限制容器对特定 Pod IPs 的访问。您可以使用下面的选项开启它。默认值：关闭。
 
 ```bash
---set podEgressControl.enabled=false
+--set podEgressControl.enabled=true
 ```
 
 当前仅 BPF enforcer 支持此功能。开启此功能时，您可能需要为 manager 设置更多内存，以便其 watch pods 变化。不建议在大规模集群（如 10k+ 节点）中启用此功能。
@@ -187,8 +191,10 @@ kubectl -n varmor edit configmap varmor-config
 * 层级键名必须严格拼写为 `nonMitm` 和 `mitm`。拼写错误的层级键会被静默忽略，该层级将回退到内置默认值。
 * 非法条目(未知资源名、无法解析的数量、非正值，或同一层级内 limit 低于 request)会被忽略，并在 Manager 加载时记录日志；该字段将回退到其内置默认值。
 
-#### NetworkProxy 审计的微虚机(Kata)识别
-NetworkProxy enforcer 通过其 Envoy sidecar 持久化出口流量的违规审计日志。在 runc 运行时下，Envoy 通过节点级的 hostPath Unix socket 将记录流式发送到 `varmor-agent` DaemonSet。而在微虚机运行时(kata / Serverless 沙箱)下，sidecar 运行在微虚机内部，该 hostPath socket 无法跨越虚机边界(且部分 Serverless 厂商会在准入阶段拒绝挂载)。对于此类工作负载，vArmor 会省略 hostPath 卷/挂载，并启动一个 sidecar 内置的审计 sink，将 socket 绑定在容器自身 rootfs 中，写入容器本地的 `/var/log/varmor/violations.log`——产出与 runc 路径逐字节一致的归一化记录。
+<a id="networkproxy-审计的微虚机(kata)识别" />
+
+#### NetworkProxy 审计的微虚机(Kata)识别 {#micro-vm-kata-detection-for-networkproxy-auditing}
+runc 工作负载的 NetworkProxy 审计日志记录在所在节点上；Kata 等已配置的微虚机工作负载则记录在代理 sidecar 内。两者的日志路径均为 `/var/log/varmor/violations.log`。请按下面的说明配置运行时识别，以便 vArmor 选择适当的挂载方式。日志查看方法见[可观测性](../guides/enforcers/networkproxy/observability.md)。
 
 `microVMDetection` 配置用于告知注入器哪些工作负载运行在微虚机运行时下。当工作负载的 `runtimeClassName` 命中列表**或**任一 annotation 规则命中**或**任一 label 规则命中时，即判定为微虚机(对于 annotation/label 规则，空值表示仅按键是否存在匹配，非空值则必须精确匹配)。内置默认值已覆盖上游 kata 及主流云厂商的 Serverless 运行时：
 

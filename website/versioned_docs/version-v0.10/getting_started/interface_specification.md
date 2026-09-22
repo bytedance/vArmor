@@ -206,6 +206,9 @@ description: The interface specification of vArmor.
 
 ## NetworkProxyConfig
 
+For behavior, examples and operational boundaries, read the [NetworkProxy guide](../guides/enforcers/networkproxy/index.md). This reference defines the fields; it does not imply all changes apply to existing Pods automatically.
+
+
 | Field | Description |
 |-------|-------------|
 |mitm<br />*[MITMConfig](#mitmconfig)*|Optional. Configures TLS Man-in-the-Middle for inspecting encrypted HTTPS traffic at the HTTP level. vArmor automatically generates a self-signed CA per policy and injects the CA bundle into application containers. |
@@ -234,9 +237,9 @@ description: The interface specification of vArmor.
 |-------|-------------|
 |name<br />*string*|The HTTP header name (e.g., "Authorization", "x-api-key"). |
 |value<br />*string*|Optional. A literal header value. Use this for non-sensitive values. Mutually exclusive with `secretRef`. |
-|secretRef<br />*[SecretKeyRef](#secretkeyref)*|Optional. References a Kubernetes Secret key containing the header value. Use this for sensitive values such as API keys or tokens. The referenced Secret must be pre-created by the user in the same namespace as the target workload. The controller reads the Secret value at reconcile time and inlines it into the Envoy xDS configuration. Mutually exclusive with `value`. |
+|secretRef<br />*[SecretKeyRef](#secretkeyref)*|Optional. References a Kubernetes Secret key containing the header value. Use this for sensitive values such as API keys or tokens. The referenced Secret must be pre-created by the user in the same namespace as the target workload. vArmor reads the Secret when processing the policy and stores the resolved value in the generated proxy configuration Secret, which is mounted in the sidecar. Mutually exclusive with `value`. |
 
-SecretRef values must be nonempty; nonempty values are preserved verbatim. This check runs during reconciliation, not admission. An empty value sets the policy status to Error with Ready=false. An invalid create publishes no configuration Secret in that namespace; an invalid update retains its previous complete configuration. Cluster policies do not provide atomic updates across namespaces. After correcting the referenced Secret, trigger reconciliation through an existing supported policy update; Secret changes alone are not watched.
+SecretRef values must be nonempty; nonempty values are preserved verbatim. The value is checked when vArmor processes the policy, so a successful API submission alone does not mean the configuration is valid. An empty value sets the policy status to Error with Ready=false. An invalid create publishes no configuration Secret in that namespace; an invalid update retains its previous complete configuration. Cluster policies do not provide atomic updates across namespaces. After correcting the referenced Secret, update the policy spec as described in [credential rotation](../guides/enforcers/networkproxy/tls-and-credentials.md#rotate-and-verify). Changing the Secret alone does not apply the new value.
 
 ### SecretKeyRef
 

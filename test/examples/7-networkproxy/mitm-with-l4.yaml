@@ -7,18 +7,21 @@
 #   - TLS traffic (curl https://1.1.1.1:6443) → mitm_tls_ip_chain → TLS termination → HCM L7 processing → Header injection → re-encrypt and send to upstream
 #   - L4 rules (ip: "1.1.1.1", ports: [443, 6443-8000]) are written simultaneously
 #
-# Bare IP MITM limitation:
-#   MITM rules based on IP cause plaintext HTTP L7 access control to become ineffective. (Note: L4 rules are defined here, so L4 access control can still be achieved)
-#   - curl http://1.1.1.1:443 (plaintext HTTP) → prefix_ranges eliminates http_chain → mitm_tls_ip_chain's transport_protocol:"tls" does not match → falls into tcp_default_chain and is allowed
+# Plaintext HTTP to the MITM IP:
+#   - Uses http_ip_chain, which retains HTTP host/path/method rules and applies
+#     the applicable L4 rules; IP MITM does not bypass L7 access control.
+#   - This policy defines only L4 allow rules: port 443 and ports 6443-8000
+#     are allowed; port 80 is denied by defaultAction: deny.
 #
 # Verification:
 #   # TLS request — should succeed, with MITM certificate + injected Header visible
 #   kubectl exec -it -n demo deploy/mitm-with-l4 -- curl -vsSLk https://1.1.1.1/cdn-cgi/trace
 #
-#   # Plaintext HTTP — expected to be allowed by tcp_default_chain
+#   # Plaintext HTTP — allowed by the L4 rule in http_ip_chain.
+#   # The upstream TLS port may reject plaintext; a successful HTTP response is not guaranteed.
 #   kubectl exec -it -n demo deploy/mitm-with-l4 -- curl -v http://1.1.1.1:443/cdn-cgi/trace
 #
-#   # Plaintext HTTP — expected to be denied by tcp_default_chain fallback
+#   # Plaintext HTTP — expected HTTP 403 from http_ip_chain (no matching allow rule).
 #   kubectl exec -it -n demo deploy/mitm-with-l4 -- curl -v http://1.1.1.1:80/cdn-cgi/trace
 ---
 apiVersion: crd.varmor.org/v1beta1

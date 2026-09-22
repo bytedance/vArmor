@@ -1,6 +1,6 @@
 ---
 slug: /guides/policies_and_rules
-sidebar_position: 1
+sidebar_position: 2
 ---
 
 # 策略与规则

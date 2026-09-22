@@ -5,7 +5,7 @@ description: Understand how to use vArmor.
 # Usage Instructions
 
 ## Interface Operations
-vArmor provides API interfaces through [VarmorPolicy](interface_specification.md#varmorpolicy) and [VarmorClusterPolicy](interface_specification.md#varmorclusterpolicy) CR. The VarmorClusterPolicy CR have higher priority than VarmorPolicy CR. It means prioritizing the use of VarmorClusterPolicy objects to protect matched workloads. You can create, modify, and delete VarmorPolicy or VarmorClusterPolicy objects in the cluster to protect specified workloads.
+vArmor provides API interfaces through [VarmorPolicy](interface_specification.md#varmorpolicy--varmorclusterpolicy) and [VarmorClusterPolicy](interface_specification.md#varmorpolicy--varmorclusterpolicy) CR. The VarmorClusterPolicy CR have higher priority than VarmorPolicy CR. It means prioritizing the use of VarmorClusterPolicy objects to protect matched workloads. You can create, modify, and delete VarmorPolicy or VarmorClusterPolicy objects in the cluster to protect specified workloads.
 
 vArmor supports performing a rolling restart of existing workloads that meet the matching conditions when a VarmorPolicy or VarmorClusterPolicy object is created or deleted. This rolling restart enables or disables protection for those workloads.
 
@@ -293,8 +293,8 @@ spec:
     mode: EnhanceProtect
     enhanceProtect:
       hardeningRules:
-      - disable_cap_privileged
-      - disable_cap_net_raw
+      - disable-cap-privileged
+      - disable-cap-net-raw
       attackProtectionRules:
       - rules: 
         - disable-write-etc

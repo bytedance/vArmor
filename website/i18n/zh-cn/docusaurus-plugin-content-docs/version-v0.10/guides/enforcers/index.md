@@ -1,0 +1,34 @@
+---
+sidebar_position: 1
+sidebar_label: 强制访问控制器
+---
+
+# 强制访问控制器：概览与选择 {#enforcers-overview-and-selection}
+
+强制访问控制器（Enforcer）负责实施安全策略。先根据需要控制的行为选择强制访问控制器，再检查节点和工作负载的运行前提；策略模式和规则共同决定允许哪些行为。
+
+| 目标 | 建议入口 | 主要前提 |
+| --- | --- | --- |
+| 限制文件访问和程序执行 | [AppArmor](apparmor.md) 或 [BPF](bpf.md) | 节点启用对应的 Linux LSM |
+| 限制系统调用 | [Seccomp](seccomp.md) | 更新过滤规则需要创建新容器 |
+| 在内核层限制 socket 操作 | [AppArmor](apparmor.md) 或 [BPF](bpf.md) | 按各强制访问控制器支持的网络规则类型配置 |
+| 在内核层限制目标 IP/端口 | [BPF](bpf.md) | 支持目标 IP/端口匹配，以及 `toServices`、`toPods` 等 Kubernetes 目标语义 |
+| 限制 HTTP 请求、TLS 目标，或通过 MITM 检查 HTTPS | [NetworkProxy](networkproxy/index.md) | 容器注入、流量重定向，以及 MITM 所需的应用信任配置 |
+
+## 选择模式和作用域 {#choose-a-mode-and-scope}
+
+通过[策略模式](../policies_and_rules/policy_modes/index.md)选择兼容的模式。`EnhanceProtect` 增加指定的限制；支持 `DefenseInDepth` 的强制访问控制器可以使用允许列表。`BehaviorModeling` 为实验功能，需要显式启用，且不支持 NetworkProxy。BPF 不支持 `DefenseInDepth`。
+
+`VarmorPolicy` 选择同命名空间的工作负载；`VarmorClusterPolicy` 具有集群作用域，优先于匹配的命名空间策略。首次使用应限制在专属命名空间和明确的目标上，参见[编写策略](../policies_and_rules/writing_policies.md)。
+
+## 组合强制访问控制器 {#combining-enforcers}
+
+`AppArmorSeccomp`、`AppArmorNetworkProxy` 等受支持的组合可以在同一策略中覆盖不同操作。每个强制访问控制器仍有各自的依赖、更新方式和审计语义。组合不会使原本不支持的模式变为可用，也不会使某层允许覆盖另一层的拒绝。
+
+选择组合前检查[强制访问控制器字段](../../getting_started/interface_specification.md#policy)。NetworkProxy 在 Pod 范围内实施网络规则；同一 Pod 中的容器共享网络命名空间。
+
+## 下一步 {#next-steps}
+
+1. 阅读[安装](../../getting_started/installation.md)，核对环境及已启用组件。
+2. 按[编写策略](../policies_and_rules/writing_policies.md)创建和验证策略。
+3. 通过[使用说明](../../getting_started/usage_instructions.md)查看状态与操作，通过[指标](../../getting_started/metrics.md)监控组件。

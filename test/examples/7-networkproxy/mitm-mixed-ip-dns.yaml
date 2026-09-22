@@ -19,8 +19,12 @@
 #   - Entering DNS chain but Host != httpbin.org → 404
 #   - Entering IP chain but Host != 1.1.1.1 and Host != 8.8.4.4 → 404
 #
-# Bare IP MITM / CIDR MITM limitation:
-#   MITM rules based on IP or CIDR cause plaintext HTTP L7 access control to become ineffective (same as mitm-ip-literal, mitm-cidr)
+# Plaintext HTTP to a MITM IP (bare IP or /32 CIDR):
+#   Uses http_ip_chain and retains all HTTP host/path/method rules, including
+#   rules whose Host is a DNS name. This policy allows the three listed hosts;
+#   other hosts are denied by defaultAction: deny.
+#   When DNS and IP MITM targets overlap, TLS with matching SNI uses
+#   mitm_tls_dns_ip_chain.
 #
 # Verification:
 #   # DNS domain MITM
