@@ -66,5 +66,5 @@
 <text x="925" y="547" class="small" text-anchor="middle">审计日志</text>
 <text x="925" y="572" class="note" text-anchor="middle">sidecar 内</text>
 <text x="588" y="475" class="note" text-anchor="start">拒绝流量在 Envoy 处终止</text>
-<text x="520" y="786" class="small" text-anchor="middle">绿色实线:流量、     灰色虚线:配置、    橙色虚线:审计</text>
+<text x="520" y="786" class="small" text-anchor="middle"><tspan fill="#147d68">绿色实线：流量</tspan><tspan dx="24" fill="#68748c">灰色虚线：配置</tspan><tspan dx="24" fill="#b56a16">橙色虚线：审计</tspan></text>
 </svg>

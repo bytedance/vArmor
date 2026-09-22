@@ -66,5 +66,5 @@
 <text x="925" y="547" class="small" text-anchor="middle">Audit log</text>
 <text x="925" y="572" class="note" text-anchor="middle">in sidecar</text>
 <text x="588" y="475" class="note" text-anchor="start">Denied traffic stops at Envoy</text>
-<text x="520" y="786" class="small" text-anchor="middle">Solid Green: traffic,     Dashed Gray: configuration,     Dashed Amber: audit</text>
+<text x="520" y="786" class="small" text-anchor="middle"><tspan fill="#147d68">Solid Green: traffic</tspan><tspan dx="24" fill="#68748c">Dashed Gray: configuration</tspan><tspan dx="24" fill="#b56a16">Dashed Amber: audit</tspan></text>
 </svg>
