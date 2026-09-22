@@ -17,8 +17,6 @@ vArmor 支持用户基于 enforcer 的语法，在 EnhanceProtect 和 DefenseInD
 
 > 表中“可产生的动作”指**由规则限定词推导**出的动作，因此都不含 `ALLOWED`。`ALLOWED` 与任何限定词无关，仅在 **DefenseInDepth 模式**且 `allowViolations=true` 时，对未被允许清单覆盖的访问放行并记录，详见[策略模式的处置动作与审计](policy_modes/index.md#disposition-actions-and-auditing)。
 
-<a id="apparmor-enforcer" />
-
 ## AppArmor enforcer
 AppArmor enforcer 支持用户根据 AppArmor 的语法定制策略。
 
@@ -55,8 +53,6 @@ policy:
     // highlight-end
 ```
 
-<a id="seccomp-enforcer" />
-
 ## Seccomp enforcer
 Seccomp enforcer 支持用户根据 OCI 规范的语法定制策略。
 
@@ -90,8 +86,6 @@ policy:
         op: SCMP_CMP_MASKED_EQ
     // highlight-end
 ```
-
-<a id="bpf-enforcer" />
 
 ## BPF enforcer
 BPF enforcer 支持用户根据语法定制策略。每类规则的数量上限为 50 条。每个节点支持最多对 100 个容器开启沙箱。

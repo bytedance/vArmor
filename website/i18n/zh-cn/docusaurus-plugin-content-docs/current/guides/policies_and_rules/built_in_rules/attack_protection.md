@@ -21,7 +21,9 @@ description: 针对容器环境中渗透手法的规则。
         - "/usr/bin/bash"
 ```
 
-## 缓解信息泄露
+<a id="缓解信息泄露" />
+
+## 缓解信息泄露 {#mitigating-information-leakage}
 
 ### `mitigate-sa-leak`
 
@@ -187,7 +189,9 @@ description: 针对容器环境中渗透手法的规则。
 * BPF
 :::
 
-## 禁止敏感操作
+<a id="禁止敏感操作" />
+
+## 禁止敏感操作 {#disabling-sensitive-operations}
 
 ### `disable-write-etc`
 
@@ -431,7 +435,9 @@ description: 针对容器环境中渗透手法的规则。
 * BPF
 :::
 
-## 其他
+<a id="其他" />
+
+## 其他 {#others}
 ### `disable-network`
 禁止所有网络访问。
 

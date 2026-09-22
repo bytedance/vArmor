@@ -3,7 +3,8 @@
 - 日期：2026-09-22
 - 目标仓库：bytedance/vArmor
 - 工作分支：update-docs
-- 状态：架构规划；本文是维护者实施文档，不加入网站导航。
+- 状态：已按 A/B/C/D 实施；本文是维护者实施文档，不加入网站导航。
+- 验证结果与未完成的集群验证范围见 [验收记录](website-documentation-validation.md)。
 
 ## 1. 目标与范围
 

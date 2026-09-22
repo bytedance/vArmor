@@ -303,8 +303,8 @@ spec:
     mode: EnhanceProtect
     enhanceProtect:
       hardeningRules:
-      - disable_cap_privileged
-      - disable_cap_net_raw
+      - disable-cap-privileged
+      - disable-cap-net-raw
       attackProtectionRules:
       - rules: 
         - disable-write-etc

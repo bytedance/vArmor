@@ -208,7 +208,7 @@ spec:
 kubectl patch vcpol $POLICY_NAME --type='json' -p='[{"op": "replace", "path": "/spec/policy/mode", "value":"AlwaysAllow"}]'
 ```
 
-* **行为建模模式**：可以使用实验功能 —— [行为建模模式](../guides/policies_and_rules/policy_modes/behavior_modeling.md)，对目标应用进行建模。建模完成后使用[策略顾问](../guides/policy_advisor.md)来生成沙箱策略模版，辅助沙箱策略的制定。
+* **行为建模模式**：可以使用实验功能 —— [行为建模模式](../guides/policies_and_rules/policy_modes/behavior_modeling.md)，对目标应用进行建模。建模完成后使用[策略顾问](../guides/policy_tools/policy_advisor.md)来生成沙箱策略模版，辅助沙箱策略的制定。
 
 ```yaml
 spec:

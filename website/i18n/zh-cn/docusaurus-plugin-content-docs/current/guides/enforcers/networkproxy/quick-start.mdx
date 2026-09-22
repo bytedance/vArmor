@@ -1,5 +1,6 @@
 ---
 sidebar_position: 1
+sidebar_label: 快速开始
 ---
 
 # 快速开始：允许与拒绝 HTTP 请求 {#quick-start-allow-and-deny-http-requests}
@@ -15,7 +16,7 @@ import client from '@site/static/examples/networkproxy/v0.10.5/client.yaml?raw';
 
 - 安装 vArmor v0.10.5 和配套自定义 Envoy/proxyinit 镜像，见[安装](../../../getting_started/installation.md)。
 - 使用独立网络命名空间的 Linux Pod，admission 允许注入 root 容器及 NET_ADMIN，见[安全与兼容性](security-and-compatibility.md)。
-- 集群可拉取教程 Python/curl 镜像，并允许客户端访问后端。示例假定 DNS 后缀为 cluster.local，如不同，需要同时修改策略和请求 URL。
+- 集群可拉取教程 Python/curl 镜像（受限网络中请先镜像到可访问的仓库，并修改 YAML 的 image），并允许客户端访问后端。示例假定 DNS 后缀为 cluster.local，如不同，需要同时修改策略和请求 URL。
 - 确认 namespace 名称尚未使用，清理会删除整个专属 namespace，不要复用业务 namespace。
 
 业务 UID1000 与默认代理 UID1337 不同。无需真实 API 凭据或 MITM 证书。
@@ -65,9 +66,13 @@ kubectl get pod client -n varmor-networkproxy-demo -o jsonpath='{.spec.initConta
 每条请求执行一次，保留状态码和响应：
 
 ```bash
-kubectl exec -n varmor-networkproxy-demo client -c client --   curl --noproxy '*' --max-time 10 -sS -w '\nHTTP %{http_code}\n'   'http://backend.varmor-networkproxy-demo.svc.cluster.local:8000/allow/?case=allow-1'
+kubectl exec -n varmor-networkproxy-demo client -c client -- \
+  curl --noproxy '*' --max-time 10 -sS -w '\nHTTP %{http_code}\n' \
+  'http://backend.varmor-networkproxy-demo.svc.cluster.local:8000/allow/?case=allow-1'
 
-kubectl exec -n varmor-networkproxy-demo client -c client --   curl --noproxy '*' --max-time 10 -sS -w '\nHTTP %{http_code}\n'   'http://backend.varmor-networkproxy-demo.svc.cluster.local:8000/deny/?case=deny-1'
+kubectl exec -n varmor-networkproxy-demo client -c client -- \
+  curl --noproxy '*' --max-time 10 -sS -w '\nHTTP %{http_code}\n' \
+  'http://backend.varmor-networkproxy-demo.svc.cluster.local:8000/deny/?case=deny-1'
 
 kubectl logs -n varmor-networkproxy-demo deployment/backend -c backend
 ```

@@ -85,7 +85,9 @@ Agent 和 Manager 的日志格式默认为文本格式，您可以使用下面�
 --set jsonLogFormat.enabled=true
 ```
 
-#### 注入元数据到违规事件
+<a id="注入元数据到违规事件" />
+
+#### 注入元数据到违规事件 {#inject-metadata-into-violation-events}
 此功能使您能够将自定义元数据注入到违规事件。它通过将违规事件与特定于环境的上下文相关联来增强 vArmor 审计日志的可观测性。默认值为空。
 
 您可以使用类似下面的选项来添加元数据的键值对。

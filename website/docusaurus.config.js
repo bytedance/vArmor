@@ -150,7 +150,7 @@ const config = {
         },
         items: [
           {
-            to: 'index.html', 
+            to: '/',
             label: 'About', 
             position: 'right'
           },
@@ -212,6 +212,7 @@ const config = {
       },
     }),
     plugins: [
+      require.resolve('./plugins/unicode-ssr/index.cjs'),
       // Render the downloadable tutorial YAML directly, without a second copy.
       function exampleSources() {
         return {

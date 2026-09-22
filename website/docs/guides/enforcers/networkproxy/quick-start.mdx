@@ -1,5 +1,6 @@
 ---
 sidebar_position: 1
+sidebar_label: Quick Start
 ---
 
 # Quick Start: allow and deny HTTP requests
@@ -15,7 +16,7 @@ This tutorial creates an owned HTTP backend and an injected client in `varmor-ne
 
 - Install vArmor v0.10.5 with its matching custom Envoy/proxyinit images; see [Installation](../../../getting_started/installation.md).
 - Use Linux Pods with their own network namespaces and admission settings that permit the injected root containers and `NET_ADMIN`. Check [Security and Compatibility](security-and-compatibility.md).
-- The cluster must pull the tutorial's Python and curl images, and permit client-to-backend traffic. The example assumes the cluster DNS suffix `cluster.local`; replace it consistently in the policy and request URLs if yours differs.
+- The cluster must pull the tutorial's Python and curl images (mirror them into an accessible registry and update the YAML image fields on restricted networks), and permit client-to-backend traffic. The example assumes the cluster DNS suffix `cluster.local`; replace it consistently in the policy and request URLs if yours differs.
 - Use a namespace name that is not already in use. The cleanup deletes this entire dedicated namespace. Do not reuse a business namespace.
 
 The application UID is 1000, distinct from the default proxy UID 1337. No external API credentials or MITM certificates are needed.
@@ -65,9 +66,13 @@ Expect init container `varmor-network-proxy-init` and containers `client` and `v
 Run each once, keeping its status code and response:
 
 ```bash
-kubectl exec -n varmor-networkproxy-demo client -c client --   curl --noproxy '*' --max-time 10 -sS -w '\nHTTP %{http_code}\n'   'http://backend.varmor-networkproxy-demo.svc.cluster.local:8000/allow/?case=allow-1'
+kubectl exec -n varmor-networkproxy-demo client -c client -- \
+  curl --noproxy '*' --max-time 10 -sS -w '\nHTTP %{http_code}\n' \
+  'http://backend.varmor-networkproxy-demo.svc.cluster.local:8000/allow/?case=allow-1'
 
-kubectl exec -n varmor-networkproxy-demo client -c client --   curl --noproxy '*' --max-time 10 -sS -w '\nHTTP %{http_code}\n'   'http://backend.varmor-networkproxy-demo.svc.cluster.local:8000/deny/?case=deny-1'
+kubectl exec -n varmor-networkproxy-demo client -c client -- \
+  curl --noproxy '*' --max-time 10 -sS -w '\nHTTP %{http_code}\n' \
+  'http://backend.varmor-networkproxy-demo.svc.cluster.local:8000/deny/?case=deny-1'
 
 kubectl logs -n varmor-networkproxy-demo deployment/backend -c backend
 ```

@@ -178,7 +178,7 @@ By default, the manager uses an `emptyDir` volume with a storage space of **500M
 
 ### Data Export and Import
 
-You can export the behavior data and profiles of the target workload for other purposes. For example, use [Policy Advisor](../../policy_advisor.md) to analyze which built-in rules can be used to harden the target application, and guide users to minimize the permissions of the security context of the workload based on the behavior data. You can also import the exported data into other clusters for exported data into other clusters for use.
+You can export the behavior data and profiles of the target workload for other purposes. For example, use [Policy Advisor](../../policy_tools/policy_advisor.md) to analyze which built-in rules can be used to harden the target application, and guide users to minimize the permissions of the security context of the workload based on the behavior data. You can also import the exported data into other clusters for exported data into other clusters for use.
 
 The methods for exporting and importing ArmorProfileModel objects of different storage types are different:
 
