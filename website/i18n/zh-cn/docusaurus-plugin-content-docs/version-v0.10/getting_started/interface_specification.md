@@ -206,6 +206,9 @@ description: vArmor 的接口规范。
 
 ## NetworkProxyConfig
 
+行为、示例和运行边界见 [NetworkProxy 指南](../guides/enforcers/networkproxy/index.md)。本页定义字段，不代表所有修改都会自动应用到已有 Pod。
+
+
 | 字段 | 描述 |
 |-----|------|
 |mitm<br />*[MITMConfig](#mitmconfig)*|可选字段。配置 TLS Man-in-the-Middle，用于在 HTTP 层面检查加密的 HTTPS 流量。vArmor 自动为每个策略生成自签名 CA，并将 CA bundle 注入应用容器。|

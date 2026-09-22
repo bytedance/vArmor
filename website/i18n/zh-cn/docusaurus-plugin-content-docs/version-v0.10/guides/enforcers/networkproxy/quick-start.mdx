@@ -1,0 +1,96 @@
+---
+sidebar_position: 1
+---
+
+# 快速开始：允许与拒绝 HTTP 请求 {#quick-start-allow-and-deny-http-requests}
+
+import CodeBlock from '@theme/CodeBlock';
+import backend from '@site/static/examples/networkproxy/v0.10.5/backend.yaml?raw';
+import policy from '@site/static/examples/networkproxy/v0.10.5/policy.yaml?raw';
+import client from '@site/static/examples/networkproxy/v0.10.5/client.yaml?raw';
+
+本教程在 `varmor-networkproxy-demo` 中创建自有 HTTP 后端和注入代理的客户端，仅允许向该后端发送 `GET /allow/…`。后端本身对所有 GET 路径返回 200，因此访问日志可区分代理拒绝和后端错误。
+
+## 前提 {#prerequisites}
+
+- 安装 vArmor v0.10.5 和配套自定义 Envoy/proxyinit 镜像，见[安装](../../../getting_started/installation.md)。
+- 使用独立网络命名空间的 Linux Pod，admission 允许注入 root 容器及 NET_ADMIN，见[安全与兼容性](security-and-compatibility.md)。
+- 集群可拉取教程 Python/curl 镜像，并允许客户端访问后端。示例假定 DNS 后缀为 cluster.local，如不同，需要同时修改策略和请求 URL。
+- 确认 namespace 名称尚未使用，清理会删除整个专属 namespace，不要复用业务 namespace。
+
+业务 UID1000 与默认代理 UID1337 不同。无需真实 API 凭据或 MITM 证书。
+
+## 1. 创建后端 {#1-create-the-backend}
+
+保存为 backend.yaml 并执行：
+
+<CodeBlock language="yaml" title="backend.yaml">{backend}</CodeBlock>
+
+```bash
+kubectl apply -f backend.yaml
+kubectl rollout status deployment/backend -n varmor-networkproxy-demo --timeout=120s
+```
+
+后端未设置 vArmor 注入标签；readiness 仅连接 TCP，不产生 HTTP 测试请求。
+
+## 2. 先创建策略 {#2-create-the-policy-before-the-client}
+
+保存为 policy.yaml：
+
+<CodeBlock language="yaml" title="policy.yaml">{policy}</CodeBlock>
+
+```bash
+kubectl apply -f policy.yaml
+kubectl wait -n varmor-networkproxy-demo --for=jsonpath='{.status.ready}'=true varmorpolicy/http-guide --timeout=120s
+```
+
+超时应先检查 policy status/conditions。该等待确认调和，不代表之后创建的代理已经执行预期配置。
+
+## 3. 创建并检查客户端 {#3-create-and-inspect-the-client}
+
+保存为 client.yaml：
+
+<CodeBlock language="yaml" title="client.yaml">{client}</CodeBlock>
+
+```bash
+kubectl apply -f client.yaml
+kubectl wait -n varmor-networkproxy-demo --for=condition=Ready pod/client --timeout=120s
+kubectl get pod client -n varmor-networkproxy-demo -o jsonpath='{.spec.initContainers[*].name}{"\n"}{.spec.containers[*].name}{"\n"}'
+```
+
+应看到 init `varmor-network-proxy-init`、业务容器 client 和 sidecar `varmor-network-proxy`。缺少时先检查选择/admission，不能把未受保护的请求算作通过。
+
+## 4. 验证允许与拒绝 {#4-verify-allowed-and-denied-requests}
+
+每条请求执行一次，保留状态码和响应：
+
+```bash
+kubectl exec -n varmor-networkproxy-demo client -c client --   curl --noproxy '*' --max-time 10 -sS -w '\nHTTP %{http_code}\n'   'http://backend.varmor-networkproxy-demo.svc.cluster.local:8000/allow/?case=allow-1'
+
+kubectl exec -n varmor-networkproxy-demo client -c client --   curl --noproxy '*' --max-time 10 -sS -w '\nHTTP %{http_code}\n'   'http://backend.varmor-networkproxy-demo.svc.cluster.local:8000/deny/?case=deny-1'
+
+kubectl logs -n varmor-networkproxy-demo deployment/backend -c backend
+```
+
+| 请求 | 客户端 | 后端访问日志 | 审计 |
+| --- | --- | --- | --- |
+| `/allow/?case=allow-1` | 200，backend reached | 一条对应 GET | AUDIT |
+| `/deny/?case=deny-1` | 代理返回 403 | 无对应 GET | DENIED |
+
+curl 对 403 也可能退出成功，应检查 HTTP 状态码。超时/拒绝连接不是本例预期的拒绝结果。初始配置不可用时参照[排障](troubleshooting.md)，保留失败证据。
+
+按[可观测性](observability.md)在节点或 sidecar 中查找审计，限定 namespace/Pod；审计缺失与请求结果分别判断。
+
+## 5. 修改规则并再次验证 {#5-change-one-rule-and-verify-again}
+
+把 policy.yaml 的路径前缀从 `/allow/` 改为 `/deny/` 后 apply。检查策略状态和代理 reload 日志，等待 Secret 投影及动态加载，再使用新的 case 值重复两条请求：此时 `/allow/` 应拒绝，`/deny/` 应允许。
+
+该规则变化不需要重建客户端 Pod，但不能推导出缺失 TLS 挂载、镜像变化和已有连接采用相同生命周期，详见[生命周期与升级](lifecycle-and-upgrades.md)。
+
+## 6. 清理 {#6-clean-up}
+
+```bash
+kubectl delete namespace varmor-networkproxy-demo
+```
+
+只删除专属教程资源。之后阅读[策略语义](policy-semantics.md)，再通过[TLS 与凭据](tls-and-credentials.md)配置 HTTPS。

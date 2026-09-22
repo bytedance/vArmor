@@ -4,8 +4,9 @@ description: 了解如何使用 vArmor。
 ---
 # 使用说明
 
-## 接口操作
+<a id="接口操作" />
 
+## 接口操作 {#interface-operations}
 vArmor 通过 [VarmorPolicy](#varmorpolicy) 和 [VarmorClusterPolicy](#varmorclusterpolicy) CR 提供 API 接口，它们分别是 namespace-scoped 和 cluster-scoped 类型的资源。VarmorClusterPolicy 的优先级高于 VarmorPolicy，即优先使用 VarmorClusterPolicy 对象对匹配的 Workloads 进行防护。你可通过创建、修改、删除 VarmorPolicy/VarmorClusterPolicy 对象来对指定的 Workloads 进行防护。
 
 vArmor 支持在创建或删除 VarmorPolicy/VarmorClusterPolicy 对象时，对满足匹配条件的存量工作负载进行滚动重启，从而为其开启或关闭防护。
@@ -15,8 +16,9 @@ vArmor 支持在创建或删除 VarmorPolicy/VarmorClusterPolicy 对象时，对
 * 创建 VarmorPolicy/VarmorClusterPolicy 对象后，其 `spec.target` 不可更改。请通过新建策略来更改匹配目标。
 * 创建 VarmorPolicy/VarmorClusterPolicy 对象后，可通过更新 `spec.policy` 来动态新增 enforcer、切换防护模式、更新防护规则。详情请参考[策略模式](../guides/policies_and_rules/policy_modes/index.md)。
 
-## 状态管理
+<a id="状态管理" />
 
+## 状态管理 {#state-management}
 您可通过查看 VarmorPolicy/VarmorClusterPolicy 对象的 Status 获取处理阶段、错误信息、AppArmor/BPF Profile 的处理状态等。
 
 您可通过查看 VarmorPolicy/VarmorClusterPolicy 对象的 Status 获取 `profileName` 字段。随后可查看相同命名空间下的同名 ArmorProfile 对象，从而获取 Agent 在处理 Profile 时的状态和错误信息。例如：哪个节点处理失败及其原因等。
@@ -26,8 +28,10 @@ vArmor 支持在创建或删除 VarmorPolicy/VarmorClusterPolicy 对象时，对
 ### 组件日志
 Manager 和 Agent 组件会通过标准输出记录日志。默认为 TEXT 格式，您可以通过[安装选项](../getting_started/installation.md#设置日志格式为-json)将其切换为 JSON 格式。
 
-### 审计日志
-vArmor 支持将策略对象配置为仅审计不拦截（观察模式）、拦截并审计模式。这既可以通过策略对象的 `auditViolations` 和 `allowViolations` 字段控制（作用于 EnhanceProtect 的内置规则与 DefenseInDepth 的 Profile），也可以通过自定义规则各自的限定词（`allow` / `deny` / `audit`）控制。常见用法请参考[策略模式的处置动作与审计](../guides/policies_and_rules/policy_modes/index.md#处置动作与审计)与[自定义规则](../guides/policies_and_rules/custom_rules.md)。所有违规事件都将以 JSON 格式记录到宿主机的 `/var/log/varmor/violations.log` 文件中（文件大小上限为 10MB，并最多保留 3 个旧文件）。
+<a id="审计日志" />
+
+### 审计日志 {#audit-logs}
+vArmor 支持将策略对象配置为仅审计不拦截（观察模式）、拦截并审计模式。这既可以通过策略对象的 `auditViolations` 和 `allowViolations` 字段控制（作用于 EnhanceProtect 的内置规则与 DefenseInDepth 的 Profile），也可以通过自定义规则各自的限定词（`allow` / `deny` / `audit`）控制。常见用法请参考[策略模式的处置动作与审计](../guides/policies_and_rules/policy_modes/index.md#disposition-actions-and-auditing)与[自定义规则](../guides/policies_and_rules/custom_rules.md)。所有违规事件都将以 JSON 格式记录到宿主机的 `/var/log/varmor/violations.log` 文件中（文件大小上限为 10MB，并最多保留 3 个旧文件）。
 
 违规事件以 JSON 格式记录，其格式如下所示。每条事件都携带一个 `action` 字段，用于表示该行为最终的处置结果，其取值及含义如下：
 
@@ -43,7 +47,7 @@ vArmor 支持将策略对象配置为仅审计不拦截（观察模式）、拦�
 * 受限于 Seccomp 原理和性能影响，您需要组合使用 `auditViolations=true` 和 `allowViolations=true`，在没有策略处于 BehaviorModeling 模式时，实现仅审计不拦截的效果（观察模式）。
 * 受限于 AppArmor LSM 和 Seccomp 的原理，使用 AppArmor 或 Seccomp enforcer 时，可能无法关联短进程的所属容器和 Pod 信息。
 * NetworkProxy enforcer 通过其 Envoy sidecar 上报出口流量的审计事件。由于这些事件由代理在 Pod 粒度上产生，因此仅携带 Pod 级别的身份信息（`nodeName`、`podName`、`podNamespace`、`podUID`）。
-* 对于 NetworkProxy enforcer，违规记录写入 `/var/log/varmor/violations.log` 的方式取决于运行时。在 runc 下，Envoy sidecar 将记录流式发送到节点级的 `varmor-agent`，由其写入宿主机上的日志文件；在微虚机运行时(kata / Serverless 沙箱)下，则改由 sidecar 内置的审计 sink 写入容器自身文件系统中的日志文件(记录内容逐字节一致)。工作负载是否被视为微虚机，由 `varmor-config` ConfigMap 中的 `microVMDetection` 规则决定，详见[NetworkProxy 审计的微虚机(Kata)识别](../getting_started/installation.md#networkproxy-审计的微虚机kata识别)。
+* 对于 NetworkProxy enforcer，违规记录写入 `/var/log/varmor/violations.log` 的方式取决于运行时。在 runc 下，Envoy sidecar 将记录流式发送到节点级的 `varmor-agent`，由其写入宿主机上的日志文件；在微虚机运行时(kata / Serverless 沙箱)下，则改由 sidecar 内置的审计 sink 写入容器自身文件系统中的日志文件(记录内容逐字节一致)。工作负载是否被视为微虚机，由 `varmor-config` ConfigMap 中的 `microVMDetection` 规则决定，详见[NetworkProxy 审计的微虚机(Kata)识别](../getting_started/installation.md#micro-vm-kata-detection-for-networkproxy-auditing)。
 
 ```json
 {
@@ -273,8 +277,9 @@ vArmor 支持将策略对象配置为仅审计不拦截（观察模式）、拦�
     |CurrentNumberLoaded|int|已经处理并响应的 Agent 数量
     |Conditions|type=Read<br />Status=False<br />NodeName=XXX<br />Message=YYY|处理失败的节点，以及错误信息
 
-## 示例
+<a id="示例" />
 
+## 示例 {#example}
 下面的示例仅用于演示功能和效果，不作为推荐策略。
 
 ```yaml

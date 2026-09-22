@@ -15,10 +15,11 @@ vArmor 支持用户基于 enforcer 的语法，在 EnhanceProtect 和 DefenseInD
 | BPF | `deny`、`audit` | `DENIED` / `AUDIT` |
 | NetworkProxy | `allow`、`deny`、`audit`，并与 `defaultAction` 组合 | `DENIED` / `AUDIT` |
 
-> 表中“可产生的动作”指**由规则限定词推导**出的动作，因此都不含 `ALLOWED`。`ALLOWED` 与任何限定词无关，仅在 **DefenseInDepth 模式**且 `allowViolations=true` 时，对未被允许清单覆盖的访问放行并记录，详见[策略模式的处置动作与审计](policy_modes/index.md#处置动作与审计)。
+> 表中“可产生的动作”指**由规则限定词推导**出的动作，因此都不含 `ALLOWED`。`ALLOWED` 与任何限定词无关，仅在 **DefenseInDepth 模式**且 `allowViolations=true` 时，对未被允许清单覆盖的访问放行并记录，详见[策略模式的处置动作与审计](policy_modes/index.md#disposition-actions-and-auditing)。
+
+<a id="apparmor-enforcer" />
 
 ## AppArmor enforcer
-
 AppArmor enforcer 支持用户根据 AppArmor 的语法定制策略。
 
 请参见此 [文档](https://manpages.ubuntu.com/manpages/jammy/man5/apparmor.d.5.html) 在 `.spec.policy.enhanceProtect.appArmorRawRules` 或 `.spec.policy.defenseInDepth.appArmor.appArmorRawRules` 字段中设置自定义规则。请确保每条规则以 ',' 结尾。
@@ -54,8 +55,9 @@ policy:
     // highlight-end
 ```
 
-## Seccomp enforcer
+<a id="seccomp-enforcer" />
 
+## Seccomp enforcer
 Seccomp enforcer 支持用户根据 OCI 规范的语法定制策略。
 
 请参见此 [文档](https://github.com/opencontainers/runtime-spec/blob/main/config-linux.md#seccomp) 在 `.spec.policy.enhanceProtect.syscallRawRules` 或 `.spec.policy.defenseInDepth.seccomp.syscallRawRules` 字段中设置自定义的系统调用规则。
@@ -89,8 +91,9 @@ policy:
     // highlight-end
 ```
 
-## BPF enforcer
+<a id="bpf-enforcer" />
 
+## BPF enforcer
 BPF enforcer 支持用户根据语法定制策略。每类规则的数量上限为 50 条。每个节点支持最多对 100 个容器开启沙箱。
 
 请参考 [BpfRawRules](../../getting_started/interface_specification.md#bpfrawrules) 和以下语法，在 `.spec.policy.enhanceProtect.bpfRawRules` 中设置自定义规则。
@@ -159,98 +162,34 @@ policy:
     // highlight-end
 ```
 
-## NetworkProxy enforcer
+## NetworkProxy 执行器 {#networkproxy-enforcer}
 
-NetworkProxy enforcer 支持用户基于 sidecar 代理在应用协议层面定制网络访问控制规则。
+完整流程见 [NetworkProxy 指南](../enforcers/networkproxy/index.md)，字段见 [NetworkProxyRules](../../getting_started/interface_specification.md#networkproxyrules)。根据模式使用 enhanceProtect.networkProxyRawRules 或 defenseInDepth.networkProxy。
 
-与 BPF enforcer 在内核层面执行的网络规则不同，NetworkProxy 规则工作在 L4（域名/SNI 匹配）和 L7（HTTP 匹配）层面。当 BPF 和 NetworkProxy 规则同时生效时，BPF 规则先在内核层面执行，只有通过 BPF 规则的连接才会进入 sidecar 代理接受 NetworkProxy 规则评估。
+- L4 规则匹配目标 IP/CIDR 和端口。
+- 明文 HTTP/MITM 规则匹配 Host/authority、路径、方法和目标端口。
+- TLS 透传时，有 hosts 的 HTTP 规则只匹配 SNI/端口，**忽略路径与方法**；没有 hosts 则不生成 SNI 权限。
+- deny 优先；默认拒绝下，匹配的 L4 allow 可以独立于更窄的 HTTP allow 授权。audit 单独不会放行。
 
-请参考 [NetworkProxyRules](../../getting_started/interface_specification.md#networkproxyrules) 和以下说明，在 `.spec.policy.enhanceProtect.networkProxyRawRules` 或 `.spec.policy.defenseInDepth.networkProxy` 中设置自定义规则。
-
-* **L4 出口规则**
-
-  基于目标 IP、CIDR 和端口控制出站连接。每条规则通过 qualifiers（`allow`、`deny`、`audit`）决定行为。
-
-* **L7 HTTP 规则**
-
-  在请求层面通过匹配 host、path 和 method 控制 HTTP/HTTPS 流量：
-
-  - **hosts**: 对于 HTTPS 通过 TLS SNI 匹配，对于 HTTP 通过 Host header 匹配。支持精确匹配和通配符（如 `*.openai.com`）。
-  - **paths**: 对请求路径进行精确或前缀匹配。HTTPS 流量需要配置 MITM 才生效。
-  - **methods**: 匹配 HTTP 方法（如 GET、POST）。HTTPS 流量需要配置 MITM 才生效。
-
-  对于 HTTPS 流量，HTTP 规则需要配置 TLS MITM。未配置 MITM 时，仅 hosts 匹配生效，paths 和 methods 规则将被忽略。
-
-* **defaultAction**
-
-  未匹配到任何规则的连接的默认动作：
-  - `deny`: 白名单模式，仅显式允许的连接可以通过。
-  - `allow`: 黑名单模式，仅显式拒绝的连接会被阻断。
-
-  deny 规则优先于 allow 规则。既不匹配 deny 也不匹配 allow 的连接将按 `defaultAction` 处理。
-
-  关于审计日志的说明：
-  - 仅当 `defaultAction` 为 `deny`，或至少有一条规则带 `audit` 限定词时，NetworkProxy 才会记录审计日志；否则不产生任何审计事件。
-  - 上报通道只映射 `deny` → `DENIED`、`audit` → `AUDIT` 两个类别，**永远不会产生 `ALLOWED`**。
-
-**示例：**
+下面的**策略片段**仅允许指定明文 HTTP 请求并记录审计：
 
 ```yaml
 policy:
   enforcer: NetworkProxy
   mode: EnhanceProtect
   enhanceProtect:
-    // highlight-start
     networkProxyRawRules:
       egress:
         defaultAction: deny
-        rules:
-        - qualifiers:
-          - allow
-          cidr: 192.168.1.0/24
-          ports:
-          - port: 80
-          - port: 443
-        - qualifiers:
-          - deny
-          - audit
-          ip: 10.0.0.1
         httpRules:
-        - qualifiers:
-          - allow
+        - qualifiers: [allow, audit]
           match:
-            hosts:
-            - api.openai.com
-            - "*.openai.com"
-            ports:
-            - port: 443
-            paths:
-            - prefix: /v1/chat
-            methods:
-            - POST
-        - qualifiers:
-          - deny
-          match:
-            hosts:
-            - internal.example.com
-    // highlight-end
-  networkProxyConfig:
-    proxyUID: 1337
-    proxyPort: 15001
-    proxyAdminPort: 15000
+            hosts: [backend.example.com]
+            ports: [{port: 80}]
+            paths: [{prefix: /public/}]
+            methods: [GET]
 ```
 
-你也可以放行所有流量，同时记录每条请求用于数据收集：
+HTTPS 路径/方法控制需要 [MITM 和应用信任](../enforcers/networkproxy/tls-and-credentials.md)，完整可执行资源见[快速开始](../enforcers/networkproxy/quick-start.mdx)。
 
-```yaml
-policy:
-  enforcer: NetworkProxy
-  mode: EnhanceProtect
-  enhanceProtect:
-    networkProxyRawRules:
-      egress:
-        defaultAction: allow
-        rules:
-        - qualifiers: ["audit"]
-          cidr: "0.0.0.0/0"
-```
+日志同时取决于实际决定和匹配的审计规则。默认允许下静默 deny 无日志；默认拒绝下 allow 无 audit 也无日志。详见[审计矩阵](../enforcers/networkproxy/observability.md#audit-decision-matrix)。NetworkProxy 使用 DENIED/AUDIT，不产生 ALLOWED。

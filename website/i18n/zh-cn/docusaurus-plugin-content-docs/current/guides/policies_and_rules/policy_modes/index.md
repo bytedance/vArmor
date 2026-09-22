@@ -7,7 +7,7 @@ sidebar_position: 1
 
 ## 概览
 
-您可以通过 [VarmorPolicy](../../getting_started/usage_instructions#varmorpolicy) 或  [VarmorClusterPolicy](../../getting_started/usage_instructions#varmorclusterpolicy) 对象的 `spec.policy.mode` 字段来指定策略的运行模式。不同 enforcers 支持的模式如下表所示。
+您可以通过 [VarmorPolicy](../../../getting_started/usage_instructions.md#varmorpolicy) 或  [VarmorClusterPolicy](../../../getting_started/usage_instructions.md#varmorclusterpolicy) 对象的 `spec.policy.mode` 字段来指定策略的运行模式。不同 enforcers 支持的模式如下表所示。
 
 |运行模式|AppArmor|BPF|Seccomp|NetworkProxy|说明|
 |------|--------|----|-------|------------|---|
@@ -19,8 +19,9 @@ sidebar_position: 1
 
 <br />
 
-## 处置动作与审计
+<a id="处置动作与审计" />
 
+## 处置动作与审计 {#disposition-actions-and-auditing}
 违规事件将被如何处置、以及在审计事件中记录为何种动作（`DENIED` / `AUDIT` / `ALLOWED`），都由**策略模式**与**规则限定词**共同决定。
 
 ### EnhanceProtect：内置规则的处置与审计
@@ -54,11 +55,11 @@ DefenseInDepth 描述的是组合自定义规则后形成的 **Profile** 的整�
 
 ### NetworkProxy：自定义网络规则的处置与审计
 
-不管处于 EnhanceProtect 还是 DefenseInDepth 模式，用户自定义的 NetworkProxy 规则的处置与审计行为都与 AppArmor / BPF / Seccomp 不同：它**不受 `allowViolations` 控制，自成一体**——拦截与审计行为完全由自身的规则限定词与 `defaultAction` 决定，且**永远不会产生 `ALLOWED`**（只映射 `DENIED` / `AUDIT`）。详见[自定义规则](../custom_rules.md)。
+不管处于 EnhanceProtect 还是 DefenseInDepth 模式，用户自定义的 NetworkProxy 规则的处置与审计行为都与 AppArmor / BPF / Seccomp 不同：它**不受 `allowViolations` 控制，自成一体**——拦截与审计行为完全由自身的规则限定词与 `defaultAction` 决定，且**永远不会产生 `ALLOWED`**（只映射 `DENIED` / `AUDIT`）。详见 [NetworkProxy 审计矩阵](../../enforcers/networkproxy/observability.md#audit-decision-matrix)。
 
 # 注意事项
 
-* vArmor 策略支持动态切换运行模式、更新沙箱规则，而无需重启工作负载。以下场景需特殊处理：
+* 更新行为取决于执行器和变更类型。已有 AppArmor/BPF 规则可动态更新，新增执行器属于另一个工作负载生命周期操作。尤其注意：
   * 使用 **Seccomp enforcer** 时，需要重启工作负载来使 **Seccomp Profile** 的变更生效。
   * 建模完成后，方可将 **BehaviorModeling** 切换为其他模式。
   * 从其他模式切换到 **BehaviorModeling** 或建模已经完成时，您需要更新建模时长并重启目标工作负载，以重新启动行为建模过程。
@@ -72,3 +73,5 @@ DefenseInDepth 描述的是组合自定义规则后形成的 **Profile** 的整�
 import DocCardList from '@theme/DocCardList';
 
 <DocCardList />
+
+NetworkProxy 的规则加载不会修复旧模板或补齐 MITM 挂载，参见[生命周期与升级](../../enforcers/networkproxy/lifecycle-and-upgrades.md)。

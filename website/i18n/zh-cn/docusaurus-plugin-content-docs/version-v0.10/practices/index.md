@@ -106,6 +106,8 @@ vArmor 的以下特性，使其成为加固核心业务的选择：
 * **开箱即用**：基于字节跳动在容器安全领域的攻防实践，提供了一系列内置规则，用户可按需在策略对象中选择使用。vArmor 会根据策略对象的配置，生成和管理 Allow-by-Default 模式的 AppArmor、BPF、Seccomp Profile，降低了对专业知识的要求。
 * **易用性**：提供了行为建模功能、策略顾问工具，从而辅助策略制定，进一步降低了使用门槛。
 
+先阅读 [NetworkProxy 快速开始](../guides/enforcers/networkproxy/quick-start.mdx)、[策略语义](../guides/enforcers/networkproxy/policy-semantics.md)及 [TLS/凭据指南](../guides/enforcers/networkproxy/tls-and-credentials.md)，再修改以下片段。
+
 #### 常见用法
 
 vArmor 丰富的特性为安全策略的制定和运营提供了多样的选择，以下是一些常见的使用方式：
@@ -298,15 +300,17 @@ vArmor 提供了基于 Envoy Sidecar 代理的 NetworkProxy enforcer，在同一
 
 * **L4 出口控制**：基于目标 IP、CIDR 和端口管控出站连接。
 * **L7 HTTP/HTTPS 控制**：基于 host、path、method 管控请求；对 HTTPS 通过 TLS SNI 匹配域名，配置 TLS MITM 后还可解密流量并对 path、method 进行匹配和检查。
-* **逐域名 HTTP 请求头注入**：按目标域名自动注入认证请求头（如引用 Kubernetes Secret 注入 API 密钥），使业务容器无需接触真实密钥，从而在提供访问控制的同时实现凭据隔离。
-* **防域前置攻击**：校验 TLS SNI 与 HTTP Host 的一致性。
+* **逐域名 HTTP 请求头注入**：按目标域名自动注入认证请求头（如引用 Kubernetes Secret 注入 API 密钥），业务容器不必挂载源凭据 Secret，但解析值会写入代理配置；还需限制配置读取权限并防止上游回显凭据。
+* **防域前置攻击**：将解密 HTTP 路由限制在 MITM 虚拟主机集合内，并校验上游 TLS 身份；不强制下游 SNI 与 HTTP Host 一一相等。
 * **黑白名单模式与审计日志**：支持将 `defaultAction` 设为 `deny`（白名单）或 `allow`（黑名单），并可按需记录审计日志。
 
-与需要组合多个工具才能同时覆盖访问控制和凭据隔离的方案不同，NetworkProxy enforcer 将两者收敛到单一策略中。策略支持动态更新，无需重启 Pod。进一步地，通过将内核级强制访问控制（AppArmor/BPF/Seccomp）与应用协议级网络访问控制（NetworkProxy）组合使用，vArmor 可为 AI Agent 等工作负载提供从系统调用到网络协议的纵深防御。
+与需要组合多个工具才能同时覆盖访问控制和凭据隔离的方案不同，NetworkProxy enforcer 将两者收敛到单一策略中。已有规则支持动态更新；注入、TLS 挂载、静态 bootstrap 和存储模板有各自的生命周期要求。进一步地，通过将内核级强制访问控制（AppArmor/BPF/Seccomp）与应用协议级网络访问控制（NetworkProxy）组合使用，vArmor 可为 AI Agent 等工作负载提供从系统调用到网络协议的纵深防御。
+
+先阅读 [NetworkProxy 快速开始](../guides/enforcers/networkproxy/quick-start.mdx)、[策略语义](../guides/enforcers/networkproxy/policy-semantics.md)及 [TLS/凭据指南](../guides/enforcers/networkproxy/tls-and-credentials.md)，再修改以下片段。
 
 #### 常见用法
 
-例如，以白名单方式限制 AI Agent 仅能访问指定的大模型服务，其余出站流量一律拒绝：
+例如，以白名单方式限制 AI Agent 仅能访问指定的大模型服务，其他被重定向的 TCP 流量拒绝；UDP/QUIC 和豁免流量需要其他控制：
 
 ```yaml
 policy:

@@ -1,6 +1,6 @@
 ---
 slug: /guides/development
-sidebar_position: 4
+sidebar_position: 5
 description: 如何设置本地开发环境。
 ---
 

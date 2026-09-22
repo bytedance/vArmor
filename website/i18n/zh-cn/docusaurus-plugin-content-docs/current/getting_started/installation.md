@@ -13,7 +13,7 @@ description: 了解如何安装、配置、更新和卸载 vArmor。
 |AppArmor    |1. Linux Kernel 4.15+<br />2. 系统需开启 AppArmor LSM|GKE with Container-Optimized OS<br />AKS with Ubuntu<br />[VKE](https://www.volcengine.com/product/vke) with veLinux<br />Debian 10 及以上版本<br />Ubuntu 18.04.0 LTS 及以上版本<br />[veLinux](https://www.volcengine.com/docs/6396/74967) 等
 |BPF         |1. Linux Kernel 5.10+ (x86_64) 或 6.6+ (arm64)<br />2. containerd v1.6.0+<br />3. 系统需开启 BPF LSM|EKS with Amazon Linux 2<br />GKE with Container-Optimized OS<br />[VKE](https://www.volcengine.com/product/vke) with veLinux (with 5.10 kernel)<br />AKS with Ubuntu 22.04 LTS <sup>\*</sup><br />ACK with Alibaba Cloud Linux 3 <sup>\*</sup><br />OpenSUSE 15.4  <sup>\*</sup><br />Debian 11 <sup>\*</sup><br />Fedora 37<br />[veLinux (with 5.10 kernel)](https://www.volcengine.com/docs/6396/74967) 等<br /><br />* *需手动启用节点的 BPF LSM*
 |Seccomp     |1. Kubernetes v1.19+|所有 Linux 发行版
-|NetworkProxy|-|所有 Linux 发行版
+|NetworkProxy|Linux Pod 网络、允许 root/NET_ADMIN 注入、配套镜像和 netfilter|见[安全与兼容性](../guides/enforcers/networkproxy/security-and-compatibility.md)|
 
 ## 安装
 
@@ -187,7 +187,9 @@ kubectl -n varmor edit configmap varmor-config
 * 层级键名必须严格拼写为 `nonMitm` 和 `mitm`。拼写错误的层级键会被静默忽略，该层级将回退到内置默认值。
 * 非法条目(未知资源名、无法解析的数量、非正值，或同一层级内 limit 低于 request)会被忽略，并在 Manager 加载时记录日志；该字段将回退到其内置默认值。
 
-#### NetworkProxy 审计的微虚机(Kata)识别
+<a id="networkproxy-审计的微虚机(kata)识别" />
+
+#### NetworkProxy 审计的微虚机(Kata)识别 {#micro-vm-kata-detection-for-networkproxy-auditing}
 NetworkProxy enforcer 通过其 Envoy sidecar 持久化出口流量的违规审计日志。在 runc 运行时下，Envoy 通过节点级的 hostPath Unix socket 将记录流式发送到 `varmor-agent` DaemonSet。而在微虚机运行时(kata / Serverless 沙箱)下，sidecar 运行在微虚机内部，该 hostPath socket 无法跨越虚机边界(且部分 Serverless 厂商会在准入阶段拒绝挂载)。对于此类工作负载，vArmor 会省略 hostPath 卷/挂载，并启动一个 sidecar 内置的审计 sink，将 socket 绑定在容器自身 rootfs 中，写入容器本地的 `/var/log/varmor/violations.log`——产出与 runc 路径逐字节一致的归一化记录。
 
 `microVMDetection` 配置用于告知注入器哪些工作负载运行在微虚机运行时下。当工作负载的 `runtimeClassName` 命中列表**或**任一 annotation 规则命中**或**任一 label 规则命中时，即判定为微虚机(对于 annotation/label 规则，空值表示仅按键是否存在匹配，非空值则必须精确匹配)。内置默认值已覆盖上游 kata 及主流云厂商的 Serverless 运行时：
