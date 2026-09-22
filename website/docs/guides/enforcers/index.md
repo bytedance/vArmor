@@ -12,7 +12,7 @@ Choose an enforcer from the behavior you need to control, then check the node an
 | Restrict file access and program execution | [AppArmor](apparmor.md) or [BPF](bpf.md) | The corresponding Linux LSM must be enabled on the nodes |
 | Restrict system calls | [Seccomp](seccomp.md) | Changes to the profile require new containers |
 | Restrict socket operations and destination IPs/ports at the kernel layer | [BPF](bpf.md) | Kernel and runtime prerequisites apply; this does not inspect HTTP paths |
-| Restrict HTTP requests or TLS destinations; inspect HTTPS using MITM | [NetworkProxy rules](../policies_and_rules/custom_rules.md#networkproxy-enforcer) | Injected containers, traffic redirection and, for MITM, application trust are required |
+| Restrict HTTP requests or TLS destinations; inspect HTTPS using MITM | [NetworkProxy](networkproxy/index.md) | Injected containers, traffic redirection and, for MITM, application trust are required |
 
 ## Choose a mode and scope
 

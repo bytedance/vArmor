@@ -1,0 +1,23 @@
+apiVersion: crd.varmor.org/v1beta1
+kind: VarmorPolicy
+metadata:
+  name: http-guide
+  namespace: varmor-networkproxy-demo
+spec:
+  target:
+    kind: Pod
+    name: client
+  policy:
+    enforcer: NetworkProxy
+    mode: EnhanceProtect
+    enhanceProtect:
+      networkProxyRawRules:
+        egress:
+          defaultAction: deny
+          httpRules:
+          - qualifiers: [allow, audit]
+            match:
+              hosts: [backend.varmor-networkproxy-demo.svc.cluster.local]
+              ports: [{port: 8000}]
+              paths: [{prefix: /allow/}]
+              methods: [GET]

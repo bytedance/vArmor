@@ -21,7 +21,7 @@ A cluster-scoped policy takes precedence over a matching namespaced policy. Chec
 
 ## 3. Start with the smallest rule set
 
-Use the [AppArmor usage example](../../getting_started/usage_instructions.md#example) on a compatible node, or the matching enforcer's guide for another mechanism. Add one restriction at a time. The [built-in rules](built_in_rules/index.md), [custom rules](custom_rules.md) and [API reference](../../getting_started/interface_specification.md) supply the supported fields.
+Use the [AppArmor usage example](../../getting_started/usage_instructions.md#example) on a compatible node, or the [NetworkProxy Quick Start](../enforcers/networkproxy/quick-start.mdx) for an HTTP allowlist. Add one restriction at a time. The [built-in rules](built_in_rules/index.md), [custom rules](custom_rules.md) and [API reference](../../getting_started/interface_specification.md) supply the supported fields.
 
 For example, define the expected outcomes before writing a rule:
 

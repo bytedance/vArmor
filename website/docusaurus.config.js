@@ -212,6 +212,15 @@ const config = {
       },
     }),
     plugins: [
+      // Render the downloadable tutorial YAML directly, without a second copy.
+      function exampleSources() {
+        return {
+          name: 'example-sources',
+          configureWebpack() {
+            return {module: {rules: [{test: /\.yaml$/, resourceQuery: /raw/, type: 'asset/source'}]}};
+          },
+        };
+      },
       [
         'vercel-analytics',
         {

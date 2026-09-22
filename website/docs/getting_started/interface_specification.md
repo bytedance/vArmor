@@ -206,6 +206,9 @@ description: The interface specification of vArmor.
 
 ## NetworkProxyConfig
 
+For behavior, examples and operational boundaries, read the [NetworkProxy guide](../guides/enforcers/networkproxy/index.md). This reference defines the fields; it does not imply all changes apply to existing Pods automatically.
+
+
 | Field | Description |
 |-------|-------------|
 |mitm<br />*[MITMConfig](#mitmconfig)*|Optional. Configures TLS Man-in-the-Middle for inspecting encrypted HTTPS traffic at the HTTP level. vArmor automatically generates a self-signed CA per policy and injects the CA bundle into application containers. |
