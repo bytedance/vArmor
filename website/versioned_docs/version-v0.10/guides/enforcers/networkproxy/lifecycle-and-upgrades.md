@@ -4,59 +4,38 @@ sidebar_position: 5
 
 # Lifecycle and upgrades
 
-Separate three things when planning a change: policy reconciliation, projected Envoy configuration, and the Kubernetes Pod template. A change to one does not imply the others have converged.
+Rule changes can take effect in an existing proxy. Changes to container images, resources or TLS mounts require updated workload specifications and replacement Pods. Use the table below to plan an update.
 
 ## Change matrix
 
-| Change | Required checks/actions |
+| Change | Action |
 | --- | --- |
-| HTTP/L4 rules in an already injected Pod | Reconcile the policy, wait for dynamic configuration, verify new requests; no blanket zero-error transition guarantee |
-| Source Secret value for a header | Perform a valid policy spec update after the Secret update; verify the newly injected value without printing it |
-| Add/remove MITM identities in a Pod already equipped for MITM | Verify LDS/CDS/certificate and validation SDS convergence, trust and new requests |
-| Enable MITM for a Pod without TLS volumes | Update/rebuild the workload template so new Pods receive TLS mounts and CA configuration; inspect actual injection |
-| Replace a CA or its trust bundle | Verify proxy/application files, then reload or restart applications that cache trust |
-| Change static bootstrap | Ensure the generated bootstrap is updated, then restart Envoy or recreate the Pod |
-| Change proxy image or resource settings | Inspect/update the injected workload template and roll out replacement Pods; a default setting alone does not change existing containers |
-| Change UID or proxy/admin port | Immutable policy fields: plan a replacement policy/workload migration and verify its new redirection |
-| Repair a previously injected template | Explicitly repair the stored template; a normal rule update is not a template repair operation |
+| HTTP/L4 rules | Update the policy, wait for the proxy to load it, then verify new requests |
+| Source Secret value for a header | Update the Secret, then make a valid policy spec update; see [credential rotation](tls-and-credentials.md#rotate-and-verify) |
+| Add/remove MITM domains in a Pod already configured for MITM | Wait for proxy configuration and certificate updates, then verify HTTPS requests |
+| Enable MITM for the first time | Recreate affected Pods with the TLS mounts and application CA configuration |
+| Replace a CA or its trust bundle | Reload or restart applications that cache the CA bundle, then verify TLS connections |
+| Change proxy image or resource settings | Update the workload template and roll out replacement Pods |
+| Change proxy UID or listening ports | Create a replacement policy: these fields cannot be changed on an existing policy |
 
-Successful same-Pod dynamic-update regression checks exercised new requests after checking projection and actual behavior. They do not promise immediate revocation of established connections, atomic multi-file updates, or availability while clusters/listeners are converging. A temporary 503 can indicate an upstream cluster or trust dependency not yet available.
+Dynamic configuration updates take time to reach each Pod. During an update, new requests may briefly fail while the proxy loads the required configuration. Existing connections are not necessarily closed when rules change. If you need to end existing sessions, include connection draining or Pod replacement in your rollout plan.
 
 ## Upgrade vArmor and its proxy together
 
-Use images corresponding to the release, with a new tag or immutable digest for changed image content. `IfNotPresent` is compatible with immutable tags; reusing a tag can leave different nodes running different binaries. Check the deployed Manager/Agent revision, injected image specification and runtime image ID rather than relying on Helm's app version alone.
+Use the Manager, Agent and proxy images supplied for the same release. Follow the release notes for upgrade requirements.
 
-For upgrades that introduce the `varmor_np_event` audit stream, upgrade consumers before producers:
+When an upgrade changes audit-log compatibility, use this order to keep audit collection working:
 
-1. Upgrade node Agents while the old Manager still produces compatible configurations.
-2. Upgrade embedded sinks in micro-VM sidecars, including existing workload templates/Pods.
-3. Upgrade the Manager, regenerate affected configurations through reconciliation, and verify proxy reload and audit delivery.
+1. Upgrade the node Agents.
+2. For micro-VM workloads, update the proxy image in the workload templates and roll out replacement Pods, since audit collection runs inside those Pods.
+3. Upgrade the Manager, then check affected policy status, proxy readiness and audit logs.
 
-Do not send new stream names to old consumers. An image-default change does not replace old embedded sinks, and a Manager upgrade alone does not prove every existing configuration Secret has been regenerated.
+Changing an installation's default proxy image does not update containers already running. Include affected workload templates and Pods in the upgrade. For changes to proxy startup configuration, recreate the affected Pods after their configuration has been updated.
 
-Custom HTTP method handling also uses a static bootstrap runtime setting as well as LDS options. After upgrading, confirm the generated bootstrap has been refreshed and recreate affected proxies before relying on custom method handling. Policy method tokens are case-sensitive in v0.10.5: use `GET` if that is the intended method, rather than a lowercase spelling previously normalized by older code.
-
-## Recover an old non-root template
-
-The fixed injection paths explicitly set both injected containers to `runAsUser: 0` and `runAsNonRoot: false`, while leaving application security contexts intact. Previously stored templates may still lack those fields. Their existing injection annotation can prevent fresh webhook injection.
-
-A normal HTTP rule update was observed **not** to repair such a Deployment template. Upgrading the Manager or restarting from an unchanged template is therefore insufficient.
-
-For an affected Deployment, review this targeted strategic-merge patch, substituting your namespace and workload name. It preserves the other container fields:
-
-```bash
-kubectl patch deployment YOUR_DEPLOYMENT -n YOUR_NAMESPACE --type=strategic -p '
-{"spec":{"template":{"spec":{
-  "initContainers":[{"name":"varmor-network-proxy-init","securityContext":{"runAsUser":0,"runAsNonRoot":false}}],
-  "containers":[{"name":"varmor-network-proxy","securityContext":{"runAsUser":0,"runAsNonRoot":false}}]
-}}}}'
-kubectl rollout status deployment/YOUR_DEPLOYMENT -n YOUR_NAMESPACE
-```
-
-Use it only when those injected container names already exist. Inspect the resulting template and a newly created Pod; verify application identity, actual Envoy process UID and allowed/denied requests. Confirm a later Pod recreation also succeeds. The documented cluster recovery verified Deployments; do not claim the same live test was run for every controller kind.
+After upgrading, verify an allowed request, a denied request and their expected audit events. HTTP methods are case-sensitive; use `GET` for a standard GET request.
 
 ## Remove a policy deliberately
 
-`updateExistingWorkloads` affects controller-managed workload updates on policy creation/deletion. Review [Usage Instructions](../../../getting_started/usage_instructions.md) and the [API](../../../getting_started/interface_specification.md) before relying on it. Inspect the resulting template and replacement Pods to confirm sidecars, mounts and routing are removed as intended.
+`updateExistingWorkloads` controls updates to controller-managed workloads when policies are created or deleted. Review [Usage Instructions](../../../getting_started/usage_instructions.md) and the [API](../../../getting_started/interface_specification.md) before removing protection.
 
-Deleting a policy does not constitute proof that existing connections or injected standalone Pods have been reset. For the isolated Quick Start, delete its dedicated namespace. For production, plan and verify replacement Pods and connectivity before considering withdrawal complete.
+Inspect the resulting workload template and replacement Pods to confirm that proxy containers and mounts have been removed. Recreate standalone Pods as needed, then verify connectivity. For the isolated Quick Start, delete the dedicated namespace as shown in the tutorial.

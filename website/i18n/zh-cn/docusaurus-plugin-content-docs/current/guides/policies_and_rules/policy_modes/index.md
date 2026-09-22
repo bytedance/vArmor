@@ -59,7 +59,7 @@ DefenseInDepth 描述的是组合自定义规则后形成的 **Profile** 的整�
 
 # 注意事项
 
-* 更新行为取决于执行器和变更类型。已有 AppArmor/BPF 规则可动态更新，新增执行器属于另一个工作负载生命周期操作。尤其注意：
+* 更新行为取决于强制访问控制器和变更类型。已有 AppArmor/BPF 规则可动态更新，新增强制访问控制器属于另一个工作负载生命周期操作。尤其注意：
   * 使用 **Seccomp enforcer** 时，需要重启工作负载来使 **Seccomp Profile** 的变更生效。
   * 建模完成后，方可将 **BehaviorModeling** 切换为其他模式。
   * 从其他模式切换到 **BehaviorModeling** 或建模已经完成时，您需要更新建模时长并重启目标工作负载，以重新启动行为建模过程。
@@ -74,4 +74,4 @@ import DocCardList from '@theme/DocCardList';
 
 <DocCardList />
 
-NetworkProxy 的规则加载不会修复旧模板或补齐 MITM 挂载，参见[生命周期与升级](../../enforcers/networkproxy/lifecycle-and-upgrades.md)。
+NetworkProxy 首次启用 MITM 时，需要重建 Pod 以获得 TLS 挂载，参见[生命周期与升级](../../enforcers/networkproxy/lifecycle-and-upgrades.md)。

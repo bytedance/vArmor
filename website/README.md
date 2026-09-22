@@ -66,6 +66,3 @@ NUL issue described in https://github.com/react/react/issues/31134 without
 changing client React or package versions. Its interception is intentionally
 limited to the current Docusaurus renderer module: when upgrading Docusaurus or
 React, revisit/remove this compatibility layer and run the HTML checker again.
-
-See `../docs/website-documentation-validation.md` for the validation scope and
-`../docs/networkproxy-documentation-evidence.md` for the behavioral evidence.

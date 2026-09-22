@@ -4,13 +4,11 @@ sidebar_position: 4
 
 # 安全与兼容性 {#security-and-compatibility}
 
-NetworkProxy 自身不依赖 LSM，但仍依赖 Kubernetes admission、容器注入、netfilter 重定向和配套镜像。部署前应检查以下前提。
+NetworkProxy 自身不依赖 LSM。部署前应确认集群允许注入代理容器，并满足以下权限、网络和镜像要求。
 
 ## 权限与身份 {#permissions-and-identity}
 
-init 使用 `runAsUser: 0`、`runAsNonRoot: false` 和 `NET_ADMIN` 配置重定向。sidecar 同样从 UID0、`runAsNonRoot: false` 启动，再由 **vArmor 自定义镜像入口**将 Envoy 降权为 proxyUID（默认 1337）。这些容器级字段覆盖注入容器继承的 Pod 非 root 默认值，不改变业务容器安全上下文。
-
-这种注入不符合无条件强制 Restricted Pod Security 的命名空间要求。应为工作负载安排经过审查的 admission 策略，不要为了排障关闭整个集群的限制。
+vArmor 自动配置注入容器的安全上下文，用户无需手动设置。集群准入策略需要允许注入以 root 启动的容器，并允许 init 容器使用 `NET_ADMIN`；启用 Restricted Pod Security 的命名空间需要配置适当的例外。
 
 业务 UID 必须与 proxyUID 不同，因为代理 UID 的流量被豁免重定向。创建策略前选择 UID：proxyUID、proxyPort（默认 15001）、proxyAdminPort（默认 15000）不可变，端口之间及与业务端口之间均不能冲突。
 
@@ -23,23 +21,21 @@ init 使用 `runAsUser: 0`、`runAsNonRoot: false` 和 `NET_ADMIN` 配置重定�
 - loopback 目标和代理 UID 流量被明确豁免，NetworkProxy 不是覆盖全部出站流量的防火墙。
 - 使用独立 Pod 网络命名空间，不要将本指南的注入部署到 `hostNetwork: true`；它不是节点级网络策略机制。
 - 保护代理管理接口。init 丢弃本地非代理 UID 到管理端口的流量，但不能据此假定其他 Pod 无法访问所有 sidecar 管理端点。
-- Service Mesh 或其他代理也可能修改路由和 iptables。本指南不承诺通用共存支持，应验证组合后的真实路径及允许/拒绝行为。
+- Service Mesh 或其他代理也可能修改路由和 iptables。组合使用时，应检查路由冲突，并在部署前验证允许和拒绝流量。
 
 ## 镜像、运行时与资源 {#images-runtimes-and-resources}
 
-必须使用配套的 vArmor **自定义** Envoy 和 proxyinit 镜像，不能以相似版本标签的上游 Envoy 替代。入口脚本需遵守 `VARMOR_ENVOY_UID`。使用 IfNotPresent 时，注册表中覆盖标签不会替换节点缓存；镜像行为变更应使用新标签，更新实际工作负载模板，并检查运行 imageID。
+必须使用配套的 vArmor **自定义** Envoy 和 proxyinit 镜像，不能以相似版本标签的上游 Envoy 替代。
 
-运行时识别、iptables backend 和资源配置见[安装](../../../getting_started/installation.md)。微虚机审计路径已有实现，但近期 IPv4/runc 冒烟和回归不等于验证了所有 Kata/serverless 部署；需要另外核对 admission、volume 和连通性要求。
+运行时识别、iptables backend 和资源配置见[安装](../../../getting_started/installation.md)。使用 Kata 等微虚机运行时时，需配置运行时识别，并检查平台的准入和挂载要求。
 
-资源默认值不是吞吐保证。提高内存限制不能修复 Envoy 实际 UID 与重定向豁免 UID 不一致。
+根据业务负载调整代理 CPU 和内存的 requests/limits，并观察资源使用情况和请求延迟。
 
 ## IPv6 {#ipv6}
 
-IPv6 匹配和配置生成有专门测试，但所引用的 Kubernetes 回归使用 IPv4 Pod 网络，不能据此宣称完整 IPv6 集群兼容。
+即使 IPv6 地址相同，MITM 请求目标与 HTTP hosts 规则也可能因文本写法不同而无法匹配。MITM 配置、HTTP 规则和客户端 Host/authority 应保持一致，建议使用标准压缩写法，HTTP authority 中加方括号。使用 `/128` 声明 MITM 目标时，客户端应以标准压缩 IP 写法访问；头注入的 domain 引用仍须精确等于原始 `/128` 声明。
 
-MITM IP 选链解析地址，而 HTTP 虚拟主机/hosts 还依赖文本。压缩与展开的等价 IPv6 写法不一定匹配。MITM 配置、HTTP 规则和客户端 Host/authority 应保持一致，建议使用标准压缩写法，HTTP authority 中加方括号。`/128` 声明生成规范化 IP 虚拟主机，但头注入引用仍须精确等于原始 `/128` 声明。
-
-不能推断所有文本不匹配都无害；deny 规则未匹配也可能影响安全。
+地址写法不一致可能导致允许或拒绝规则无法匹配。
 
 ## TLS 与应用行为 {#tls-and-application-behavior}
 

@@ -15,9 +15,9 @@ First complete the [HTTP Quick Start](quick-start.mdx). MITM additionally requir
 
 vArmor generates a CA per policy configuration namespace and publishes certificate material with the Envoy configuration. Application containers receive a CA bundle combining public roots and the MITM CA, without the CA private key. The injector supplies `SSL_CERT_FILE`, `REQUESTS_CA_BUNDLE`, `NODE_EXTRA_CA_CERTS` and `CURL_CA_BUNDLE` when the application has not already defined the corresponding variable.
 
-These variables are integration aids, not universal SDK support. Existing trust variables, custom trust stores, certificate pinning and libraries that cache CAs may require application-specific configuration. File projection does not reload an application's in-memory trust store. Do not use `curl -k` to validate MITM.
+These variables are integration aids, not universal SDK support. Existing trust variables, custom trust stores, certificate pinning and libraries that cache CAs may require application-specific configuration. Updating a mounted certificate file does not reload an application's in-memory trust store. Do not use `curl -k` to validate MITM.
 
-Publicly trusted upstreams are the normal starting point. A private upstream CA is a separate trust requirement; the two CA directions are not interchangeable. The policy API does not expose a general upstream-CA reference. Do not turn test-only edits to generated Secrets into a production configuration workflow: reconciliation can replace generated content.
+Publicly trusted upstreams are the normal starting point. A private upstream CA is a separate trust requirement; the two CA directions are not interchangeable. The policy API does not expose a general upstream-CA reference. Configure supported settings through the policy API; directly editing generated configuration can be overwritten by vArmor.
 
 ## Configure interception and authorization together
 
@@ -76,15 +76,15 @@ headerMutations:
 
 The mutation's `domain` must literally equal a `domains` entry, including case; wildcard expansion and IP/CIDR equivalence do not satisfy the reference. Specify exactly one of `value` or `secretRef`. The header value is used as supplied, including any `Bearer ` prefix, and replaces an existing header of the same name. Avoid trailing newlines in credential files; empty or unsafe values fail configuration generation.
 
-**A Secret reference does not keep the credential out of Envoy configuration.** The Manager reads it during reconciliation and embeds the resolved value in LDS. Principals able to read the generated configuration Secret, sidecar configuration or sensitive proxy diagnostics can access it. Application containers need not receive the source Secret, but credentials can still be exposed through a permitted upstream that echoes headers or through excessive Kubernetes privileges. Protect those access paths as well as the source Secret.
+**A Secret reference does not keep the credential out of Envoy configuration.** vArmor reads the Secret when processing the policy and includes the resolved value in the Envoy listener configuration (`lds.yaml`). This configuration is stored in a vArmor-generated Secret and mounted as a file in the sidecar. Anyone with permission to read that Secret or mounted file can access the credential.
 
 ## Rotate and verify
 
 1. Update the source Secret through your credential-management process.
-2. Trigger a real, valid policy **spec** update. Source Secret changes are not watched, and an arbitrary annotation is not a supported force-sync mechanism. A harmless rule-description change can provide a spec update without changing the authorization criteria; inspect the resulting generation/status.
-3. Check for reconciliation errors, then wait for the projected configuration and the running proxy to apply it. Verify a new request at an owned backend using a non-sensitive indicator; do not print the credential.
+2. Trigger a real, valid policy **spec** update. Changing the source Secret alone does not update the proxy configuration. A harmless rule-description change can provide a spec update without changing the authorization criteria; inspect the resulting generation/status.
+3. Check for policy processing errors, then wait for the configuration files to update and the proxy to load them. Verify a new request at an owned backend using a non-sensitive indicator; do not print the credential.
 4. Confirm allowed and denied requests still behave as intended. Revoke the previous credential only after verification and any required overlap period.
 
 Missing Secrets/keys, empty values or unsafe values can yield `phase: Error`, `ready: false`. On a failed update, the affected namespace keeps its last valid configuration: a requested tightening and credential rotation have **not** taken effect. Fix the dependency and trigger another valid spec update. A cluster policy does not provide atomic publication or rollback across namespaces.
 
-These operations do not guarantee immediate revocation of existing connections or atomic CA replacement across applications. See [Lifecycle and Upgrades](lifecycle-and-upgrades.md).
+Plan credential rotation around existing connections and application trust reloads. See [Lifecycle and Upgrades](lifecycle-and-upgrades.md).

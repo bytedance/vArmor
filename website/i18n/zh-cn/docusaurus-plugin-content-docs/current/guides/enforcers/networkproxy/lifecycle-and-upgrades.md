@@ -4,59 +4,38 @@ sidebar_position: 5
 
 # 生命周期与升级 {#lifecycle-and-upgrades}
 
-区分策略调和、投影的 Envoy 配置和 Kubernetes Pod 模板；其中一项变化不代表其他项已收敛。
+规则修改可以在已有代理中动态生效。容器镜像、资源或 TLS 挂载的变化需要更新工作负载配置并替换 Pod。可按下表安排变更。
 
 ## 变更矩阵 {#change-matrix}
 
-| 变更 | 检查与动作 |
+| 变更 | 操作 |
 | --- | --- |
-| 已注入 Pod 的 HTTP/L4 规则 | 调和、等待动态配置、验证新请求；不承诺切换零错误 |
-| 头注入源 Secret | 更新后执行合法 policy spec 更新，以不打印凭据的方式验证 |
-| 已具备 MITM 挂载的 Pod 增删身份 | 检查 LDS/CDS、证书和 validation SDS、信任及新请求 |
-| 原本缺少 TLS volume 的 Pod 首次启用 MITM | 更新/重建工作负载模板，确认新 Pod 获得挂载和 CA 配置 |
-| 更换 CA 或信任 bundle | 检查代理和应用文件，重载或重启缓存 CA 的应用 |
-| 静态 bootstrap 变化 | 先确认生成内容更新，再重启 Envoy 或重建 Pod |
-| 镜像或资源设置变化 | 检查/更新已注入模板并滚动替换；默认值变化不会修改已有容器 |
-| UID 或代理/管理端口变化 | 字段不可变，规划替代策略/工作负载迁移并验证新重定向 |
-| 修复已注入旧模板 | 显式修复存储的模板，普通规则更新不等于模板修复 |
+| HTTP/L4 规则 | 更新策略，等待代理加载，再验证新请求 |
+| 头注入源 Secret 的值 | 更新 Secret 后，执行一次合法的策略 spec 更新，见[凭据轮换](tls-and-credentials.md#rotate-and-verify) |
+| 已启用 MITM 的 Pod 增删域名 | 等待代理配置和证书更新，再验证 HTTPS 请求 |
+| 首次启用 MITM | 重建受影响的 Pod，使其获得 TLS 挂载和应用 CA 配置 |
+| 更换 CA 或信任 bundle | 重载或重启缓存 CA bundle 的应用，再验证 TLS 连接 |
+| 修改代理镜像或资源配置 | 更新工作负载模板并滚动替换 Pod |
+| 修改代理 UID 或监听端口 | 创建替代策略；已有策略的这些字段不可修改 |
 
-同 Pod 动态更新回归是在检查投影及真实行为后测试新请求，不承诺立即撤销已有连接、多文件原子更新或收敛期间始终可用。暂时的 503 可能表示上游 cluster 或信任依赖尚未就绪。
+动态配置需要一定时间才能到达各个 Pod。更新过程中，代理加载所需配置时，新请求可能短暂失败。规则变化不一定关闭已有连接；如果需要终止已有会话，应在发布计划中安排连接排空或 Pod 替换。
 
 ## 配套升级 vArmor 和代理 {#upgrade-varmor-and-its-proxy-together}
 
-镜像内容变化使用新标签或不可变 digest。IfNotPresent 可配合不可变标签使用；重复使用标签可能让节点运行不同二进制。应检查 Manager/Agent revision、注入 image 与实际 imageID，不能只看 Helm app version。
+使用同一发行版本配套的 Manager、Agent 和代理镜像，并按发布说明确认升级要求。
 
-引入 `varmor_np_event` 审计流的升级遵循接收端先于生成端：
+如果升级涉及审计日志兼容性变化，按以下顺序操作，以保持审计采集正常：
 
-1. 旧 Manager 继续产生兼容配置时，先升级节点 Agent。
-2. 升级微虚机 sidecar 内嵌接收器，包括已有模板和 Pod。
-3. 再升级 Manager，通过调和重新生成配置，检查代理加载和日志交付。
+1. 升级节点 Agent。
+2. 对微虚机工作负载，更新工作负载模板中的代理镜像并滚动替换 Pod，因为这类 Pod 在内部采集审计日志。
+3. 升级 Manager，再检查受影响策略的状态、代理就绪状态和审计日志。
 
-不能将新流名发给旧接收器。默认镜像变化不会替换旧内嵌接收器；Manager 升级也不能证明所有已有 Secret 已重新生成。
+修改安装配置中的默认代理镜像不会更新已运行的容器。升级时应同时处理受影响的工作负载模板和 Pod。如果版本涉及代理启动配置变化，应在配置更新后重建受影响的 Pod。
 
-自定义 HTTP 方法处理同时依赖静态 bootstrap runtime 设置和 LDS 选项。升级后先确认生成 bootstrap 已刷新，再重建代理，之后才能依赖该能力。v0.10.5 方法 token 区分大小写；标准 GET 应写为 GET，而不是依赖旧实现转大写的 get。
-
-## 修复旧的非 root 模板 {#recover-an-old-non-root-template}
-
-修复后的注入路径为两个注入容器显式设置 `runAsUser: 0`、`runAsNonRoot: false`，保留业务上下文。旧模板可能仍缺少字段，已有注入 annotation 会影响 webhook 重新注入。
-
-集群实测中，普通 HTTP 规则更新**没有**修复这种 Deployment 模板。因此只升级 Manager，或从未修正模板重启，不足以恢复。
-
-对受影响 Deployment，可审查下面的定向 strategic-merge patch 并替换名称。它保留其他容器字段：
-
-```bash
-kubectl patch deployment YOUR_DEPLOYMENT -n YOUR_NAMESPACE --type=strategic -p '
-{"spec":{"template":{"spec":{
-  "initContainers":[{"name":"varmor-network-proxy-init","securityContext":{"runAsUser":0,"runAsNonRoot":false}}],
-  "containers":[{"name":"varmor-network-proxy","securityContext":{"runAsUser":0,"runAsNonRoot":false}}]
-}}}}'
-kubectl rollout status deployment/YOUR_DEPLOYMENT -n YOUR_NAMESPACE
-```
-
-仅当这两个注入容器名称已存在时使用。检查模板和新 Pod，验证业务身份、Envoy 实际 UID 和允许/拒绝请求，再确认后续重建同样正常。该集群恢复实测覆盖 Deployment，不能宣称已实测所有控制器类型。
+升级后验证一条允许请求、一条拒绝请求及其预期审计记录。HTTP 方法区分大小写，标准 GET 请求应使用 `GET`。
 
 ## 有计划地撤销策略 {#remove-a-policy-deliberately}
 
-updateExistingWorkloads 影响创建/删除策略时的控制器工作负载更新，使用前阅读[使用说明](../../../getting_started/usage_instructions.md)和[API](../../../getting_started/interface_specification.md)。检查模板及替代 Pod，确认 sidecar、挂载和路由按预期移除。
+`updateExistingWorkloads` 控制创建或删除策略时是否更新控制器管理的工作负载。撤销防护前，请阅读[使用说明](../../../getting_started/usage_instructions.md)和[API](../../../getting_started/interface_specification.md)。
 
-删除策略本身不能证明已有连接或已注入的独立 Pod 已重置。隔离教程直接删除专属 namespace；生产撤防应规划并验证替代 Pod 和连通性。
+检查更新后的工作负载模板和替代 Pod，确认代理容器与挂载已移除。按需重建独立 Pod，再验证网络连通性。快速开始示例可直接按教程删除专属命名空间。

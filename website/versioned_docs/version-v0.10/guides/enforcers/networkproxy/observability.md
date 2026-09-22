@@ -4,23 +4,23 @@ sidebar_position: 6
 
 # Observability
 
-Verify configuration and behavior separately. Use the policy's status and conditions to diagnose reconciliation, then check the actual Pod, proxy and requests.
+Verify configuration and behavior separately. Use the policy's status and conditions to diagnose configuration errors, then check the actual Pod, proxy and requests.
 
-## Evidence to collect
+## Check policy enforcement {#evidence-to-collect}
 
-| Layer | Useful evidence | What it does not prove |
+| Check | What to inspect | Purpose |
 | --- | --- | --- |
-| Controller | Policy generation, phase, ready and error conditions | Every proxy accepted that generation |
-| Pod | Injected containers, mounts, actual image IDs, readiness and restarts | Intended rules are active |
-| Proxy | Reload/rejection logs and non-sensitive configuration version/hash checks | Application trust or backend availability |
-| Traffic | Client result plus an owned backend's receipt/non-receipt | Audit delivery |
-| Audit | Expected action, Pod/policy identity, path/method where visible | Exactly-once delivery under faults |
+| Policy | Generation, phase, ready and error conditions | Confirm processing and locate configuration errors |
+| Pod | Injected containers, mounts, readiness and restarts | Confirm the proxy is running |
+| Proxy logs | Configuration load or rejection messages | Confirm the rule update was accepted |
+| Requests and backend logs | Status codes, responses and backend access records | Verify allowed and denied traffic |
+| Audit logs | Action, Pod, policy, request path and method | Identify traffic that triggered a rule |
 
-A generated Secret can be current while Envoy retains an older valid configuration after a rejected update. A TCP readiness probe is not an acknowledgment of the policy version.
+After updating a policy, check proxy logs and request results. A proxy that rejects new configuration can continue using its previous configuration; resolve the loading error before proceeding.
 
 ## Audit decision matrix
 
-For ordinary configured egress rules, the following matrix applies to the relevant HTTP-request or TCP/TLS-connection logging location:
+For configured egress rules, HTTP requests and TCP/TLS connections are audited as follows:
 
 | Default | Matching rules | Outcome | Selected audit event |
 | --- | --- | --- | --- |
@@ -33,19 +33,19 @@ For ordinary configured egress rules, the following matrix applies to the releva
 | deny | allow + audit | Allow | AUDIT |
 | deny | deny and allow + audit | Deny | DENIED |
 
-An audit-only rule does not allow under default deny. Separate matching deny and audit rules also select a `DENIED` event. Overlapping audit conditions do not intentionally produce multiple events at the same logging location. This is not an exactly-once guarantee for transport/storage.
+An audit-only rule does not allow under default deny. Separate matching deny and audit rules also select a `DENIED` event. A request matching multiple audit conditions produces one event at the same logging location.
 
-NetworkProxy reports `DENIED` or `AUDIT`, not `ALLOWED`. It identifies proxy denials from Envoy RBAC reason fields; **an upstream HTTP 403 remains AUDIT** when selected for auditing. L4 denial may appear as a closed connection or TLS failure without an HTTP response.
+NetworkProxy reports `DENIED` or `AUDIT`, not `ALLOWED`. Audit events distinguish proxy denials from upstream responses; **an upstream HTTP 403 remains AUDIT** when selected for auditing. L4 denial may appear as a closed connection or TLS failure without an HTTP response.
 
-The special `DefenseInDepth` fallback with no configured rules denies without the ordinary audit matrix. Do not use that fallback to test the default-deny audit row.
+In `DefenseInDepth`, leaving the network rules empty blocks traffic without the audit events described above. Configure explicit egress rules when you need auditing.
 
 ## Where logs appear
 
-With node-central auditing (normally runc), Envoy sends ALS records to the node's vArmor Agent, which writes `/var/log/varmor/violations.log` on that node. For a configured micro-VM deployment, the embedded sink writes this path inside the sidecar filesystem instead. See [runtime detection](../../../getting_started/installation.md#micro-vm-kata-detection-for-networkproxy-auditing).
+For ordinary container runtimes such as runc, read `/var/log/varmor/violations.log` on the workload's node. For a configured micro-VM runtime, read the same path inside the `varmor-network-proxy` sidecar. See [runtime detection](../../../getting_started/installation.md#micro-vm-kata-detection-for-networkproxy-auditing).
 
-Events carry Pod/policy identity. Proxy events do not identify which application process or container originated a request in a shared Pod network namespace. HTTP records include request-level fields where visible; TCP and TLS passthrough records are connection-level. Correlate L4 evidence by Pod, destination and time window, not by an HTTP request ID absent from those records.
+Events carry Pod/policy identity. Proxy events do not identify which application process or container originated a request in a shared Pod network namespace. HTTP records include request-level fields where visible; TCP and TLS passthrough records are connection-level. Correlate L4 evidence by Pod, destination and time window; a connection record can correspond to multiple requests.
 
-Limit log collection to the test namespace/Pod and redact sensitive URLs and headers. Never publish a full generated Secret or LDS dump to diagnose credential injection.
+Filter logs by the affected namespace and Pod. Redact credentials and sensitive URLs or headers before sharing logs or proxy configuration.
 
 ## Useful checks
 

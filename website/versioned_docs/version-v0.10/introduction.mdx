@@ -10,22 +10,22 @@ Learn about vArmor and create your first policy through a Quick Start guide.
 
 ## About vArmor
 
-vArmor is a cloud-native container hardening system. It leverages Linux's [AppArmor LSM](https://en.wikipedia.org/wiki/AppArmor), [BPF LSM](https://docs.kernel.org/bpf/prog_lsm.html), [Seccomp](https://en.wikipedia.org/wiki/Seccomp), and **Network Proxy** ([Envoy](https://www.envoyproxy.io/)-based sidecar) technologies to implement enforcers. It can be used to strengthen container isolation, reduce the kernel attack surface, enforce network egress access control at L4/L7 levels — including TLS MITM for decrypted HTTPS inspection, HTTP header injection, and MITM virtual-host restrictions — and increase the difficulty and cost of container escape or lateral movement attacks. You can leverage vArmor in the following scenarios to provide sandbox protection for containers within a Kubernetes cluster.
+vArmor is a cloud-native container hardening system. It leverages Linux's [AppArmor LSM](https://en.wikipedia.org/wiki/AppArmor), [BPF LSM](https://docs.kernel.org/bpf/prog_lsm.html), [Seccomp](https://en.wikipedia.org/wiki/Seccomp), and **Network Proxy** ([Envoy](https://www.envoyproxy.io/)-based sidecar) technologies to implement enforcers. It can be used to strengthen container isolation, reduce the kernel attack surface, enforce network egress access control at L4/L7 levels — including TLS MITM for decrypted HTTPS inspection, HTTP header injection, and MITM request destination restrictions — and increase the difficulty and cost of container escape or lateral movement attacks. You can leverage vArmor in the following scenarios to provide sandbox protection for containers within a Kubernetes cluster.
 * In multi-tenant environments, hardware-virtualized container solutions cannot be employed due to factors such as cost and technical conditions.
 * When there is a need to enhance the security of critical business containers, making it more difficult for attackers to escalate privileges, escape, or laterally move.
 * When high-risk vulnerabilities are present, but immediate remediation is not possible due to the difficulty or lengthy process of patching. vArmor can be used to mitigate the risks (depending on the vulnerability type or exploitation vector) to block or increase the difficulty of exploitation.
 * You are deploying AI Agents or LLM-based applications and need to precisely control their outbound network access — preventing data exfiltration, unauthorized API calls, or abuse induced by prompt injection attacks.
 
 :::tip
-- The core of security defense lies in balancing risks and benefits, transforming uncontrollable risks into controllable costs by choosing different types of security boundaries and defense technologies. 
+- The core of security defense lies in balancing risks and benefits, transforming uncontrollable risks into controllable costs by choosing different types of security boundaries and defense technologies.
 - runc + vArmor does not provide an isolation level equivalent to that of hardware virtualization containers (such as Kata Containers and other lightweight virtual machines). If you require a high-intensity isolation solution, please consider using hardware virtualization containers for compute isolation, and utilize CNI's NetworkPolicy for network isolation.
-- vArmor's NetworkProxy enforcer further complements NetworkPolicy by providing L7 access control for both HTTP and HTTPS (via TLS MITM), TLS SNI-based domain filtering, per-domain HTTP header injection, MITM virtual-host restrictions, and selective audit logging — capabilities that NetworkPolicy does not offer.
+- vArmor's NetworkProxy enforcer further complements NetworkPolicy by providing L7 access control for both HTTP and HTTPS (via TLS MITM), TLS SNI-based domain filtering, per-domain HTTP header injection, MITM request destination restrictions, and selective audit logging — capabilities that NetworkPolicy does not offer.
 :::
 
 **vArmor Features:**
 * **Cloud-Native.** vArmor follows the Kubernetes Operator design pattern, allowing users to harden specific workloads by manipulating the [CRD API](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/). This approach enables sandboxing of containerized microservices from a perspective closely aligned with business needs.
 * **Multiple Enforcers**. vArmor abstracts AppArmor, BPF, Seccomp, and NetworkProxy as enforcers, supporting their use individually or in combination. This enables enforcing access control on container file access, process execution, network outbound (L3–L7), syscalls, and more.
-* **Network Proxy Enforcer**. vArmor introduces a sidecar-proxy-based enforcer (powered by Envoy) that transparently intercepts and controls container network egress traffic at L4 (TCP), L7 (HTTP/HTTPS), and TLS SNI levels. It supports TLS MITM termination, per-domain HTTP header injection (e.g., API key injection), MITM virtual-host restrictions, allow-list and deny-list modes, audit logging, and dynamic rule updates. Changes to injection, TLS mounts, images or static bootstrap have separate [lifecycle requirements](guides/enforcers/networkproxy/lifecycle-and-upgrades.md).
+* **Network Proxy Enforcer**. vArmor introduces a sidecar-proxy-based enforcer (powered by Envoy) that transparently intercepts and controls container network egress traffic at L4 (TCP), L7 (HTTP/HTTPS), and TLS SNI levels. It supports TLS MITM termination, per-domain HTTP header injection (e.g., API key injection), MITM request destination restrictions, allow-list and deny-list modes, audit logging, and dynamic rule updates. Changes to injection, TLS mounts, images or proxy startup settings have separate [lifecycle requirements](guides/enforcers/networkproxy/lifecycle-and-upgrades.md).
 * **AI Agent Protection**. vArmor provides defense-in-depth for AI Agent workloads by combining kernel-level mandatory access control (AppArmor/BPF/Seccomp) with application-protocol-level network access control (NetworkProxy), effectively mitigating risks such as prompt injection-induced tool abuse, key leakage, and unauthorized data exfiltration.
 * **Allow-by-Default.** vArmor currently focuses on supporting this model, where only explicitly declared behaviors will be blocked, which effectively minimizes performance impact and enhances usability. Besides, it supports auditing violations, and these violations can also be allowed rather than blocked.
 * **Built-in Rules.** vArmor features a range of built-in rules ready to use out of the box. They are designed for the Allow-by-Default security model, eliminating the need for expertise in security profile creation.
@@ -42,10 +42,10 @@ vArmor primarily consists of two components: the Manager and the Agent. The Mana
 
 vArmor also supports the NetworkProxy enforcer, which injects an Envoy sidecar proxy and an init container into target Pods via the mutation webhook. The init container sets up iptables rules to redirect egress traffic to the Envoy sidecar, which then enforces L4/L7 access control policies — including TLS MITM termination for HTTPS inspection, HTTP header mutation, and anti-Domain-Fronting rules — generated by the Manager and delivered via a unified Secret alongside certificate material and the CA bundle.
 
-<ThemeImage 
-  lightSrc="/img/architecture.svg" 
-  darkSrc="/img/architecture.svg" 
-  alt="vArmor Architecture" 
+<ThemeImage
+  lightSrc="/img/architecture.svg"
+  darkSrc="/img/architecture.svg"
+  alt="vArmor Architecture"
   width="100%"
 />
 
@@ -55,10 +55,10 @@ vArmor also supports the NetworkProxy enforcer, which injects an Envoy sidecar p
 * With VarmorPolicy or VarmorClusterPolicy objects, users can harden specific workloads and decide which enforcers and rules to use.
 * The ArmorProfile CR acts as an internal interface used for profile management.
 
-<ThemeImage  
-  lightSrc="/img/principle.svg" 
-  darkSrc="/img/principle-dark.svg" 
-  alt="vArmor Principle" 
+<ThemeImage
+  lightSrc="/img/principle.svg"
+  darkSrc="/img/principle-dark.svg"
+  alt="vArmor Principle"
 />
 
 When the Manager detects the creation event of a VarmorPolicy or VarmorClusterPolicy object, it generates a corresponding internal object called ArmorProfile. The Agent listens for and responds to this ArmorProfile object, processing the profiles and then reporting the status back to the Manager. When a user creates a workload, the APIServer sends the creation request to the Manager through the admission webhook. The Manager evaluates whether the workload should be hardened. If so, the Manager mutates the workload by adding annotations and modifying the securityContext. Finally, the workload's Pod will be scheduled to a Node, and the security context will be set when the container is created.
@@ -67,7 +67,7 @@ When the Manager detects the creation event of a VarmorPolicy or VarmorClusterPo
 #### The Enforcer
 vArmor abstracts AppArmor, BPF, Seccomp and NetworkProxy as enforcers. The policy can use supported enforcers individually or in supported combinations to harden workloads, such as: AppArmorBPF, AppArmorSeccomp, AppArmorNetworkProxy, AppArmorBPFSeccomp etc.
 
-You can specify the enforcer through the `spec.policy.enforcer` field of [VarmorPolicy](getting_started/usage_instructions.md#varmorpolicy) or [VarmorClusterPolicy](getting_started/usage_instructions.md#varmorclusterpolicy) objects. 
+You can specify the enforcer through the `spec.policy.enforcer` field of [VarmorPolicy](getting_started/usage_instructions.md#varmorpolicy) or [VarmorClusterPolicy](getting_started/usage_instructions.md#varmorclusterpolicy) objects.
 
 #### The Policy Mode
 The vArmor policy can operate in five modes: *AlwaysAllow, RuntimeDefault, EnhanceProtect, BehaviorModeling and DefenseInDepth*. This flexibility allows it to meet the needs of different scenarios.
@@ -87,7 +87,7 @@ The prerequisites required by different enforcers are as shown in the following 
 |AppArmor    |1. Linux Kernel 4.15+<br />2. The AppArmor LSM is enabled|GKE with Container-Optimized OS<br />AKS with Ubuntu<br />[VKE](https://www.volcengine.com/product/vke) with veLinux<br />Debian 10 and above<br />Ubuntu 18.04.0 LTS and above<br />[veLinux](https://www.volcengine.com/docs/6396/74967) etc.
 |BPF         |1. Linux Kernel 5.10+ (x86_64) or 6.6+ (arm64)<br />2. containerd v1.6.0+<br />3. The BPF LSM is enabled|EKS with Amazon Linux 2<br />GKE with Container-Optimized OS<br />[VKE](https://www.volcengine.com/product/vke) with veLinux (with 5.10 kernel)<br />AKS with Ubuntu 22.04 LTS <sup>\*</sup><br />ACK with Alibaba Cloud Linux 3 <sup>\*</sup><br />OpenSUSE 15.4 <sup>\*</sup><br />Debian 11 <sup>\*</sup><br />Fedora 37 <br />[veLinux (with 5.10 kernel)](https://www.volcengine.com/docs/6396/74967) etc.<br /><br />* *Manual enabling of BPF LSM is required*
 |Seccomp     |1. Kubernetes v1.19+|All Linux distributions
-|NetworkProxy|Linux Pod networking, permitted root/NET_ADMIN injection, compatible proxy images and netfilter|See [security and compatibility](guides/enforcers/networkproxy/security-and-compatibility.md)|
+|NetworkProxy|Workload namespaces permit injected proxy containers to start as root and init containers to use NET_ADMIN|See [security and compatibility](guides/enforcers/networkproxy/security-and-compatibility.md)|
 
 
 ## Quick Start
@@ -98,7 +98,7 @@ Choose a guide that matches your environment:
 - [NetworkProxy Quick Start](guides/enforcers/networkproxy/quick-start.mdx): verify HTTP allow/deny before configuring TLS interception.
 - [Writing Policies](guides/policies_and_rules/writing_policies.md): select a workload, apply a policy, verify allowed and denied operations, and clean up.
 
-For an AppArmor-specific worked example, see [the existing usage example](getting_started/usage_instructions.md#example) and adapt it only after checking AppArmor support. `AlwaysAllow` establishes a profile without adding restrictions; it is not evidence that a prohibited operation is blocked.
+For an AppArmor-specific worked example, see [the existing usage example](getting_started/usage_instructions.md#example) and adapt it only after checking AppArmor support. `AlwaysAllow` establishes a profile without adding restrictions; use a restrictive mode to block operations.
 
 
 ## Demo

@@ -4,11 +4,11 @@ sidebar_position: 0
 
 # 编写策略 {#writing-policies}
 
-先定义具体需求：保护哪个工作负载、禁止哪种操作、哪些正常操作必须继续成功，以及需要什么审计证据。先在专属 namespace 验证，再逐步部署。
+先定义具体需求：保护哪个工作负载、禁止哪种操作、哪些正常操作必须继续成功，以及需要什么审计记录。先在专属 namespace 验证，再逐步部署。
 
 ## 1. 选择执行机制 {#1-choose-the-enforcement-mechanism}
 
-通过[执行器](../enforcers/index.md)将需求映射到能力，核对[安装要求](../../getting_started/installation.md)，再选择兼容[策略模式](policy_modes/index.md)。不同执行器的规则名称和审计开关不能互换。
+通过[强制访问控制器](../enforcers/index.md)将需求映射到能力，核对[安装要求](../../getting_started/installation.md)，再选择兼容[策略模式](policy_modes/index.md)。不同强制访问控制器的规则名称和审计开关不能互换。
 
 ## 2. 准确选择工作负载 {#2-select-the-workload-precisely}
 
@@ -25,10 +25,10 @@ VarmorClusterPolicy 优先于匹配的命名空间策略，判断结果前先检
 | 检查 | 预期 |
 | --- | --- |
 | 业务必需的正常操作 | 成功 |
-| 明确禁止的操作 | 由配置的执行器拒绝 |
+| 明确禁止的操作 | 由配置的强制访问控制器拒绝 |
 | 启用审计的操作 | 身份和动作与测试相符 |
 
-只有执行器支持相应行为时才能使用观察模式。NetworkProxy 使用自己的 qualifiers/defaultAction，allowViolations 不会把它的 deny 变为观察规则。
+只有强制访问控制器支持相应行为时才能使用观察模式。NetworkProxy 使用自己的 qualifiers/defaultAction，allowViolations 不会把它的 deny 变为观察规则。
 
 ## 4. 应用并检查实际工作负载 {#4-apply-and-inspect-the-actual-workload}
 

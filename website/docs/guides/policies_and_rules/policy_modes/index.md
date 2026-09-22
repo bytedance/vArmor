@@ -67,7 +67,7 @@ Whether in the EnhanceProtect or the DefenseInDepth mode, the disposition and au
 * When using the **NetworkProxy enforcer**, it is recommended to work with the AppArmor/BPF enforcer to drop the *NET_ADMIN* capability of the target container and prohibit creation of and switching to the [ProxyUID](../../../getting_started/interface_specification.md#networkproxyconfig), so as to prevent it from bypassing network proxy rules.
 * When using the **NetworkProxy enforcer**, it is recommended to block business containers from accessing the [admin ports](../../../getting_started/interface_specification.md#networkproxyconfig) of all network proxy sidecars in the Pod CIDR.
 
-* For NetworkProxy, see [Lifecycle and Upgrades](../../enforcers/networkproxy/lifecycle-and-upgrades.md). Rule reload does not repair old templates or add missing MITM mounts.
+* For NetworkProxy, see [Lifecycle and Upgrades](../../enforcers/networkproxy/lifecycle-and-upgrades.md). Enabling MITM for the first time requires replacement Pods with TLS mounts.
 
 ## Experimentals
 

@@ -5,7 +5,7 @@ description: Select a workload, write a policy, and verify enforcement.
 
 # Writing Policies
 
-A useful policy starts with a concrete requirement: identify the workload, the operation to control, an operation that must keep working, and the expected audit evidence. Begin in a dedicated namespace before applying the policy to production workloads.
+A useful policy starts with a concrete requirement: identify the workload, the operation to control, an operation that must keep working, and the expected audit records. Begin in a dedicated namespace before applying the policy to production workloads.
 
 ## 1. Choose the enforcement mechanism
 
@@ -29,7 +29,7 @@ For example, define the expected outcomes before writing a rule:
 | --- | --- |
 | An application operation required for normal service | Succeeds |
 | The specific operation the rule is intended to prohibit | Fails due to the configured enforcer |
-| Audit evidence, if enabled for that operation | Identifies the tested policy/workload and expected action |
+| Audit records, if enabled for that operation | Identifies the tested policy/workload and expected action |
 
 Observation mode is useful only where the chosen enforcer supports it. NetworkProxy uses its own rule qualifiers and `defaultAction`; `allowViolations` does not turn its deny rules into observation rules.
 
@@ -46,7 +46,7 @@ kubectl get pod -n YOUR_NAMESPACE YOUR_POD -o yaml
 
 Replace the uppercase names with your test resources. Follow [State Management](../../getting_started/usage_instructions.md#state-management) to inspect failures. Confirm that the actual container has the expected profile or, for NetworkProxy, the injected containers. Control-plane status alone is insufficient to establish effective protection.
 
-## 5. Verify behavior and audit evidence
+## 5. Verify behavior and audit logs {#5-verify-behavior-and-audit-evidence}
 
 Execute the permitted and prohibited operations in the selected application container. Specify `kubectl exec -c` explicitly in a multi-container Pod. Correlate results with [audit logs](../../getting_started/usage_instructions.md#audit-logs) where configured; an absent log may be the rule's documented silent behavior.
 

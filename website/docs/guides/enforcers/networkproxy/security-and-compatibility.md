@@ -4,13 +4,11 @@ sidebar_position: 4
 
 # Security and compatibility
 
-Evaluate these prerequisites before deploying a policy. NetworkProxy avoids an LSM dependency for its own enforcement, but still depends on Kubernetes admission, injected containers, working netfilter redirection and compatible proxy images.
+NetworkProxy does not require an LSM for its own enforcement. Before deploying a policy, confirm that the cluster permits proxy injection and meets the permission, networking and image requirements below.
 
 ## Permissions and identity
 
-The init container starts with `runAsUser: 0`, `runAsNonRoot: false` and `NET_ADMIN` to set up redirection. The sidecar also starts as UID 0 with `runAsNonRoot: false`; the **vArmor custom image entrypoint** then runs Envoy under `proxyUID` (default 1337). These container-level fields override inherited Pod non-root defaults for the injected containers. They do not change the business container's security context.
-
-This injection is not compatible with a namespace that unconditionally enforces Restricted Pod Security requirements. Arrange an appropriate, reviewed admission policy for this workload; do not disable cluster-wide admission controls as a troubleshooting shortcut.
+vArmor configures the injected containers' security contexts automatically; no manual settings are needed. Cluster admission must allow the injected containers to start as root and the init container to use `NET_ADMIN`. Namespaces enforcing Restricted Pod Security need an appropriate exception.
 
 The application UID must differ from `proxyUID`, because traffic from the proxy UID is exempt from redirection. Choose the UID before creating the policy: `proxyUID`, `proxyPort` (default 15001) and `proxyAdminPort` (default 15000) are immutable, and the ports must not conflict with each other or the workload.
 
@@ -23,23 +21,21 @@ Do not give business containers `NET_ADMIN` or the ability to switch to the exem
 - Loopback destinations and proxy-UID traffic are deliberately exempt. NetworkProxy is not an all-egress firewall.
 - Use a separate Pod network namespace. Do not deploy this guide's injection with `hostNetwork: true`; its redirection design is not a node-wide network policy mechanism.
 - Protect proxy admin access. Local non-proxy traffic to the configured admin port is dropped by the init rules; do not assume that alone isolates every sidecar admin endpoint from other Pods.
-- Service Mesh or other proxies may also change routing and iptables. This guide does not establish general coexistence support; validate the combined path and both allow/deny outcomes before deployment.
+- Service Mesh or other proxies may also change routing and iptables. When combining them, check routing conflicts and verify allowed and denied traffic before deployment.
 
 ## Images, runtimes and resources
 
-Use the matching vArmor **custom** Envoy and proxyinit images, not an upstream Envoy image with a similar version label. The custom entrypoint must honor `VARMOR_ENVOY_UID`. With `IfNotPresent`, replacing an existing tag in a registry does not replace node-cached image content. Publish a new tag when image behavior changes, update the actual workload template and verify running image IDs.
+Use the matching vArmor **custom** Envoy and proxyinit images, not an upstream Envoy image with a similar version label.
 
-For runtime detection, iptables backend selection and resource settings, use [Installation](../../../getting_started/installation.md). The micro-VM audit path is implemented, but the recent IPv4/runc smoke and regression results do not establish validation of every Kata/serverless deployment. Runtime-specific admission, volume and connectivity requirements must be checked separately.
+See [Installation](../../../getting_started/installation.md) for runtime detection, iptables backend selection and resource settings. For Kata or other micro-VM runtimes, configure runtime detection and check the platform's admission and volume requirements.
 
-Resource requests/limits are adjustable; the defaults are not a tested throughput guarantee. Raising memory limits is not a remedy for mismatched Envoy process UID and redirection exceptions.
+Adjust proxy CPU and memory requests/limits to the workload. Monitor resource usage and request latency as traffic increases.
 
 ## IPv6
 
-IPv6 matching/generation has dedicated tests, but the referenced Kubernetes regression runs used IPv4 Pod networking. They do not establish full IPv6 cluster compatibility.
+Even when IPv6 addresses are equivalent, different textual spellings can prevent MITM request destinations and HTTP host rules from matching. Use a consistent spelling in the MITM configuration, HTTP rules and the client's Host/authority; prefer canonical compressed notation, with brackets in an HTTP authority. For a `/128` MITM destination, clients should use the canonical compressed IP spelling; the header-mutation domain reference must still equal the original `/128` declaration.
 
-MITM IP selection parses addresses, while HTTP virtual-host/host matching also depends on text. Equivalent compressed and expanded IPv6 spellings need not match. Use a consistent spelling in the MITM configuration, HTTP rules and the client's Host/authority; prefer canonical compressed notation, with brackets in an HTTP authority. A `/128` MITM declaration generates a canonical IP virtual host; its header-mutation reference must still equal the original `/128` declaration.
-
-Do not infer that every equivalent-text mismatch is harmless: a mismatched deny rule can matter as well as a mismatched allow rule.
+Inconsistent address spelling can prevent either an allow or a deny rule from matching.
 
 ## TLS and application behavior
 

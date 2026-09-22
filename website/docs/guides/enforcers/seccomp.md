@@ -20,10 +20,10 @@ Follow [Writing Policies](../policies_and_rules/writing_policies.md) to select t
 
 Check the generated profile and the actual Pod's Seccomp security context. Then test a permitted syscall-dependent operation and an operation that should be blocked, using the selected application container.
 
-**A running container does not pick up a changed Seccomp filter.** After a profile update, recreate the affected containers through the workload controller, wait for readiness, and repeat the behavioral checks. A Ready policy alone does not prove that existing containers use the new filter.
+**A running container does not pick up a changed Seccomp filter.** After a profile update, recreate the affected containers through the workload controller, wait for readiness, and repeat the behavioral checks.
 
 ## Auditing and limitations
 
 Seccomp's blocking and logging behavior differs from AppArmor and BPF. In the documented EnhanceProtect observation configuration, both `allowViolations` and `auditViolations` must be true, with no active behavior-modeling policy. Blocked syscalls do not produce vArmor `DENIED` events in the same way as AppArmor/BPF. Read the [Seccomp exceptions](../policies_and_rules/policy_modes/index.md#disposition-actions-and-auditing) before depending on an audit-only rollout.
 
-The audit stream can report `AUDIT|ALLOWED`, and attribution for short-lived processes can be incomplete. See [Audit Logs](../../getting_started/usage_instructions.md#audit-logs). A lack of audit events is not proof that a syscall was allowed or that a filter was absent.
+The audit stream can report `AUDIT|ALLOWED`, and attribution for short-lived processes can be incomplete. See [Audit Logs](../../getting_started/usage_instructions.md#audit-logs). Check the syscall result as well as the audit configuration when troubleshooting.

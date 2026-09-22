@@ -8,7 +8,7 @@ Seccomp 用于缩小容器可调用的系统调用集合。过滤器匹配系统
 
 ## 使用前提 {#before-you-start}
 
-文档最低 Kubernetes 要求为 1.19。检查运行时及[安装说明](../../getting_started/installation.md)，将 `spec.policy.enforcer` 设置为 `Seccomp` 或支持的组合。
+最低 Kubernetes 要求为 1.19。检查运行时及[安装说明](../../getting_started/installation.md)，将 `spec.policy.enforcer` 设置为 `Seccomp` 或支持的组合。
 
 ## 编写策略 {#write-a-policy}
 
@@ -20,10 +20,10 @@ Seccomp 用于缩小容器可调用的系统调用集合。过滤器匹配系统
 
 检查生成的 profile 和实际 Pod 的 Seccomp securityContext。在指定业务容器中分别执行允许的操作和应被禁止的操作。
 
-**运行中的容器不会自动采用更新后的 Seccomp 过滤器。** 更新 profile 后，应通过工作负载控制器创建替代容器，等待就绪，再验证行为。策略 Ready 不代表旧容器已经使用新过滤器。
+**运行中的容器不会自动采用更新后的 Seccomp 过滤器。** 更新 profile 后，应通过工作负载控制器创建替代容器，等待就绪，再验证行为。
 
 ## 审计与限制 {#auditing-and-limitations}
 
-Seccomp 的阻断和日志行为与 AppArmor/BPF 不同。在文档描述的 EnhanceProtect 观察配置下，需要同时启用 `allowViolations` 和 `auditViolations`，且不能存在运行中的行为建模策略。被阻断系统调用不会以 AppArmor/BPF 相同方式生成 vArmor `DENIED` 事件，使用观察模式前阅读[Seccomp 例外](../policies_and_rules/policy_modes/index.md#disposition-actions-and-auditing)。
+Seccomp 的阻断和日志行为与 AppArmor/BPF 不同。在文档描述的 EnhanceProtect 观察配置下，需要同时启用 `allowViolations` 和 `auditViolations`，且不能存在运行中的行为建模策略。被阻断系统调用不会以 AppArmor/BPF 相同方式生成 vArmor `DENIED` 事件，使用观察模式前阅读 [Seccomp 例外](../policies_and_rules/policy_modes/index.md#disposition-actions-and-auditing)。
 
-事件可能标记为 `AUDIT|ALLOWED`，短生命周期进程的身份关联可能不完整。详见[审计日志](../../getting_started/usage_instructions.md#audit-logs)。没有日志不能证明调用被允许或过滤器不存在。
+事件可能标记为 `AUDIT|ALLOWED`，短生命周期进程的身份关联可能不完整。详见[审计日志](../../getting_started/usage_instructions.md#audit-logs)。排障时应同时检查系统调用结果和审计配置。

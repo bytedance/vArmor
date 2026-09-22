@@ -16,7 +16,7 @@ This tutorial creates an owned HTTP backend and an injected client in `varmor-ne
 
 - Install vArmor v0.10.5 with its matching custom Envoy/proxyinit images; see [Installation](../../../getting_started/installation.md).
 - Use Linux Pods with their own network namespaces and admission settings that permit the injected root containers and `NET_ADMIN`. Check [Security and Compatibility](security-and-compatibility.md).
-- The cluster must pull the tutorial's Python and curl images (mirror them into an accessible registry and update the YAML image fields on restricted networks), and permit client-to-backend traffic. The example assumes the cluster DNS suffix `cluster.local`; replace it consistently in the policy and request URLs if yours differs.
+- The example assumes the cluster DNS suffix `cluster.local`; replace it consistently in the policy and request URLs if yours differs.
 - Use a namespace name that is not already in use. The cleanup deletes this entire dedicated namespace. Do not reuse a business namespace.
 
 The application UID is 1000, distinct from the default proxy UID 1337. No external API credentials or MITM certificates are needed.
@@ -45,7 +45,7 @@ kubectl apply -f policy.yaml
 kubectl wait -n varmor-networkproxy-demo --for=jsonpath='{.status.ready}'=true varmorpolicy/http-guide --timeout=120s
 ```
 
-On timeout, inspect the policy's status/conditions before continuing. This wait checks reconciliation, not the eventual proxy's effective configuration.
+On timeout, inspect the policy's status/conditions before continuing. Next, create the client and verify its requests.
 
 ## 3. Create and inspect the client
 
@@ -59,7 +59,7 @@ kubectl wait -n varmor-networkproxy-demo --for=condition=Ready pod/client --time
 kubectl get pod client -n varmor-networkproxy-demo -o jsonpath='{.spec.initContainers[*].name}{"\n"}{.spec.containers[*].name}{"\n"}'
 ```
 
-Expect init container `varmor-network-proxy-init` and containers `client` and `varmor-network-proxy`. If absent, stop and check selection/admission rather than interpreting unprotected requests as a successful test.
+Expect init container `varmor-network-proxy-init` and containers `client` and `varmor-network-proxy`. If either injected container is missing, check the policy target and Pod events before continuing.
 
 ## 4. Verify allowed and denied requests
 
@@ -82,15 +82,15 @@ kubectl logs -n varmor-networkproxy-demo deployment/backend -c backend
 | `/allow/?case=allow-1` | 200, `backend reached` | One matching GET | AUDIT |
 | `/deny/?case=deny-1` | 403 from proxy | No matching GET | DENIED |
 
-Curl can exit successfully for HTTP 403; check the HTTP code. A timeout or connection refusal is not the expected deny result for this example. If the initial configuration is not usable, inspect [Troubleshooting](troubleshooting.md) and keep the failure evidence.
+Curl can exit successfully for HTTP 403; check the HTTP code. A timeout or connection refusal is not the expected deny result for this example. If the initial configuration is not usable, inspect [Troubleshooting](troubleshooting.md).
 
-Find the audit records at the node or sidecar location described in [Observability](observability.md), filtered to this namespace and Pod. Audit absence must be investigated separately from request behavior.
+Find the audit records at the node or sidecar location described in [Observability](observability.md), filtered to this namespace and Pod.
 
 ## 5. Change one rule and verify again
 
-Change the allow rule's path prefix from `/allow/` to `/deny/` in `policy.yaml` and apply it. Inspect policy status and proxy reload logs; allow time for Secret projection and dynamic loading. Then repeat the pair using new `case` values: `/allow/` should now be denied and `/deny/` allowed.
+Change the allow rule's path prefix from `/allow/` to `/deny/` in `policy.yaml` and apply it. Inspect policy status and proxy reload logs; wait for the configuration files to update and the proxy to load them. Then repeat the pair using new `case` values: `/allow/` should now be denied and `/deny/` allowed.
 
-The client Pod need not be recreated for this rule change. Do not infer that missing TLS mounts, image changes or existing connections follow the same lifecycle; see [Lifecycle and Upgrades](lifecycle-and-upgrades.md).
+This rule change takes effect without recreating the client Pod. For other changes, see [Lifecycle and Upgrades](lifecycle-and-upgrades.md).
 
 ## 6. Clean up
 

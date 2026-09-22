@@ -11,7 +11,8 @@ Choose an enforcer from the behavior you need to control, then check the node an
 | --- | --- | --- |
 | Restrict file access and program execution | [AppArmor](apparmor.md) or [BPF](bpf.md) | The corresponding Linux LSM must be enabled on the nodes |
 | Restrict system calls | [Seccomp](seccomp.md) | Changes to the profile require new containers |
-| Restrict socket operations and destination IPs/ports at the kernel layer | [BPF](bpf.md) | Kernel and runtime prerequisites apply; this does not inspect HTTP paths |
+| Restrict socket operations at the kernel layer | [AppArmor](apparmor.md) or [BPF](bpf.md) | Check the network rule types supported by each enforcer |
+| Restrict destination IPs/ports at the kernel layer | [BPF](bpf.md) | Supports destination IP/port matching and Kubernetes targets through `toServices` and `toPods` |
 | Restrict HTTP requests or TLS destinations; inspect HTTPS using MITM | [NetworkProxy](networkproxy/index.md) | Injected containers, traffic redirection and, for MITM, application trust are required |
 
 ## Choose a mode and scope
@@ -24,7 +25,7 @@ A `VarmorPolicy` selects workloads in its namespace. A `VarmorClusterPolicy` has
 
 Supported combinations, such as `AppArmorSeccomp` and `AppArmorNetworkProxy`, can address different behaviors within one policy. Each component still has its own prerequisites, update behavior and audit semantics. A combination does not make an unsupported mode available, and permission at one enforcement layer does not override a denial at another.
 
-Consult the [enforcer field reference](../../getting_started/interface_specification.md#policy) before choosing a combination. NetworkProxy acts on redirected traffic in the Pod network namespace; do not infer per-container network isolation from the container selection available to other enforcers.
+Consult the [enforcer field reference](../../getting_started/interface_specification.md#policy) before choosing a combination. NetworkProxy applies network rules at Pod scope; containers in the same Pod share the network namespace.
 
 ## Next steps
 

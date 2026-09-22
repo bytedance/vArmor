@@ -296,15 +296,15 @@ AppArmor、BPF、Seccomp 等 enforcer 主要在内核层面实施强制访问控
 
 #### 使用 NetworkProxy enforcer
 
-vArmor 提供了基于 Envoy Sidecar 代理的 NetworkProxy enforcer，在同一个 enforcer 中同时实现了应用协议层的网络访问控制与凭据注入。vArmor 通过 mutation webhook 向目标 Pod 注入 Envoy sidecar 和 init 容器，由 init 容器借助 iptables 将出站流量重定向到 sidecar，再依据策略执行访问控制。其主要能力包括：
+vArmor 提供了基于 Envoy Sidecar 代理的 NetworkProxy enforcer，在同一个 enforcer 中同时实现了应用协议层的网络访问控制与凭据注入。vArmor 向目标 Pod 自动注入 Envoy sidecar 和 init 容器，由 init 容器借助 iptables 将出站流量重定向到 sidecar，再依据策略执行访问控制。其主要能力包括：
 
 * **L4 出口控制**：基于目标 IP、CIDR 和端口管控出站连接。
 * **L7 HTTP/HTTPS 控制**：基于 host、path、method 管控请求；对 HTTPS 通过 TLS SNI 匹配域名，配置 TLS MITM 后还可解密流量并对 path、method 进行匹配和检查。
-* **逐域名 HTTP 请求头注入**：按目标域名自动注入认证请求头（如引用 Kubernetes Secret 注入 API 密钥），业务容器不必挂载源凭据 Secret，但解析值会写入代理配置；还需限制配置读取权限并防止上游回显凭据。
-* **防域前置攻击**：将解密 HTTP 路由限制在 MITM 虚拟主机集合内，并校验上游 TLS 身份；不强制下游 SNI 与 HTTP Host 一一相等。
+* **逐域名 HTTP 请求头注入**：在 MITM 拦截的 HTTPS 请求中，按目标域名添加或覆盖认证请求头，支持直接配置值或引用 Kubernetes Secret。凭据的存储与更新方式见 [TLS 与凭据](../guides/enforcers/networkproxy/tls-and-credentials.md)。
+* **防域前置攻击**：将解密后的 HTTP 请求限制在相应 MITM 目标范围内，并校验上游 TLS 身份；不强制下游 SNI 与 HTTP Host 一一相等。
 * **黑白名单模式与审计日志**：支持将 `defaultAction` 设为 `deny`（白名单）或 `allow`（黑名单），并可按需记录审计日志。
 
-与需要组合多个工具才能同时覆盖访问控制和凭据隔离的方案不同，NetworkProxy enforcer 将两者收敛到单一策略中。已有规则支持动态更新；注入、TLS 挂载、静态 bootstrap 和存储模板有各自的生命周期要求。进一步地，通过将内核级强制访问控制（AppArmor/BPF/Seccomp）与应用协议级网络访问控制（NetworkProxy）组合使用，vArmor 可为 AI Agent 等工作负载提供从系统调用到网络协议的纵深防御。
+与需要组合多个工具才能同时覆盖访问控制和凭据隔离的方案不同，NetworkProxy enforcer 将两者收敛到单一策略中。已有规则支持动态更新；注入容器、TLS 挂载或代理启动配置变化时，需按[生命周期指南](../guides/enforcers/networkproxy/lifecycle-and-upgrades.md)更新工作负载并重建 Pod。进一步地，通过将内核级强制访问控制（AppArmor/BPF/Seccomp）与应用协议级网络访问控制（NetworkProxy）组合使用，vArmor 可为 AI Agent 等工作负载提供从系统调用到网络协议的纵深防御。
 
 先阅读 [NetworkProxy 快速开始](../guides/enforcers/networkproxy/quick-start.mdx)、[策略语义](../guides/enforcers/networkproxy/policy-semantics.md)及 [TLS/凭据指南](../guides/enforcers/networkproxy/tls-and-credentials.md)，再修改以下片段。
 

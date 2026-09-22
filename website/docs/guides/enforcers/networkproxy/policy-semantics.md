@@ -12,7 +12,7 @@ Configure rules under `spec.policy.enhanceProtect.networkProxyRawRules.egress` i
 - `defaultAction: deny`: an allow rule must match, and no deny rule may match.
 - `deny` takes precedence over `allow`, regardless of YAML order.
 - `audit` selects logging; it does not grant permission under default deny. `allowViolations` does not override these NetworkProxy decisions.
-- Use `allow`, `deny`, `audit`, `allow,audit` or `deny,audit` as appropriate. Do not combine `allow` and `deny` in one rule or rely on invalid qualifiers being rejected in every path.
+- Use `allow`, `deny`, `audit`, `allow,audit` or `deny,audit` as appropriate. Do not combine `allow` and `deny` in one rule.
 
 Within one rule, different specified criteria are combined with **AND**. Values within a criterion list are **OR**. Rules within an allow or deny group are **OR**; unrelated parts of different rules are not combined into a new rule.
 
@@ -26,7 +26,7 @@ For example, default deny plus only an HTTP allow for `GET /public/` limits visi
 | --- | --- | --- |
 | `rules[].ip` / `cidr` / `ports` | Original destination address and port | Original destination address and port |
 | `httpRules[].match.hosts` | HTTP Host / `:authority` | TLS SNI |
-| `httpRules[].match.ports` | Actual destination port, with the generated authority matching rules | Actual destination port |
+| `httpRules[].match.ports` | Actual destination port; see HTTP Host port requirements below | Actual destination port |
 | `paths` | Normalized URL path | Ignored |
 | `methods` | Exact, case-sensitive method token | Ignored |
 
@@ -34,32 +34,32 @@ A passthrough HTTP rule with no `hosts` produces no SNI permission. A rule with 
 
 Host and SNI matching ignore case. Exact hosts and wildcard suffix hosts are supported; `*.example.com` excludes the bare `example.com` and unrelated suffixes such as `example.com.attacker.test`. HTTP/SNI rule wildcard matching and TLS certificate wildcard validity are different checks: an MITM wildcard certificate covers one DNS label, not an arbitrary number. Use explicit names when the intended boundary is narrow.
 
-`methods: [GET]` does not match `get` or `GeT`. v0.10.5 preserves legal custom method tokens instead of uppercasing policy values. Only valid HTTP is within these semantics; this is not a guarantee that malformed traffic is recognized as HTTP.
+`methods: [GET]` does not match `get` or `GeT`. Custom methods are supported and must also use the exact case sent by the client.
 
 Paths are case-sensitive. `prefix: /api` also matches `/apix`; use `/api/` for a subtree and an additional exact `/api` rule if needed. URL path matching excludes the query string. HTTP processing normalizes paths, merges repeated slashes and unescapes escaped slash/backslash separators before authorization and forwarding. Verify the normalized path at your backend if it has its own path interpretation.
 
-Ports are destination ports, not a value a caller may spoof in Host. With explicit non-default ports, the authority matcher also expects the matching port form. Prefer a normal client URL containing the destination port; changing only `Host: ...:443` cannot make a connection to another port satisfy a port-443 rule.
+Ports are destination ports, not a value a caller may spoof in Host. For explicit non-default ports, the HTTP Host must also contain the matching port. Prefer a normal client URL containing the destination port; changing only `Host: ...:443` cannot make a connection to another port satisfy a port-443 rule.
 
-## Chain selection and MITM scope
+## Traffic handling and MITM scope {#chain-selection-and-mitm-scope}
 
 `mitm.domains` selects traffic for decryption; it is **not an allowlist**. HTTP/L4 authorization still determines whether an intercepted request is forwarded.
 
-Envoy filters chain candidates using destination IP before SNI/protocol specificity. v0.10.5 generates plaintext HTTP and DNS TLS candidates inside the MITM IP branch, so configuring an IP for MITM does not make plaintext HTTP to that IP skip HTTP rules. DNS/IP overlap must not be explained as a simple global SNI-first decision.
+The destination IP, TLS SNI and protocol determine whether traffic is intercepted. Configuring an IP for MITM does not change HTTP rule enforcement for plaintext requests to that IP.
 
 | Situation | Expected processing |
 | --- | --- |
 | Plain HTTP to a configured MITM IP | HTTP rules still apply |
-| TLS with a configured DNS SNI, including at a configured MITM IP | DNS MITM candidate handles decrypted HTTP |
-| TLS to a configured MITM IP without SNI | IP MITM candidate handles decrypted HTTP |
+| TLS with a configured DNS SNI, including at a configured MITM IP | Decrypt HTTPS for that DNS name and apply HTTP rules |
+| TLS to a configured MITM IP without SNI | Decrypt HTTPS for that IP and apply HTTP rules |
 | TLS outside applicable MITM scope | TLS passthrough rules; encrypted HTTP remains invisible |
 | Non-HTTP, non-TLS TCP | TCP rules |
 
 ## Domain-fronting boundary
 
-MITM has no catch-all virtual host: an HTTP authority outside the selected chain's configured virtual-host set has no upstream route (normally a 404). Matching HTTP/L4 rules still govern in-scope hosts.
+MITM checks the decrypted request destination: Host in HTTP/1.1 or `:authority` in HTTP/2. Connections intercepted by DNS name can request only configured DNS destinations; connections intercepted by IP can request only configured IP destinations. Requests outside the corresponding scope normally receive a 404 and are not forwarded upstream. Requests within scope must still satisfy HTTP/L4 rules.
 
-This does **not** require downstream SNI and HTTP Host to be identical. If A and B are both covered by the DNS MITM chain, SNI=A with Host=B may proceed under B's rules. Similarly, an IP virtual-host set does not strictly bind each destination IP to the same HTTP Host.
+This does **not** require downstream SNI and HTTP Host to be identical. If A and B are both configured DNS MITM destinations, SNI=A with Host=B may proceed under B's rules. For interception by IP, the destination IP and HTTP Host are not required to be identical either.
 
-For upstream MITM TLS, Envoy derives SNI and certificate identity validation from the routed HTTP authority. The upstream cluster still uses the original destination address; this does not resolve Host to a new IP or establish a DNS-to-IP binding. TLS passthrough cannot perform these decrypted Host checks.
+For upstream MITM TLS, Envoy derives SNI and certificate identity validation from the routed HTTP authority. The upstream connection still uses the original destination address; this does not resolve Host to a new IP or establish a DNS-to-IP binding. TLS passthrough cannot perform these decrypted Host checks.
 
 See [Observability](observability.md) for the separate audit decision and [TLS and Credentials](tls-and-credentials.md) for MITM identity/trust constraints.

@@ -13,7 +13,7 @@ The prerequisites required by different enforcers are as shown in the following 
 |AppArmor    |1. Linux Kernel 4.15+<br />2. The AppArmor LSM is enabled|GKE with Container-Optimized OS<br />AKS with Ubuntu<br />[VKE](https://www.volcengine.com/product/vke) with veLinux<br />Debian 10 and above<br />Ubuntu 18.04.0 LTS and above<br />[veLinux](https://www.volcengine.com/docs/6396/74967) etc.
 |BPF         |1. Linux Kernel 5.10+ (x86_64) or 6.6+ (arm64)<br />2. containerd v1.6.0+<br />3. The BPF LSM is enabled|EKS with Amazon Linux 2<br />GKE with Container-Optimized OS<br />[VKE](https://www.volcengine.com/product/vke) with veLinux (with 5.10 kernel)<br />AKS with Ubuntu 22.04 LTS <sup>\*</sup><br />ACK with Alibaba Cloud Linux 3 <sup>\*</sup><br />OpenSUSE 15.4 <sup>\*</sup><br />Debian 11 <sup>\*</sup><br />Fedora 37 <br />[veLinux (with 5.10 kernel)](https://www.volcengine.com/docs/6396/74967) etc.<br /><br />* *Manual enabling of BPF LSM is required*
 |Seccomp     |1. Kubernetes v1.19+|All Linux distributions
-|NetworkProxy|Linux Pod networking, permitted root/NET_ADMIN injection, compatible proxy images and netfilter|See [security and compatibility](../guides/enforcers/networkproxy/security-and-compatibility.md)|
+|NetworkProxy|Workload namespaces permit injected proxy containers to start as root and init containers to use NET_ADMIN|See [security and compatibility](../guides/enforcers/networkproxy/security-and-compatibility.md)|
 
 ## Installation
 
@@ -191,7 +191,7 @@ Notes:
 * Invalid entries (an unknown resource name, an unparseable quantity, a non-positive value, or a limit set below its request in the same tier) are ignored and logged by the manager at load time; that field falls back to its built-in default.
 
 #### Micro-VM (Kata) Detection for NetworkProxy Auditing
-The NetworkProxy enforcer persists egress violation audit logs through its Envoy sidecar. Under a runc runtime, Envoy streams the records over a node-level hostPath Unix socket to the `varmor-agent` DaemonSet. Under a micro-VM runtime (kata / serverless sandbox) the sidecar runs inside a micro-VM, so that hostPath socket cannot cross the VM boundary (and is rejected at admission by some serverless providers). For such workloads vArmor omits the hostPath volume/mount and starts an in-sidecar audit sink that binds the socket in the container's own rootfs and writes the container-local `/var/log/varmor/violations.log` — producing byte-identical normalized records to the runc path.
+With runc, NetworkProxy audit logs are recorded on the workload’s node. With Kata or another configured micro-VM runtime, logs are recorded inside the proxy sidecar. Both use `/var/log/varmor/violations.log`. Configure runtime detection below so vArmor can choose the appropriate volume mounts. See [Observability](../guides/enforcers/networkproxy/observability.md) for log access.
 
 The `microVMDetection` config tells the injector which workloads run under a micro-VM runtime. A workload matches if its `runtimeClassName` is listed **OR** any annotation rule matches **OR** any label rule matches (for annotation/label rules, an empty value matches on key presence alone; a non-empty value must match exactly). The built-in defaults already cover upstream kata and the major cloud serverless runtimes:
 

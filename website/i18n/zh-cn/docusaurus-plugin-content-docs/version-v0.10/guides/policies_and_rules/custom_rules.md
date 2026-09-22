@@ -88,7 +88,27 @@ policy:
 ```
 
 ## BPF enforcer
-BPF enforcer 支持用户根据语法定制策略。每类规则的数量上限为 50 条。每个节点支持最多对 100 个容器开启沙箱。
+BPF 强制访问控制器支持通过自定义规则限制文件访问、程序执行、网络和挂载等操作。
+
+### 规则数量与节点容量 {#bpf-rule-and-container-limits}
+
+各类规则上限如下，按每份最终生成的 BPF 配置分别计算：
+
+| 规则类型 | 上限 |
+| --- | --- |
+| 文件访问 | 64 条 |
+| 程序执行 | 64 条 |
+| 网络（socket 与出站规则合计） | 64 条 |
+| 挂载：节点支持 `bpf_loop` | 64 条 |
+| 挂载：节点不支持 `bpf_loop` | 50 条 |
+
+Agent 自动检测节点是否支持 `bpf_loop` 并选择对应的挂载规则上限。策略部署到多个节点时，应满足其中上限较低节点的要求。
+
+规则数量按生成后的条目计数，不是 YAML 中的规则项数。内置规则与自定义规则生成的条目共同占用对应类型的额度；一条配置可能生成多条规则。`toServices`、`toPods` 匹配的目标变化也可能增加网络规则条目。capabilities 和 ptrace 配置不适用上述列表条数限制。
+
+**每个节点最多同时为 256 个容器启用 BPF 防护。** 这是节点上所有 BPF 策略共享的容量，不是每个策略或每个命名空间各有 256 个名额；也不是节点可运行的容器总数上限。
+
+### 自定义规则语法 {#custom-bpf-rule-syntax}
 
 请参考 [BpfRawRules](../../getting_started/interface_specification.md#bpfrawrules) 和以下语法，在 `.spec.policy.enhanceProtect.bpfRawRules` 中设置自定义规则。
 
@@ -156,7 +176,7 @@ policy:
     // highlight-end
 ```
 
-## NetworkProxy 执行器 {#networkproxy-enforcer}
+## NetworkProxy 强制访问控制器 {#networkproxy-enforcer}
 
 完整流程见 [NetworkProxy 指南](../enforcers/networkproxy/index.md)，字段见 [NetworkProxyRules](../../getting_started/interface_specification.md#networkproxyrules)。根据模式使用 enhanceProtect.networkProxyRawRules 或 defenseInDepth.networkProxy。
 
