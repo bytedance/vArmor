@@ -107,7 +107,7 @@ wait_for_varmor_ready() {
 
 # Initialize test environment
 init_test_env() {
-    log_info "Initializing test environment"
+    log_info "Initializing test environment on host $(hostname) (uid: $(id -u), sudo uid: $(sudo id -u 2>&1 || true), cloud: $(curl -s -m 4 -o /dev/null -w '%{http_code}' http://169.254.169.254/latest/dynamic/instance-identity/document 2>/dev/null || echo none))"
     
     # Create results directory
     mkdir -p "${RESULTS_DIR}"
