@@ -14,121 +14,85 @@
 
 [English](README.md) | [简体中文](README.zh_CN.md) | 日本語
 
-## 紹介
+vArmor は、クラウドネイティブなコンテナ堅牢化システムです。Linux の [AppArmor LSM](https://en.wikipedia.org/wiki/AppArmor)、[BPF LSM](https://docs.kernel.org/bpf/prog_lsm.html)、[Seccomp](https://en.wikipedia.org/wiki/Seccomp)、および [Envoy](https://www.envoyproxy.io/) ベースのサイドカーによる **NetworkProxy** をエンフォーサーとして使用します。コンテナの分離を強化し、カーネルの攻撃対象領域を縮小するとともに、TLS MITM による HTTPS 通信の復号・検査、HTTP ヘッダーの注入、ドメインフロンティング対策を含む L4/L7 の送信トラフィック制御を実現します。これにより、コンテナからの脱出やラテラルムーブメントの難易度とコストを高めることができます。Kubernetes クラスターでは、次のような場面でコンテナの保護に利用できます。
 
-vArmorは、Linuxの[AppArmor LSM](https://en.wikipedia.org/wiki/AppArmor)、[BPF LSM](https://docs.kernel.org/bpf/prog_lsm.html)、および[Seccomp](https://en.wikipedia.org/wiki/Seccomp)技術を活用して、強制アクセス制御を実装するクラウドネイティブなコンテナサンドボックスシステムです。これにより、コンテナの隔離を強化し、カーネルの攻撃面を減らし、コンテナのエスケープや横移動攻撃の難易度とコストを増加させることができます。vArmorは、以下のシナリオでKubernetesクラスター内のコンテナにサンドボックス保護を提供するために使用できます。
-* マルチテナント環境では、コストや技術的条件などの要因により、ハードウェア仮想化コンテナソリューションを使用できません。
-* 重要なビジネスコンテナのセキュリティを強化し、攻撃者が特権をエスカレートしたり、エスケープしたり、横移動するのを困難にする必要がある場合。
-* 高リスクの脆弱性が存在するが、パッチ適用が難しいまたは時間がかかるため、即座に修正できない場合に、vArmorを使用してリスクを軽減し、攻撃の難易度を増加させることができます（脆弱性の種類や攻撃ベクトルに依存します）。
+* マルチテナント環境で、コストや技術的な制約からハードウェア仮想化コンテナを利用できない場合。
+* 重要な業務コンテナを堅牢化し、権限昇格、コンテナからの脱出、ラテラルムーブメントを困難にしたい場合。
+* 高リスクの脆弱性を直ちに修正できず、脆弱性の種類や攻撃経路に応じて、その悪用を阻止したり難しくしたりしたい場合。
+* AI Agent や LLM ベースのアプリケーションの送信トラフィックを細かく制御し、データの持ち出し、許可されていない API 呼び出し、プロンプトインジェクションに誘導されたツールの悪用を抑えたい場合。
 
-**vArmorの特徴:**
-* クラウドネイティブ。vArmorはKubernetes Operator設計パターンに従い、ユーザーが[CRD API](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/)を操作して特定のワークロードを強化できるようにします。このアプローチにより、ビジネスニーズに密接に関連した視点から、コンテナ化されたマイクロサービスのサンドボックス化が可能になります。
-* AppArmor、BPF、Seccompエンフォーサーを個別または組み合わせて使用し、コンテナのファイルアクセス、プロセス実行、ネットワーク外部接続、システムコールなどに強制アクセス制御を実施します。
-* Allow by Defaultセキュリティモデルをサポートし、明示的に宣言された動作のみがブロックされるため、パフォーマンスへの影響を最小限に抑え、使いやすさを向上させます。
-* 行動モデリングをサポートし、行動モデルに基づいて保護を提供します。これにより、明示的に宣言された動作のみが許可されます。
-* すぐに使用可能。vArmorには、直接使用できる複数の組み込みルールが含まれています。
+**注意:**
 
-vArmorは、ByteDanceのエンドポイントセキュリティ部門の**Elkeid Team**によって作成されました。プロジェクトは現在も積極的に開発中です。
+* セキュリティ対策では、リスクと効果のバランスが重要です。適切なセキュリティ境界と防御技術を選ぶことで、制御できないリスクを管理可能なコストに変えられます。
+* runc と vArmor の組み合わせは、Kata Containers などのハードウェア仮想化コンテナと同等の分離を提供するものではありません。より強い分離が必要な場合は、計算処理の分離にハードウェア仮想化コンテナを、ネットワークの分離に CNI の NetworkPolicy を検討してください。
+* NetworkProxy は NetworkPolicy を補完し、HTTP/HTTPS の L7 アクセス制御（HTTPS には TLS MITM を使用）、TLS SNI に基づくドメインフィルタリング、ドメインごとの HTTP ヘッダー注入、ドメインフロンティング対策、監査ログを提供します。これらは Kubernetes の NetworkPolicy 自体にはない機能です。
 
-*注意: 厳格な隔離要件を満たすためには、計算隔離のためにハードウェア仮想化コンテナ（例：Kata Containers）を優先的に使用し、CNIのNetworkPolicyによるネットワーク隔離と組み合わせることをお勧めします。*
+**vArmor の主な機能:**
+
+* **クラウドネイティブ**。Kubernetes Operator の設計パターンに従い、[CRD API](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/) を通じて対象ワークロードを堅牢化します。業務上の要件に沿って、コンテナ化されたマイクロサービスを保護できます。
+* **複数のエンフォーサー**。AppArmor、BPF、Seccomp、NetworkProxy を個別に、または組み合わせて使用できます。ファイルアクセス、プロセス実行、外部へのネットワーク通信（L3～L7）、システムコールなどを制御します。
+* **NetworkProxy エンフォーサー**。Envoy サイドカーを使用してコンテナの送信トラフィックを透過的に捕捉し、L4（TCP）、L7（HTTP/HTTPS）、TLS SNI の各レベルで制御します。TLS MITM、ドメインごとの HTTP ヘッダー注入（API キーなど）、ドメインフロンティング対策、許可リストと拒否リスト、監査ログに対応します。ポリシーは Pod を再起動せずに更新できます。
+* **AI Agent の保護**。カーネルレベルの強制アクセス制御（AppArmor/BPF/Seccomp）と、アプリケーションプロトコルレベルのネットワーク制御（NetworkProxy）を組み合わせます。プロンプトインジェクションによるツールの悪用、鍵情報の漏えい、許可されていないデータの持ち出しといったリスクを低減します。
+* **デフォルト許可（Allow-by-Default）**。明示的に指定した動作だけを遮断するモデルを中心にサポートします。性能への影響を抑えながら導入でき、違反を監査しつつ許可することもできます。
+* **組み込みルール**。デフォルト許可モデルで利用できるルールを用意しており、専門知識がなくても使い始められます。
+* **動作モデリング（BehaviorModeling）**。ワークロードの動作を記録し、許可リスト型のポリシー作成、適用可能な組み込みルールの検討、最小権限に向けた設定の見直しに役立てられます。
+* **デフォルト拒否（Deny-by-Default）**。許可リスト型のプロファイルを使ってワークロードを堅牢化し、ポリシーの作成と管理を支援します。
+
+vArmor は ByteDance のエンドポイントセキュリティ部門に所属する **Elkeid Team** によって開発されており、現在も開発が続いています。
 
 ## アーキテクチャ
+
 <div style="text-align: center;">
   <img src="docs/img/architecture.svg" width="600">
 </div>
 
-## 前提条件
-ポリシーオブジェクト（[VarmorPolicy](docs/usage_instructions.md#varmorpolicy)/[VarmorClusterPolicy](docs/usage_instructions.md#varmorclusterpolicy)）の`spec.policy.enforcer`フィールドを使用してエンフォーサーを指定できます。さらに、異なるエンフォーサーを個別または組み合わせて使用することもできます。例：AppArmorBPF、AppArmorSeccomp、AppArmorBPFSeccompなど。
+## ドキュメント
 
-異なるエンフォーサーに必要な前提条件は以下の表に示されています。
+vArmor のドキュメントは [varmor.org](https://varmor.org) で公開しています。
 
-|エンフォーサー|要件|推奨|
-|------------|--------------------------------------------|--------|
-|AppArmor    |1. Linux Kernel 4.15以上<br />2. AppArmor LSMが有効化されていること|GKE with Container-Optimized OS<br />AKS with Ubuntu 22.04 LTS<br />[VKE](https://www.volcengine.com/product/vke) with veLinux 1.0<br />Debian 10以上<br />Ubuntu 18.04.0 LTS以上<br />[veLinux 1.0](https://www.volcengine.com/docs/6396/74967)など|
-|BPF         |1. Linux Kernel 5.10以上 (x86_64)<br />2. containerd v1.6.0以上<br />3. BPF LSMが有効化されていること|EKS with Amazon Linux 2<br />GKE with Container-Optimized OS<br />[VKE](https://www.volcengine.com/product/vke) with veLinux 1.0 (with 5.10 kernel)<br />AKS with Ubuntu 22.04 LTS <sup>\*</sup><br />ACK with Alibaba Cloud Linux 3 <sup>\*</sup><br />OpenSUSE 15.4 <sup>\*</sup><br />Debian 11 <sup>\*</sup><br />Fedora 37 <br />[veLinux 1.0 with 5.10 kernel](https://www.volcengine.com/docs/6396/74967)など<br /><br />* *BPF LSMの手動有効化が必要です*|
-|Seccomp     |1. Kubernetes v1.19以上|すべてのLinuxディストリビューション|
+AI Agent は[ドキュメント索引（llms.txt）](https://www.varmor.org/llms.txt)から言語とバージョンを選び、必要なページを参照できます。
 
-## ポリシーモードと組み込みルール
+⏩ **[クイックスタート](https://www.varmor.org/docs/main/introduction)**
 
-vArmorポリシーは、**AlwaysAllow、RuntimeDefault、EnhanceProtect、BehaviorModeling、DefenseInDepth**の5つのモードで動作します。ポリシーが**EnhanceProtect**モードで動作している場合、組み込みルールとカスタムインターフェースを使用してコンテナを強化できます。
+⚙️ **[インストール](https://www.varmor.org/docs/main/getting_started/installation)**
 
-詳細については、[ポリシーモードと組み込みルール](docs/built_in_rules.md)を参照してください。
+📔 **[利用ガイド](https://www.varmor.org/docs/main/getting_started/usage_instructions)**
 
-## クイックスタート
+📜 **[ポリシーとルール](https://www.varmor.org/docs/main/guides/policies_and_rules)**
 
-詳細な設定オプションと使用手順については、[使用手順](docs/usage_instructions.md)を参照してください。関連機能の使用方法とポリシーの作成方法を理解するために、[例](test/examples)を参照できます。また、[policy-advisor](tools/policy-advisor/README.md)を使用してポリシーテンプレートを生成し、それに基づいて最終的なポリシーを作成することもできます。
+⏱️ **[パフォーマンス仕様](https://www.varmor.org/docs/main/guides/performance)**
 
-### ステップ1. チャートの取得
-```
-helm pull oci://elkeid-ap-southeast-1.cr.volces.com/varmor/varmor --version 0.10.5
-```
+## コントリビューション
 
-### ステップ2. インストール
-*中国地域内では、ドメイン`elkeid-cn-beijing.cr.volces.com`を使用できます。*
-```
-helm install varmor varmor-0.10.5.tgz \
-    --namespace varmor --create-namespace \
-    --set image.registry="elkeid-ap-southeast-1.cr.volces.com"
-```
+vArmor への貢献をご検討いただき、ありがとうございます。参加するには、次のガイドをご覧ください。
 
-### ステップ3. この例を試してみてください
-```
-# デモ用の名前空間を作成
-kubectl create namespace demo
+🤝🏻 [行動規範](./CODE_OF_CONDUCT.md)を読み、遵守してください。
 
-# VarmorPolicyオブジェクトを作成し、.spec.target.selectorに一致するDeploymentにAlwaysAllowモードのサンドボックスを有効にする
-kubectl create -f test/examples/1-apparmor/vpol-apparmor-alwaysallow.yaml
+🛠️ [開発ガイド](https://www.varmor.org/docs/main/guides/development)をご覧ください。
 
-# VarmorPolicy & ArmorProfileオブジェクトのステータスを表示
-kubectl get VarmorPolicy -n demo
-kubectl get ArmorProfile -n demo
-
-# 対象のDeploymentオブジェクトを作成
-kubectl create -f test/examples/1-apparmor/deploy.yaml
-
-# 対象のDeploymentオブジェクトのPod名を取得
-POD_NAME=$(kubectl get Pods -n demo -l app=demo-1 -o name)
-
-# コンテナc1でコマンドを実行してシークレットトークンを読み取る
-kubectl exec -n demo $POD_NAME -c c1 -- cat /run/secrets/kubernetes.io/serviceaccount/token
-
-# VarmorPolicyオブジェクトを更新して、コンテナc1がシークレットトークンを読み取るのを禁止する
-kubectl apply -f test/examples/1-apparmor/vpol-apparmor-enhance.yaml
-
-# コンテナc1でコマンドを実行してシークレットトークンを読み取ることが禁止されていることを確認
-kubectl exec -n demo $POD_NAME -c c1 -- cat /run/secrets/kubernetes.io/serviceaccount/token
-
-# VarmorPolicyおよびDeploymentオブジェクトを削除
-kubectl delete -f test/examples/1-apparmor/vpol-apparmor-alwaysallow.yaml
-kubectl delete -f test/examples/1-apparmor/deploy.yaml
-```
-
-### ステップ4. アンインストール
-```
-helm uninstall varmor -n varmor
-```
-
-## パフォーマンス仕様
-この[ドキュメント](docs/performance_specification.md)を参照してください。
+💬 vArmor の [Lark グループ](https://applink.larkoffice.com/client/chat/chatter/add_by_link?link_token=ae5pfb2d-f8a4-4f0b-b12e-15f24fdaeb24&qr_code=true)に参加してください。
 
 ## ライセンス
 
-vArmorプロジェクトはApache 2.0ライセンスの下でライセンスされていますが、サードパーティコンポーネントは異なるライセンス条件に従います。コードファイルのコードヘッダー情報を参照してください。
+vArmor プロジェクトには Apache License, Version 2.0 が適用されます。ただし、サードパーティーのコンポーネントには別のライセンスが適用される場合があります。詳細は各ソースファイルのライセンス表記をご確認ください。
 
-vArmorを独自のプロジェクトに統合する場合、Apache 2.0ライセンスおよびvArmorに含まれるサードパーティコンポーネントに適用される他のライセンスに準拠する必要があります。
+vArmor を独自のプロジェクトに組み込む場合は、Apache 2.0 と、含まれるサードパーティーのコンポーネントに適用される各ライセンスを遵守してください。
 
-eBPFコードは[vArmor-ebpf](https://github.com/bytedance/vArmor-ebpf)にあり、GPL-2.0ライセンスの下でライセンスされています。
+eBPF コードは [vArmor-ebpf](https://github.com/bytedance/vArmor-ebpf) リポジトリにあり、GPL-2.0 ライセンスが適用されます。
 
-## クレジット
-vArmorは、eBPFプログラムを管理および操作するために[cilium/ebpf](https://github.com/cilium/ebpf)を使用します。
+## 謝辞
 
-vArmorは、[Nirmata](https://nirmata.com/)によって開発された[kyverno](https://github.com/kyverno/kyverno)の一部のコードを参照しています。
+vArmor は eBPF プログラムの管理と操作に [cilium/ebpf](https://github.com/cilium/ebpf) を使用しています。
+
+vArmor は [Nirmata](https://nirmata.com/) が開発した [kyverno](https://github.com/kyverno/kyverno) の一部実装を参考にしています。
 
 ## デモ
-以下は、vArmorを使用してDeploymentを強化し、CVE-2021-22555に対抗するデモンストレーションです。（エクスプロイトは[cve-2021-22555](https://github.com/google/security-research/tree/master/pocs/linux/cve-2021-22555)から変更されています）<br />
+
+次のデモは、vArmor で Deployment を堅牢化し、CVE-2021-22555 を悪用した攻撃を防ぐ例です。使用したエクスプロイトは [cve-2021-22555](https://github.com/google/security-research/tree/master/pocs/linux/cve-2021-22555) を変更したものです。<br />
 ![image](test/demos/CVE-2021-22555/demo.gif)
 
 ## 404Starlink
+
 <img src="https://github.com/knownsec/404StarLink-Project/raw/master/logo.png" width="30%">
 
-vArmorは[404Starlink](https://github.com/knownsec/404StarLink)に参加しています。
+vArmor は [404Starlink](https://github.com/knownsec/404StarLink) に参加しています。

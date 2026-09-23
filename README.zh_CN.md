@@ -49,15 +49,17 @@ vArmor 由字节跳动终端安全团队的 **Elkeid Team** 研发，目前该�
 ## 文档
 您可以访问 [varmor.org](https://varmor.org) 查看 vArmor 的文档。
 
-👉 **[快速上手](https://www.varmor.org/docs/introduction#quick-start)**
+AI Agent 可通过[文档索引（llms.txt）](https://www.varmor.org/zh-cn/llms.txt)选择文档版本，再按需读取具体页面。
 
-👉 **[安装指引](https://www.varmor.org/docs/getting_started/installation)**
+👉 **[快速上手](https://www.varmor.org/zh-cn/docs/main/introduction)**
 
-👉 **[使用手册](https://www.varmor.org/docs/getting_started/usage_instructions)**
+👉 **[安装指引](https://www.varmor.org/zh-cn/docs/main/getting_started/installation)**
 
-👉 **[策略与规则](https://www.varmor.org/docs/guides/policies_and_rules)**
+👉 **[使用手册](https://www.varmor.org/zh-cn/docs/main/getting_started/usage_instructions)**
 
-👉 **[性能说明](https://www.varmor.org/docs/guides/performance)**
+👉 **[策略与规则](https://www.varmor.org/zh-cn/docs/main/guides/policies_and_rules)**
+
+👉 **[性能说明](https://www.varmor.org/zh-cn/docs/main/guides/performance)**
 
 
 ## 贡献
@@ -65,7 +67,7 @@ vArmor 由字节跳动终端安全团队的 **Elkeid Team** 研发，目前该�
 
 ✔ 阅读并遵循社区[行为准则](./CODE_OF_CONDUCT.md).
 
-✔ 阅读[开发指引](docs/development_guide.md).
+✔ 阅读[开发指引](https://www.varmor.org/zh-cn/docs/main/guides/development).
 
 ✔ 加入 vArmor [飞书群](https://applink.larkoffice.com/client/chat/chatter/add_by_link?link_token=ae5pfb2d-f8a4-4f0b-b12e-15f24fdaeb24&qr_code=true).
 

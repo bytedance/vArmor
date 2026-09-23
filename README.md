@@ -46,6 +46,8 @@ vArmor was created by the **Elkeid Team** of the endpoint security department at
 ## Documentation
 vArmor reference documents are available at [varmor.org](https://varmor.org).
 
+AI agents can use the [documentation index (llms.txt)](https://www.varmor.org/llms.txt) to select a language and version before reading individual pages.
+
 ⏩ **[Quick Start](https://www.varmor.org/docs/main/introduction)**
 
 ⚙️ **[Installation](https://www.varmor.org/docs/main/getting_started/installation)**
