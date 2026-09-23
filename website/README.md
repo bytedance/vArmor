@@ -66,3 +66,32 @@ NUL issue described in https://github.com/react/react/issues/31134 without
 changing client React or package versions. Its interception is intentionally
 limited to the current Docusaurus renderer module: when upgrading Docusaurus or
 React, revisit/remove this compatibility layer and run the HTML checker again.
+
+## AI documentation exports
+
+`docusaurus-plugin-llms` is pinned in `package.json` and adapted by
+`plugins/llms/index.cjs`. A production build generates `/llms.txt` and
+`/zh-cn/llms.txt`, with separate indexes under `docs/main/` and
+`docs/v0.10/` in each language. Each index links to individual `.md`
+pages. Older versions and blog posts are not included in these indexes.
+
+Edit the existing Markdown/MDX documentation and canonical YAML examples.
+Do not maintain a second AI documentation tree. The adapter uses Docusaurus
+page metadata for translated sources and actual routes, expands raw YAML
+imports, replaces documentation cards and themed images, and rewrites links.
+Temporary inputs stay in `.docusaurus/`; exported pages and image copies stay
+in `build/`. No external AI service or API key is used.
+
+Validate after building both languages:
+
+```bash
+node --test plugins/llms/index.test.cjs
+node scripts/check-llms.cjs
+python3 scripts/check-documentation.py
+```
+
+The checks cover page counts, index version/language boundaries, local links,
+unresolved MDX, and exact tutorial YAML preservation. Preview the generated
+files with `yarn serve`; they are build outputs and are not available from
+`yarn start` alone. Full-document bundles are intentionally disabled so
+agents can fetch the pages they need without mixing versions or languages.
