@@ -210,7 +210,8 @@ func ValidateUpdatePolicy(policy interface{}, oldEnforcer string, oldTarget varm
 	}
 
 	// Disallow removing the activated AppArmor or Seccomp enforcer.
-	if (newEnforcers&oldEnforcers != oldEnforcers) && (newEnforcers|varmortypes.BPF != oldEnforcers) {
+	removedEnforcers := oldEnforcers &^ newEnforcers
+	if removedEnforcers&(varmortypes.AppArmor|varmortypes.Seccomp) != 0 {
 		return false, "Modifying a policy to remove the AppArmor or Seccomp enforcer is not allowed. To remove them, you need to recreate the policy object."
 	}
 
