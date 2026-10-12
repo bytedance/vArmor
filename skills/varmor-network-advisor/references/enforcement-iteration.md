@@ -42,6 +42,56 @@ anything. Review, server dry-run, backup, deployment authorization, propagation
 and effective loading still apply. Only change network rules; retain target,
 system protection, MITM scope and updateExistingWorkloads=false.
 
+## Withdraw or restore previously granted permissions
+
+Users can retire a dependency without waiting for another DENIED. Resolve the
+exact current permission IDs from analysis.json.permissions, explain their scope,
+and use the same original observation session:
+
+```json
+{"revokeRuleIds": ["FULL_64_HEX_PERMISSION_ID"],
+ "reason": "The refresh feature has been retired",
+ "approvalEvidence": "/ABS/user-message-withdrawing-refresh.txt"}
+```
+
+```sh
+python3 /ABS/SKILL/scripts/advisor.py refine --session /ABS/OBS \
+  --decisions /ABS/withdraw-decisions.json
+```
+
+This removes an observed, user-declared or DENIED-derived grant from candidate.yaml, records its
+scope/reason/approval and prior candidate hash in refinement.json.permissionDecisions,
+and persists revokedRuleIds. Original audits and DENIED approval provenance stay
+unchanged. Reanalysis cannot re-add the same withdrawn permission; its silence
+approval is cleared. A recurring DENIED is annotated as withdrawn/rejected, not
+automatically allowed. excludedHosts/excludedTcp remain modeling exclusions and
+are not a substitute for withdrawal.
+
+Removal does not create an explicit deny. Other prefix, domain, SNI or TCP rules
+may still authorize the request, and established connections may survive. The
+report lists withdrawn scopes and possibly overlapping active IDs, including
+conservative HTTP/TCP overlaps where DNS-to-IP correspondence is unknown.
+Inspect the full candidate and effective configuration, then ask the user to
+test fresh connections. Do not equate rule removal with demonstrated blocking.
+If a broader grant must change, explain its effect on other business before
+withdrawing or narrowing it under authorization.
+
+Withdrawing all available grants intentionally produces a default-deny candidate
+with no allows, marked explicit-deny-all. Explain that all redirected egress will
+be denied if applied; creation is not deployment authorization. Empty observation
+or denied-only input without explicit withdrawals still produces no candidate.
+
+To reinstate a withdrawn scope, use restoreRuleIds with a new reason and user
+approvalEvidence. The exact scope must still exist in successful observation or
+saved approved DENIED evidence. This does not require a fresh denial receipt.
+If newly collected DENIED is approved again, also explicitly restore its ID.
+Restoration starts with [allow,audit]; old silence approval does not return.
+Repeat positive verification before a later silence decision. Do not combine
+restoration and silence in one operation or invent a new scope from a stale ID.
+Withdrawal/restoration clears the cached verification association. A receipt
+ending before the latest permission/audit decision remains stale even if the
+restored candidate has the same hash as an earlier version.
+
 ## Start bounded evidence before the user's probes
 
 After the authorized candidate is loaded, prepare a separate enforcement
@@ -63,6 +113,11 @@ required. It tails existing files at readiness, keeps only the selected UIDs,
 pins policy UID/generation/spec, and stops on any policy change. Start a new
 separate phase after a reviewed candidate change, retaining the original budget.
 Its analysis exports pending denials and evidence, never generates permissions.
+
+`analyze --language zh-CN|en --session /ABS/ENFORCE` updates the enforcement
+session's saved language and regenerates its report without new reads or policy
+changes. Later analysis retains it, and verify using this collection inherits
+its language unless an explicit --language overrides it.
 
 Ask the user to exercise business, permitted traffic, wrong methods/neighboring
 paths and rejected dependencies on fresh connections. Pin all exec commands to

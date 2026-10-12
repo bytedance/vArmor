@@ -246,6 +246,168 @@ class IterationTests(unittest.TestCase):
         self.assertNotIn('paths', items[0]['rule']['match'])
         self.assertEqual(items[1]['rule']['ip'], '10.0.0.8')
 
+    def test_withdraw_silent_denied_grant_without_new_denial_and_keep_history(self):
+        rec = self.denied(); receipt = self.receipt(rec)
+        item = self.r.denied_items([rec], self.s, vars(a))[0]
+        choice = {'id': item['id'], 'decision': 'approve', 'reason': 'Required refresh',
+                  'approvalEvidence': 'User approved exact refresh'}
+        self.refine({'decisions': [choice]}, receipt)
+        self.refine({'silentRuleIds': [item['id']], 'approvalEvidence': 'User approved silence'})
+        grant = copy.deepcopy(a.load(self.root/'refinement.json')['decisions'][item['id']])
+        before = a.load(self.root/'candidate.yaml')
+        self.assertEqual(self.refine({'revokeRuleIds': [item['id']], 'reason': 'Feature retired',
+                                     'approvalEvidence': 'User withdrew refresh only'}), 0)
+        after = a.load(self.root/'candidate.yaml')
+        report = a.load(self.root/'analysis.json')
+        self.assertFalse(a.replay_match(rec, report['generatedEgress'], self.s))
+        self.assertTrue(a.replay_match(event(), report['generatedEgress'], self.s))
+        self.assertNotEqual(self.r.fingerprint(before), self.r.fingerprint(after))
+        before['spec']['policy']['enhanceProtect'].pop('networkProxyRawRules')
+        after['spec']['policy']['enhanceProtect'].pop('networkProxyRawRules')
+        self.assertEqual(before, after)
+        saved = a.load(self.root/'refinement.json')
+        self.assertEqual(saved['decisions'][item['id']], grant)
+        self.assertNotIn(item['id'], saved['silentRuleIds'])
+        self.assertEqual(saved['permissionDecisions'][0]['reason'], 'Feature retired')
+        self.assertEqual(report['refinement']['decisions'][item['id']]['authorizationState'], 'revoked')
+        self.assertEqual(report['refinement']['decisions'][item['id']]['currentCandidateVerification'], 'not-assessed')
+        candidate = (self.root/'candidate.yaml').read_bytes()
+        for _ in range(3): self.analyze()
+        self.assertEqual((self.root/'candidate.yaml').read_bytes(), candidate)
+        self.assertEqual((self.root/'events.sqlite').read_bytes(), self.observed_db)
+        self.assertEqual(a.load(self.root/'analysis.json')['events'], 1)
+
+    def test_withdraw_all_observed_permissions_is_explicit_deny_all_and_restore_is_audited(self):
+        key = a.load(self.root/'analysis.json')['permissions'][0]['id']
+        self.refine({'silentRuleIds': [key], 'approvalEvidence': 'Accepted quiet GET'})
+        self.assertEqual(self.refine({'revokeRuleIds': [key], 'reason': 'Disable outbound access',
+                                     'approvalEvidence': 'User withdrew the last permission'}), 0)
+        report = a.load(self.root/'analysis.json')
+        self.assertEqual(report['generatedEgress'], {'defaultAction': 'deny'})
+        self.assertTrue(report['explicitDenyAll'])
+        self.assertEqual(report['decision'], 'explicit-deny-all')
+        self.assertTrue((self.root/'candidate.yaml').exists())
+        self.assertIn('no allow rules', (self.root/'report.md').read_text())
+        self.analyze()
+        self.assertEqual(self.refine({'restoreRuleIds': [key], 'reason': 'Feature enabled again',
+                                     'approvalEvidence': 'User restored the exact GET'}), 0)
+        restored = a.load(self.root/'analysis.json')
+        self.assertFalse(restored['explicitDenyAll'])
+        self.assertEqual(restored['permissions'][0]['rule']['qualifiers'], ['allow', 'audit'])
+        saved = a.load(self.root/'refinement.json')
+        self.assertEqual(saved['revokedRuleIds'], [])
+        self.assertEqual([x['action'] for x in saved['permissionDecisions']], ['revoke', 'restore'])
+        self.assertEqual((self.root/'events.sqlite').read_bytes(), self.observed_db)
+
+    def test_withdrawal_validation_does_not_modify_candidate_or_saved_decisions(self):
+        key = a.load(self.root/'analysis.json')['permissions'][0]['id']
+        before = (self.root/'candidate.yaml').read_bytes()
+        cases = [
+            {'revokeRuleIds': [key]},
+            {'revokeRuleIds': ['f'*64], 'reason': 'Unknown', 'approvalEvidence': 'User'},
+            {'revokeRuleIds': [key, key], 'reason': 'Duplicate', 'approvalEvidence': 'User'},
+            {'revokeRuleIds': [key], 'restoreRuleIds': [key], 'reason': 'Conflict', 'approvalEvidence': 'User'},
+            {'revokeRuleIds': [key], 'silentRuleIds': [key], 'reason': 'Conflict', 'approvalEvidence': 'User'},
+            {'restoreRuleIds': [key], 'reason': 'Not withdrawn', 'approvalEvidence': 'User'},
+        ]
+        for choice in cases:
+            with self.subTest(choice=choice), self.assertRaises(ValueError): self.refine(choice)
+            self.assertEqual((self.root/'candidate.yaml').read_bytes(), before)
+            self.assertFalse((self.root/'refinement.json').exists())
+
+    def test_restoration_cannot_reuse_pre_withdrawal_verification_with_the_same_hash(self):
+        key = a.load(self.root/'analysis.json')['permissions'][0]['id']
+        old = self.receipt(self.denied())
+        with contextlib.redirect_stdout(io.StringIO()):
+            a.analyze(a.parser().parse_args(['analyze', '--session', str(self.root), '--verification', str(old)]))
+        self.assertTrue(a.load(self.root/'analysis.json')['verification']['currentCandidate'])
+        self.refine({'revokeRuleIds': [key], 'reason': 'Retire', 'approvalEvidence': 'User'})
+        self.refine({'restoreRuleIds': [key], 'reason': 'Restore', 'approvalEvidence': 'User'})
+        self.assertNotIn('verificationFile', a.load(self.root/'session.json'))
+        self.assertEqual(self.r.fingerprint(a.load(self.root/'candidate.yaml')), a.load(old)['candidateHash'])
+        with contextlib.redirect_stdout(io.StringIO()):
+            a.analyze(a.parser().parse_args(['analyze', '--session', str(self.root), '--verification', str(old)]))
+        current = a.load(self.root/'analysis.json')['verification']
+        self.assertFalse(current['currentCandidate'])
+        self.assertTrue(current['permissionChangesAfterWindow'])
+
+    def test_recurring_denial_cannot_undo_withdrawal_without_explicit_restoration(self):
+        rec = self.denied(); item = self.r.denied_items([rec], self.s, vars(a))[0]
+        choice = {'id': item['id'], 'decision': 'approve', 'reason': 'Business', 'approvalEvidence': 'User'}
+        self.refine({'decisions': [choice]}, self.receipt(rec))
+        self.refine({'revokeRuleIds': [item['id']], 'reason': 'Retired', 'approvalEvidence': 'User withdrew it'})
+        state = {**self.s, 'observationSession': str(self.root)}
+        annotated = self.r.denied_items([rec], state, vars(a))[0]
+        self.assertEqual(annotated['decision'], 'reject')
+        self.assertEqual(annotated['authorizationState'], 'revoked')
+        with self.assertRaisesRegex(ValueError, 'restoreRuleIds'):
+            self.refine({'decisions': [choice]}, self.receipt(rec))
+        self.refine({'decisions': [choice], 'restoreRuleIds': [item['id']],
+                     'reason': 'User wants the feature back', 'approvalEvidence': 'Explicit restoration'}, self.receipt(rec))
+        self.assertTrue(a.replay_match(rec, a.load(self.root/'analysis.json')['generatedEgress'], self.s))
+        self.assertEqual((self.root/'events.sqlite').read_bytes(), self.observed_db)
+
+    def test_business_exclusion_does_not_reintroduce_a_withdrawn_denied_rule(self):
+        rec = self.denied(); item = self.r.denied_items([rec], self.s, vars(a))[0]
+        self.refine({'decisions': [{'id': item['id'], 'decision': 'approve', 'reason': 'Business',
+                                   'approvalEvidence': 'User'}]}, self.receipt(rec))
+        self.refine({'revokeRuleIds': [item['id']], 'reason': 'Retired', 'approvalEvidence': 'User'})
+        path = self.root.parent/'review.json'; a.write(path, {'excludedHosts': ['api.example.com']})
+        with contextlib.redirect_stdout(io.StringIO()):
+            a.analyze(a.parser().parse_args(['analyze', '--session', str(self.root), '--review', str(path)]))
+        self.analyze()
+        self.assertFalse(a.replay_match(rec, a.load(self.root/'analysis.json')['generatedEgress'], self.s))
+
+    def test_new_broad_permission_reports_overlap_without_cancelling_withdrawal(self):
+        key = a.load(self.root/'analysis.json')['permissions'][0]['id']
+        self.refine({'revokeRuleIds': [key], 'reason': 'Retire exact user endpoint', 'approvalEvidence': 'User'})
+        with contextlib.closing(a.database(self.root)) as con, con:
+            a.ingest(con, self.s, [('source', json.dumps(event(path='/v1/users/2')))])
+        path = self.root.parent/'review.json'
+        a.write(path, {'requests': [{'host': 'api.example.com', 'port': 443, 'method': 'GET',
+                                    'pathPrefix': '/v1/users/', 'path': 'prefix', 'depth': 2}]})
+        with contextlib.redirect_stdout(io.StringIO()):
+            a.analyze(a.parser().parse_args(['analyze', '--session', str(self.root), '--review', str(path)]))
+        report = a.load(self.root/'analysis.json')
+        self.assertNotIn(key, [p['id'] for p in report['permissions']])
+        self.assertTrue(a.replay_match(event(), report['generatedEgress'], self.s))
+        self.assertEqual(report['revokedPermissions'][0]['possibleOverlapRuleIds'], [report['permissions'][0]['id']])
+        self.assertIn('Other broad rules', (self.root/'report.md').read_text())
+
+    def test_withdraw_tcp_and_sni_grants_preserves_unrelated_http(self):
+        keys = []
+        for rec in [event('L4', sni='download.example.com', reason='rbac_access_denied_matched_policy[none]'),
+                    event('L4', reason='rbac_access_denied_matched_policy[none]')]:
+            rec['action'] = 'DENIED'
+            item = self.r.denied_items([rec], self.s, vars(a))[0]; keys.append(item['id'])
+            self.refine({'decisions': [{'id': item['id'], 'decision': 'approve', 'reason': 'Required',
+                                       'approvalEvidence': 'User approved coarse scope'}]}, self.receipt(rec))
+        self.refine({'revokeRuleIds': keys, 'reason': 'Retire coarse access', 'approvalEvidence': 'User withdrew both'})
+        self.analyze()
+        report = a.load(self.root/'analysis.json')
+        self.assertEqual(len(report['permissions']), 1)
+        self.assertTrue(a.replay_match(event(), report['generatedEgress'], self.s))
+        self.assertEqual(set(a.load(self.root/'refinement.json')['revokedRuleIds']), set(keys))
+        self.assertEqual((self.root/'events.sqlite').read_bytes(), self.observed_db)
+
+    def test_withdraw_declared_tcp_keeps_provenance_but_reports_current_authorization(self):
+        path = self.root.parent/'review.json'
+        a.write(path, {'declaredTcp': [{'destination': '10.0.0.9:5432', 'reason': 'Required database', 'approved': True}]})
+        with contextlib.redirect_stdout(io.StringIO()):
+            a.analyze(a.parser().parse_args(['analyze', '--session', str(self.root), '--review', str(path)]))
+        report = a.load(self.root/'analysis.json')
+        key = next(p['id'] for p in report['permissions'] if p['layer'] == 'TCP')
+        self.refine({'revokeRuleIds': [key], 'reason': 'Database retired', 'approvalEvidence': 'User withdrew database access'})
+        self.analyze()
+        report = a.load(self.root/'analysis.json')
+        self.assertNotIn('rules', report['generatedEgress'])
+        requirement = report['tcpRequirements'][0]
+        self.assertEqual(requirement['origin'], 'user-declared')
+        self.assertFalse(requirement['observed'])
+        self.assertEqual(requirement['authorizationState'], 'revoked')
+        self.assertEqual(requirement['verification'], 'not-assessed')
+        self.assertIn('withdrawn', (self.root/'report.md').read_text())
+        self.assertEqual((self.root/'events.sqlite').read_bytes(), self.observed_db)
     def test_silent_verification_requires_effective_configuration_and_complete_read(self):
         policy = a.load(self.root/'candidate.yaml')
         a.network_rules(policy['spec']['policy'])['egress']['httpRules'][0]['qualifiers'] = ['allow']
@@ -261,6 +423,80 @@ class IterationTests(unittest.TestCase):
 
 class IndependentBoundaryTests(unittest.TestCase):
     """Regression cases found by the independent bounded-workflow review."""
+
+    def test_enforcement_report_language_switch_persists_without_changing_evidence(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            s = {**state(), 'purpose': 'verification', 'reportLanguage': 'en',
+                 'observationSession': str(root.parent/'obs'), 'podHistory': {},
+                 'verifiedPodUIDs': ['pod-1'],
+                 'pinnedPolicy': {'uid': 'policy-1'}}
+            a.write(root/'session.json', s)
+            policy = {'spec': {'policy': {'mode': 'EnhanceProtect', 'enhanceProtect': {
+                'networkProxyRawRules': {'egress': {'defaultAction': 'deny'}}}}}}
+            a.write(root/'observe.yaml', policy)
+            progress = {'phase': 'stopped', 'stopReason': 'user-stop', 'plan': {}, 'readyAt':
+                        '1970-01-01T00:01:40Z', 'stoppedAt': '1970-01-01T00:01:42Z'}
+            a.write(root/'collector.json', progress)
+            with contextlib.closing(a.database(root)) as con, con:
+                a.ingest(con, s, [('source', json.dumps(event()))])
+                c.health(con)
+            db = (root/'events.sqlite').read_bytes()
+            policy_bytes, progress_bytes = (root/'observe.yaml').read_bytes(), (root/'collector.json').read_bytes()
+            evidence_hash = a.refinement_module().fingerprint([event()])
+            for language, heading in [('zh-CN', '# 拦截期证据与待审核拒绝项'),
+                                      (None, '# 拦截期证据与待审核拒绝项'),
+                                      ('en', '# Enforcement evidence and pending denials')]:
+                argv = ['analyze', '--session', folder] + (['--language', language] if language else [])
+                with patch.object(a, 'kube') as kube:
+                    self.assertEqual(a.analyze(a.parser().parse_args(argv)), 0)
+                    kube.assert_not_called()
+                self.assertEqual((root/'report.md').read_text().splitlines()[0], heading)
+                report = a.load(root/'enforcement-collection.json')
+                expected = 'en' if language == 'en' else 'zh-CN'
+                self.assertEqual(report['reportLanguage'], expected)
+                self.assertEqual(a.load(root/'session.json')['reportLanguage'], expected)
+                self.assertEqual(report['eventsHash'], evidence_hash)
+                self.assertEqual((root/'events.sqlite').read_bytes(), db)
+                self.assertEqual((root/'observe.yaml').read_bytes(), policy_bytes)
+                self.assertEqual((root/'collector.json').read_bytes(), progress_bytes)
+            before = (root/'session.json').read_bytes()
+            with self.assertRaisesRegex(ValueError, 'language'):
+                a.analyze(SimpleNamespace(session=folder, language='de'))
+            self.assertEqual((root/'session.json').read_bytes(), before)
+
+    def test_verification_inherits_changed_collection_language_with_explicit_override(self):
+        with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stdout(io.StringIO()):
+            root = Path(folder); obs, collected = root/'obs', root/'collected'
+            a.observe(a.parser().parse_args(['observe', '--session', str(obs), '--context', 'test',
+                                            '--namespace', 'demo', '--name', 'learn', '--workload', 'app']))
+            s = a.load(obs/'session.json'); s.update(policyUID='policy-1', baselinePodUIDs=[])
+            a.write(obs/'session.json', s)
+            candidate = a.load(obs/'observe.yaml')
+            a.network_rules(candidate['spec']['policy'])['egress'] = {'defaultAction': 'deny'}
+            a.write(obs/'candidate.yaml', candidate)
+            since, until = '1970-01-01T00:01:40Z', '1970-01-01T00:01:42Z'
+            a.write(collected/'events.json', [])
+            a.write(collected/'enforcement-collection.json', {
+                'kind': 'NetworkProxyEnforcementCollection', 'observationSession': str(obs.resolve()),
+                'candidateHash': v.fingerprint(candidate), 'eventsHash': v.fingerprint([]),
+                'policy': {'uid': 'policy-1'}, 'podUIDs': ['pod-1'], 'since': since, 'until': until,
+                'reportLanguage': 'zh-CN', 'observation': {'phase': 'stopped'},
+                'collectionHealth': {'status': 'no-detected-gap'}, 'completeRead': False})
+            for language in (None, 'en'):
+                out = root/('inherited' if language is None else 'overridden')
+                argv = ['verify', '--session', str(out), '--observation-session', str(obs),
+                        '--policy-file', str(obs/'candidate.yaml'), '--collection-session', str(collected),
+                        '--pod-uid', 'pod-1', '--since', since, '--until', until]
+                if language: argv += ['--language', language]
+                with patch.object(a, 'kube') as kube:
+                    self.assertEqual(a.verify(a.parser().parse_args(argv)), 2)  # Audit-only, no acceptance checklist.
+                    kube.assert_not_called()
+                expected = 'en' if language else 'zh-CN'
+                self.assertEqual(a.load(out/'verification.json')['reportLanguage'], expected)
+                self.assertEqual((out/'verification.md').read_text().splitlines()[0],
+                                 '# Separate enforcement verification' if language else '# 独立执行验证')
+            self.assertEqual(a.load(obs/'session.json')['reportLanguage'], 'en')
 
     def test_inventory_and_ingest_keep_frozen_verification_uids(self):
         s = state()

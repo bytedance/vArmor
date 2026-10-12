@@ -166,7 +166,7 @@ def verify(args, api):
             dt.datetime.fromisoformat(args.until.replace('Z', '+00:00'))
             for s in collected['requiredSources']))
     results = check_results(checks, records, api, expected, state, complete_read) if checks is not None else []
-    language = args.language or state.get('reportLanguage', 'en')
+    language = args.language or (collected or {}).get('reportLanguage') or state.get('reportLanguage', 'en')
     report = {'kind': 'NetworkProxyVerification', 'observationSession': str(observation),
               'candidateHash': fingerprint(expected), 'policy': pinned, 'podUIDs': state['podUIDs'],
               'since': args.since, 'until': args.until, 'events': len(records), 'collection': stats,

@@ -307,6 +307,28 @@ user-managed recreation, but each rule iteration does not require recreation.
 Your decisions are saved in refinement.json; enforcement evidence is kept in
 separate directories. You do not need to edit these files or learn the CLI.
 
+### Withdraw or restore previously allowed access
+
+> The refresh feature has been retired. Remove its permission and keep the other
+> requests working.
+
+The assistant removes the selected candidate rule and saves the withdrawal reason
+and prior approval. Reanalysis cannot bring back that exact permission, and no new
+DENIED is required. Its previous silence approval is cleared. Restoring access
+requires explicit approval; the restored rule starts audited and is verified
+again before a later silence decision.
+
+Removing a rule does not prove that the endpoint is blocked: other prefix, domain
+or TCP permissions may still allow it. Reports list possible overlaps; the
+assistant checks effective configuration and asks you to test fresh connections.
+Excluding a domain's logs from recommendations differs from withdrawing a grant.
+Withdrawing all available permissions creates an explicitly marked deny-all
+candidate. Its impact is explained and deployment still requires authorization.
+
+Observation and enforcement reports both follow your language preference. Ask
+for Chinese or English at any time; later analysis retains your choice without
+restarting collection or changing the Policy.
+
 ## Validation, deployment, and deliverables
 
 An allowlist draft defaults to denying unauthorized access, but generating it does not itself enable enforcement. You can first ask:
@@ -326,9 +348,9 @@ After confirming business coverage and test results, explicitly authorize switch
 | Main artifact | Purpose |
 |---|---|
 | `report.md` | Actual permissions, added/removed permissions, pending TCP, uncovered behavior, and next steps |
-| `candidate.yaml` | Allowlist draft for review; absent when no acceptable rules exist |
+| `candidate.yaml` | Draft for review; normally absent without acceptable rules; explicit withdrawal of all grants produces a marked deny-all draft |
 | `review.json` | Saved business review decisions reused in this session |
-| `refinement.json` | Exact DENIED review decisions and approved quiet permissions, with reasons and approval evidence |
+| `refinement.json` | DENIED, silence, withdrawal and restoration decisions, with permission history, reasons and approval evidence |
 | `resource-usage.json` | Shared rolling audit-byte ledger across observation and enforcement phases |
 | `collector.json` | Actual plan, readiness and collection state, deadline-change acknowledgments, gaps, and stop reason |
 | `observe.yaml` / `validation.yaml` | Allow-and-audit policies and validation/rollback materials |

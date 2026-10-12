@@ -112,6 +112,17 @@ def now():
     return dt.datetime.now(dt.timezone.utc).isoformat()
 
 
+def report_language(args, state, root):
+    """Apply the user's report preference under the caller's session lock."""
+    language = getattr(args, 'language', None) or state.get('reportLanguage', 'en')
+    if language not in ('en', 'zh-CN'):
+        raise ValueError('Report language must be en or zh-CN')
+    if state.get('reportLanguage') != language:
+        state['reportLanguage'] = language
+        write(Path(root) / 'session.json', state)
+    return language
+
+
 _YAML_MODULE = None
 
 
@@ -1038,12 +1049,7 @@ def analyze(args):
         manifest = load(root / 'observe.yaml')
         if manifest['spec'].get('updateExistingWorkloads', False):
             raise RuntimeError('Observation manifest enables automatic workload updates; create a new session with the current observe command')
-        language = getattr(args, 'language', None) or state.get('reportLanguage', 'en')
-        if language not in ('en', 'zh-CN'):
-            raise ValueError('Report language must be en or zh-CN')
-        if state.get('reportLanguage') != language:
-            state['reportLanguage'] = language
-            write(root / 'session.json', state)
+        language = report_language(args, state, root)
         def tr(template, **values):
             return (ZH_REPORT_TEXT.get(template, template) if language == 'zh-CN' else template).format(**values)
         config = load(args.review) if args.review else (load(root / 'review.json') if (root / 'review.json').exists() else {})
@@ -1062,6 +1068,8 @@ def analyze(args):
         collector_progress = load(root / 'collector.json') if (root / 'collector.json').exists() else None
         egress, excluded, pending = propose(records, state, config)
         refinements = load(root / 'refinement.json') if (root / 'refinement.json').exists() else {}
+        available = refinement_module().permissions(refinement_module().authorized_rules(egress, refinements))
+        explicit_deny_all = bool(available) and all(p['id'] in refinements.get('revokedRuleIds', []) for p in available)
         egress = refinement_module().merge(egress, refinements)
         if args.review:
             write(root / 'review.json', config)  # Preserve business decisions for later cycles.
@@ -1069,7 +1077,7 @@ def analyze(args):
         network_rules(manifest['spec']['policy'])['egress'] = egress
         # Preserve target and MITM config; candidate is a draft, never automatically applied.
         rule_count = len(egress.get('rules', [])) + len(egress.get('httpRules', []))
-        if rule_count:
+        if rule_count or explicit_deny_all:
             write(root / 'candidate.yaml', manifest)
         elif (root / 'candidate.yaml').exists():
             os.replace(root / 'candidate.yaml', root / 'candidate.previous.yaml')
@@ -1103,7 +1111,16 @@ def analyze(args):
         network_rules(candidate_for_hash['spec']['policy'])['egress'] = egress
         digest = hashlib.sha256(json.dumps(candidate_for_hash, sort_keys=True).encode()).hexdigest()
         if verification is not None:
-            verification = {**verification, 'currentCandidate': verification.get('candidateHash') == digest}
+            updates = [d['at'] for key in ('permissionDecisions', 'auditDecisions') for d in refinements.get(key, [])]
+            changed_after_window = False
+            if updates:
+                try:
+                    window_end = dt.datetime.fromisoformat(verification['until'].replace('Z', '+00:00'))
+                    changed_after_window = any(dt.datetime.fromisoformat(at.replace('Z', '+00:00')) > window_end for at in updates)
+                except (KeyError, ValueError, TypeError):
+                    changed_after_window = True
+            verification = {**verification, 'currentCandidate': verification.get('candidateHash') == digest and not changed_after_window,
+                            'permissionChangesAfterWindow': changed_after_window}
             if getattr(args, 'verification', None):
                 state['verificationFile'] = str(Path(args.verification).resolve())
                 write(root / 'session.json', state)
@@ -1118,8 +1135,15 @@ def analyze(args):
         stable = ((previous or {}).get('stableDataRounds', 0) + 1) if unchanged and newer else \
                  ((previous or {}).get('stableDataRounds', 0) if unchanged else 0)
         requirements = declared_tcp_status(records, config)
+        for requirement in requirements:
+            ip, port = destination(requirement['destination'])
+            key = refinement_module().permission_id('TCP', {'ip': ip, 'ports': [{'port': port}]})
+            requirement['authorizationState'] = 'revoked' if key in refinements.get('revokedRuleIds', []) else \
+                'approved' if requirement['approved'] else 'pending'
         if verification and verification['currentCandidate']:
             for requirement in requirements:
+                if requirement['authorizationState'] == 'revoked':
+                    continue
                 results = [c['result'] for c in verification.get('checks', []) if c.get('layer') == 'L4' and
                            c.get('expected') == 'allow' and destination(c['destination']) == destination(requirement['destination'])]
                 if results:
@@ -1149,8 +1173,10 @@ def analyze(args):
                   'baselinePodExcluded': sum(r.get('baselinePodExcluded', 0) for r in rounds),
                   'target': load(root / 'observe.yaml')['spec']['target'],
                   'session': str(root.resolve()),
-                  'decision': 'review-required' if rule_count else 'insufficient-data',
-                  'candidateFile': str((root / 'candidate.yaml').resolve()) if rule_count else None,
+                  'revokedPermissions': refinement_module().revocations(egress, refinements, state, globals()),
+                  'explicitDenyAll': explicit_deny_all,
+                  'decision': 'explicit-deny-all' if explicit_deny_all else 'review-required' if rule_count else 'insufficient-data',
+                  'candidateFile': str((root / 'candidate.yaml').resolve()) if rule_count or explicit_deny_all else None,
                   'evidenceMode': state.get('collectionMode',
                       ('offline' if all(r.get('offline') for r in rounds) else
                        'live' if all(not r.get('offline') for r in rounds) else 'mixed') if rounds else 'none'),
@@ -1170,7 +1196,7 @@ def analyze(args):
                     source=report['evidenceMode'], stable=stable, span=report['observationSpanSeconds']), '',
                  tr('Collection continuity: {status}; excluded baseline Pod events: {excluded}. No detected gap does not guarantee complete logs.',
                     status=tr(collection_health['status']), excluded=report['baselinePodExcluded']), '',
-                 tr('The candidate defaults to deny and requires business review and real traffic validation before deployment.' if rule_count else
+                 tr('The candidate defaults to deny and requires business review and real traffic validation before deployment.' if rule_count or explicit_deny_all else
                     'Insufficient data or no acceptable rules: candidate.yaml was not generated. Collect additional evidence or review exclusions; do not enable enforcement with an empty allowlist.'), '',
                  tr('## Changes this round and next steps'), '',
                  (tr('Compared with the previous draft: {added} permissions added and {removed} removed.',
@@ -1202,6 +1228,9 @@ def analyze(args):
             status_lines += [('**已达到采集预算或仍有积压，存在遗漏风险；不会自动提高约定上限。**' if language == 'zh-CN'
                               else '**Resource budget reached or backlog remains: evidence may be incomplete. Agreed limits are not raised automatically.**'), '']
         lines[2:2] = status_lines
+        if explicit_deny_all:
+            lines[2:2] = [('**全部可用权限已由用户明确撤销：候选默认拒绝且没有放行规则。应用后会拒绝所有代理覆盖的出站访问；仍需审核并明确授权部署。**' if language == 'zh-CN'
+                          else '**The user explicitly withdrew all available permissions: this candidate has no allow rules. Applying it denies all redirected egress; review and explicit deployment authorization are still required.**'), '']
         for rule in egress.get('httpRules', []):
             match = rule['match']
             domain = match['hosts'][0]
@@ -1228,7 +1257,8 @@ def analyze(args):
                       tr('| Destination | Origin | Observed | Approval | Verification |'), '|---|---|---|---|---|']
             for item in requirements:
                 lines.append('| ' + ' | '.join(map(cell, [item['destination'], tr(item['origin']),
-                    tr('yes' if item['observed'] else 'no'), tr('approved' if item['approved'] else 'pending'),
+                    tr('yes' if item['observed'] else 'no'),
+                    ('已撤销' if language == 'zh-CN' else 'withdrawn') if item['authorizationState'] == 'revoked' else tr('approved' if item['approved'] else 'pending'),
                     (('通过' if item['verification'] == 'confirmed' else '证据不足') if language == 'zh-CN' and item['verification'] != 'not-assessed'
                      else ('尚未验证' if language == 'zh-CN' else 'not verified') if item['verification'] == 'not-assessed'
                      else item['verification'])])) + ' |')
@@ -1263,13 +1293,20 @@ def analyze(args):
                     ('记录' if item['audit'] else '静默') if language == 'zh-CN' else ('enabled' if item['audit'] else 'silent'),
                     json.dumps({k: v for k, v in item['rule'].items() if k != 'qualifiers'}, ensure_ascii=False)])) + ' |')
             for item in refinements.get('decisions', {}).values():
-                lines += ['', json.dumps({k: item[k] for k in ('id', 'decision', 'reason', 'origin', 'observedSuccess', 'verificationFile', 'currentCandidateVerification', 'currentCandidateCheckIds') if k in item}, ensure_ascii=False)]
+                lines += ['', json.dumps({k: item[k] for k in ('id', 'decision', 'authorizationState', 'reason', 'origin', 'observedSuccess', 'verificationFile', 'currentCandidateVerification', 'currentCandidateCheckIds') if k in item}, ensure_ascii=False)]
+        if report['revokedPermissions']:
+            lines += ['', ('## 已撤销权限' if language == 'zh-CN' else '## Withdrawn permissions'), '',
+                      ('撤销移除对应规则，不新增显式 deny。其他宽泛规则或 TLS 透传权限仍可能覆盖请求；需核对配置并用新连接验证实际拒绝。' if language == 'zh-CN'
+                       else 'Withdrawal removes the selected rule, without adding an explicit deny. Other broad rules or passthrough TLS permissions may still cover requests; inspect effective config and test fresh connections.'), '',
+                      '| ID | ' + ('理由 | 可能重叠的权限 ID |' if language == 'zh-CN' else 'Reason | Possibly overlapping permission IDs |'), '|---|---|---|']
+            for item in report['revokedPermissions']:
+                lines.append('| ' + ' | '.join(map(cell, [item['id'], item['reason'], ', '.join(item['possibleOverlapRuleIds']) or '-'])) + ' |')
         lines += ['', tr('Detailed collection state, exclusions and review data remain in analysis.json.'), '',
                  tr('## Coverage limitations'), '', *['- ' + tr(x) for x in report['limitations']], '',
                  tr('See analysis.json for the full behavior inventory and rule coverage. validation.yaml retains observation configuration.')]
         (root / 'report.md').write_text('\n'.join(lines) + '\n')
     print(json.dumps({k: v for k, v in report.items() if k != 'inventory'}, ensure_ascii=False, indent=2))
-    return 2 if not report['candidateRules'] else 0
+    return 0 if report['candidateFile'] else 2
 
 
 def cycle(args):

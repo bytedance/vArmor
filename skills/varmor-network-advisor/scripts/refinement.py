@@ -71,7 +71,9 @@ def denied_items(records, state, api):
         item['podUIDs'] = sorted(set(item['podUIDs'] + [rec['podUID']]))
     review_root = state.get('observationSession')
     if review_root and (Path(review_root) / 'refinement.json').exists():
-        prior = api['load'](Path(review_root) / 'refinement.json').get('decisions', {})
+        review = api['load'](Path(review_root) / 'refinement.json')
+        prior = review.get('decisions', {})
+        revoked = set(review.get('revokedRuleIds', []))
         for item in grouped.values():
             saved = prior.get(item['id'])
             if saved:
@@ -81,6 +83,9 @@ def denied_items(records, state, api):
                 # rejected exact scope retains the user's business decision.
                 if saved['decision'] == 'reject':
                     item['decision'] = 'reject'
+            if item['id'] in revoked:
+                item['decision'] = 'reject'
+                item['authorizationState'] = 'revoked'
     return list(grouped.values())
 
 
@@ -88,6 +93,10 @@ def annotated_verification(saved, receipt, state, api):
     result = copy.deepcopy(saved)
     for item in result.get('decisions', {}).values():
         item['currentCandidateVerification'] = 'not-assessed'
+        item['authorizationState'] = 'revoked' if item['id'] in result.get('revokedRuleIds', []) else item['decision']
+        if item['authorizationState'] == 'revoked':
+            item.pop('currentCandidateCheckIds', None)
+            continue
         if item['decision'] != 'approve' or not receipt or not receipt.get('currentCandidate'):
             continue
         key = 'httpRules' if item['layer'] == 'HTTP/SNI' else 'rules'
@@ -104,7 +113,8 @@ def annotated_verification(saved, receipt, state, api):
     return result
 
 
-def merge(egress, saved):
+def authorized_rules(egress, saved):
+    """Rebuild historical grants before applying explicit withdrawals."""
     egress = copy.deepcopy(egress)
     for item in saved.get('decisions', {}).values():
         if item['decision'] != 'approve':
@@ -112,6 +122,17 @@ def merge(egress, saved):
         key = 'httpRules' if item['layer'] == 'HTTP/SNI' else 'rules'
         if item['id'] not in {permission_id(item['layer'], r) for r in egress.get(key, [])}:
             egress.setdefault(key, []).append(copy.deepcopy(item['rule']))
+    return egress
+
+
+def merge(egress, saved):
+    egress = authorized_rules(egress, saved)
+    revoked = set(saved.get('revokedRuleIds', []))
+    for layer, key in (('HTTP/SNI', 'httpRules'), ('TCP', 'rules')):
+        if key in egress:
+            egress[key] = [r for r in egress[key] if permission_id(layer, r) not in revoked]
+            if not egress[key]:
+                egress.pop(key)
     quiet = set(saved.get('silentRuleIds', []))
     known = {p['id'] for p in permissions(egress)}
     if quiet - known:
@@ -121,18 +142,85 @@ def merge(egress, saved):
     return egress
 
 
+def revocations(egress, saved, state, api):
+    """Conservative overlap diagnostics, never a claim of runtime denial."""
+    latest = {d['id']: d for d in saved.get('permissionDecisions', []) if d['action'] == 'revoke'}
+    active = permissions(egress)
+
+    def overlaps(left, right):
+        a, b = left['rule'], right['rule']
+        am, bm = a.get('match', a), b.get('match', b)
+        if not any(p['port'] <= q.get('endPort', q['port']) and q['port'] <= p.get('endPort', p['port'])
+                   for p in am['ports'] for q in bm['ports']):
+            return False
+        if left['layer'] != right['layer']:
+            # A DNS host may resolve to an L4-authorized IP; no DNS guesses.
+            return True
+        if left['layer'] == 'TCP':
+            return a['ip'] == b['ip']
+        common = set(am['hosts']) & set(bm['hosts'])
+        if not common:
+            return False
+        if any(not api['mitm_applies'](host, state['mitmDomains']) for host in common):
+            return True  # Shared SNI/port ignores HTTP method/path restrictions.
+        if am.get('methods') and bm.get('methods') and not set(am['methods']) & set(bm['methods']):
+            return False
+        if not am.get('paths') or not bm.get('paths'):
+            return True
+        for p in am['paths']:
+            for q in bm['paths']:
+                if 'exact' in p and 'exact' in q:
+                    if p['exact'] == q['exact']:
+                        return True
+                elif 'prefix' in p and 'prefix' in q:
+                    if p['prefix'].startswith(q['prefix']) or q['prefix'].startswith(p['prefix']):
+                        return True
+                else:
+                    exact, prefix = (p['exact'], q['prefix']) if 'exact' in p else (q['exact'], p['prefix'])
+                    if exact.startswith(prefix):
+                        return True
+        return False
+
+    return [{**copy.deepcopy(latest[key]), 'possibleOverlapRuleIds':
+             [p['id'] for p in active if overlaps(latest[key], p)]}
+            for key in saved.get('revokedRuleIds', []) if key in latest]
+
+
 def refine(args, api):
     root = Path(args.session).resolve()
     with api['locked'](root):
         state = api['load'](root / 'session.json')
         if state.get('purpose') == 'verification':
             raise ValueError('Refine the original observation session, not enforcement evidence')
-        current = api['load'](root / 'candidate.yaml')
         choices = api['load'](args.decisions)
-        if not isinstance(choices, dict) or set(choices) - {'decisions', 'silentRuleIds', 'auditRuleIds', 'approvalEvidence'}:
+        if not isinstance(choices, dict) or set(choices) - {'decisions', 'silentRuleIds', 'auditRuleIds',
+                'revokeRuleIds', 'restoreRuleIds', 'reason', 'approvalEvidence'}:
             raise ValueError('Unknown refinement decision keys')
         saved = api['load'](root / 'refinement.json') if (root / 'refinement.json').exists() else {'decisions': {}, 'silentRuleIds': []}
         saved = copy.deepcopy(saved)
+        config = api['load'](root / 'review.json') if (root / 'review.json').exists() else {}
+        with contextlib.closing(api['database'](root)) as con:
+            observed = [json.loads(r[0]) for r in con.execute('SELECT record FROM events ORDER BY id')]
+        egress, _, _ = api['propose'](observed, state, config)
+        current = api['load'](root / 'candidate.yaml') if (root / 'candidate.yaml').exists() else api['load'](root / 'observe.yaml')
+        if not (root / 'candidate.yaml').exists():
+            current['spec']['updateExistingWorkloads'] = False
+            api['network_rules'](current['spec']['policy'])['egress'] = merge(egress, saved)
+        active = {p['id']: p for p in permissions(merge(egress, saved))}
+        revoked = set(saved.get('revokedRuleIds', []))
+        for key in ('silentRuleIds', 'auditRuleIds', 'revokeRuleIds', 'restoreRuleIds'):
+            values = choices.get(key, [])
+            if not isinstance(values, list) or any(not isinstance(v, str) or not re.fullmatch('[0-9a-f]{64}', v) for v in values) or len(set(values)) != len(values):
+                raise ValueError(key + ' must contain unique full permission IDs')
+        withdraw, restore = set(choices.get('revokeRuleIds', [])), set(choices.get('restoreRuleIds', []))
+        if withdraw & restore or (withdraw | restore) & set(choices.get('silentRuleIds', [])) or withdraw & set(choices.get('auditRuleIds', [])):
+            raise ValueError('Conflicting permission withdrawal, restoration or audit decisions')
+        if withdraw - active.keys() or restore - revoked:
+            raise ValueError('Withdraw only active permission IDs; restore only explicitly revoked IDs')
+        if withdraw or restore:
+            if not api['safe_text'](choices.get('reason')) or not choices['reason'].strip() or \
+               not api['safe_text'](choices.get('approvalEvidence')) or not choices['approvalEvidence'].strip():
+                raise ValueError('Withdrawal/restoration requires a reason and user approval evidence')
         changes = choices.get('decisions', [])
         if not isinstance(changes, list):
             raise ValueError('decisions must be an explicit list')
@@ -162,26 +250,37 @@ def refine(args, api):
                 saved['decisions'][choice['id']] = {**item, **choice, 'verificationFile': str(path),
                     'candidateHashAtReview': receipt['candidateHash'], 'policyUID': receipt['policy']['uid'],
                     'since': receipt['since'], 'until': receipt['until'], 'verification': 'not-assessed'}
-        for key in ('silentRuleIds', 'auditRuleIds'):
-            values = choices.get(key, [])
-            if not isinstance(values, list) or any(not isinstance(v, str) or not re.fullmatch('[0-9a-f]{64}', v) for v in values):
-                raise ValueError(key + ' must contain full permission IDs')
+        if any(choice['decision'] == 'approve' and choice['id'] in (revoked | withdraw) - restore for choice in changes):
+            raise ValueError('Permission was revoked; explicit restoreRuleIds approval is required')
+        available = {p['id']: p for p in permissions(authorized_rules(egress, saved))}
+        if restore - available.keys():
+            raise ValueError('Revoked permission scope is no longer available; review a new permission')
+        for action, ids in (('revoke', withdraw), ('restore', restore)):
+            for key in sorted(ids):
+                saved.setdefault('permissionDecisions', []).append({
+                    'at': api['now'](), 'action': action, **copy.deepcopy((active if action == 'revoke' else available)[key]),
+                    'reason': choices['reason'], 'approvalEvidence': choices['approvalEvidence'],
+                    'candidateHashAtReview': fingerprint(current), 'policyUID': state.get('policyUID')})
+        saved['revokedRuleIds'] = sorted((revoked | withdraw) - restore)
         if set(choices.get('silentRuleIds', [])) & set(choices.get('auditRuleIds', [])):
             raise ValueError('A permission cannot be both silent and audited')
         if choices.get('silentRuleIds') or choices.get('auditRuleIds'):
             if not api['safe_text'](choices.get('approvalEvidence')) or not choices['approvalEvidence'].strip():
                 raise ValueError('Audit changes require user approval evidence')
             saved.setdefault('auditDecisions', []).append({'at': api['now'](), **choices})
-        quiet = (set(saved['silentRuleIds']) | set(choices.get('silentRuleIds', []))) - set(choices.get('auditRuleIds', []))
+        quiet = (set(saved['silentRuleIds']) | set(choices.get('silentRuleIds', []))) - \
+            set(choices.get('auditRuleIds', [])) - withdraw - restore
         saved['silentRuleIds'] = sorted(quiet)
         # Rebuild from original successful observation plus reviewed decisions;
         # validation events never enter its database or increase stable rounds.
-        config = api['load'](root / 'review.json') if (root / 'review.json').exists() else {}
-        with contextlib.closing(api['database'](root)) as con:
-            observed = [json.loads(r[0]) for r in con.execute('SELECT record FROM events ORDER BY id')]
-        egress, _, _ = api['propose'](observed, state, config)
-        merge(egress, saved)  # Validate before committing decisions.
+        final = merge(egress, saved)  # Validate before committing decisions.
+        known = {p['id'] for p in permissions(final)}
+        if set(choices.get('auditRuleIds', [])) - known:
+            raise ValueError('Audit permission ID is not active')
         api['write'](root / 'refinement.json', saved)
+        if withdraw or restore:
+            state.pop('verificationFile', None)
+            api['write'](root / 'session.json', state)
     return api['analyze'](api['parser']().parse_args(['analyze', '--session', str(root)]))
 
 
@@ -223,6 +322,7 @@ def collection_report(args, api):
     root = Path(args.session)
     with api['locked'](root), contextlib.closing(api['database'](root)) as con:
         state = api['load'](root / 'session.json')
+        language = api['report_language'](args, state, root)
         progress = api['load'](root / 'collector.json')
         records = [json.loads(r[0]) for r in con.execute('SELECT record FROM events ORDER BY id')]
         health = api['collector_module']().health(con)
@@ -235,6 +335,7 @@ def collection_report(args, api):
             'candidateHash': fingerprint(expected), 'policy': state['pinnedPolicy'], 'podUIDs': state['podUIDs'],
             'since': progress.get('readyAt'), 'until': progress.get('stoppedAt') or api['now'](),
             'eventsHash': fingerprint(records), 'events': len(records), 'collectionHealth': health,
+            'reportLanguage': language,
             'evidenceErrors': evidence_errors,
             'observation': progress, 'denials': denied_items(records, state, api),
             'completeRead': progress.get('phase') == 'stopped' and progress.get('stopReason') in ('deadline', 'user-stop')
@@ -246,7 +347,7 @@ def collection_report(args, api):
         api['write'](root / 'events.json', records)
         api['write'](root / 'enforcement-collection.json', report)
         api['write'](root / 'denials.json', report['denials'])
-        zh = state.get('reportLanguage') == 'zh-CN'
+        zh = language == 'zh-CN'
         lines = ['# 拦截期证据与待审核拒绝项' if zh else '# Enforcement evidence and pending denials', '',
                  'DENIED 不是成功访问证据；没有自动放行或更新策略。' if zh else
                  'DENIED is not successful access evidence. No automatic permission or policy update.', '',

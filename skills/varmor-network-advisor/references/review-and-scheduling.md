@@ -37,6 +37,11 @@ CRD if a later version introduces another condition; never invent regex fields.
 
 Put destinations the user considers outside legitimate business in excludedHosts (literal canonical hosts) or excludedTcp (IP:port). Subsequent generation excludes these inputs rather than repeatedly adding them just because they were observed. These settings do not generate explicit deny rules; an approved broad L4 permission may still cover the host, so assess blocking through the permission table and real tests. A TCP destination cannot be both approved and excluded. Passing --review saves the configuration to session/review.json; omitting it reuses saved user choices, and passing `{}` resets them. When updating decisions, preserve other existing choices unless the user requests replacing them.
 
+Model exclusions do not withdraw prior DENIED-derived approvals. When users
+retire an allowed scope, use the explicit permission withdrawal/restoration
+procedure in [enforcement-iteration.md](enforcement-iteration.md#withdraw-or-restore-previously-granted-permissions).
+The candidate report preserves withdrawal history and flags possible overlap.
+
 ## One-shot and repeated analysis
 
 ```sh
@@ -47,7 +52,7 @@ python3 /ABS/SKILL/scripts/advisor.py analyze --session /ABS/SESSION --review /A
 
 `cycle` runs collect followed by analyze; collection failure prevents analysis from advancing. `events.sqlite` retains deduplicated, query-stripped events and collection rounds. healthyRounds in `analysis.json` counts only rounds with actual new events and healthy parsing; offlineRounds is separate. stableDataRounds increases only when a candidate is unchanged and a new healthy data round exists. Repeated analysis of old data does not increase stable rounds. These metrics are guidance, not automatic enforcement thresholds.
 
-Keep live and offline data in separate sessions. report.md lists each candidate rule's host/IP, port, path, method, authorization granularity, and uncovered behavior. collectionIssues lists parsing/identity issues separately. excluded counts inputs excluded during rule generation, whereas replayUncovered counts events the candidate does not actually cover. An error response excluded from generation may still be covered by a rule generated from a successful request, so the counts need not match. If no acceptable rules exist, candidate.yaml is not produced; candidate.previous.yaml is not the current recommendation.
+Keep live and offline data in separate sessions. report.md lists each candidate rule's host/IP, port, path, method, authorization granularity, and uncovered behavior. collectionIssues lists parsing/identity issues separately. excluded counts inputs excluded during rule generation, whereas replayUncovered counts events the candidate does not actually cover. An error response excluded from generation may still be covered by a rule generated from a successful request, so the counts need not match. If no acceptable rules exist, candidate.yaml is not produced; candidate.previous.yaml is not the current recommendation. Explicit withdrawal of every available grant is a separate user decision: it produces a marked deny-all candidate requiring impact review and deployment authorization.
 
 Use monitor for actual live observation. See [observation-and-collection.md](observation-and-collection.md) for plans, UID isolation, cursors, gap states, and stopping conditions. collect/cycle above are one-shot snapshot interfaces; they include rotated files by default but do not assess file continuity. Do not present sparsely scheduled cycle calls as continuous collection. cycle accepts --until with a timezone; after expiry it stops accessing the cluster, and reads already started are also bounded by remaining time.
 
