@@ -43,6 +43,7 @@ DEVELOPMENT_FILES = (
     'tests/test_optimization.py',
     'tests/test_bounded_iteration.py',
     'tests/test_constraints_startup.py',
+    'tests/test_handoff_diagnostics.py',
 )
 SOURCE_ONLY_START = '<!-- package:source-only:start -->'
 SOURCE_ONLY_END = '<!-- package:source-only:end -->'

@@ -157,13 +157,53 @@ def load(path):
     return yaml_module().loads(path.read_text()) if path.suffix in ('.yaml', '.yml') else json.loads(path.read_text())
 
 
+def kube_command_summary(args):
+    """Describe the operation without remote scripts, patch bodies or credentials."""
+    head = list(args[:args.index('--')]) if '--' in args else list(args)
+    verb = head[0] if head and head[0] in ('get', 'exec', 'auth', 'wait', 'apply', 'create', 'delete', 'rollout') else 'operation'
+    summary = ['kubectl', verb]
+    if verb == 'get' and len(head) > 1 and re.fullmatch(r'[A-Za-z0-9.,/-]+', head[1]):
+        summary.append(head[1])
+    if verb == 'auth':
+        summary.append('can-i')
+    for flag in ('-n', '--namespace', '-c', '--container'):
+        if flag in head and head.index(flag) + 1 < len(head):
+            value = head[head.index(flag) + 1]
+            summary.extend([flag, value if re.fullmatch(r'[A-Za-z0-9_.-]{1,253}', value) else '[omitted]'])
+    if verb == 'exec':
+        summary.extend(['--', '[remote command omitted]'])
+    return summary
+
+
+class KubeTimeoutError(subprocess.TimeoutExpired):
+    def __init__(self, diagnostic):
+        self.diagnostic = diagnostic
+        super().__init__(diagnostic['command'], diagnostic['timeoutSeconds'])
+
+    def __str__(self):
+        return 'Kubernetes operation timed out: ' + ' '.join(self.cmd) + ' (timeout=' + str(self.timeout) + 's)'
+
+
+class KubeDeadlineError(TimeoutError):
+    def __init__(self, diagnostic):
+        self.diagnostic = diagnostic
+        super().__init__('Kubernetes deadline reached before dispatch: ' + ' '.join(diagnostic['command']))
+
+
 def kube(context, *args, data=None, binary=False):
     # argv only: audited hosts/paths never become shell commands.
     remaining = KUBE_DEADLINE - time.monotonic() if KUBE_DEADLINE is not None else 100
+    timeout = max(0, min(20 if KUBE_DEADLINE is not None else 100, remaining))
+    diagnostic = {'command': kube_command_summary(args), 'timeoutSeconds': timeout,
+                  'deadlineRemainingSeconds': round(max(0, remaining), 3),
+                  'deadlineBounded': KUBE_DEADLINE is not None}
     if remaining <= 0:
-        raise TimeoutError('Observation deadline reached')
-    result = subprocess.run(['kubectl', '--context', context, '--request-timeout=20s', *args],
-                            input=data, text=not binary, capture_output=True, timeout=min(20 if KUBE_DEADLINE else 100, remaining))
+        raise KubeDeadlineError({**diagnostic, 'exceptionType': 'TimeoutError', 'kind': 'deadline-before-dispatch'})
+    try:
+        result = subprocess.run(['kubectl', '--context', context, '--request-timeout=20s', *args],
+                                input=data, text=not binary, capture_output=True, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        raise KubeTimeoutError({**diagnostic, 'exceptionType': 'TimeoutExpired', 'kind': 'subprocess-timeout'}) from None
     if result.returncode:
         raise RuntimeError(result.stderr.decode(errors='replace').strip() if binary else result.stderr.strip())
     return result.stdout
@@ -1385,6 +1425,12 @@ def stop(args):
     return collector_module().stop(args, globals())
 
 
+def ready_check(args):
+    result = collector_module().handoff_status(Path(args.session), globals(), args.min_remaining_seconds)
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    return 0 if result['readyForHandoff'] else 2
+
+
 def reschedule(args):
     return collector_module().reschedule(args, globals())
 
@@ -1442,6 +1488,10 @@ def parser():
                            help='read retained violations*.log files by default; --no-include-rotated reads current file only')
     s = sub.add_parser('status', help='read-only check of observation policy, injected Pods and readiness')
     s.add_argument('--session', required=True)
+    h = sub.add_parser('ready-check', help='local-only point-in-time collector check before a user handoff; no cluster reads')
+    h.add_argument('--session', required=True)
+    h.add_argument('--min-remaining-seconds', type=float,
+                   help='handoff reserve; default one scan interval plus one read round; does not change the deadline')
     m = sub.add_parser('monitor', help='bounded incremental collection; start before user recreates Pods')
     m.add_argument('--session', required=True)
     deadline = m.add_mutually_exclusive_group()

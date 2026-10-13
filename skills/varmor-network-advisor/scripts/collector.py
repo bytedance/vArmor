@@ -5,6 +5,7 @@ import collections
 import concurrent.futures
 import contextlib
 import datetime as dt
+import errno
 import hashlib
 import json
 import math
@@ -795,6 +796,138 @@ def monitor(args, api):
         return run_monitor(args, api)
 
 
+def failure_details(exc, stage):
+    """Persist safe timeout metadata, never raw subprocess cmd/output."""
+    if isinstance(exc, (TimeoutError, subprocess.TimeoutExpired)):
+        details = {**getattr(exc, 'diagnostic', {}), 'stage': stage,
+                   'exceptionType': getattr(exc, 'diagnostic', {}).get('exceptionType', type(exc).__name__)}
+        if isinstance(exc, subprocess.TimeoutExpired):
+            details.setdefault('timeoutSeconds', exc.timeout)
+        return {'message': 'Kubernetes operation timed out', 'errorDetails': details}
+    return {'message': str(exc)}
+
+
+def lease_held(folder):
+    """Probe an existing lease without creating, deleting or writing its file."""
+    fd = os.open(Path(folder) / '.lock', os.O_RDWR if os.name == 'nt' else os.O_RDONLY)
+    try:
+        if os.name == 'nt':
+            import msvcrt
+            try:
+                msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+            except OSError as exc:
+                if exc.errno in (errno.EACCES, errno.EAGAIN):
+                    return True
+                raise
+            msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+        else:
+            import fcntl
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                return True
+            fcntl.flock(fd, fcntl.LOCK_UN)
+        return False
+    finally:
+        os.close(fd)
+
+
+def process_alive(pid):
+    if isinstance(pid, bool) or not isinstance(pid, int) or pid <= 0:
+        return False
+    if os.name == 'nt':
+        # Windows os.kill is a control-signal operation, not a POSIX
+        # existence probe; use query-only handles without sending a signal.
+        import ctypes
+        from ctypes import wintypes
+        kernel = ctypes.WinDLL('kernel32', use_last_error=True)
+        kernel.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+        kernel.OpenProcess.restype = wintypes.HANDLE
+        kernel.GetExitCodeProcess.argtypes = [wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD)]
+        kernel.GetExitCodeProcess.restype = wintypes.BOOL
+        kernel.CloseHandle.argtypes = [wintypes.HANDLE]
+        kernel.CloseHandle.restype = wintypes.BOOL
+        handle = kernel.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
+        if not handle:
+            return False
+        try:
+            code = wintypes.DWORD()
+            return bool(kernel.GetExitCodeProcess(handle, ctypes.byref(code))) and code.value == 259
+        finally:
+            kernel.CloseHandle(handle)
+    try:
+        os.kill(pid, 0)
+        return True
+    except OSError:
+        return False
+
+
+def handoff_status(root, api, min_remaining=None):
+    """Cheap local evidence at dispatch time; never promises future liveness."""
+    if min_remaining is not None and (not math.isfinite(min_remaining) or min_remaining < 0):
+        raise ValueError('Handoff reserve must be finite and nonnegative')
+    checked = dt.datetime.now(dt.timezone.utc)
+    result = {'checkedAt': checked.isoformat(), 'readyForHandoff': False, 'reasons': [],
+              'scope': 'Local collector only; policy, Pod injection, future liveness and complete logs are not verified'}
+    if not (root / 'collector.json').is_file():
+        result['reasons'].append('collector-not-started')
+        return result
+    progress = api['load'](root / 'collector.json')
+    planned = progress.get('plan', {})
+    result.update(phase=progress.get('phase'), processId=progress.get('processId'),
+                  readyAt=progress.get('readyAt'), deadline=planned.get('until'),
+                  lastSuccessfulCollection=progress.get('lastSuccessfulCollection'),
+                  collectionHealth=progress.get('collectionHealth'), resourcePressure=progress.get('resourcePressure'),
+                  error=progress.get('error'), errorDetails=progress.get('errorDetails'))
+    if progress.get('phase') not in ('ready', 'observing') or not progress.get('readyAt'):
+        result['reasons'].append('collector-not-active')
+    if (root / 'stop-request.json').exists():
+        result['reasons'].append('stop-requested')
+    try:
+        until = dt.datetime.fromisoformat(planned['until'].replace('Z', '+00:00'))
+        heartbeat = dt.datetime.fromisoformat((progress.get('lastHeartbeatAt') or progress['readyAt']).replace('Z', '+00:00'))
+        if until.tzinfo is None or heartbeat.tzinfo is None:
+            raise ValueError('Missing timezone')
+        remaining = (until - checked).total_seconds()
+        age = (checked - heartbeat).total_seconds()
+        threshold = max(15, float(planned.get('maxRoundSeconds', 30)) + float(planned.get('discoveryIntervalSeconds', 5)) + 5)
+        reserve = min_remaining if min_remaining is not None else float(planned.get('intervalSeconds', 30)) + float(planned.get('maxRoundSeconds', 30))
+        if not all(math.isfinite(value) and value >= 0 for value in (threshold, reserve)):
+            raise ValueError('Invalid handoff timing')
+        result.update(remainingSeconds=round(max(0, remaining), 3), heartbeatAgeSeconds=round(age, 3),
+                      maxHeartbeatAgeSeconds=threshold, minimumRemainingSeconds=reserve)
+        if remaining <= 0:
+            result['reasons'].append('deadline-passed')
+        elif remaining < reserve:
+            result['reasons'].append('insufficient-handoff-time')
+        if age < -5 or age > threshold:
+            result['reasons'].append('heartbeat-not-current')
+    except (KeyError, ValueError, TypeError):
+        result['reasons'].append('invalid-clock-state')
+    try:
+        result['processAlive'] = process_alive(progress['processId'])
+    except (OSError, KeyError, ValueError, AttributeError):
+        result['processAlive'] = False
+    if not result['processAlive']:
+        result['reasons'].append('process-not-confirmed-alive')
+    try:
+        state = api['load'](root / 'session.json')
+        workflow = Path(state.get('observationSession', str(root)))
+        held = lease_held(root / '.collector.lock') and lease_held(workflow / '.workflow-collector.lock')
+        result['leasesHeld'] = held
+        if not held:
+            result['reasons'].append('collector-lease-not-held')
+    except (OSError, KeyError, ValueError):
+        result['reasons'].append('collector-lease-unverified')
+    current = api['load'](root / 'collector.json')
+    if any(current.get(k) != progress.get(k) for k in ('processId', 'startedAt', 'readyAt', 'phase', 'plan')):
+        result['reasons'].append('collector-state-changed')
+    if (root / 'stop-request.json').exists() and 'stop-requested' not in result['reasons']:
+        result['reasons'].append('stop-requested')
+    result['readyForHandoff'] = not result['reasons']
+    return result
+
+
 def run_monitor(args, api):
     root = Path(args.session)
     stop_event = threading.Event()
@@ -804,6 +937,8 @@ def run_monitor(args, api):
         previous_signals[sig] = signal.signal(sig, lambda *unused: stop_event.set())
     reason, error = 'deadline', None
     ready = False
+    operation_stage = 'initialization'
+    error_details = None
     try:
         state = api['load'](root / 'session.json')
         verification_mode = state.get('purpose') == 'verification'
@@ -848,6 +983,7 @@ def run_monitor(args, api):
         api['kube'].__globals__['KUBE_DEADLINE'] = min(bootstrap_deadline,
             time.monotonic() + planned.get('maxRoundSeconds', 30))
         with session_lock(api, root):
+            operation_stage = 'policy-and-pod-preflight'
             pods, policy = api['live_inventory'](state, api['load'](root / 'observe.yaml'), allow_empty=True)
             if verification_mode and state['pinnedPolicy'] != {'uid': policy['metadata']['uid'],
                     'generation': policy['metadata'].get('generation'),
@@ -864,6 +1000,7 @@ def run_monitor(args, api):
                     raise RuntimeError(message + (': ' + str(exc) if str(exc) else '')) from exc
                 if not allowed:
                     raise RuntimeError(message)
+            operation_stage = 'discovery-permission-preflight'
             require_permission('watch', 'pods', 'Pod watch permission is required for short-lived Pod discovery')
             if startup_mode:
                 target_kind = state['verificationTarget']['kind']
@@ -890,6 +1027,7 @@ def run_monitor(args, api):
             reader.max_concurrent = planned.get('maxConcurrentReads', 2)
             roots = (api['load'](ledger).get('storageRoots', []) if ledger.exists() else [])
             reader.resource_budget.storage_roots = sorted(set(roots + [str(root.resolve()), str(workflow.resolve())]))
+            operation_stage = 'log-source-preflight'
             targets = endpoints(api, state, args)
             with contextlib.closing(api['database'](root)) as con, con:
                 schema(con)
@@ -955,6 +1093,7 @@ def run_monitor(args, api):
                             else:
                                 issue(con, 'pod-discovery', 'watch-interrupted', 'suspected', message=value)
                         if tick >= next_discovery:
+                            operation_stage = 'pod-inventory'
                             try:
                                 pods, policy = api['live_inventory'](state, api['load'](root / 'observe.yaml'), allow_empty=True)
                                 if verification_mode and state['pinnedPolicy'] != {'uid': policy['metadata']['uid'],
@@ -970,19 +1109,23 @@ def run_monitor(args, api):
                             for pod in pods:
                                 register_pod(state, pod, api)
                             next_discovery = tick + planned['discoveryIntervalSeconds']
+                        operation_stage = 'pending-identity-resolution'
                         resolved = resolve_pending(con, state, api)
                         if tick >= next_scan:
                             stats = collections.Counter(resolved)
                             attempted, successful = [], []
                             budget = int(planned['maxReadMiB'] * 1024 * 1024)
                             try:
+                                operation_stage = 'source-discovery'
                                 targets = endpoints(api, state, args)
                             except (RuntimeError, OSError, subprocess.TimeoutExpired) as exc:
-                                issue(con, 'source-discovery', 'endpoints-failed', 'suspected', message=str(exc))
+                                issue(con, 'source-discovery', 'endpoints-failed', 'suspected',
+                                      **failure_details(exc, 'source-discovery'))
                                 targets = []
                             # Rotate the first source, so sustained traffic cannot starve other nodes.
                             turn = progress.get('rounds', 0) % max(1, len(targets))
                             targets = targets[turn:] + targets[:turn]
+                            operation_stage = 'audit-source-read'
                             errors, grants = prefetch(con, reader, targets, budget)
                             for endpoint in targets:
                                 attempted.append(endpoint['id'])
@@ -1002,7 +1145,8 @@ def run_monitor(args, api):
                                         grants[endpoint['id']] = 0
                                     else:
                                         stats['readFailures'] += 1
-                                        issue(con, endpoint['id'], 'source-read-failed', 'suspected', message=str(exc))
+                                        issue(con, endpoint['id'], 'source-read-failed', 'suspected',
+                                              **failure_details(exc, 'audit-source-read'))
                             stats = {**stats, 'backlogBytes': stats['backlogBytes']}
                             stats.update(at=api['now'](), offline=False, incremental=True, sources=attempted,
                                          successfulSources=successful, policyUID=state['policyUID'])
@@ -1043,13 +1187,14 @@ def run_monitor(args, api):
                         last_event_count = count
                 next_analysis = time.monotonic() + planned['analysisIntervalSeconds']
             stop_event.wait(min(0.5, max(0, api['kube'].__globals__['KUBE_DEADLINE'] - time.monotonic())))
-    except (TimeoutError, subprocess.TimeoutExpired):
+    except (TimeoutError, subprocess.TimeoutExpired) as exc:
         # The active API deadline may be a shorter per-round bound. Only the
         # overall phase deadline can justify reporting a normal timed stop.
         phase_deadline = locals().get('original_deadline', locals().get('bootstrap_deadline',
             api['kube'].__globals__['KUBE_DEADLINE']))
         if phase_deadline is None or time.monotonic() < phase_deadline:
             reason, error = 'failure', 'Collection timed out before the observation deadline'
+            error_details = failure_details(exc, operation_stage)['errorDetails']
     except (RuntimeError, ValueError, TypeError, OSError, KeyError, sqlite3.Error) as exc:
         reason, error = 'failure', str(exc)
     finally:
@@ -1071,6 +1216,8 @@ def run_monitor(args, api):
                 if request:
                     acknowledge_deadline(progress, request, 'rejected', api, reason='Observation stopped: ' + reason)
                 progress.update(phase='stopped', stopReason=reason, stoppedAt=api['now'](), error=error)
+                if error_details is not None:
+                    progress['errorDetails'] = error_details
                 if 'reader' in locals() and reader.resource_budget:
                     progress['resources'] = reader.resource_budget.snapshot()
                 api['write'](root / 'collector.json', progress)
@@ -1090,7 +1237,8 @@ def run_monitor(args, api):
                         con.execute('INSERT INTO rounds(time,summary) VALUES (?,?)', (resolved['at'], json.dumps(resolved)))
                     api['write'](root / 'session.json', state)
                 if reason not in ('deadline', 'user-stop'):
-                    issue(con, 'collector', 'observation-stopped', 'suspected', reason=reason, message=error)
+                    issue(con, 'collector', 'observation-stopped', 'suspected', reason=reason, message=error,
+                          **({'errorDetails': error_details} if error_details is not None else {}))
                 backlog = con.execute('SELECT value FROM cursors').fetchall()
                 remaining_bytes = sum(max(0, (v := json.loads(r[0]))['lastSize'] - v['offset']) for r in backlog if not json.loads(r[0]).get('missing'))
                 progress['backlogBytes'] = remaining_bytes
