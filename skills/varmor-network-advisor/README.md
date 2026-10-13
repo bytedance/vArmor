@@ -92,6 +92,8 @@ The assistant first performs read-only checks and prepares a policy draft. It sh
 
 > Change the observation window to 30 minutes, keep the other options, and start with the revised plan.
 
+The assistant starts with a short business summary and links a complete plan for review: target, duration, business scenarios, material permission changes, and your next action. You can ask for collection/budget details; after confirmation, it reports changes without repeating the table. For a first interactive run, allow at least **10 minutes**, or **15 minutes** for slow rollouts or several handoffs. These are recommendations, not enforced limits or guarantees of coverage. A scheduled job may need a longer business cycle. You can choose a shorter window; prepare the recreation and request steps before collection starts.
+
 For unspecified options, the suggested defaults are below. Actual existing policy settings are also included; for example, an existing MITM scope is not removed just because you did not mention it.
 
 The observation policy changes the target's NetworkProxy network rules to allow and audit. Review any change to existing network blocking when confirming the plan. Existing system protection is retained.
@@ -114,6 +116,8 @@ Deployment and collection have not started while the plan awaits confirmation, s
 ### 4. Create or recreate Pods after the readiness message
 
 The assistant reports the actual deadline and remaining time, collection/analysis intervals, log sources verified as ready, and label requirements. **Wait for the collector readiness message before operating the application**, so startup traffic has a chance to be collected.
+
+Before handing over, and again when you reply, the assistant checks current local collector health and remaining time. The message describes readiness at that check, not a promise that the process will stay alive. If a delayed handoff, failure or deadline makes it stale, the assistant explains the evidence gap before requesting more application work. Timeout diagnostics identify the operation, stage and time bound; they do not by themselves identify the cause.
 
 This session excludes Pod UIDs that existed before handoff, even if they already had a proxy. Create or recreate Pods with new UIDs; restarting a container inside the same Pod is not Pod recreation. Then tell the assistant:
 
