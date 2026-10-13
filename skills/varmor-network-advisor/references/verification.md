@@ -87,29 +87,31 @@ After the user has run the checks, prepare JSON from actual supplied receipts:
   {"id": "new-order-id", "layer": "L7", "destination": "10.0.0.8:8080",
    "authority": "orders.example.test:8080", "method": "GET",
    "path": "/api/orders/3003", "expected": "allow",
-   "clientConfirmed": true, "backendConfirmed": true,
    "evidence": ["/ABS/client-results.json", "/ABS/backend-results.txt"]},
   {"id": "wrong-method", "layer": "L7", "destination": "10.0.0.8:8080",
    "authority": "orders.example.test:8080", "method": "DELETE",
-   "path": "/api/orders/3003", "expected": "deny",
-   "clientConfirmed": true, "backendConfirmed": true},
+   "path": "/api/orders/3003", "expected": "deny", "intentionalDeny": true,
+   "evidence": ["/ABS/client-denied.json", "/ABS/backend-window.json"]},
   {"id": "required-tcp", "layer": "L4", "destination": "10.0.0.8:9000",
-   "expected": "allow", "clientConfirmed": true}
+   "expected": "allow"}
 ]}
 ```
 
-`clientConfirmed` means that inspected client results match that check's expected
-outcome; `backendConfirmed` means that inspected backend records match it
-(received for allow, absent for deny). False means contradiction; omission means
-missing evidence. These assertions are supplied evidence, not independently
-executed tests by this CLI. Keep source receipts and disclose this distinction.
+Supply `--receipts` using [evidence-validation.md](evidence-validation.md).
+The CLI checks actual supplied command output against literal expected markers,
+exit codes, byte hashes, times, Pod UID and candidate binding. Legacy true
+`clientConfirmed`, `backendConfirmed` and `configurationConfirmed` flags do not
+confirm results; explicit false flags still disclose contradictions. Missing
+receipts leave checks insufficient while saving audit and DENIED evidence.
+Source authenticity remains the supplier's responsibility.
 Raw TCP checks match L4 events without SNI; an explicit sni field verifies literal TLS SNI/port instead.
 
 ```sh
 python3 /ABS/SKILL/scripts/advisor.py verify --session /ABS/VERIFY \
   --observation-session /ABS/OBS --policy-file /ABS/OBS/candidate.yaml \
   --pod-uid VALIDATION_UID --since '2026-10-10T15:00:00+08:00' \
-  --until '2026-10-10T15:01:00+08:00' --checks /ABS/checks.json --language en
+  --until '2026-10-10T15:01:00+08:00' --checks /ABS/checks.json \
+  --receipts /ABS/EVIDENCE/receipts.json --language en
 python3 /ABS/SKILL/scripts/advisor.py analyze --session /ABS/OBS \
   --verification /ABS/VERIFY/verification.json
 ```
@@ -125,7 +127,7 @@ No fallback reader creation is available.
 
 Outputs: `verification.json`, `verification.md`, and normalized, query-stripped
 `events.json` / `events.sqlite`. Audited checks are confirmed with matching audit
-and client assertions (plus backend assertions for HTTP); quiet allows additionally follow the complete-read/effective-configuration requirements in enforcement-iteration.md; contradictory or
+and checked source client receipts (plus backend receipts for HTTP); quiet allows additionally follow the complete-read/active-permission-proof requirements in enforcement-iteration.md; contradictory or
 missing evidence remains visible. No-check runs save audit only and return 2.
 Any non-confirmed check also returns 2 while saving the evidence. Snapshot
 continuity is not assessed and cannot prove absence of upstream loss.

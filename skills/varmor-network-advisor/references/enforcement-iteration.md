@@ -211,7 +211,8 @@ python3 /ABS/SKILL/scripts/advisor.py verify --session /ABS/VERIFY \
   --observation-session /ABS/OBS --collection-session /ABS/ENFORCE \
   --policy-file /ABS/OBS/candidate.yaml --pod-uid VERIFIED_UID \
   --since 'EXPLICIT_COMPLETED_WINDOW_START_WITH_TIMEZONE' \
-  --until 'EXPLICIT_COMPLETED_WINDOW_END_WITH_TIMEZONE' --checks /ABS/checks.json
+  --until 'EXPLICIT_COMPLETED_WINDOW_END_WITH_TIMEZONE' --checks /ABS/checks.json \
+  --receipts /ABS/EVIDENCE/receipts.json
 ```
 
 This reads saved bounded evidence without more cluster reads. Workflows with a
@@ -219,11 +220,12 @@ resource plan reject the legacy unbounded verification snapshot fallback.
 No-check verification returns 2 while saving audit and `denials.json`; this means
 no acceptance checklist, not a failed log collection. Preserve and explain it.
 
-For quiet allow checks set `configurationConfirmed:true` only after inspecting
-actual mounted LDS/CDS and effective proxy loading for this candidate, with
-receipt paths in `evidence`. Verify the candidate-to-effective-rule correspondence
-described in [verification.md](verification.md), including the audit qualifiers;
-matching old mounted and active files is insufficient. It also requires
+For quiet allow checks use the hash-bound source bundle and before/after active
+permission proofs in [evidence-validation.md](evidence-validation.md).
+`configurationConfirmed:true` and paths in `evidence` cannot establish loading.
+The checker verifies candidate-to-active scope and audit qualifiers within its
+documented automatic scope; unsupported configuration remains insufficient.
+Matching old mounted and active files is insufficient. It also requires
 client success, backend receipt for HTTP, a complete bounded read covering the
 traffic window, and no matching AUDIT/DENIED. Missing quiet logs alone never
 prove successful access. Read completeness cannot detect upstream ALS loss.

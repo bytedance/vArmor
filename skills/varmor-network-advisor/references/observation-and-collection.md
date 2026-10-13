@@ -72,6 +72,18 @@ The default incremental processing budget is 4 MiB per round. Rotate source orde
 
 After a crash, monitor may resume the same session only before the latest applied deadline. Reuse the applied source configuration, intervals, and capacity settings; new arguments must not automatically extend observation. Do not classify new Pods present at recovery as baseline Pods. Reject deadline requests that had not been acknowledged as applied before the crash; if still needed, resubmit after recovery readiness. Report a suspected interruption gap. Retained files may allow catch-up, but overwritten logs cannot be guaranteed recoverable. Host sleep, restart, or tool process termination can interrupt observation. Check collector.json update times and process state; historical readyAt alone does not prove it is running now.
 
+Both the absolute wall deadline and monotonic phase budget are checked before
+new work; a backward clock change cannot extend the monotonic budget. After
+resuming past the absolute cutoff, do not start another read or accept a pending
+extension of the expired window. In-flight work may have been interrupted;
+never claim host sleep was observed. `elapsedSeconds` is wall duration, while
+`observedSeconds` is sampled collector runtime, excludes detected discontinuities
+and does not measure continuous request capture or complete business coverage.
+Clock/monotonic disagreement over two seconds or a heartbeat interval exceeding
+the maximum of 60 seconds and round limit plus 30 seconds creates a suspected
+timing gap. The entire uncertain interval is conservatively excluded. Old
+sessions without runtime samples cannot have their elapsed history reconstructed.
+
 monitor and manual analyze use separate process leases/round locks; only one monitor is allowed per session. Do not mix snapshot collect, offline, and incremental data. Historical --since sessions do not enter new-Pod observation mode. One-shot collect/cycle reads all retained rotated files by default but has no cursor continuity assessment; its report is not-assessed.
 
 If snapshot cat encounters a specific exec stream read error, it tries chunked rereads using stat/dd. Retries must not bypass permission errors. Rotation or truncation during chunked reading causes rejection of the mixed snapshot; suggest retrying or using monitor. This remains a snapshot and does not provide continuous collector gap detection.

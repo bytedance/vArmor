@@ -428,6 +428,7 @@ def prepare(args, api):
     root.mkdir(parents=True, exist_ok=True)
     api['write'](root / 'session.json', state)
     api['write'](root / 'observe.yaml', expected)
+    api['workflow_module']().register_collection(original, root, api)
     print(json.dumps({'status': 'enforcement-collection-prepared', 'session': str(root),
         'podUIDs': sorted(wanted), 'next': ('Start bounded monitor before user recreation; new target UIDs are verified and enrolled automatically'
                                           if new_pods else 'Start bounded monitor, wait for ready, then the user exercises business; no Pod recreation required')}))

@@ -492,7 +492,17 @@ class MonitorTests(unittest.TestCase):
 
 
 class DeadlineControlTests(unittest.TestCase):
+    def test_pending_extension_cannot_revive_expired_absolute_window(self):
+        self.progress['plan']['until'] = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(seconds=1)).isoformat()
+        a.write(self.root / 'deadline-request.json', {'requestId': 'before-suspension', 'requestedAt': a.now(),
+            'until': (dt.datetime.now(dt.timezone.utc) + dt.timedelta(seconds=60)).isoformat(),
+            'expectedRevision': 0, 'requestedReason': 'Requested before suspension'})
+        self.assertFalse(c.apply_deadline_request(self.api, self.root, self.progress, self.watch))
+        self.assertEqual(self.progress['lastDeadlineChange']['status'], 'rejected')
+        self.assertIn('Original deadline', self.progress['lastDeadlineChange']['reason'])
+
     def setUp(self):
+        self.addCleanup(setattr, a, 'KUBE_WALL_DEADLINE', a.KUBE_WALL_DEADLINE)
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name)

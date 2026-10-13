@@ -20,16 +20,21 @@ def timestamp(value):
     return int(parsed.timestamp())
 
 
-def check_results(checks, records, api, policy=None, state=None, complete_read=True):
+def check_results(checks, records, api, policy=None, state=None, complete_read=True, receipt_results=None):
+    # Low-level audit matching also supports existing pure audit unit callers.
+    # Public verify always supplies a mapping, so confirmation flags alone never pass.
     if not isinstance(checks, list) or not checks:
         raise ValueError('checks must be a nonempty list')
     output, ids = [], set()
     for item in checks:
         keys = {'id', 'layer', 'destination', 'expected', 'authority', 'method', 'path',
-                'clientConfirmed', 'backendConfirmed', 'configurationConfirmed', 'evidence', 'sni'}
+                'clientConfirmed', 'backendConfirmed', 'configurationConfirmed', 'evidence', 'sni', 'intentionalDeny'}
         if not isinstance(item, dict) or set(item) - keys or not api['safe_text'](item.get('id')) or item['id'] in ids:
             raise ValueError('invalid or duplicate verification check')
         ids.add(item['id'])
+        if 'intentionalDeny' in item and (type(item['intentionalDeny']) is not bool or
+                item['intentionalDeny'] and item.get('expected') != 'deny'):
+            raise ValueError('intentionalDeny requires an explicit boolean on an expected-deny check')
         endpoint = api['destination'](item.get('destination'))
         if item.get('layer') not in ('L4', 'L7') or item.get('expected') not in ('allow', 'deny'):
             raise ValueError('check requires layer L4/L7 and expected allow/deny')
@@ -61,7 +66,10 @@ def check_results(checks, records, api, policy=None, state=None, complete_read=T
                 raise ValueError('Expected allow is not covered by the supplied candidate')
             audit_expected = any('audit' in r['qualifiers'] for r in matches_rules)
         matches = []
+        receipt = receipt_results.get(item['id'], {}) if receipt_results is not None else item
         for rec in records:
+            if receipt.get('podUID') and rec.get('podUID') != receipt['podUID']:
+                continue
             ev = rec['event']
             try:
                 same = ev['layer'] == item['layer'] and api['destination'](ev.get('dstAddress')) == endpoint
@@ -87,17 +95,19 @@ def check_results(checks, records, api, policy=None, state=None, complete_read=T
 
         valid = [r for r in matches if r['action'] == wanted and
                  (wanted == 'DENIED' or usable_allow(r))]
-        client = item.get('clientConfirmed')
-        backend = item.get('backendConfirmed')
+        client = receipt.get('clientConfirmed')
+        backend = receipt.get('backendConfirmed')
         silent = item['expected'] == 'allow' and not audit_expected
-        expected_evidence = bool(valid) if not silent else complete_read and not matches and item.get('configurationConfirmed') is True
+        expected_evidence = bool(valid) if not silent else complete_read and not matches and receipt.get('configurationConfirmed') is True
         contradictory = any(r['action'] == opposite for r in matches) or client is False or backend is False or \
-                        item.get('configurationConfirmed') is False or (silent and bool(matches))
+                        receipt.get('configurationConfirmed') is False or (silent and bool(matches)) or \
+                        item.get('clientConfirmed') is False or item.get('backendConfirmed') is False or item.get('configurationConfirmed') is False
         complete = expected_evidence and client is True and (item['layer'] == 'L4' or backend is True)
         result = 'contradicted' if contradictory else 'confirmed' if complete else 'insufficient'
         output.append({**item, 'result': result, 'auditMatches': len(matches), 'expectedAuditMatches': len(valid),
+                       'receiptChecks': receipt if receipt_results is not None else {'mode': 'low-level assertions'},
                        'auditMode': 'silent' if silent else 'enabled',
-                       'basis': 'client/backend + effective-config assertion + no matching audit in bounded read' if silent else 'client/backend + matching audit',
+                       'basis': 'checked client/backend receipts + active permission proof + bounded quiet read' if silent else 'checked client/backend receipts + matching audit',
                        'missing': [label for label, present in (('quiet-read/configuration' if silent else 'expected-audit', expected_evidence),
                                     ('client-result', client is not None),
                                     ('backend-result', item['layer'] == 'L4' or backend is not None)) if not present]})
@@ -167,7 +177,10 @@ def verify(args, api):
         all(dt.datetime.fromisoformat(collected['observation'].get('sourceCapturedAt', {}).get(s, '1970-01-01T00:00:00Z').replace('Z', '+00:00')) >=
             dt.datetime.fromisoformat(args.until.replace('Z', '+00:00'))
             for s in collected['requiredSources']))
-    results = check_results(checks, records, api, expected, state, complete_read) if checks is not None else []
+    bundle = api['load'](args.receipts) if getattr(args, 'receipts', None) else None
+    receipt_results = api['evidence_module']().evaluate_bundle(bundle, checks, expected, pinned,
+        state['podUIDs'], args.since, args.until, api) if bundle is not None and checks else {}
+    results = check_results(checks, records, api, expected, state, complete_read, receipt_results) if checks is not None else []
     language = args.language or (collected or {}).get('reportLanguage') or state.get('reportLanguage', 'en')
     report = {'kind': 'NetworkProxyVerification', 'observationSession': str(observation),
               'candidateHash': fingerprint(expected), 'policy': pinned, 'podUIDs': state['podUIDs'],
@@ -176,7 +189,10 @@ def verify(args, api):
               'summary': dict(collections.Counter(r['result'] for r in results)),
               'eventsHash': fingerprint(records), 'denials': api['refinement_module']().denied_items(records, state, api),
               'boundedCollection': collected, 'quietReadComplete': complete_read,
-              'receiptMode': 'client/backend assertions supplied by user or assistant inspecting receipts',
+              'receiptMode': 'Hash-bound supplied source receipts checked mechanically; source authenticity is not independently established',
+              'sourceReceiptsHash': fingerprint(bundle) if bundle else None,
+              'sourceReceipts': bundle,
+              'collectionSession': str(Path(args.collection_session).resolve()) if collected else None,
               'reportLanguage': language, 'auditOnly': checks is None}
     api['write'](root / 'verification.json', report)
     api['write'](root / 'events.json', records)
@@ -189,15 +205,19 @@ def verify(args, api):
              (('独立拦截采集，未参与成功观察建模；日志文件连续性：' + collected['collectionHealth']['status'] + '，无法排除写入前的上游事件丢失。' if zh
                else 'Independent bounded enforcement collection; log-source continuity: ' + collected['collectionHealth']['status'] + '. Upstream event loss before file writing remains unassessed.')
               if collected else ('未参与观察数据建模；快照不评估日志连续性。' if zh else 'Separate from observation/modeling. Snapshot continuity is not assessed.')),
-             ('客户端与后端判断依赖所提供的结果，不能仅凭空响应证明拒绝。' if zh
-              else 'Client/backend judgments rely on supplied receipts; empty output alone does not prove denial.'), '',
-             '| 检查 | 预期 | 结果 | 匹配审计 |' if zh else '| Check | Expected | Result | Audit matches |', '|---|---|---|---|']
+             ('程序核对所提供的回执内容、哈希、身份和时间。回执来源仍由提供者负责。仅有确认值或空响应不能证明通过。' if zh
+              else 'Supplied receipt contents, hashes, identities and times are checked mechanically. The supplier remains responsible for source authenticity. Confirmation flags or empty output alone cannot pass.'), '',
+             '| 检查 | 预期 | 结果 | 匹配审计 | 待补证据 |' if zh else '| Check | Expected | Result | Audit matches | Missing evidence |', '|---|---|---|---|---|']
     for item in results:
         result = {'confirmed': '通过', 'contradicted': '结果冲突', 'insufficient': '证据不足'}[item['result']] if zh else item['result']
+        names = {'expected-audit': '对应审计', 'client-result': '客户端回执', 'backend-result': '后端回执',
+                 'quiet-read/configuration': '完整读取或配置证明'}
+        missing = '、'.join(names.get(x, x) for x in item['missing']) if zh else ', '.join(item['missing'])
         lines.append('| ' + ' | '.join(str(x).replace('|', '\\|') for x in
-                     (item['id'], item['expected'], result, item['auditMatches'])) + ' |')
+                     (item['id'], item['expected'], result, item['auditMatches'], missing or '-')) + ' |')
     if not results:
         lines.append('仅保存审计证据，未提供验证检查清单。' if zh else 'Audit evidence only; no validation checklist supplied.')
+    lines += ['', '[' + ('详细证据与诊断' if zh else 'Detailed evidence and diagnostics') + '](' + str(root / 'verification.json') + ')']
     (root / 'verification.md').write_text('\n'.join(lines) + '\n')
     print(json.dumps(report, ensure_ascii=False, indent=2))
     return 2 if not results or any(r['result'] != 'confirmed' for r in results) else 0

@@ -262,6 +262,7 @@ class PodWatch:
     def __init__(self, context, namespace, resource_version, deadline):
         self.context, self.namespace, self.rv = context, namespace, resource_version
         self.deadline = deadline
+        self.wall_deadline = None
         self.events = queue.Queue(maxsize=10000)
         self.done = threading.Event()
         self.process = None
@@ -281,7 +282,8 @@ class PodWatch:
         # The main loop also LISTs every discovery interval, for recovery and status.
         # A closed watch is reported; LIST cannot recover already deleted short-lived Pods.
         decoder = json.JSONDecoder()
-        while not self.done.is_set() and time.monotonic() < self.deadline:
+        while not self.done.is_set() and time.monotonic() < self.deadline and \
+                (self.wall_deadline is None or time.time() < self.wall_deadline):
             argv = ['kubectl', '--context', self.context, '--request-timeout=0', 'get', 'pods',
                     '-n', self.namespace, '--watch-only', '--output-watch-events', '-o', 'json']
             if self.rv:
@@ -732,7 +734,7 @@ def apply_deadline_request(api, root, progress, watch):
             return False
         current = dt.datetime.now(dt.timezone.utc)
         until = dt.datetime.fromisoformat(request['until'])
-        if time.monotonic() >= api['kube'].__globals__['KUBE_DEADLINE']:
+        if window_remaining(progress) <= 0 or time.monotonic() >= api['kube'].__globals__['KUBE_DEADLINE']:
             acknowledge_deadline(progress, request, 'rejected', api, reason='Original deadline already reached')
         elif request['expectedRevision'] != progress.get('planRevision', 0):
             acknowledge_deadline(progress, request, 'rejected', api, reason='Observation plan changed; inspect current status')
@@ -742,7 +744,9 @@ def apply_deadline_request(api, root, progress, watch):
             # Accept it and stop without starting another Kubernetes operation.
             effective = time.monotonic() + max(0, (until - current).total_seconds())
             api['kube'].__globals__['KUBE_DEADLINE'] = effective
+            api['kube'].__globals__['KUBE_WALL_DEADLINE'] = until.timestamp()
             watch.deadline = effective
+            watch.wall_deadline = until.timestamp()
             progress['plan']['until'] = until.isoformat()
             progress['planRevision'] = progress.get('planRevision', 0) + 1
             acknowledge_deadline(progress, request, 'applied', api, previousUntil=previous)
@@ -928,6 +932,37 @@ def handoff_status(root, api, min_remaining=None):
     return result
 
 
+class ObservationTiming:
+    """Measure collector runtime, flag discontinuities; never imply business coverage."""
+    def __init__(self, progress):
+        self.progress = progress
+        self.wall = dt.datetime.now(dt.timezone.utc)
+        self.tick = time.monotonic()
+        progress.setdefault('observedSeconds', 0)
+        progress.setdefault('timingGaps', [])
+
+    def sample(self):
+        wall, tick = dt.datetime.now(dt.timezone.utc), time.monotonic()
+        wall_delta, runtime = (wall - self.wall).total_seconds(), max(0, tick - self.tick)
+        threshold = max(60, self.progress['plan'].get('maxRoundSeconds', 30) + 30)
+        discontinuity = abs(wall_delta - runtime) > 2 or runtime > threshold
+        gap = None
+        if discontinuity:
+            gap = {'since': self.wall.isoformat(), 'until': wall.isoformat(),
+                'wallSeconds': round(wall_delta, 3), 'monotonicSeconds': round(runtime, 3),
+                'reason': 'clock-change-or-suspension' if abs(wall_delta - runtime) > 2 else 'heartbeat-interruption'}
+            self.progress['timingGaps'].append(gap)
+        elif self.progress.get('readyAt'):
+            self.progress['observedSeconds'] += runtime
+        self.wall, self.tick = wall, tick
+        self.progress['timingBasis'] = 'Sampled collector runtime excluding detected discontinuities; not continuous traffic coverage'
+        return gap
+
+
+def window_remaining(progress):
+    return (dt.datetime.fromisoformat(progress['plan']['until']) - dt.datetime.now(dt.timezone.utc)).total_seconds()
+
+
 def run_monitor(args, api):
     root = Path(args.session)
     stop_event = threading.Event()
@@ -958,6 +993,7 @@ def run_monitor(args, api):
             setattr(args, field, planned[key])
         remaining = (dt.datetime.fromisoformat(planned['until']) - dt.datetime.now(dt.timezone.utc)).total_seconds()
         api['kube'].__globals__['KUBE_DEADLINE'] = time.monotonic() + max(0, remaining)
+        api['kube'].__globals__['KUBE_WALL_DEADLINE'] = dt.datetime.fromisoformat(planned['until']).timestamp()
         progress = {**previous, 'phase': 'initializing', 'plan': planned, 'processId': os.getpid(),
                     'startedAt': previous.get('startedAt', api['now']())}
         with control_lock(api, root):
@@ -1011,6 +1047,7 @@ def run_monitor(args, api):
                                        '; do not recreate workloads before collector readiness')
             watch = PodWatch(state['context'], state['namespace'], listed.get('metadata', {}).get('resourceVersion'),
                              bootstrap_deadline)
+            watch.wall_deadline = dt.datetime.fromisoformat(planned['until']).timestamp()
             watch.start()
             if not previous.get('readyAt') and (not verification_mode or startup_mode):
                 baseline = set(state.get('baselinePodUIDs', [])) | {p['metadata']['uid'] for p in listed['items']}
@@ -1062,16 +1099,26 @@ def run_monitor(args, api):
             api['write'](root / 'collector.json', progress)
             ready = True
             print(json.dumps({'status': 'collector-ready', **progress}, ensure_ascii=False), flush=True)
+        watch.wall_deadline = dt.datetime.fromisoformat(progress['plan']['until']).timestamp()
+        timing = ObservationTiming(progress)
+        initial_gaps = len(progress['timingGaps'])
         next_scan = next_discovery = next_analysis = time.monotonic()
         last_event_count = -1
         while True:
+            gap = timing.sample()
+            if gap:
+                with contextlib.closing(api['database'](root)) as con, con:
+                    issue(con, 'collector', 'timing-discontinuity', 'suspected', **gap)
+                    progress['collectionHealth'] = health(con)
+                initial_gaps = len(progress['timingGaps'])
+                api['write'](root / 'collector.json', progress)
             if stop_event.is_set() or (root / 'stop-request.json').exists():
                 reason = 'user-stop'
                 break
             if apply_deadline_request(api, root, progress, watch):
                 # Refresh the report even when there are no new audit events.
                 last_event_count, next_analysis = -1, time.monotonic()
-            if time.monotonic() >= api['kube'].__globals__['KUBE_DEADLINE']:
+            if window_remaining(progress) <= 0 or time.monotonic() >= api['kube'].__globals__['KUBE_DEADLINE']:
                 break
             usage = sum(p.stat().st_size for folder in reader.resource_budget.storage_roots
                         for p in Path(folder).rglob('*') if p.is_file())
@@ -1092,6 +1139,8 @@ def run_monitor(args, api):
                                 register_pod(state, value, api)
                             else:
                                 issue(con, 'pod-discovery', 'watch-interrupted', 'suspected', message=value)
+                        if window_remaining(progress) <= 0:
+                            raise TimeoutError('Observation absolute deadline reached')
                         if tick >= next_discovery:
                             operation_stage = 'pod-inventory'
                             try:
@@ -1186,18 +1235,23 @@ def run_monitor(args, api):
                     if local_analysis(api, args):
                         last_event_count = count
                 next_analysis = time.monotonic() + planned['analysisIntervalSeconds']
-            stop_event.wait(min(0.5, max(0, api['kube'].__globals__['KUBE_DEADLINE'] - time.monotonic())))
+            stop_event.wait(min(0.5, max(0, window_remaining(progress)),
+                                max(0, api['kube'].__globals__['KUBE_DEADLINE'] - time.monotonic())))
     except (TimeoutError, subprocess.TimeoutExpired) as exc:
         # The active API deadline may be a shorter per-round bound. Only the
         # overall phase deadline can justify reporting a normal timed stop.
         phase_deadline = locals().get('original_deadline', locals().get('bootstrap_deadline',
             api['kube'].__globals__['KUBE_DEADLINE']))
-        if phase_deadline is None or time.monotonic() < phase_deadline:
+        if locals().get('progress') and window_remaining(progress) <= 0:
+            reason = 'deadline'
+        elif phase_deadline is None or time.monotonic() < phase_deadline:
             reason, error = 'failure', 'Collection timed out before the observation deadline'
             error_details = failure_details(exc, operation_stage)['errorDetails']
     except (RuntimeError, ValueError, TypeError, OSError, KeyError, sqlite3.Error) as exc:
         reason, error = 'failure', str(exc)
     finally:
+        if 'timing' in locals():
+            timing.sample()
         if watch:
             watch.close()
         # Final identity resolution remains inside both the phase and round
@@ -1223,6 +1277,8 @@ def run_monitor(args, api):
                 api['write'](root / 'collector.json', progress)
             with session_lock(api, root), contextlib.closing(api['database'](root)) as con, con:
                 schema(con)
+                for gap in progress.get('timingGaps', [])[locals().get('initial_gaps', 0):]:
+                    issue(con, 'collector', 'timing-discontinuity', 'suspected', **gap)
                 if watch:
                     state = api['load'](root / 'session.json')
                     for kind, value in watch.drain():
@@ -1247,8 +1303,7 @@ def run_monitor(args, api):
                 progress['collectionHealth'] = health(con)
                 progress['elapsedSeconds'] = max(0, (dt.datetime.fromisoformat(progress['stoppedAt']) -
                                                       dt.datetime.fromisoformat(progress['startedAt'])).total_seconds())
-                progress['observedSeconds'] = max(0, (dt.datetime.fromisoformat(progress['stoppedAt']) -
-                    dt.datetime.fromisoformat(progress['readyAt'])).total_seconds()) if progress.get('readyAt') else 0
+                progress['observedSeconds'] = round(progress.get('observedSeconds', 0), 3)
                 api['write'](root / 'collector.json', progress)
             if ready:
                 if not local_analysis(api, args, final=True):
@@ -1258,6 +1313,7 @@ def run_monitor(args, api):
         elif error:
             print(json.dumps({'status': 'observation-not-started', 'error': error}), file=sys.stderr)
         api['kube'].__globals__['KUBE_DEADLINE'] = None
+        api['kube'].__globals__['KUBE_WALL_DEADLINE'] = None
     return 2 if error is not None else 0
 
 

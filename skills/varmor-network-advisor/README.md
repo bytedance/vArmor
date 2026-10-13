@@ -134,6 +134,15 @@ If you explicitly request starting with the complete plan already shown, the ass
 
 Before handing over, and again when you reply, the assistant checks collector health and remaining time. The readiness message describes the state at that check; it does not guarantee that the process will stay alive.
 
+Each handoff starts with the current progress, who acts next, and the success
+criteria. For example:
+
+> The collector is ready until 15:30. Recreate the application and exercise order queries. The assistant will check new Pods and startup evidence.
+
+`workflow-status.md` summarizes the stage and next action. Candidate changes
+invalidate old verification. Saved successful checks do not establish the
+current cluster state; technical details stay in linked reports.
+
 Note: Handoff delays, collection failures, or expiry can make the message stale. The assistant explains the evidence gap before deciding the next step. Timeout diagnostics preserve the operation, stage, and time bound; they do not establish the root cause.
 
 This session excludes Pod UIDs that existed before handoff, even if they already had a proxy. Create or recreate Pods with new UIDs; restarting a container inside the same Pod is not Pod recreation. Then tell the assistant:
@@ -356,6 +365,15 @@ Quiet checks need:
 
 The absence of audit records alone does not prove success. Resource-limited or unfinished reads remain marked as insufficient evidence. Reports separate successful observation, reviewed `DENIED` additions, audit settings, and subsequent validation. Replay coverage does not establish complete business coverage.
 
+The assistant saves actual test receipts. The checker validates output content,
+byte hashes, Pod identity and the traffic window. Confirmation flags alone
+cannot pass verification. Client and backend evidence must come from real tests.
+
+Common plaintext HTTP and TLS passthrough rules support automatic checks of
+active proxy permissions. MITM, raw TCP grants and other unsupported layouts
+require separate diagnostics. Quiet checks with missing configuration proof
+remain insufficient; the assistant explains the applicable visibility limits.
+
 Your decisions are saved in `refinement.json`; enforcement logs are kept in separate directories. You do not need to edit these files or learn script commands.
 
 ### Withdraw or restore previously allowed access
@@ -431,6 +449,7 @@ Warning: Check the automatic update setting before restoring the original policy
 | Main artifact | Purpose |
 |---|---|
 | `report.md` | Actual permissions, added/removed permissions, pending TCP, uncovered behavior, and next steps |
+| `workflow-status.md` / `workflow-status.json` | Current stage, next actor/action and evidence links; not current deployment proof |
 | `candidate.yaml` | Draft for review; normally absent without acceptable rules; explicit withdrawal of all grants produces a marked deny-all draft |
 | `review.json` | Saved business review decisions reused in this session |
 | `refinement.json` | DENIED, silence, grant withdrawal/restoration and explicit deny constraints, with history, reasons and approval evidence |
@@ -452,6 +471,7 @@ Use the Kubernetes JSON export when importing an existing Policy. The built-in r
 - **Coverage describes existing evidence only.** A 100% replay result, a stable candidate, or no new traffic does not prove coverage of low-frequency tasks, retries, failover, or all replicas. Verify real traffic before enforcement.
 - **Logs may have gaps.** The collector tracks retained rotation files. It reports a confirmed gap when known unread bytes disappear, and suspected gaps for interrupted reads, file resets, and similar risks. Shared node log loss may not reveal how many target events were affected. Drops before writing may be invisible. "No detected gap" is not a completeness guarantee.
 - **Keep the collection environment running.** Host sleep, restart, or tool exit may interrupt observation. Recovery before expiry retains the latest applied deadline and reports interruption risk without automatically extending it. Final micro-VM logs may disappear when the sidecar is deleted.
+- **Interrupted time is not observation.** After resuming beyond the deadline, the collector starts no new reads. Detected clock jumps or long heartbeat interruptions are marked as suspected gaps and excluded from sampled runtime. Runtime does not establish business coverage.
 - **The capacity threshold is not a hard disk quota.** The default 512 MiB threshold is checked between rounds, so the current batch and final report may exceed it. Old evidence is not deleted to make room. Prefer an existing persistent log backend at larger scale.
 - **Check permission scope.** Before new Pods are scheduled, the assistant checks node log sources in the specified Agent scope, within authorization. Continuous collection needs sh, stat, dd, head and tail in log containers. Missing capabilities require diagnosis or an explicitly agreed alternative; an existing resource plan cannot fall back to an unbounded live snapshot. Offline inputs have different continuity limits. If a fallback reader needs an image, provide one your environment can pull.
 - **Understand network boundaries.** This allowlist does not prove coverage of UDP/DNS, QUIC, loopback, or traffic bypassing TCP redirection. Network audit has Pod granularity and cannot distinguish every application container/process in the same Pod. A long-lived connection still open when observation ends may not yet have emitted its audit. Tell the assistant about required connections missing from the report; their absence does not mean they are unnecessary.

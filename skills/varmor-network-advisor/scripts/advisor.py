@@ -23,6 +23,7 @@ import importlib.util
 
 # Set only by bounded collection. Every Kubernetes subprocess shares its deadline.
 KUBE_DEADLINE = None
+KUBE_WALL_DEADLINE = None
 
 
 # Report prose follows the user's conversation; API values and audit evidence
@@ -193,6 +194,8 @@ class KubeDeadlineError(TimeoutError):
 def kube(context, *args, data=None, binary=False):
     # argv only: audited hosts/paths never become shell commands.
     remaining = KUBE_DEADLINE - time.monotonic() if KUBE_DEADLINE is not None else 100
+    if KUBE_WALL_DEADLINE is not None:
+        remaining = min(remaining, KUBE_WALL_DEADLINE - time.time())
     timeout = max(0, min(20 if KUBE_DEADLINE is not None else 100, remaining))
     diagnostic = {'command': kube_command_summary(args), 'timeoutSeconds': timeout,
                   'deadlineRemainingSeconds': round(max(0, remaining), 3),
@@ -1372,12 +1375,14 @@ def analyze(args):
                  tr('## Coverage limitations'), '', *['- ' + tr(x) for x in report['limitations']], '',
                  tr('See analysis.json for the full behavior inventory and rule coverage. validation.yaml retains observation configuration.')]
         (root / 'report.md').write_text('\n'.join(lines) + '\n')
+        workflow = workflow_module()
+        workflow.write_summary(root, workflow.summary(root, globals(), language=language), globals())
     print(json.dumps({k: v for k, v in report.items() if k != 'inventory'}, ensure_ascii=False, indent=2))
     return 0 if report['candidateFile'] else 2
 
 
 def cycle(args):
-    global KUBE_DEADLINE
+    global KUBE_DEADLINE, KUBE_WALL_DEADLINE
     if args.until:
         until = dt.datetime.fromisoformat(args.until.replace('Z', '+00:00'))
         if until.tzinfo is None:
@@ -1386,6 +1391,7 @@ def cycle(args):
             print(json.dumps({'status': 'observation-ended', 'until': args.until}))
             return 0
         KUBE_DEADLINE = time.monotonic() + (until - dt.datetime.now(dt.timezone.utc)).total_seconds()
+        KUBE_WALL_DEADLINE = until.timestamp()
     try:
         status = collect(args)
         if status:
@@ -1393,6 +1399,7 @@ def cycle(args):
         return analyze(args)
     finally:
         KUBE_DEADLINE = None
+        KUBE_WALL_DEADLINE = None
 
 
 def collector_module():
@@ -1440,6 +1447,28 @@ def verify(args):
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module.verify(args, globals())
+
+
+def evidence_module():
+    spec = importlib.util.spec_from_file_location('varmor_evidence', Path(__file__).with_name('evidence.py'))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def active_config(args):
+    return evidence_module().active_config(args, globals())
+
+
+def workflow_module():
+    spec = importlib.util.spec_from_file_location('varmor_workflow', Path(__file__).with_name('workflow.py'))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def workflow_status(args):
+    return workflow_module().status(args, globals())
 
 
 def parser():
@@ -1525,6 +1554,7 @@ def parser():
         v.add_argument('--' + field, required=True)
     v.add_argument('--pod-uid', action='append', required=True, help='explicit verified validation Pod UID; repeatable')
     v.add_argument('--checks', help='JSON client/backend results matched against normalized audit')
+    v.add_argument('--receipts', help='hash-bound client/backend command receipts and active permission proofs; booleans alone cannot confirm checks')
     v.add_argument('--collection-session', help='stopped bounded enforcement monitor; saved evidence without snapshot reads')
     v.add_argument('--language', choices=['en', 'zh-CN'])
     v.add_argument('--source', choices=['auto', 'agent', 'sidecar'], default='auto')
@@ -1532,6 +1562,14 @@ def parser():
     v.add_argument('--agent-selector')
     v.add_argument('--agent-container')
     v.set_defaults(include_rotated=True, create_readers=False)
+    proof = sub.add_parser('active-config', help='read-only, bounded proxy permission proof for supported literal HTTP/SNI candidates')
+    for field in ('session', 'policy-file', 'pod-uid', 'output'):
+        proof.add_argument('--' + field, required=True)
+    workflow = sub.add_parser('workflow-status', help='summarize saved workflow stage, next actor and evidence links; no cluster changes')
+    workflow.add_argument('--session', required=True)
+    workflow.add_argument('--collection-session', help='current separate enforcement collection')
+    workflow.add_argument('--verification', help='latest separate verification.json')
+    workflow.add_argument('--language', choices=['en', 'zh-CN'], help='explicit language for this brief status; use analyze --language to persist the workflow report preference')
     prep = sub.add_parser('prepare-verification', help='prepare bounded enforcement evidence; no policy or workload changes')
     for field in ('session', 'observation-session', 'policy-file'):
         prep.add_argument('--' + field, required=True)

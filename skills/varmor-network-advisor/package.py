@@ -21,8 +21,11 @@ RUNTIME_FILES = (
     'scripts/verification.py',
     'scripts/refinement.py',
     'scripts/yamlio.py',
+    'scripts/evidence.py',
+    'scripts/workflow.py',
     'references/verification.md',
     'references/enforcement-iteration.md',
+    'references/evidence-validation.md',
 )
 DEVELOPMENT_FILES = (
     '.gitignore',
@@ -44,6 +47,7 @@ DEVELOPMENT_FILES = (
     'tests/test_bounded_iteration.py',
     'tests/test_constraints_startup.py',
     'tests/test_handoff_diagnostics.py',
+    'tests/test_evidence_workflow.py',
 )
 SOURCE_ONLY_START = '<!-- package:source-only:start -->'
 SOURCE_ONLY_END = '<!-- package:source-only:end -->'

@@ -20,6 +20,13 @@ Distinguish configuration loading from verified business traffic. Explain
 undecrypted HTTPS as allowing a server and port without distinguishing paths or
 methods before introducing the SNI term.
 
+Use `workflow-status --session ABS_OBSERVATION` at phase handoffs to summarize
+the current stage, next actor and next action in `workflow-status.md`. Link this
+brief view first and detailed evidence as needed. A saved verification pass is
+historical evidence, not a current deployment claim. Continue assistant-owned
+authorized steps without asking the user to run the internal CLI. Collections
+are registered by prepare-verification; older ones can be selected explicitly.
+
 ## Start with the user's intent
 
 Users may know which application to protect without understanding the CRD. Extract the context, namespace, workload kind/name or selector first. Ask for missing essential target information; do not reconfirm information or authorization already provided. Prepare concrete results before asking users to review choices that require business judgment.
@@ -99,6 +106,16 @@ Present new DENIED scopes as pending business questions, not automatic permissio
 When users withdraw an existing permission, use refine with revokeRuleIds from the current permission table, a reason and approvalEvidence; no new DENIED receipt is needed. This covers observed grants and reviewed DENIED additions. Keep evidence/history, clear the withdrawn scope's silence approval, and regenerate the same candidate. Do not substitute excludedHosts/excludedTcp: they filter modeling inputs, not prior grants. Report remaining overlapping permissions and verify actual denial on fresh connections before claiming the endpoint is blocked; removal does not create an explicit deny or terminate old connections. Withdrawing every available permission creates an explicitly marked deny-all candidate: explain its impact and obtain deployment authorization. A new DENIED cannot reinstate a withdrawal. Restore only with explicit restoreRuleIds, reason and approvalEvidence; restored permissions start audited and require new positive verification before silence. Read the withdrawal procedure in enforcement-iteration.md.
 
 Read [references/verification.md](references/verification.md) for the separate read-only verify interface and receipt schema. Stop observation before switching policy configuration; collect enforcement evidence in a new directory pinned to the current candidate, policy identity, explicit verified Pod UIDs, and a completed time window. Reuse the injected Pods created for initial observation when only rules/defaultAction change: enforcement, iterative rule changes, and rollback do not require another Pod recreation. The UIDs must remain outside the initial observation baseline; "new" means after the initial handoff, not after every policy update. Wait for configuration propagation and verify effective behavior before judging results. Never use collect on the original observation after enforcement, bypass its configuration guard, or feed verification DENIED events into modeling. Associate verification using analyze --verification and identify stale evidence after any candidate change.
+
+Read [references/evidence-validation.md](references/evidence-validation.md) for
+`active-config` and `verify --receipts`. Use the automatic active-permission
+proof for its supported literal HTTP/SNI scope before and after traffic; do not
+claim MITM/raw-TCP/unknown layouts are automatically proved. Save actual supplied
+client/backend command output, identities and times, then bind byte hashes and
+literal expected-result predicates to this candidate and window. True flags or
+receipt descriptions alone cannot confirm checks. Missing, changed or unsupported
+evidence remains insufficient; actual conflicting output remains contradictory.
+The checker does not prove the authenticity of arbitrary supplied files.
 
 Users execute allowed requests, wrong-method and neighboring-path requests, unknown Host/SNI, pending/approved TCP scenarios, and MITM trust tests on the existing verified Pods. Use fresh connections after configuration propagation; an established long-lived connection does not prove the new rules' behavior. Recommend a final user-managed Pod recreation under the accepted enforcement policy to test startup dependencies and representative business scenarios without connections retained from observation. Do not require recreation for every rule adjustment. Missing injection or changes to injected containers/volumes/environment or redirection settings (such as initial MITM enablement) may also require recreation. Pin logs and exec commands to the verified Pod name/UID; a Deployment alias may select an old replica during rollout. Confirm application readiness and explain startup failures separately from proxy failures. Provide validation requirements and read user-provided client results, backend records, and normalized audit; do not start application test traffic for users. Neither Policy.ready nor server dry-run replaces real traffic verification. A TCP exit code of zero or empty output proves neither a working connection nor denial. Use the business protocol's expected response and connection completion, then correlate normalized AUDIT/DENIED evidence; long-lived connections may emit audit only when closed. Do not impose a generic nc command on an unknown protocol. Keep certificate verification enabled; do not use curl -k. The source and full package contain tests/smoke_cluster.py and tests/smoke_tls_tcp.py for independent maintainer regression testing; they create and delete their own resources. Do not invoke them in the normal Skill workflow as a substitute for user-managed workload lifecycles. The slim package excludes test tools.
 
