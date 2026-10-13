@@ -27,7 +27,12 @@ under that enforcement policy for final acceptance: exercise startup, normal
 business, reconnects, representative scheduled tasks, and allowed/denied checks.
 This removes target Pod connections retained from observation and tests startup
 dependencies against the allowlist; it is not required for each rule adjustment.
-Prepare rollback materials and read-only validation/log sources before handoff.
+Prepare rollback materials and a separate bounded prepare-verification --new-pods
+collection before handoff; wait for the monitor's actual collector-ready, then
+ask the user to recreate. Do not begin startup collection only after Pod Ready.
+Old UIDs are excluded; new birth/injection/target identity is checked, and a
+failed application need not become Ready for its evidence to be enrolled. See
+enforcement-iteration.md for startup ordering, inherited caps and DENIED review.
 Verify the recreated Pods' UIDs, injection, and effective configuration; collect
 their evidence in a separate verification directory for the current candidate.
 Do not claim startup acceptance if the user skips this test, or complete business

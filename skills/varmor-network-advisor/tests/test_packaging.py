@@ -62,9 +62,12 @@ class PackagingTests(unittest.TestCase):
             with zipfile.ZipFile(output) as archive:
                 for relative in ('install.py', 'package.py', 'tests/smoke_cluster.py', 'tests/smoke_tls_tcp.py', 'tests/test_packaging.py'):
                     self.assertIn('varmor-network-advisor/' + relative, archive.namelist())
+                for path in (SOURCE / 'tests').rglob('*.py'):
+                    relative = path.relative_to(SOURCE).as_posix()
+                    self.assertIn('varmor-network-advisor/' + relative, archive.namelist())
                 for filename in ('README.md', 'README.zh_CN.md'):
                     readme = archive.read('varmor-network-advisor/' + filename)
-                    self.assertNotIn(b'<!-- package:', readme)
+                    self.assertIn(package.SOURCE_ONLY_START.encode(), readme)
                     self.assertIn(b'python3 package.py --full', readme)
                 archive.extractall(root / 'extracted')
             for script in ('smoke_cluster.py', 'smoke_tls_tcp.py', 'smoke_collector.py'):
@@ -74,6 +77,18 @@ class PackagingTests(unittest.TestCase):
             subprocess.run([sys.executable, str(root / 'extracted/varmor-network-advisor/package.py'), '--full', '--output', str(repackaged)],
                            cwd=root, check=True, capture_output=True, text=True)
             self.assertEqual(output.read_bytes(), repackaged.read_bytes())
+            slim = root / 'slim-from-full.zip'
+            subprocess.run([sys.executable, str(root / 'extracted/varmor-network-advisor/package.py'),
+                            '--output', str(slim)], cwd=root, check=True, capture_output=True, text=True)
+            direct_slim = root / 'direct-slim.zip'
+            package.build_package(SOURCE, direct_slim)
+            self.assertEqual(direct_slim.read_bytes(), slim.read_bytes())
+            with zipfile.ZipFile(slim) as archive:
+                for filename in ('README.md', 'README.zh_CN.md'):
+                    readme = archive.read('varmor-network-advisor/' + filename)
+                    self.assertNotIn(package.SOURCE_ONLY_START.encode(), readme)
+                    self.assertNotIn(b'python3 install.py', readme)
+                    self.assertNotIn(b'python3 package.py', readme)
 
     def test_repeated_build_is_identical(self):
         with tempfile.TemporaryDirectory() as temporary:

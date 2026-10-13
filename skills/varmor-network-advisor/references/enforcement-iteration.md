@@ -92,6 +92,45 @@ Withdrawal/restoration clears the cached verification association. A receipt
 ending before the latest permission/audit decision remains stale even if the
 restored candidate has the same hash as an earlier version.
 
+## Preserve explicit deny constraints
+
+A modeling exclusion, a rejected DENIED suggestion, and withdrawal of a grant
+are different from an explicit deny that wins over overlapping allows. Save
+user-approved denials independently with refine (no denial receipt required):
+
+```json
+{"denyRules": [{"layer": "HTTP/SNI",
+  "rule": {"qualifiers": ["deny", "audit"], "match": {
+    "hosts": ["api.example.com"], "ports": [{"port": 8080}],
+    "paths": [{"exact": "/debug"}]}},
+  "reason": "Debug access and TLS on this host/port are not business needs",
+  "approvalEvidence": "/ABS/user-approval-of-exact-deny-and-SNI-effect.txt"}]}
+```
+
+Use literal canonical hosts/IPs, explicit ports/ranges and safe exact/prefix
+paths; this interface does not accept wildcard/CIDR/regex deny scopes. TCP
+uses layer=TCP, rule.ip and rule.ports. Qualifiers may be [deny] or [deny,audit].
+Explain actual renderer semantics before approval: for passthrough TLS,
+HTTP paths/methods are ignored, so this deny also blocks the whole matching
+SNI/port. MITM supports decrypted paths; the current API has no HTTP-only
+flag. Never invent a dummy path. If this conflicts with desired TLS access,
+keep the conflict unresolved and ask the user to choose supported behavior.
+
+refinement.json retains denyConstraints and add/remove constraintDecisions.
+Their IDs include the deny action and are separate from grant permission IDs.
+Reanalysis, language changes, silence and grant withdrawal preserve them.
+Reports distinguish deny additions/removals and do not count denials as grants.
+DENIED matching an intentional deny is marked explicit-deny/rejected and cannot
+be approved as a new grant until the constraint is explicitly removed. Removing
+a constraint uses removeDenyRuleIds with reason and approvalEvidence; it
+invalidates previous verification and requires new tests of the resulting scope.
+
+An externally edited candidate is preserved and regeneration fails. The
+assistant may register exactly the approved newly inserted deny via denyRules;
+other external changes must be reconciled with saved decisions first. Never
+silently remove a user's guard while regenerating or claim adoption of arbitrary
+hand edits. Stop collection before applying any candidate change.
+
 ## Start bounded evidence before the user's probes
 
 After the authorized candidate is loaded, prepare a separate enforcement
@@ -113,6 +152,43 @@ required. It tails existing files at readiness, keeps only the selected UIDs,
 pins policy UID/generation/spec, and stops on any policy change. Start a new
 separate phase after a reviewed candidate change, retaining the original budget.
 Its analysis exports pending denials and evidence, never generates permissions.
+
+### Startup acceptance on new Pods
+
+For final startup validation, replace --pod-uid with --new-pods during
+prepare-verification. Start the same bounded monitor before the user's
+recreation, wait for actual process liveness and collector-ready, then hand off
+the lifecycle action. No target Pod needs to exist yet. Keep the original
+resource limits and fixed deadline; do not extend them automatically.
+
+At readiness, all existing namespace Pod UIDs become the baseline; available
+Agent files are positioned at their current ends. Watch starts from the LIST
+resourceVersion. Pod watch permission and the required controller GET
+permissions are checked before handoff (ReplicaSet/Deployment for Deployment,
+or StatefulSet/DaemonSet). New target identities require namespace, birth after
+the handoff, injected profile annotation, proxy container and actual controller
+ownership with matching referenced UIDs, or the Pod target's name/selector.
+An application can be blocked before Ready; readiness is not an enrollment
+condition. Already failed Pods still contribute attributable startup evidence.
+Record collector.readyAt/observationEpoch and each Pod's creationTimestamp/UID
+in the handoff receipt. startedAt is the Unix-second audit and Pod birth guard;
+Kubernetes birth timestamps can have only second precision. The frozen UID
+baseline, target identity and injection checks complement this coarse boundary;
+do not claim subsecond ordering from creationTimestamp alone.
+
+The collector keeps available Agent nodes warm under the same byte/round caps.
+New sidecar or newly discovered node files are read from the retained beginning
+within those caps, not initialized at EOF. Early matching-policy events remain
+quarantined until new Pod identity is verified, then resolve once; old UIDs
+remain excluded. Missing ownership, inaccessible/deleted sidecars, interrupted
+watches, rotation, backlog or upstream ALS loss can leave startup evidence
+incomplete. Read completeness is not a lossless guarantee.
+
+Stop before reviewing a startup DENIED with verify --collection-session and the
+actual newly verified --pod-uid values. User approval adds an exact requirement
+with DENIED provenance; it never adds a successful observation. After authorized
+policy application, prepare a separate --new-pods phase before the next user
+recreation. No changes to existing-Pod verification's fixed UID set are implied.
 
 `analyze --language zh-CN|en --session /ABS/ENFORCE` updates the enforcement
 session's saved language and regenerates its report without new reads or policy

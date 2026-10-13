@@ -329,6 +329,24 @@ Observation and enforcement reports both follow your language preference. Ask
 for Chinese or English at any time; later analysis retains your choice without
 restarting collection or changing the Policy.
 
+### Keep an explicit prohibition while refining the allowlist
+
+> Keep debug access blocked even if I later approve a broader business rule.
+
+The assistant explains the actual scope, then saves the denial with your
+approval independently of allow permissions. Reanalysis, report language changes,
+silencing normal grants and withdrawing grants preserve it. Removing the denial
+requires a separate explicit decision; reports show both allow and deny changes.
+Manually edited candidate files are preserved and must be reconciled before
+regeneration.
+
+For plaintext HTTP or MITM, path/method denials are meaningful. For undecrypted
+TLS, the same HTTP rule applies to the whole matching SNI/port because paths and
+methods are unavailable. The current policy API has no HTTP-only flag. The
+assistant must explain this effect before you approve a constraint; it cannot
+promise protocol separation the API does not express. Rejected access suggestions
+and removed permissions do not themselves create explicit deny rules.
+
 ## Validation, deployment, and deliverables
 
 An allowlist draft defaults to denying unauthorized access, but generating it does not itself enable enforcement. You can first ask:
@@ -338,6 +356,24 @@ An allowlist draft defaults to denying unauthorized access, but generating it do
 Reuse the injected Pods from this observation while refining enforcement rules. Changing allowlist rules, switching to enforcement, and restoring observation do not normally require another restart or recreation. The assistant waits for configuration propagation and checks effective behavior; you run requests using fresh connections. Missing injection or a change requiring new Pod mounts/environment or redirection settings (such as first enabling MITM) may require recreation.
 
 For final acceptance, the assistant recommends that you recreate target Pods under the accepted enforcement policy, then test startup, normal business, reconnects, and representative scheduled tasks. This avoids using connections retained from observation and helps reveal startup dependencies missing from the allowlist. You manage recreation and traffic; the assistant checks the new Pods and evidence. Recreation is not required after every adjustment, and passing these tests does not prove that every business scenario is covered.
+
+The assistant starts a separate bounded startup collector **before** you recreate
+Pods and tells you when it is ready. It excludes old Pods and verifies new target
+identities; a blocked application does not need to become Ready for its DENIED
+events to be reviewed. Startup failures, missing identities or inaccessible logs
+remain explicit gaps. After you approve a missing dependency, the assistant
+updates the candidate, then starts a fresh startup collection before your next
+recreation. Original observation evidence and resource budgets remain intact.
+
+```mermaid
+flowchart LR
+    A["Accepted enforcement policy"] --> B["Startup collector ready"]
+    B --> C["You recreate Pods"]
+    C --> D["Verify new identities and startup evidence"]
+    D --> E["You review missing dependencies"]
+    E --> F["Approved candidate update"]
+    F --> B
+```
 
 You execute requests; the assistant checks client results, backend records, and network audit. Cover normal business, wrong methods, neighboring paths, unknown Host/SNI, and relevant TCP/MITM scenarios. Policy readiness or server-side validation does not replace real request verification.
 
@@ -350,7 +386,7 @@ After confirming business coverage and test results, explicitly authorize switch
 | `report.md` | Actual permissions, added/removed permissions, pending TCP, uncovered behavior, and next steps |
 | `candidate.yaml` | Draft for review; normally absent without acceptable rules; explicit withdrawal of all grants produces a marked deny-all draft |
 | `review.json` | Saved business review decisions reused in this session |
-| `refinement.json` | DENIED, silence, withdrawal and restoration decisions, with permission history, reasons and approval evidence |
+| `refinement.json` | DENIED, silence, grant withdrawal/restoration and explicit deny constraints, with history, reasons and approval evidence |
 | `resource-usage.json` | Shared rolling audit-byte ledger across observation and enforcement phases |
 | `collector.json` | Actual plan, readiness and collection state, deadline-change acknowledgments, gaps, and stop reason |
 | `observe.yaml` / `validation.yaml` | Allow-and-audit policies and validation/rollback materials |

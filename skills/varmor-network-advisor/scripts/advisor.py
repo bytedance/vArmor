@@ -610,6 +610,9 @@ def live_inventory(state, expected=None, allow_empty=False):
     annotation = 'pod.networkproxy.security.beta.varmor.org'
     matched = [p for p in pods if p['metadata'].get('annotations', {}).get(annotation) == 'localhost/' + state['profile']]
     if state.get('purpose') == 'verification':
+        if state.get('verificationMode') == 'new-pods':
+            for p in matched:
+                collector_module().register_pod(state, p, globals())
         selected = set(state['verifiedPodUIDs'])
         matched = [p for p in matched if p['metadata']['uid'] in selected]
         state['podUIDs'] = sorted(selected)
@@ -791,7 +794,7 @@ def ingest(con, state, streams, offline=False, identities=None):
             if rec.get('enforcer') != 'NetworkProxy' or rec.get('podNamespace') != state['namespace'] or rec.get('profileName') != state['profile']:
                 stats['unrelated'] += 1
                 continue
-            if state.get('purpose') == 'verification' and rec.get('podUID') not in state['verifiedPodUIDs']:
+            if state.get('purpose') == 'verification' and state.get('verificationMode') != 'new-pods' and rec.get('podUID') not in state['verifiedPodUIDs']:
                 stats['unselectedPod'] += 1
                 continue
             if rec.get('policyName') not in (None, '', state['policy']) or rec.get('policyNamespace') not in (None, '', state['namespace']):
@@ -1010,17 +1013,27 @@ def propose(records, state, config):
 
 def replay_match(rec, egress, state):
     """Replay only generated literal rules; a coverage aid, never a substitute for Envoy."""
+    denied = {key: [r for r in egress.get(key, []) if 'deny' in r.get('qualifiers', [])]
+              for key in ('rules', 'httpRules')}
+    if any(denied.values()) and _replay_rules(rec, denied, state):
+        return False
+    allowed = {key: [r for r in egress.get(key, []) if 'allow' in r.get('qualifiers', [])]
+               for key in ('rules', 'httpRules')}
+    return _replay_rules(rec, allowed, state)
+
+
+def _replay_rules(rec, egress, state):
     ev = rec['event']
     try:
         ip, port = destination(ev.get('dstAddress'))
         for r in egress.get('rules', []):
-            if r['ip'] == ip and any(p['port'] == port for p in r['ports']):
+            if r['ip'] == ip and any(p['port'] <= port <= p.get('endPort', p['port']) for p in r['ports']):
                 return True
         visible = ev['layer'] == 'L7'
         domain = http_host(ev.get('authority', ''), port) if visible else host(ev.get('sni', ''))
         for r in egress.get('httpRules', []):
             m = r['match']
-            if domain not in m['hosts'] or port not in [p['port'] for p in m['ports']]:
+            if domain not in m['hosts'] or not any(p['port'] <= port <= p.get('endPort', p['port']) for p in m['ports']):
                 continue
             # Paths/methods are ignored for TLS passthrough in vArmor. Never generate
             # this accidental permission for a domain known to be MITM.
@@ -1045,6 +1058,7 @@ def analyze(args):
     if load(root / 'session.json').get('purpose') == 'verification':
         return refinement_module().collection_report(args, globals())
     with locked(root):
+        refinement_module().assert_candidate_owned(root, globals())
         state = load(root / 'session.json')
         manifest = load(root / 'observe.yaml')
         if manifest['spec'].get('updateExistingWorkloads', False):
@@ -1076,7 +1090,7 @@ def analyze(args):
         manifest['spec']['updateExistingWorkloads'] = False
         network_rules(manifest['spec']['policy'])['egress'] = egress
         # Preserve target and MITM config; candidate is a draft, never automatically applied.
-        rule_count = len(egress.get('rules', [])) + len(egress.get('httpRules', []))
+        rule_count = len(refinement_module().permissions(egress))
         if rule_count or explicit_deny_all:
             write(root / 'candidate.yaml', manifest)
         elif (root / 'candidate.yaml').exists():
@@ -1099,7 +1113,8 @@ def analyze(args):
                  'uncovered': uncovered_inventory[k]} for k, v in sorted(inventory.items(), key=lambda x: str(x[0]))]
         previous = load(root / 'analysis.json') if (root / 'analysis.json').exists() else None
         def permissions(value):
-            return {json.dumps({'layer': layer, **{k: v for k, v in rule.items() if k != 'qualifiers'}}, sort_keys=True) for layer, key in
+            return {json.dumps({'layer': layer, 'action': 'deny' if 'deny' in rule.get('qualifiers', []) else 'allow',
+                               **{k: v for k, v in rule.items() if k != 'qualifiers'}}, sort_keys=True) for layer, key in
                     (('HTTP/SNI', 'httpRules'), ('TCP', 'rules')) for rule in value.get(key, [])}
         current_permissions = permissions(egress)
         previous_permissions = permissions((previous or {}).get('generatedEgress', {}))
@@ -1111,7 +1126,7 @@ def analyze(args):
         network_rules(candidate_for_hash['spec']['policy'])['egress'] = egress
         digest = hashlib.sha256(json.dumps(candidate_for_hash, sort_keys=True).encode()).hexdigest()
         if verification is not None:
-            updates = [d['at'] for key in ('permissionDecisions', 'auditDecisions') for d in refinements.get(key, [])]
+            updates = [d['at'] for key in ('permissionDecisions', 'auditDecisions', 'constraintDecisions') for d in refinements.get(key, [])]
             changed_after_window = False
             if updates:
                 try:
@@ -1168,6 +1183,7 @@ def analyze(args):
                   'verification': verification,
                   'generatedEgress': egress, 'ruleChanges': changes,
                   'permissions': refinement_module().permissions(egress), 'refinement': refinements,
+                  'denyConstraints': list(refinements.get('denyConstraints', {}).values()),
                   'collectionHealth': collection_health,
                   'observation': collector_progress,
                   'baselinePodExcluded': sum(r.get('baselinePodExcluded', 0) for r in rounds),
@@ -1232,6 +1248,8 @@ def analyze(args):
             lines[2:2] = [('**全部可用权限已由用户明确撤销：候选默认拒绝且没有放行规则。应用后会拒绝所有代理覆盖的出站访问；仍需审核并明确授权部署。**' if language == 'zh-CN'
                           else '**The user explicitly withdrew all available permissions: this candidate has no allow rules. Applying it denies all redirected egress; review and explicit deployment authorization are still required.**'), '']
         for rule in egress.get('httpRules', []):
+            if 'allow' not in rule.get('qualifiers', []) or 'deny' in rule.get('qualifiers', []):
+                continue
             match = rule['match']
             domain = match['hosts'][0]
             paths = ', '.join(k + ': ' + v for p in match.get('paths', []) for k, v in p.items()) or tr('All paths')
@@ -1242,6 +1260,8 @@ def analyze(args):
                 impact += tr('; all HTTP requests to the same domain/port are also allowed')
             lines.append('| ' + ' | '.join(map(cell, [domain, ','.join(str(p['port']) for p in match['ports']), paths, methods, impact])) + ' |')
         for rule in egress.get('rules', []):
+            if 'allow' not in rule.get('qualifiers', []) or 'deny' in rule.get('qualifiers', []):
+                continue
             lines.append('| ' + ' | '.join(map(cell, [rule['ip'], ','.join(str(p['port']) for p in rule['ports']),
                          tr('All paths'), tr('All methods'), tr('Entire IP/port allowed, including HTTP/TLS')])) + ' |')
         lines += ['',
@@ -1294,6 +1314,13 @@ def analyze(args):
                     json.dumps({k: v for k, v in item['rule'].items() if k != 'qualifiers'}, ensure_ascii=False)])) + ' |')
             for item in refinements.get('decisions', {}).values():
                 lines += ['', json.dumps({k: item[k] for k in ('id', 'decision', 'authorizationState', 'reason', 'origin', 'observedSuccess', 'verificationFile', 'currentCandidateVerification', 'currentCandidateCheckIds') if k in item}, ensure_ascii=False)]
+        if report['denyConstraints']:
+            lines += ['', ('## 已批准的拒绝约束' if language == 'zh-CN' else '## Approved deny constraints'), '',
+                      ('显式拒绝优先于允许。HTTP 拒绝在透传 TLS 中按主机和端口生效，不检查路径或方法；因此也可能拒绝整个 SNI/端口。静默和撤销允许权限不会删除这些约束。'
+                       if language == 'zh-CN' else 'Explicit deny precedes allow. HTTP denies apply to passthrough TLS by host/port without path or method checks, so they may deny an entire SNI/port. Grant withdrawal and quiet audit do not remove these constraints.'), '',
+                      '| ID | ' + ('规则 | 理由 |' if language == 'zh-CN' else 'Rule | Reason |'), '|---|---|---|']
+            for item in report['denyConstraints']:
+                lines.append('| ' + ' | '.join(map(cell, [item['id'], json.dumps(item['rule'], ensure_ascii=False), item['reason']])) + ' |')
         if report['revokedPermissions']:
             lines += ['', ('## 已撤销权限' if language == 'zh-CN' else '## Withdrawn permissions'), '',
                       ('撤销移除对应规则，不新增显式 deny。其他宽泛规则或 TLS 透传权限仍可能覆盖请求；需核对配置并用新连接验证实际拒绝。' if language == 'zh-CN'
@@ -1458,7 +1485,9 @@ def parser():
     prep = sub.add_parser('prepare-verification', help='prepare bounded enforcement evidence; no policy or workload changes')
     for field in ('session', 'observation-session', 'policy-file'):
         prep.add_argument('--' + field, required=True)
-    prep.add_argument('--pod-uid', action='append', required=True)
+    selection = prep.add_mutually_exclusive_group(required=True)
+    selection.add_argument('--pod-uid', action='append', help='existing verified Pod UID; repeatable')
+    selection.add_argument('--new-pods', action='store_true', help='arm startup evidence before user recreation; verify and enroll new target UIDs')
     f = sub.add_parser('refine', help='apply explicit denial/audit decisions locally; regenerate the single candidate, never deploy')
     f.add_argument('--session', required=True)
     f.add_argument('--decisions', required=True)

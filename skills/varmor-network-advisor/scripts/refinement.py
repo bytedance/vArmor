@@ -5,6 +5,7 @@ import contextlib
 import copy
 import datetime as dt
 import hashlib
+import ipaddress
 import json
 from pathlib import Path
 import re
@@ -21,11 +22,91 @@ def permission_id(layer, rule):
 def permissions(egress):
     return [{'id': permission_id(layer, r), 'layer': layer, 'rule': r,
              'audit': 'audit' in r.get('qualifiers', [])}
-            for layer, key in (('HTTP/SNI', 'httpRules'), ('TCP', 'rules')) for r in egress.get(key, [])]
+            for layer, key in (('HTTP/SNI', 'httpRules'), ('TCP', 'rules')) for r in egress.get(key, [])
+            if 'allow' in r.get('qualifiers', []) and 'deny' not in r.get('qualifiers', [])]
+
+
+def restriction_id(layer, rule):
+    return fingerprint({'action': 'deny', 'layer': layer,
+                        **{k: v for k, v in rule.items() if k not in ('qualifiers', 'description')}})
+
+
+def restriction_rule(choice, api):
+    """Accept explicit literal scopes only; never turn a rejected grant into deny."""
+    if not isinstance(choice, dict) or set(choice) != {'layer', 'rule', 'reason', 'approvalEvidence'} or \
+       choice['layer'] not in ('HTTP/SNI', 'TCP'):
+        raise ValueError('Deny constraint requires layer, rule, reason and approvalEvidence')
+    for key in ('reason', 'approvalEvidence'):
+        if not api['safe_text'](choice[key]) or not choice[key].strip():
+            raise ValueError('Deny constraint requires a reason and user approval evidence')
+    r = copy.deepcopy(choice['rule'])
+    if not isinstance(r, dict) or r.get('qualifiers') not in (['deny'], ['deny', 'audit']) or \
+       set(r) - ({'qualifiers', 'description', 'match'} if choice['layer'] == 'HTTP/SNI' else
+                 {'qualifiers', 'description', 'ip', 'ports'}):
+        raise ValueError('Unsupported deny rule; use deny or deny,audit without allow')
+    if 'description' in r and not api['safe_text'](r['description']):
+        raise ValueError('Unsafe deny description')
+    m = r.get('match') if choice['layer'] == 'HTTP/SNI' else r
+    if not isinstance(m, dict):
+        raise ValueError('Deny rule requires match criteria')
+    if choice['layer'] == 'HTTP/SNI':
+        if set(m) - {'hosts', 'ports', 'paths', 'methods'} or not isinstance(m.get('hosts'), list) or not m['hosts']:
+            raise ValueError('HTTP deny requires literal hosts and ports')
+        for h in m['hosts']:
+            if api['host'](h) != h:
+                raise ValueError('Use canonical literal deny hosts')
+        if 'methods' in m and (not isinstance(m['methods'], list) or not m['methods'] or any(
+                not isinstance(x, str) or not re.fullmatch(r"[!#$%&'*+.^_`|~0-9A-Za-z-]+", x) for x in m['methods'])):
+            raise ValueError('Invalid deny methods')
+        if 'paths' in m:
+            if not isinstance(m['paths'], list) or not m['paths']:
+                raise ValueError('Invalid deny paths')
+            for p in m['paths']:
+                if not isinstance(p, dict) or len(p) != 1 or not set(p) <= {'exact', 'prefix'} or any(
+                        not api['safe_text'](x) or not x.startswith('/') or '?' in x for x in p.values()):
+                    raise ValueError('Use safe exact/prefix deny paths without query strings')
+    elif str(ipaddress.ip_address(r.get('ip', ''))) != r['ip']:
+        raise ValueError('Use canonical literal deny IP')
+    ports = m.get('ports')
+    if not isinstance(ports, list) or not ports:
+        raise ValueError('Deny requires explicit ports')
+    for p in ports:
+        if not isinstance(p, dict) or set(p) - {'port', 'endPort'} or type(p.get('port')) is not int or \
+           type(p.get('endPort', p['port'])) is not int or not 1 <= p['port'] <= p.get('endPort', p['port']) <= 65535:
+            raise ValueError('Invalid deny ports')
+    return r
+
+
+def assert_candidate_owned(root, api, adopted=()):
+    """A file edit is not an approval; only explicitly registered denies may be adopted."""
+    root = Path(root)
+    if not (root / 'candidate.yaml').exists() or not (root / 'analysis.json').exists():
+        return
+    current = api['load'](root / 'candidate.yaml')
+    digest = api['load'](root / 'analysis.json').get('candidateHash')
+    if not digest or fingerprint(current) == digest:
+        return
+    check = copy.deepcopy(current)
+    egress = api['network_rules'](check['spec']['policy'])['egress']
+    ids = set(adopted)
+    if not ids and (root / 'refinement.json').exists():
+        prior = api['load'](root / 'analysis.json').get('denyConstraints', [])
+        ids = set(api['load'](root / 'refinement.json').get('denyConstraints', {})) - {x['id'] for x in prior}
+    for layer, key in (('HTTP/SNI', 'httpRules'), ('TCP', 'rules')):
+        if key in egress:
+            egress[key] = [r for r in egress[key] if not ('deny' in r.get('qualifiers', []) and
+                                                       restriction_id(layer, r) in ids)]
+            if not egress[key]:
+                egress.pop(key)
+    if not ids or fingerprint(check) != digest:
+        raise ValueError('Candidate was edited outside saved decisions; preserve it and register reviewed constraints before regeneration')
 
 
 def denied_items(records, state, api):
     grouped = {}
+    review_root = state.get('observationSession')
+    review = api['load'](Path(review_root) / 'refinement.json') if review_root and \
+        (Path(review_root) / 'refinement.json').exists() else {}
     for rec in records:
         if rec.get('action') != 'DENIED':
             continue
@@ -69,9 +150,13 @@ def denied_items(records, state, api):
         item['lastSeen'] = max(item['lastSeen'], rec['eventTimestamp'])
         item['firstSeen'] = min(item['firstSeen'], rec['eventTimestamp'])
         item['podUIDs'] = sorted(set(item['podUIDs'] + [rec['podUID']]))
-    review_root = state.get('observationSession')
-    if review_root and (Path(review_root) / 'refinement.json').exists():
-        review = api['load'](Path(review_root) / 'refinement.json')
+        matching = [key for key, constraint in review.get('denyConstraints', {}).items()
+                    if api['_replay_rules'](rec, {('httpRules' if constraint['layer'] == 'HTTP/SNI' else 'rules'):
+                                                [constraint['rule']]}, state)]
+        if matching:
+            item['intentionalDenyIds'] = sorted(set(item.get('intentionalDenyIds', []) + matching))
+            item.update(decision='reject', authorizationState='explicit-deny', reviewable=False)
+    if review:
         prior = review.get('decisions', {})
         revoked = set(review.get('revokedRuleIds', []))
         for item in grouped.values():
@@ -139,6 +224,12 @@ def merge(egress, saved):
         raise ValueError('Silent rule approval is stale: permission scope changed or was removed; review it again')
     for p in permissions(egress):
         p['rule']['qualifiers'] = ['allow'] if p['id'] in quiet else ['allow', 'audit']
+    # Restrictions never enter grant IDs, withdrawals, or quiet-audit rewriting.
+    for key, item in sorted(saved.get('denyConstraints', {}).items()):
+        if key != restriction_id(item['layer'], item['rule']) or item['rule'].get('qualifiers') not in (['deny'], ['deny', 'audit']):
+            raise ValueError('Saved deny constraint identity is invalid')
+        bucket = 'httpRules' if item['layer'] == 'HTTP/SNI' else 'rules'
+        egress.setdefault(bucket, []).insert(0, copy.deepcopy(item['rule']))
     return egress
 
 
@@ -194,10 +285,32 @@ def refine(args, api):
             raise ValueError('Refine the original observation session, not enforcement evidence')
         choices = api['load'](args.decisions)
         if not isinstance(choices, dict) or set(choices) - {'decisions', 'silentRuleIds', 'auditRuleIds',
-                'revokeRuleIds', 'restoreRuleIds', 'reason', 'approvalEvidence'}:
+                'revokeRuleIds', 'restoreRuleIds', 'denyRules', 'removeDenyRuleIds', 'reason', 'approvalEvidence'}:
             raise ValueError('Unknown refinement decision keys')
         saved = api['load'](root / 'refinement.json') if (root / 'refinement.json').exists() else {'decisions': {}, 'silentRuleIds': []}
         saved = copy.deepcopy(saved)
+        additions, removals = choices.get('denyRules', []), choices.get('removeDenyRuleIds', [])
+        if not isinstance(additions, list) or not isinstance(removals, list) or any(
+                not isinstance(x, str) or not re.fullmatch('[0-9a-f]{64}', x) for x in removals) or len(set(removals)) != len(removals):
+            raise ValueError('Deny decisions must be explicit lists with unique full IDs')
+        adopted = []
+        constraints = saved.setdefault('denyConstraints', {})
+        for choice in additions:
+            rule = restriction_rule(choice, api)
+            key = restriction_id(choice['layer'], rule)
+            if key in adopted or key in removals:
+                raise ValueError('Conflicting/duplicate deny decisions')
+            adopted.append(key)
+            item = {**choice, 'rule': rule, 'id': key, 'at': api['now'](), 'origin': 'explicit-user-constraint'}
+            constraints[key] = item
+            saved.setdefault('constraintDecisions', []).append({**item, 'action': 'add'})
+        for key in removals:
+            if key not in constraints or not api['safe_text'](choices.get('reason')) or not choices['reason'].strip() or \
+               not api['safe_text'](choices.get('approvalEvidence')) or not choices['approvalEvidence'].strip():
+                raise ValueError('Remove only known deny constraints with a reason and approval evidence')
+            saved.setdefault('constraintDecisions', []).append({**constraints.pop(key), 'action': 'remove',
+                'at': api['now'](), 'reason': choices['reason'], 'approvalEvidence': choices['approvalEvidence']})
+        assert_candidate_owned(root, api, adopted)
         config = api['load'](root / 'review.json') if (root / 'review.json').exists() else {}
         with contextlib.closing(api['database'](root)) as con:
             observed = [json.loads(r[0]) for r in con.execute('SELECT record FROM events ORDER BY id')]
@@ -235,7 +348,7 @@ def refine(args, api):
                receipt.get('policy', {}).get('uid') != state.get('policyUID') or \
                receipt.get('eventsHash') != fingerprint(records):
                 raise ValueError('DENIED evidence is stale, changed or belongs to another policy/session')
-            items = {d['id']: d for d in denied_items(records, state, api)}
+            items = {d['id']: d for d in denied_items(records, {**state, 'observationSession': str(root)}, api)}
             seen = set()
             for choice in changes:
                 if not isinstance(choice, dict) or set(choice) != {'id', 'decision', 'reason', 'approvalEvidence'} or \
@@ -278,7 +391,7 @@ def refine(args, api):
         if set(choices.get('auditRuleIds', [])) - known:
             raise ValueError('Audit permission ID is not active')
         api['write'](root / 'refinement.json', saved)
-        if withdraw or restore:
+        if withdraw or restore or additions or removals:
             state.pop('verificationFile', None)
             api['write'](root / 'session.json', state)
     return api['analyze'](api['parser']().parse_args(['analyze', '--session', str(root)]))
@@ -295,13 +408,15 @@ def prepare(args, api):
        expected['spec']['target'] != api['load'](original / 'observe.yaml')['spec']['target'] or \
        expected['metadata']['name'] != state['policy'] or expected['metadata']['namespace'] != state['namespace']:
         raise ValueError('Use this observation target\'s enforcement candidate')
-    pods, policy = api['live_inventory'](state, expected)
-    wanted = set(args.pod_uid)
-    if not wanted or wanted & set(state.get('baselinePodUIDs', [])) or \
-       wanted - {p['metadata']['uid'] for p in pods}:
+    new_pods = getattr(args, 'new_pods', False)
+    pods, policy = api['live_inventory'](state, expected, allow_empty=new_pods)
+    wanted = set(args.pod_uid or [])
+    if not new_pods and (not wanted or wanted & set(state.get('baselinePodUIDs', [])) or \
+       wanted - {p['metadata']['uid'] for p in pods}):
         raise ValueError('Explicit currently injected UIDs outside the observation baseline are required')
     state.update(purpose='verification', observationSession=str(original), verifiedPodUIDs=sorted(wanted),
         podUIDs=sorted(wanted), podHistory={}, collectionMode='live-incremental',
+        verificationMode='new-pods' if new_pods else 'existing-pods', verificationTarget=expected['spec']['target'],
         pinnedPolicy={'uid': policy['metadata']['uid'], 'generation': policy['metadata'].get('generation'),
                       'specHash': fingerprint(policy['spec'])})
     for key in ('observationEpoch', 'historicalSince', 'endedAt'):
@@ -314,7 +429,8 @@ def prepare(args, api):
     api['write'](root / 'session.json', state)
     api['write'](root / 'observe.yaml', expected)
     print(json.dumps({'status': 'enforcement-collection-prepared', 'session': str(root),
-        'podUIDs': sorted(wanted), 'next': 'Start bounded monitor, wait for ready, then the user exercises business; no Pod recreation required'}))
+        'podUIDs': sorted(wanted), 'next': ('Start bounded monitor before user recreation; new target UIDs are verified and enrolled automatically'
+                                          if new_pods else 'Start bounded monitor, wait for ready, then the user exercises business; no Pod recreation required')}))
     return 0
 
 
@@ -336,6 +452,9 @@ def collection_report(args, api):
             'since': progress.get('readyAt'), 'until': progress.get('stoppedAt') or api['now'](),
             'eventsHash': fingerprint(records), 'events': len(records), 'collectionHealth': health,
             'reportLanguage': language,
+            'verificationMode': state.get('verificationMode', 'existing-pods'),
+            'baselinePodUIDs': state.get('baselinePodUIDs', []),
+            'identityFailures': state.get('startupIdentityFailures', {}),
             'evidenceErrors': evidence_errors,
             'observation': progress, 'denials': denied_items(records, state, api),
             'completeRead': progress.get('phase') == 'stopped' and progress.get('stopReason') in ('deadline', 'user-stop')

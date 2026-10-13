@@ -174,11 +174,51 @@ def resolve_pending(con, state, api):
     return dict(stats)
 
 
-def register_pod(state, pod):
+def startup_target_matches(state, pod, api):
+    """Resolve actual controller ownership, rather than trusting a copied profile annotation."""
+    target = state['verificationTarget']
+    obj = pod
+    kind = target['kind']
+    if kind != 'Pod':
+        if api is None:
+            return False
+        chain = ['ReplicaSet', 'Deployment'] if kind == 'Deployment' else [kind]
+        resources = {'ReplicaSet': 'replicasets', 'Deployment': 'deployments',
+                     'StatefulSet': 'statefulsets', 'DaemonSet': 'daemonsets'}
+        for owner_kind in chain:
+            refs = [r for r in obj.get('metadata', {}).get('ownerReferences', [])
+                    if r.get('controller') is True and r.get('kind') == owner_kind]
+            if len(refs) != 1 or owner_kind not in resources:
+                return False
+            ref = refs[0]
+            obj = api['get'](state['context'], resources[owner_kind], state['namespace'], ref['name'])
+            if obj.get('metadata', {}).get('uid') != ref['uid']:
+                return False
+    meta = obj['metadata']
+    if target.get('name'):
+        return meta.get('name') == target['name']
+    selector = target.get('selector', {})
+    if not selector or set(selector) - {'matchLabels', 'matchExpressions'}:
+        return False
+    labels = meta.get('labels', {})
+    if any(labels.get(k) != v for k, v in selector.get('matchLabels', {}).items()):
+        return False
+    for expression in selector.get('matchExpressions', []):
+        key, op, values = expression['key'], expression['operator'], expression.get('values', [])
+        if op not in ('In', 'NotIn', 'Exists', 'DoesNotExist') or \
+           (op == 'In' and labels.get(key) not in values) or \
+           (op == 'NotIn' and key in labels and labels[key] in values) or \
+           (op == 'Exists' and key not in labels) or (op == 'DoesNotExist' and key in labels):
+            return False
+    return True
+
+
+def register_pod(state, pod, api=None):
     """Persist immutable identities, including Pods deleted before the next file scan."""
     meta, spec = pod.get('metadata', {}), pod.get('spec', {})
     uid = meta.get('uid')
-    if state.get('purpose') == 'verification' and uid not in state.get('verifiedPodUIDs', []):
+    startup = state.get('purpose') == 'verification' and state.get('verificationMode') == 'new-pods'
+    if state.get('purpose') == 'verification' and not startup and uid not in state.get('verifiedPodUIDs', []):
         return
     if not uid or meta.get('annotations', {}).get('pod.networkproxy.security.beta.varmor.org') != 'localhost/' + state['profile']:
         return
@@ -191,6 +231,21 @@ def register_pod(state, pod):
         return
     if uid in state.get('baselinePodUIDs', []):
         return
+    if startup and uid not in state.get('verifiedPodUIDs', []):
+        if not state.get('observationEpoch') or meta.get('namespace') != state['namespace'] or not meta.get('creationTimestamp'):
+            return
+        created = dt.datetime.fromisoformat(meta['creationTimestamp'].replace('Z', '+00:00'))
+        if created.timestamp() < state['startedAt']:
+            return
+        try:
+            if not startup_target_matches(state, pod, api):
+                return
+        except (RuntimeError, OSError, KeyError, subprocess.TimeoutExpired) as exc:
+            state.setdefault('startupIdentityFailures', {})[uid] = str(exc)
+            return
+        state.get('startupIdentityFailures', {}).pop(uid, None)
+        # Ready is deliberately not required: blocked or short-lived startups need evidence too.
+        state['verifiedPodUIDs'] = sorted(set(state.get('verifiedPodUIDs', [])) | {uid})
     state['podUIDs'] = sorted(set(state.get('podUIDs', [])) | {uid})
     regular = any(v.get('hostPath') for v in spec.get('volumes', [])
                   if v.get('name') == 'varmor-network-proxy-audit-als')
@@ -332,7 +387,7 @@ def endpoints(api, state, args):
             output.append({'id': 'node/' + node, 'directory': '/var/log/varmor',
                 'prefix': ['exec', '-n', args.agent_namespace, p['metadata']['name'], '-c', container]})
         required = {v['node'] for v in state.get('podHistory', {}).values() if v['regular'] and v['node']}
-        if required:
+        if required and state.get('verificationMode') != 'new-pods':
             output = [e for e in output if e['id'][5:] in required]
         for node in required - set(selected):
             output.append({'id': 'node/' + node, 'unavailable': 'No Agent endpoint on historical target node'})
@@ -752,6 +807,7 @@ def run_monitor(args, api):
     try:
         state = api['load'](root / 'session.json')
         verification_mode = state.get('purpose') == 'verification'
+        startup_mode = verification_mode and state.get('verificationMode') == 'new-pods'
         previous = api['load'](root / 'collector.json') if (root / 'collector.json').exists() else {}
         ready = bool(previous.get('readyAt'))
         if previous.get('phase') == 'stopped':
@@ -793,19 +849,39 @@ def run_monitor(args, api):
             time.monotonic() + planned.get('maxRoundSeconds', 30))
         with session_lock(api, root):
             pods, policy = api['live_inventory'](state, api['load'](root / 'observe.yaml'), allow_empty=True)
+            if verification_mode and state['pinnedPolicy'] != {'uid': policy['metadata']['uid'],
+                    'generation': policy['metadata'].get('generation'),
+                    'specHash': api['refinement_module']().fingerprint(policy['spec'])}:
+                raise RuntimeError('Live policy differs from pinned enforcement generation')
             if policy.get('status', {}).get('ready') is not True:
                 raise RuntimeError('Observation policy is not Ready; do not hand off workload creation')
             listed = api['get'](state['context'], 'pods', state['namespace'])
-            if api['kube'](state['context'], 'auth', 'can-i', 'watch', 'pods', '-n', state['namespace']).strip() != 'yes':
-                raise RuntimeError('Pod watch permission is required for short-lived Pod discovery')
+            def require_permission(verb, resource, message):
+                try:
+                    allowed = api['kube'](state['context'], 'auth', 'can-i', verb, resource,
+                                          '-n', state['namespace']).strip() == 'yes'
+                except RuntimeError as exc:
+                    raise RuntimeError(message + (': ' + str(exc) if str(exc) else '')) from exc
+                if not allowed:
+                    raise RuntimeError(message)
+            require_permission('watch', 'pods', 'Pod watch permission is required for short-lived Pod discovery')
+            if startup_mode:
+                target_kind = state['verificationTarget']['kind']
+                resources = {'Deployment': ('replicasets', 'deployments'),
+                             'StatefulSet': ('statefulsets',), 'DaemonSet': ('daemonsets',)}.get(target_kind, ())
+                for resource in resources:
+                    require_permission('get', resource, 'Startup verification requires get permission for ' + resource +
+                                       '; do not recreate workloads before collector readiness')
             watch = PodWatch(state['context'], state['namespace'], listed.get('metadata', {}).get('resourceVersion'),
                              bootstrap_deadline)
             watch.start()
-            if not previous.get('readyAt') and not verification_mode:
-                baseline = {p['metadata']['uid'] for p in listed['items']}
+            if not previous.get('readyAt') and (not verification_mode or startup_mode):
+                baseline = set(state.get('baselinePodUIDs', [])) | {p['metadata']['uid'] for p in listed['items']}
                 state['baselinePodUIDs'] = sorted(baseline)
                 state['podUIDs'] = []
                 state['podHistory'] = {}
+                if startup_mode:
+                    state['verifiedPodUIDs'] = []
             reader = Reader(api, state)
             workflow = Path(state.get('observationSession', str(root)))
             ledger = workflow / 'resource-usage.json'
@@ -825,14 +901,14 @@ def run_monitor(args, api):
                         scan(con, state, reader, endpoint, 0, initialize=True)
                     # Include Pods born during preflight, before the handoff epoch.
                     listed_after = api['get'](state['context'], 'pods', state['namespace'])['items']
-                    if not verification_mode:
+                    if not verification_mode or startup_mode:
                         baseline.update(p['metadata']['uid'] for p in listed_after)
                     for kind, value in watch.drain():
-                        if kind == 'pod' and value.get('metadata', {}).get('uid') and not verification_mode:
+                        if kind == 'pod' and value.get('metadata', {}).get('uid') and (not verification_mode or startup_mode):
                             baseline.add(value['metadata']['uid'])
                         elif kind == 'error':
                             raise RuntimeError(value)
-                    if not verification_mode:
+                    if not verification_mode or startup_mode:
                         state['baselinePodUIDs'] = sorted(baseline)
                     state['startedAt'] = int(dt.datetime.now(dt.timezone.utc).timestamp())
                     state['observationEpoch'] = api['now']()
@@ -870,14 +946,14 @@ def run_monitor(args, api):
                     state = api['load'](root / 'session.json')
                     reader.state = state
                     with contextlib.closing(api['database'](root)) as con, con:
-                        for kind, value in watch.drain():
-                            if kind == 'pod':
-                                register_pod(state, value)
-                            else:
-                                issue(con, 'pod-discovery', 'watch-interrupted', 'suspected', message=value)
                         original_deadline = api['kube'].__globals__['KUBE_DEADLINE']
                         api['kube'].__globals__['KUBE_DEADLINE'] = min(original_deadline,
                             time.monotonic() + planned.get('maxRoundSeconds', 30))
+                        for kind, value in watch.drain():
+                            if kind == 'pod':
+                                register_pod(state, value, api)
+                            else:
+                                issue(con, 'pod-discovery', 'watch-interrupted', 'suspected', message=value)
                         if tick >= next_discovery:
                             try:
                                 pods, policy = api['live_inventory'](state, api['load'](root / 'observe.yaml'), allow_empty=True)
@@ -892,7 +968,7 @@ def run_monitor(args, api):
                                 issue(con, 'pod-discovery', 'inventory-failed', 'suspected', message=str(exc))
                                 pods = []
                             for pod in pods:
-                                register_pod(state, pod)
+                                register_pod(state, pod, api)
                             next_discovery = tick + planned['discoveryIntervalSeconds']
                         resolved = resolve_pending(con, state, api)
                         if tick >= next_scan:
@@ -979,7 +1055,13 @@ def run_monitor(args, api):
     finally:
         if watch:
             watch.close()
-        api['kube'].__globals__['KUBE_DEADLINE'] = None
+        # Final identity resolution remains inside both the phase and round
+        # deadline. An expired query stays unresolved rather than delaying stop.
+        until = locals().get('progress', {}).get('plan', {}).get('until')
+        remaining = max(0, (dt.datetime.fromisoformat(until) - dt.datetime.now(dt.timezone.utc)).total_seconds()) if until else 0
+        phase_deadline = time.monotonic() + remaining
+        api['kube'].__globals__['KUBE_DEADLINE'] = min(phase_deadline,
+            time.monotonic() + locals().get('planned', {}).get('maxRoundSeconds', 30))
         for sig, handler in previous_signals.items():
             signal.signal(sig, handler)
         # Do not overwrite another process's progress when the collector lease was busy.
@@ -998,7 +1080,7 @@ def run_monitor(args, api):
                     state = api['load'](root / 'session.json')
                     for kind, value in watch.drain():
                         if kind == 'pod':
-                            register_pod(state, value)
+                            register_pod(state, value, api)
                         else:
                             issue(con, 'pod-discovery', 'watch-interrupted', 'suspected', message=value)
                     resolved = resolve_pending(con, state, api)
@@ -1027,7 +1109,8 @@ def run_monitor(args, api):
             print(json.dumps({'status': 'observation-ended', **progress}, ensure_ascii=False), flush=True)
         elif error:
             print(json.dumps({'status': 'observation-not-started', 'error': error}), file=sys.stderr)
-    return 2 if error else 0
+        api['kube'].__globals__['KUBE_DEADLINE'] = None
+    return 2 if error is not None else 0
 
 
 def stop(args, api):

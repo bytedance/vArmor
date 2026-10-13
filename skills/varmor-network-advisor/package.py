@@ -42,6 +42,7 @@ DEVELOPMENT_FILES = (
     'tests/smoke_collector.py',
     'tests/test_optimization.py',
     'tests/test_bounded_iteration.py',
+    'tests/test_constraints_startup.py',
 )
 SOURCE_ONLY_START = '<!-- package:source-only:start -->'
 SOURCE_ONLY_END = '<!-- package:source-only:end -->'
@@ -59,7 +60,8 @@ def package_readme(text, full):
             raise ValueError('nested source-only markers in README.md')
         parts.append(before)
         if full:
-            parts.append(source_only)
+            # Keep hidden boundaries so a portable full package can build slim.
+            parts.append(SOURCE_ONLY_START + source_only + SOURCE_ONLY_END)
     if SOURCE_ONLY_END in text:
         raise ValueError('unbalanced source-only markers in README.md')
     parts.append(text)

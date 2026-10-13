@@ -50,6 +50,8 @@ def check_results(checks, records, api, policy=None, state=None, complete_read=T
             egress = api['network_rules'](copy.deepcopy(policy['spec']['policy']))['egress']
             synthetic = {'event': {'layer': item['layer'], 'dstAddress': item['destination'],
                 **{k: item[k] for k in ('authority', 'method', 'path', 'sni') if k in item}}}
+            if not api['replay_match'](synthetic, egress, state):
+                raise ValueError('Expected allow is not covered by the supplied candidate')
             matches_rules = []
             for key in ('rules', 'httpRules'):
                 for rule in egress.get(key, []):
