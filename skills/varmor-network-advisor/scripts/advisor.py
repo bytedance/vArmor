@@ -48,8 +48,8 @@ ZH_REPORT_TEXT = {
         '1. 确认下列目标是否为正常业务所必需。未经审核的 TCP 不会自动放行。',
     '2. Specify the desired depth for dynamic paths. HTTPS without MITM supports SNI/port restrictions only.':
         '2. 指定动态路径的匹配深度。未启用 MITM 的 HTTPS 只能限制 SNI 和端口。',
-    '3. Users create or recreate target Pods to cover startup; the assistant collects and analyzes only. Add retries, low-frequency tasks, and different replicas. Reanalyzing old logs does not increase stability.':
-        '3. 由用户创建或重建目标 Pod 以覆盖启动行为，助手只负责采集和分析。请补充重试、低频任务和不同副本。重新分析旧日志不会增加稳定性证据。',
+    '3. Reuse injected Pods for rule-only tests. For additional startup observation, users create new instances after checking that collection is still ready; after observation ends, start a new session. Final startup acceptance uses a separate enforcement collection window. Review retries, low-frequency tasks and different replicas; reanalyzing old logs does not increase stability.':
+        '3. 仅测试规则变化时，复用已注入的 Pod。补充启动观察时，先确认采集仍就绪，再由用户创建新实例。观察结束后，需要另开会话。最终启动验收使用独立的拦截采集窗口。请审核重试、低频任务和不同副本的覆盖。重新分析旧日志不会增加稳定性证据。',
     '4. After review, run allowed/denied traffic tests and keep observe.yaml as network-rule rollback material.':
         '4. 审核后执行允许和拒绝流量测试，保留 observe.yaml 作为网络规则回退材料。',
     '## Actual permissions': '## 实际授权',
@@ -1260,7 +1260,7 @@ def analyze(args):
                   tr('Initial permission baseline established; later analysis will list added and removed permissions.')), '',
                  tr('1. Confirm that the destinations below are necessary for normal business. Unreviewed TCP is not automatically allowed.'),
                  '2. ' + tr('Review the extra paths and methods opened by generalization; users need not choose numeric path depths.'),
-                 tr('3. Users create or recreate target Pods to cover startup; the assistant collects and analyzes only. Add retries, low-frequency tasks, and different replicas. Reanalyzing old logs does not increase stability.'),
+                 tr('3. Reuse injected Pods for rule-only tests. For additional startup observation, users create new instances after checking that collection is still ready; after observation ends, start a new session. Final startup acceptance uses a separate enforcement collection window. Review retries, low-frequency tasks and different replicas; reanalyzing old logs does not increase stability.'),
                  tr('4. After review, run allowed/denied traffic tests and keep observe.yaml as network-rule rollback material.'), '',
                  tr('## Actual permissions'), '',
                  tr('| Destination | Port | Path | Method | Granularity and impact |'),

@@ -221,7 +221,9 @@ no acceptance checklist, not a failed log collection. Preserve and explain it.
 
 For quiet allow checks set `configurationConfirmed:true` only after inspecting
 actual mounted LDS/CDS and effective proxy loading for this candidate, with
-receipt paths in `evidence`. Pod Ready alone is insufficient. It also requires
+receipt paths in `evidence`. Verify the candidate-to-effective-rule correspondence
+described in [verification.md](verification.md), including the audit qualifiers;
+matching old mounted and active files is insufficient. It also requires
 client success, backend receipt for HTTP, a complete bounded read covering the
 traffic window, and no matching AUDIT/DENIED. Missing quiet logs alone never
 prove successful access. Read completeness cannot detect upstream ALS loss.

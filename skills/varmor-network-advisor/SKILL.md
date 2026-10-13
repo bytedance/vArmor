@@ -11,6 +11,15 @@ The diagnostic, policy preparation, monitor/ready-check/reschedule/stop, collect
 
 Match the user's language in replies and `report.md`: Chinese interaction uses Chinese reports, and English interaction uses English reports. An explicit language preference takes precedence; otherwise use the language of the user's latest substantive request, ignoring code, audit values, and quoted documentation. Set `observe --language zh-CN` or `--language en` when preparing the session. This choice is persisted for background and final analysis. If the user switches languages or asks for another report language, run `analyze --language zh-CN|en` to update the session and regenerate the report; no collector restart or policy change is needed. Do not infer the report language from this English Skill. Keep policy/API identifiers, hostnames, paths, methods, audit evidence, and machine-readable JSON fields unchanged.
 
+Lead handoffs and progress replies with the business state, who acts next and what
+counts as success. For novice users, keep the main reply brief and link the
+maintainer steps and evidence; move UIDs, lease/version diagnostics, repeated
+budget tables and CLI details there. Keep permission changes, pending decisions,
+time-sensitive checkedAt/remaining time and material limitations visible.
+Distinguish configuration loading from verified business traffic. Explain
+undecrypted HTTPS as allowing a server and port without distinguishing paths or
+methods before introducing the SNI term.
+
 ## Start with the user's intent
 
 Users may know which application to protect without understanding the CRD. Extract the context, namespace, workload kind/name or selector first. Ask for missing essential target information; do not reconfirm information or authorization already provided. Prepare concrete results before asking users to review choices that require business judgment.

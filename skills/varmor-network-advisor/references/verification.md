@@ -22,6 +22,15 @@ run by the user; inspect loading errors rather than asking for a restart as the
 default remedy. Establish fresh connections for the tests. Existing long-lived
 connections cannot establish that the updated rules are effective.
 
+Before claiming that this candidate is effective, check that the mounted rules
+implement its default action, allowed/denied destinations, ports, paths, methods
+and audit qualifiers, and that the active proxy configuration matches those
+mounted rules. A matching live Policy plus matching mounted/active files can
+still describe the previous generation during projection delay. Read-only load
+receipts must bind the effective permissions to the candidate; readiness or a
+version agreement without that binding is insufficient. If propagation is
+incomplete, wait within the existing deadline and preserve the failed check.
+
 Once the candidate is accepted, recommend that the user recreate target Pods
 under that enforcement policy for final acceptance: exercise startup, normal
 business, reconnects, representative scheduled tasks, and allowed/denied checks.
