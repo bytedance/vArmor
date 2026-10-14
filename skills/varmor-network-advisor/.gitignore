@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+dist/
+*.zip
+# Audit artifacts contain user workload data and must be reviewed before publication.
+evidence/
