@@ -525,7 +525,7 @@ Note: Moving the source directory alone breaks links. Verify and remove old link
 Packaging requires Python 3.9+ and does not access the cluster. Run in this directory, or specify the path to `package.py` from anywhere. Inputs always come from the script's directory.
 
 ```sh
-# Slim package for users: runtime files and English/Chinese guides, 14 files total.
+# Slim package for users: runtime files and English/Chinese guides.
 python3 package.py
 
 # Full package: also includes installation, packaging, and regression tools.

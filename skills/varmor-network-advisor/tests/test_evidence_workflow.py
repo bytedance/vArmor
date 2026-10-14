@@ -446,6 +446,52 @@ class WorkflowTests(unittest.TestCase):
             self.assertIn('复用', result['nextAction'])
             self.assertNotIn('重建', result['nextAction'])
 
+    def test_startup_enrolled_new_uid_moves_to_business_handoff(self):
+        a.write(self.root / 'candidate.yaml', candidate())
+        collection = self.root / 'startup-collection'; collection.mkdir()
+        a.write(collection / 'observe.yaml', candidate())
+        a.write(collection / 'session.json', {'purpose': 'verification',
+            'observationSession': str(self.root), 'verificationMode': 'new-pods',
+            'podUIDs': ['old', 'new'], 'verifiedPodUIDs': ['old', 'new'], 'baselinePodUIDs': ['old']})
+        a.write(collection / 'collector.json', {'phase': 'observing'})
+        w.register_collection(self.root, collection, vars(a))
+        with patch.object(c, 'handoff_status', return_value={'readyForHandoff': True}), \
+                patch.object(a, 'collector_module', return_value=c):
+            for language in ('zh-CN', 'en'):
+                for entrypoint in (self.root, collection):
+                    with self.subTest(language=language, entrypoint=entrypoint.name):
+                        result = w.summary(entrypoint, vars(a), language=language)
+                        self.assertEqual(result['stage'], 'enforce-traffic')
+                        self.assertEqual(result['nextActor'], 'user')
+                        for field in ('message', 'nextAction'):
+                            self.assertNotIn('重建', result[field])
+                            self.assertNotIn('recreate', result[field].lower())
+                            self.assertNotIn('启动检查通过', result[field])
+                            self.assertNotIn('startup checks passed', result[field].lower())
+                        self.assertEqual(result['deploymentState'], 'not-queried')
+
+    def test_startup_empty_baseline_or_unverified_uids_keep_recreation_handoff(self):
+        a.write(self.root / 'candidate.yaml', candidate())
+        collection = self.root / 'startup-collection'; collection.mkdir()
+        a.write(collection / 'observe.yaml', candidate())
+        a.write(collection / 'collector.json', {'phase': 'observing'})
+        w.register_collection(self.root, collection, vars(a))
+        cases = [('empty', [], []), ('baseline-only', ['old'], ['old']),
+                 ('unverified-new', ['new'], []), ('not-enrolled', [], ['new'])]
+        with patch.object(c, 'handoff_status', return_value={'readyForHandoff': True}), \
+                patch.object(a, 'collector_module', return_value=c):
+            for name, pod_uids, verified_uids in cases:
+                a.write(collection / 'session.json', {'purpose': 'verification',
+                    'observationSession': str(self.root), 'verificationMode': 'new-pods',
+                    'podUIDs': pod_uids, 'verifiedPodUIDs': verified_uids, 'baselinePodUIDs': ['old']})
+                for language in ('zh-CN', 'en'):
+                    with self.subTest(case=name, language=language):
+                        result = w.summary(self.root, vars(a), language=language)
+                        self.assertEqual(result['stage'], 'enforce-startup')
+                        self.assertEqual(result['nextActor'], 'user')
+                        self.assertIn('重建' if language == 'zh-CN' else 'recreate', result['message'])
+                        self.assertIn('重建' if language == 'zh-CN' else 'Recreate', result['nextAction'])
+
     def test_withdraw_then_restore_same_bytes_invalidates_old_result(self):
         a.write(self.root / 'candidate.yaml', candidate())
         out = self.root / 'verification'; out.mkdir(); a.write(out / 'events.json', [])

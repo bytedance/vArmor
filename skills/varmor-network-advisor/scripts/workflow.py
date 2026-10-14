@@ -81,7 +81,11 @@ def summary(root, api, collection=None, verification=None, language=None):
         if not ready['readyForHandoff']:
             stage = 'collector-check'
         elif chosen:
-            stage = 'enforce-startup' if active_state.get('verificationMode') == 'new-pods' else 'enforce-traffic'
+            # Enrolled new identities end the recreation handoff, not startup acceptance.
+            enrolled_uids = set(active_state.get('podUIDs', [])) & set(active_state.get('verifiedPodUIDs', []))
+            new_uids = enrolled_uids - set(active_state.get('baselinePodUIDs', []))
+            waiting_for_new_pods = active_state.get('verificationMode') == 'new-pods' and not new_uids
+            stage = 'enforce-startup' if waiting_for_new_pods else 'enforce-traffic'
         else:
             stage = 'observing' if state.get('podUIDs') else 'observe-startup'
     elif chosen:

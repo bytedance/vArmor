@@ -48,6 +48,7 @@ DEVELOPMENT_FILES = (
     'tests/test_constraints_startup.py',
     'tests/test_handoff_diagnostics.py',
     'tests/test_evidence_workflow.py',
+    'tests/test_compat_receipt_boundaries.py',
 )
 SOURCE_ONLY_START = '<!-- package:source-only:start -->'
 SOURCE_ONLY_END = '<!-- package:source-only:end -->'

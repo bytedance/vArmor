@@ -10,6 +10,15 @@ Recommend at least 10 minutes for the first interactive window, or 15 minutes fo
 
 Select report language from the user's interaction, not the language of these instructions: prepare `observe --language zh-CN` for Chinese or `--language en` for English. `session.json.reportLanguage` is reused by periodic and final analysis. A manual `analyze --language zh-CN|en` persists a user-requested language change, including during active collection or after it stops. Keep evidence and policy values unchanged; do not restart observation merely to change report language.
 
+Initialize observation with `observe` in a new or empty session directory.
+Before initialization, keep base-policy exports, provisional plans and notes
+outside that directory. An external complete plan may be prepared and retained
+outside the session. Write any session-local plan only after `observe` exits
+successfully and its matching `session.json` and `observe.yaml` exist.
+If initialization or server dry-run
+fails, preserve the diagnostic and stop before apply or monitor; do not reuse an
+old manifest or delete evidence to make the directory appear empty.
+
 After read-only checks and local policy drafting, save a complete reviewable plan and link it before asking for confirmation. Lead with a short business-language summary (target, duration, scenarios, material changes, next action). Put the technical table in the linked artifact, unless resources are a stated concern or the user requests detail. Label required confirmation clearly; a short summary without the complete plan is insufficient. Once confirmed, summarize only changes rather than presenting the same table again. User requirements take precedence; suggest defaults for unspecified items and label environment findings separately. Do not describe inferences as user requirements. Include at least:
 
 - Context, namespace, target and matching labels, policy name and creation/reuse, retained system protection, and the change to updateExistingWorkloads=false; attach the reviewable policy file.
