@@ -17,6 +17,7 @@ RUNTIME_FILES = (
     'references/review-and-scheduling.md',
     'references/observation-and-collection.md',
     'scripts/advisor.py',
+    'scripts/tcp_probe.sh',
     'scripts/collector.py',
     'scripts/verification.py',
     'scripts/refinement.py',
@@ -55,6 +56,7 @@ DEVELOPMENT_FILES = (
     'tests/test_verification_init.py',
     'tests/test_smoke_tls_tcp_run.py',
     'tests/test_permission_scope.py',
+    'tests/test_tcp_probe.py',
 )
 SOURCE_ONLY_START = '<!-- package:source-only:start -->'
 SOURCE_ONLY_END = '<!-- package:source-only:end -->'

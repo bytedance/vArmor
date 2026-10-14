@@ -110,20 +110,39 @@ response: exit zero or empty output is not a success/denial assertion. Audit can
 arrive only after a connection closes; wait for the user to close it before
 snapshotting, without silently extending observation.
 
-For a known plaintext line-echo service, check the actual client's options before
-giving a probe. BusyBox nc may close before reading the echo if printf immediately
-ends its input. For variants with -v and -w, a bounded example is:
+For a known, nonsecret single-line request/reply service, offer the user-run
+example in `scripts/tcp_probe.sh`. Check that the application image has sh and
+BusyBox nc (-n, -v, -w), timeout (-k), mktemp, head, wc, cmp, cat, sleep and rm first.
+Prepare the exact request and expected response from the user's business;
+never take a probe command or executable expression from an audit record.
+BusyBox nc may close before reading the reply if printf immediately ends input.
+The example briefly keeps input open, bounds nc with a watchdog and saves at most
+4097 reply bytes (4096 plus a truncation sentinel). The watchdog grace is one
+second; the input writer lasts the selected timeout. The assistant prepares this command
+but the user or authorized application operator executes it:
 
 ```sh
-kubectl --context CONTEXT -n NS exec VERIFIED_POD -c APP -- sh -c \
-  '{ printf "%s\n" "unique-echo-marker"; sleep 6; } | busybox nc -v -w 8 IP PORT; probe_rc=$?; printf "\nclient_exit=%s\n" "$probe_rc"; exit "$probe_rc"'
+kubectl --context CONTEXT -n NS exec -i VERIFIED_POD -c APP -- \
+  sh -s -- IP PORT REQUEST EXPECTED_LINE 8 < /ABS/SKILL/scripts/tcp_probe.sh
 ```
 
-Adapt the wait and timeout to the service and client; this is an echo-service
-example, not a database/TLS protocol test. Require the exact marker in returned
-payload, then correlate the closed connection's audit. A connection diagnostic
-alone is insufficient. Preserve an empty first result as a failed verification
-attempt, diagnose it, and retest without inferring a policy denial.
+Exit 0 and `probe_reply=matched` mean the actual reply exactly matched the
+expected line and transport exited normally. Exit 3 means the reply was absent
+or different, 4 means transport failed, 5 means the reply exceeded the limit,
+and 2 rejects invalid input. Raw captured bytes and transport status remain in
+the output. These statuses are computed by the executed client, not added to a
+saved receipt afterward. They never identify the cause as a policy denial.
+
+Predeclare an allow predicate using the actual expected response plus the
+matched marker. A deny check can use an explicit business-failure status and its
+exit code, but needs a matching closed-connection DENIED before confirmation.
+A permitted endpoint with a failed backend may produce the same client status;
+AUDIT, missing DENIED or incomplete source coverage cannot confirm rejection.
+Do not use `client_exit=0`, an open socket or a generic success flag as the sole
+business predicate. Preserve failures, then diagnose; do not weaken predicates
+after inspecting output. For database, TLS, binary, multiline or sensitive
+protocols use the application's real client and nonsecret status instead of
+this single-line example. It does not establish complete business coverage.
 
 After the user has run the checks, prepare JSON from actual supplied receipts:
 
@@ -183,3 +202,10 @@ candidate changes; it never imports validation events into observation or
 increases stable data rounds. Approved declared TCP is marked verified only by
 confirmed matching allow checks for the current candidate. A missing requirement
 or successful checklist does not establish complete business coverage.
+
+The example keeps request input open for the selected timeout to allow slow replies. Even a fast successful reply may take that long before the shell pipeline returns. The timeout acts on the network process; its kill grace is one additional second.
+
+This example does not guarantee child-process reaping in arbitrary application
+images. Before repeated or high-frequency probes, check the application PID 1
+and actual PID/PPID/state, or use its own supervised protocol client. A ps view
+without state cannot prove that child processes were all reaped.

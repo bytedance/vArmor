@@ -136,8 +136,12 @@ must finish within five minutes after that window. Backend denial predicates
 use `stdoutAbsent` with the unique request marker and the coverage fields.
 Choose literal predicates before inspecting results; do not weaken them after
 a failed attempt just to get a pass. Preserve the failed attempt separately.
-TCP needs a meaningful returned protocol marker and matching closed-connection
-audit; backend evidence is optional for L4 checks. Verification matches audit
+TCP allow checks need the meaningful returned protocol marker. Deny checks need
+a real client business-failure assertion plus matching closed-connection DENIED;
+an open socket, raw exit zero, or empty output is insufficient. Client failure
+alone does not distinguish a policy denial from backend/protocol failure. The
+user-run single-line example and its limits are in [verification.md](verification.md).
+Backend evidence is optional for L4 checks. Verification matches audit
 from that check's receipt UID, not any other selected Pod.
 
 For a quiet allow, config reads must bracket traffic, within five minutes of

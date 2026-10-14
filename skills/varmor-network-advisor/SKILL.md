@@ -38,7 +38,26 @@ are registered by prepare-verification; older ones can be selected explicitly.
 
 Users may know which application to protect without understanding the CRD. Extract the context, namespace, workload kind/name or selector first. Ask for missing essential target information; do not reconfirm information or authorization already provided. Prepare concrete results before asking users to review choices that require business judgment.
 
+When users already specify required destinations or URLs, check whether the
+requested protocol and permission boundaries can be expressed before preparing
+a broad observation draft or spending their short budget on environment checks.
+Explain material extra grants in business terms and resolve them first. Known
+requirements may go directly to a reviewed candidate and bounded verification;
+do not require broad discovery for its own sake. If the required scope is not
+expressible and the user rejects extra permissions, retain the requirements and
+stop implementation. For HTTPS compatibility, offer to have the application
+operator check trust, pinning and client certificates; users may answer unknown
+rather than needing to understand those mechanisms themselves.
+
 If users need commands to exercise their business, gather the minimum runnable details before starting a short observation: destination, representative methods/paths, required body or authentication, and the expected TCP protocol response. Prepare those commands with the lifecycle handoff so questions about how to generate traffic do not consume the observation window. Users who can exercise their own application need only a scenario checklist. Treat an overall time budget separately from collection duration and report overruns honestly. If a time revision could mean either, clarify that single ambiguity while continuing read-only preparation; do not silently subtract preparation/review time from a user-specified observation duration. A proposed allocation of an explicit total budget must be visible in the plan for confirmation.
+
+For TCP verification, select a real business reply or failure assertion before
+testing. `nc` reporting an open socket or exit zero is not that assertion. The
+optional user-run single-line probe in [verification.md](references/verification.md)
+computes reply status from actual bytes; it does not label a failure as a policy
+denial. Confirm denial only with matching DENIED evidence and source coverage.
+Choose the application's client for other protocols; do not execute its traffic
+yourself or synthesize successful/blocked outputs in receipt files.
 
 For a first interactive observation, recommend at least 10 minutes (15 minutes for slow rollouts or several handoffs), reserving time for collector preparation, recreation, business traffic and a final read. This is operational guidance, not a minimum enforced by code or a guarantee of business coverage; periodic jobs may need a longer cycle. Respect an explicitly chosen shorter window after explaining the risk once, and prepare a combined user-run lifecycle/identity/traffic routine before launch. Never shorten a failed window as a retry strategy unless the work or delays have actually changed. Do not extend the deadline without authorization.
 

@@ -54,6 +54,10 @@ def tcp_denial_decision(report, address):
         'approvalEvidence': 'Authorized isolated maintainer approval of this actual DENIED item'}
 
 
+def tcp_reply_confirmed(receipt):
+    return receipt.get('exitCode') == 0 and 'probe_reply=matched\n' in receipt.get('stdout', '')
+
+
 def main(cfg, output=None):
     cfg = dict(cfg)
     root = Path(cfg['root'])
@@ -151,14 +155,13 @@ def main(cfg, output=None):
 
     def tcp(label, payload, denied=False, port=9090):
         identity(label+'-uid')
-        # The operator emits a literal completion marker and nc's actual status.
-        # Denial additionally needs matching normalized DENIED, not this marker alone.
-        return kube(label, 'exec', '-n', ns, client, '-c', 'app', '--', 'sh', '-c',
-                    '{ printf "%s\\n" "$1"; sleep 2; } | busybox nc -w 8 "$2" "$4"; rc=$?; printf "\\nTCP_CLIENT_EXIT=%s\\n" "$rc"; '
-                    'if [ "$3" = deny ]; then case "$rc" in 0|1) printf "TCP_DENIAL_PROBE_COMPLETED\\n"; exit 0;; esac; fi; exit "$rc"',
-                    'test', payload, ip, 'deny' if denied else 'allow', str(port))
+        # Require the real protocol reply, never a fabricated completion flag.
+        probe = (Path(cfg['installedSkill']) / 'scripts/tcp_probe.sh').read_text()
+        return kube(label, 'exec', '-i', '-n', ns, client, '-c', 'app', '--',
+                    'sh', '-s', '--', ip, str(port), payload, 'tcp-ok', '8',
+                    data=probe, allowed=(0, 3))
 
-    def receipt(folder, check, raw, role, contains=(), absent=(), since=None, until=None):
+    def receipt(folder, check, raw, role, contains=(), absent=(), since=None, until=None, expected_exit=0):
         p = folder / (check['id']+'-'+role+'.json')
         content = {'kind': 'NetworkProxyCommandReceipt', 'checkId': check['id'], 'podUID': uid,
                    **{k: raw[k] for k in ('startedAt','endedAt','exitCode','stdout')},
@@ -167,7 +170,7 @@ def main(cfg, output=None):
             content.update(coverageSince=since, coverageUntil=until)
         a.write(p, content)
         return {'file': str(p), 'sha256': hashlib.sha256(p.read_bytes()).hexdigest(),
-                'exitCode': 0, 'stdoutContains': list(contains), 'stdoutAbsent': list(absent)}
+                'exitCode': expected_exit, 'stdoutContains': list(contains), 'stdoutAbsent': list(absent)}
 
     def start_monitor(label, collection):
         guard()
@@ -257,8 +260,9 @@ def main(cfg, output=None):
                     absent=[marker] if check['expected']=='deny' else [],since=since,until=until)
             else:
                 ref['client']=receipt(folder,check,execution,'client',
-                    contains=['tcp-ok', 'TCP_CLIENT_EXIT=0'] if check['expected']=='allow' else ['TCP_DENIAL_PROBE_COMPLETED'],
-                    absent=['tcp-ok'] if check['expected']=='deny' else [])
+                    contains=['tcp-ok', 'probe_reply=matched'] if check['expected']=='allow' else ['probe_reply=missing_or_mismatch'],
+                    absent=['tcp-ok'] if check['expected']=='deny' else [],
+                    expected_exit=0 if check['expected']=='allow' else 3)
                 ref['backend']=receipt(folder,check,backend_tcp,'backend',
                     contains=[check['id']] if check['expected']=='allow' else [],
                     absent=[check['id']] if check['expected']=='deny' else [],since=since,until=until)
@@ -419,7 +423,7 @@ def main(cfg, output=None):
                         continue
                 probe=http(label+'-propagation-http-'+str(attempt),'/candidate-propagation-unlisted')
                 if 'HTTP 403' in probe['stdout']:
-                    if not tcp_expected or 'tcp-ok' in tcp(label+'-propagation-tcp-'+str(attempt),'propagation-tcp')['stdout']:
+                    if not tcp_expected or tcp_reply_confirmed(tcp(label+'-propagation-tcp-'+str(attempt),'propagation-tcp')):
                         return
                 time.sleep(2)
             raise RuntimeError('Candidate propagation timeout: '+json.dumps({'phase':label,

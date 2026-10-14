@@ -26,6 +26,14 @@ class TLSRunnerBoundaries(unittest.TestCase):
             with self.assertRaises(ValueError):r.tcp_denial_decision(report,'10.0.0.1')
         with self.assertRaises(ValueError):r.tcp_denial_decision({'denials':[item]},'10.0.0.2')
 
+    def test_tcp_propagation_requires_exact_reply_status_and_transport_success(self):
+        self.assertTrue(r.tcp_reply_confirmed({'exitCode': 0, 'stdout': 'tcp-ok\nprobe_reply=matched\n'}))
+        for receipt in ({'exitCode': 3, 'stdout': 'tcp-ok-extra\nprobe_reply=missing_or_mismatch\n'},
+                        {'exitCode': 0, 'stdout': 'tcp-ok'},
+                        {'exitCode': 143, 'stdout': 'probe_reply=matched\n'}):
+            with self.subTest(receipt=receipt):
+                self.assertFalse(r.tcp_reply_confirmed(receipt))
+
     def test_chunked_admin_requires_original_crlf_bytes(self):
         raw = b'HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\nE\r\n{"configs":[]}\r\n0\r\n\r\n'
         self.assertEqual(r.admin_document(raw), {'configs': []})
