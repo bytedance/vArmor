@@ -56,6 +56,17 @@ class HandoffTests(unittest.TestCase):
         self.assertFalse(result['readyForHandoff'])
         self.assertIn('collector-lease-not-held', result['reasons'])
 
+    def test_continued_budget_checks_actual_owner_lease(self):
+        owner = self.root / 'prior-budget'
+        owner.mkdir()
+        shared = owner / '.workflow-collector.lock'
+        shared.mkdir()
+        a.write(self.root / 'session.json', {'budgetSession': str(owner)})
+        with a.locked(self.root / '.collector.lock'), a.locked(shared):
+            self.assertTrue(c.handoff_status(self.root, vars(a))['readyForHandoff'])
+        with a.locked(self.root / '.collector.lock'), a.locked(self.root / '.workflow-collector.lock'):
+            self.assertFalse(c.handoff_status(self.root, vars(a))['readyForHandoff'])
+
     def test_stale_heartbeat_expired_and_short_windows(self):
         current = dt.datetime.now(dt.timezone.utc)
         for changes, reason in [({'lastHeartbeatAt': (current-dt.timedelta(seconds=60)).isoformat()}, 'heartbeat-not-current'),

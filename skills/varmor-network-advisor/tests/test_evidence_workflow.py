@@ -56,7 +56,7 @@ def projection(audited=True):
             {'name': 'http_chain', 'match': {'application_protocols': ['http/1.0', 'http/1.1', 'h2c']},
                 'filters': ['envoy.filters.network.http_connection_manager'], 'rbac': [],
                 'http': {'filters': ['envoy.filters.http.rbac'] * 2 + ['envoy.filters.http.router'],
-                    'rbac': list(reversed(rbac(permission))), 'normalize_path': True, 'merge_slashes': True,
+                    'rbac': list(reversed(rbac(permission))), 'normalize_path': True, 'merge_slashes': True, 'allow_custom_methods': True,
                     'path_with_escaped_slashes_action': 'UNESCAPE_AND_FORWARD', 'logs': logs(True)}}],
         'default': {'name': 'tcp_default_chain', 'match': {},
             'filters': ['envoy.filters.network.rbac', 'envoy.filters.network.tcp_proxy'],
@@ -67,6 +67,10 @@ def projection(audited=True):
         result['chains'][1]['http']['filters'].pop(0)
         for area in (result, result['chains'][1]['http']):
             area['logs'] = [area['logs'][0]['or_filter']['filters'][0]]
+    for chain in (result['chains'][0], result['default']):
+        chain['tcp'] = {'cluster': 'original_dst', 'upstream_connect_mode': 'ON_DOWNSTREAM_DATA', 'max_early_data_bytes': 8192}
+    result['chains'][1]['http']['routing'] = {'ignore_port_in_host_matching': False,
+        'hosts': [{'domains': ['*'], 'routes': [{'match': {'prefix': '/'}, 'cluster': 'original_dst'}]}]}
     return result
 
 
@@ -81,21 +85,30 @@ def listener_dump():
             config = {}
             if name == 'envoy.filters.network.rbac':
                 config = {'@type': 'type.googleapis.com/envoy.extensions.filters.network.rbac.v3.RBAC', **value['rbac'][index]}; index += 1
+            if name == 'envoy.filters.network.tcp_proxy':
+                config = {'@type': 'type.googleapis.com/envoy.extensions.filters.network.tcp_proxy.v3.TcpProxy', **value['tcp']}
             if name == 'envoy.filters.network.http_connection_manager':
-                h = value['http']; config = {k: h[k] for k in ('normalize_path', 'merge_slashes', 'path_with_escaped_slashes_action')}
-                config['access_log'] = [{'filter': x} for x in h['logs']]
-                config['route_config'] = {'virtual_hosts': [{'request_headers_to_add': [{'header': {'key': 'authorization', 'value': 'private-canary'}}]}]}
+                h = value['http']; config = {'@type': 'type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager',
+                    **{k: h[k] for k in ('normalize_path', 'merge_slashes', 'path_with_escaped_slashes_action')}}
+                config['access_log'] = [{'filter': x, 'typed_config': {'private_fixture': 'private-canary'}} for x in h['logs']]
+                config['http_protocol_options'] = {'allow_custom_methods': h['allow_custom_methods']}
+                config['route_config'] = {'name': 'local', 'virtual_hosts': [{'name': 'all', 'domains': ['*'],
+                    'routes': [{'match': {'prefix': '/'}, 'route': {'cluster': 'original_dst'}}]}]}
                 config['http_filters'] = []
                 j = 0
                 for n in h['filters']:
                     tc = {}
                     if n.endswith('.rbac'):
                         tc = {'@type': 'type.googleapis.com/envoy.extensions.filters.http.rbac.v3.RBAC', **h['rbac'][j]}; j += 1
+                    elif n.endswith('.router'):
+                        tc = {'@type': 'type.googleapis.com/envoy.extensions.filters.http.router.v3.Router'}
                     config['http_filters'].append({'name': n, 'typed_config': tc})
             output['filters'].append({'name': name, 'typed_config': config})
         return output
     listener = {'name': p['name'], 'filter_chains': [chain(x) for x in p['chains']],
-        'default_filter_chain': chain(p['default']), 'listener_filters': [{'name': n} for n in p['inspectors']],
+        'default_filter_chain': chain(p['default']), 'listener_filters': [{'name': n, 'typed_config': {
+            '@type': 'type.googleapis.com/envoy.extensions.filters.listener.' + n.rsplit('.',1)[1] + '.v3.' +
+                {'original_dst':'OriginalDst','tls_inspector':'TlsInspector','http_inspector':'HttpInspector'}[n.rsplit('.',1)[1]]}} for n in p['inspectors']],
         'access_log': [{'filter': x} for x in p['logs']]}
     return {'configs': [{'@type': 'type.googleapis.com/envoy.admin.v3.ListenersConfigDump',
         'dynamic_listeners': [{'name': 'varmor_outbound', 'active_state': {'listener': listener}}]}]}

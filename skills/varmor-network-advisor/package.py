@@ -23,6 +23,8 @@ RUNTIME_FILES = (
     'scripts/yamlio.py',
     'scripts/evidence.py',
     'scripts/workflow.py',
+    'scripts/verification_init.py',
+    'scripts/permission_scope.py',
     'references/verification.md',
     'references/enforcement-iteration.md',
     'references/evidence-validation.md',
@@ -33,6 +35,7 @@ DEVELOPMENT_FILES = (
     'package.py',
     'tests/smoke_cluster.py',
     'tests/smoke_tls_tcp.py',
+    'tests/smoke_tls_tcp_run.py',
     'tests/fixtures/fake_kubectl.py',
     'tests/test_advisor.py',
     'tests/test_yamlio.py',
@@ -49,6 +52,9 @@ DEVELOPMENT_FILES = (
     'tests/test_handoff_diagnostics.py',
     'tests/test_evidence_workflow.py',
     'tests/test_compat_receipt_boundaries.py',
+    'tests/test_verification_init.py',
+    'tests/test_smoke_tls_tcp_run.py',
+    'tests/test_permission_scope.py',
 )
 SOURCE_ONLY_START = '<!-- package:source-only:start -->'
 SOURCE_ONLY_END = '<!-- package:source-only:end -->'

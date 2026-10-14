@@ -30,17 +30,44 @@ The sidecar needs bash, timeout, head and setpriv. If unavailable, keep the
 proof incomplete and inspect read-only diagnostics; do not install software or
 change the proxy image as a fallback.
 
-Automatic scope: default deny, literal DNS host and exact port, at most one
-method and one exact/prefix path per HTTP rule; host/port-only SNI permissions
-also work. Default ports 80/443 retain both legal authority spellings.
-Rules may be audited or silent. Raw TCP grants, MITM, wildcard hosts, ranges,
-explicit deny constraints and unknown renderer shapes remain unsupported by
-this automatic proof. This restriction does not remove their modeling or
-audited traffic-verification support. Explain visibility and permission limits
-when relevant, keep missing configuration evidence visible, and do not turn a
-manual assertion into a passing quiet check. The proof does not validate all
-CDS/TLS/routing settings, and two reads cannot rule out configuration changes
-between them. Actual positive and negative business tests remain necessary.
+Automatic scope: default deny; canonical literal HTTP/SNI hosts and exact ports;
+optional literal methods and exact/prefix paths; literal DNS MITM without header
+mutations; literal IPv4/IPv6 TCP grants with exact ports. HTTP dimensions form
+OR branches, bounded to 256 branches per rule and 128 total rules. Host, port
+and MITM domain lists are bounded to 16 entries. Default HTTP ports 80/443 keep
+both legal authority spellings. Rules may be audited or silent. Whole IP/port
+grants also permit HTTP/TLS at that destination; the proof includes that scope
+in plaintext, MITM, TLS and default TCP chains rather than treating it as a
+protocol-only grant.
+
+The projection checks TLS chain selection, MITM domain routing and its lack of
+catch-all domain fronting, standard original-destination HTTP/TCP routing,
+RBAC-before-connect behavior, path normalization and audit selection. Shadow
+policy numbering is recalculated for each filtered rule set. HTTP upgrade,
+per-route filter overrides, mirrors, header rewrites, unknown HTTP router
+options, disabled inspectors and
+unknown semantic fields are rejected rather than silently discarded. Saved
+projections also require known fields and boolean types. Custom methods require
+the active codec's custom-method option. Only supported RBAC permission trees,
+any principals and the fixed audit expressions are projected. Unknown header
+matches or CEL expressions are rejected before persistence. Confirmed proofs
+save reviewed authority/method/path/IP matches; failed proofs save only their
+result, basis and projection hash. Credentials, TLS keys, certificate/SDS
+contents and arbitrary header values are never saved as permission proof.
+
+Wildcard hosts, CIDRs, port ranges, IP-based MITM, header injection, explicit
+deny constraints and unknown renderer shapes remain unsupported by this proof.
+They retain modeling or audited traffic verification where supported. Do not
+convert a manual assertion to a passing quiet check. The proof does not validate
+all CDS/TLS settings, source authenticity or complete business coverage. Two
+reads cannot rule out intervening changes. Actual positive/negative business
+tests and a final user-managed startup acceptance remain necessary.
+
+Admin version metadata may remain older while the current listener permissions
+have changed. Never require version equality as a permission oracle or infer
+old permissions solely from an old version field. Compare the actual active
+permission projection; use mounted hashes, active/draining/warming versions and
+safe update-error metadata only to diagnose failed or incomplete checks.
 
 ## Source command receipts
 

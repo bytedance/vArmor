@@ -9,7 +9,9 @@ import datetime as dt
 import hashlib
 import http.client
 import io
+import importlib.util
 import json
+import re
 from pathlib import Path
 
 
@@ -48,46 +50,19 @@ def header(name, value, fold=False):
     return {'header': {'name': name, 'string_match': {'exact': value, **({'ignore_case': True} if fold else {})}}}
 
 
-def expected_rbac(rules, tls=False):
-    policies = {}
-    for index, rule in enumerate(rules):
-        match = rule['match']
-        host, port = match['hosts'][0], match['ports'][0]['port']
-        if tls:
-            parts = [{'requested_server_name': {'exact': host, 'ignore_case': True}}]
-        else:
-            explicit = header(':authority', host + ':' + str(port), True)
-            parts = [{'or_rules': {'rules': [header(':authority', host, True), explicit]}}] if port in (80, 443) else [explicit]
-        parts.append({'destination_port': port})
-        if not tls:
-            if match.get('methods'):
-                parts.append(header(':method', match['methods'][0]))
-            if match.get('paths'):
-                parts.append({'url_path': {'path': match['paths'][0]}})
-        policies['http_' + str(index)] = {'permissions': [{'and_rules': {'rules': parts}}], 'principals': [{'any': True}]}
-    return {'action': 'ALLOW', 'policies': policies}
+def permission_module():
+    spec = importlib.util.spec_from_file_location('varmor_permission_scope', Path(__file__).with_name('permission_scope.py'))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def expected_rbac(rules, tls=False, raw=()):
+    return permission_module().rbac(rules, tls, raw)
 
 
 def supported_rules(policy, api):
-    body = copy.deepcopy(policy['spec']['policy'])
-    egress = api['network_rules'](body).get('egress', {})
-    if egress.get('defaultAction') != 'deny' or egress.get('rules') or \
-            body.get('networkProxyConfig', {}).get('mitm') or set(egress) - {'defaultAction', 'rules', 'httpRules'}:
-        raise ValueError('Automatic proof currently supports default-deny literal HTTP/SNI rules without MITM or raw TCP grants')
-    rules = egress.get('httpRules', [])
-    for rule in rules:
-        match, qualifiers = rule.get('match', {}), rule.get('qualifiers', [])
-        if set(rule) - {'match', 'qualifiers', 'description'} or set(match) - {'hosts', 'ports', 'paths', 'methods'} or \
-                set(qualifiers) not in ({'allow'}, {'allow', 'audit'}) or len(qualifiers) != len(set(qualifiers)) or \
-                len(match.get('hosts', [])) != 1 or '*' in match['hosts'][0] or ':' in match['hosts'][0] or \
-                api['host'](match['hosts'][0]) != match['hosts'][0] or len(match.get('ports', [])) != 1 or \
-                set(match['ports'][0]) != {'port'} or type(match['ports'][0]['port']) is not int or \
-                not 1 <= match['ports'][0]['port'] <= 65535 or len(match.get('paths', [])) > 1 or len(match.get('methods', [])) > 1:
-            raise ValueError('Unsupported automatic match shape; keep configuration evidence unverified')
-        if match.get('paths') and (set(match['paths'][0]) not in ({'exact'}, {'prefix'}) or
-                not next(iter(match['paths'][0].values())).startswith('/')):
-            raise ValueError('Unsupported automatic path match')
-    return rules
+    return permission_module().scope(policy, api)[0]
 
 
 def normalize_rbac(value):
@@ -111,78 +86,150 @@ def log_filter(shadow, http=False):
 
 def project_listener(listener):
     """Persist only permission and audit selection fields, never credentials or Secrets."""
+    if listener.get('filter_chain_matcher'):
+        raise ValueError('Listener matcher overrides are unsupported')
+    if set(listener) - {'@type', 'name', 'address', 'additional_addresses', 'socket_options',
+            'listener_filters', 'filter_chains', 'default_filter_chain', 'access_log'}:
+        raise ValueError('Unknown listener options are unsupported')
+    inspector_types = {'original_dst': 'OriginalDst', 'tls_inspector': 'TlsInspector', 'http_inspector': 'HttpInspector'}
+    for inspector in listener.get('listener_filters', []):
+        short = inspector.get('name', '').removeprefix('envoy.filters.listener.')
+        expected_type = 'type.googleapis.com/envoy.extensions.filters.listener.' + short + '.v3.' + inspector_types.get(short, '')
+        if set(inspector) - {'name', 'typed_config'} or inspector.get('typed_config') != {'@type': expected_type} or short not in inspector_types:
+            raise ValueError('Unknown or disabled listener inspector configuration')
     def rbac_config(config, layer):
         if config.get('@type') != 'type.googleapis.com/envoy.extensions.filters.' + layer + '.rbac.v3.RBAC' or \
                 set(config) - {'@type', 'rules', 'shadow_rules', 'stat_prefix', 'rules_stat_prefix', 'shadow_rules_stat_prefix'}:
             raise ValueError('Unknown RBAC configuration fields or matcher overrides')
-        return {k: normalize_rbac(config[k]) for k in ('rules', 'shadow_rules') if k in config}
+        def permission(value, depth=0):
+            if not isinstance(value, dict) or len(value) != 1 or depth > 16:
+                raise ValueError('Unknown RBAC permission tree')
+            key, data = next(iter(value.items()))
+            if key in ('and_rules', 'or_rules'):
+                if not isinstance(data, dict) or set(data) != {'rules'} or not isinstance(data['rules'], list) or len(data['rules']) > 256:
+                    raise ValueError('Unsupported RBAC permission branches')
+                for item in data['rules']: permission(item, depth + 1)
+            elif key in ('header', 'requested_server_name'):
+                if not isinstance(data, dict) or set(data) - ({'name', 'string_match'} if key == 'header' else {'exact', 'ignore_case'}):
+                    raise ValueError('Unknown RBAC header or SNI match')
+                if key == 'header' and data.get('name') not in (':authority', ':method'):
+                    raise ValueError('Unsupported RBAC header; sensitive values are not persisted')
+                match = data.get('string_match', {}) if key == 'header' else data
+                if not isinstance(match, dict) or set(match) - {'exact', 'ignore_case'} or not isinstance(match.get('exact'), str):
+                    raise ValueError('Unsupported RBAC string match')
+            elif key == 'destination_ip':
+                if not isinstance(data, dict) or set(data) != {'address_prefix', 'prefix_len'} or not isinstance(data['address_prefix'], str) or type(data['prefix_len']) is not int:
+                    raise ValueError('Unsupported RBAC destination IP')
+            elif key == 'destination_port':
+                if type(data) is not int: raise ValueError('Unsupported RBAC destination port')
+            elif key == 'url_path':
+                if not isinstance(data, dict) or set(data) != {'path'} or not isinstance(data['path'], dict) or len(data['path']) != 1 or not set(data['path']) <= {'exact', 'prefix'} or not all(isinstance(v, str) for v in data['path'].values()):
+                    raise ValueError('Unsupported RBAC URL path')
+            else:
+                raise ValueError('Unknown RBAC permission; sensitive values are not persisted')
+        result = {}
+        for key in ('rules', 'shadow_rules'):
+            if key not in config: continue
+            value = normalize_rbac(config[key])
+            if set(value) != {'action', 'policies'} or value['action'] not in ('ALLOW', 'DENY') or not isinstance(value['policies'], dict) or len(value['policies']) > 128:
+                raise ValueError('Unsupported RBAC policy layout')
+            for name, policy in value['policies'].items():
+                if not isinstance(name, str) or not re.fullmatch(r'(egress|http)_[0-9]+', name) or not isinstance(policy, dict) or set(policy) != {'permissions', 'principals'} or json.dumps(policy['principals']) != '[{"any": true}]' or not isinstance(policy['permissions'], list) or len(policy['permissions']) > 256:
+                    raise ValueError('Unknown RBAC policies or principals are not persisted')
+                for item in policy['permissions']: permission(item)
+            result[key] = value
+        return result
+    def audit_filters(logs, http=False):
+        filters = [x.get('filter') for x in logs]
+        for item in filters:
+            if item not in (log_filter(False, http), log_filter(True, http)):
+                raise ValueError('Unknown audit selection expressions are not persisted')
+        return filters
 
     def project(chain):
         fs = chain.get('filters', [])
         result = {'name': chain.get('name'), 'match': chain.get('filter_chain_match', {}),
                   'filters': [f['name'] for f in fs], 'rbac': []}
-        if chain.get('transport_socket'):
-            raise ValueError('MITM listener requires manual configuration evidence')
+        transport = chain.get('transport_socket')
+        if transport:
+            if transport.get('name') != 'envoy.transport_sockets.tls' or \
+                    transport.get('typed_config', {}).get('@type') != 'type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext':
+                raise ValueError('Unsupported downstream TLS transport')
+            result['tlsTermination'] = True  # No certificate, key or SDS contents persisted.
+        if chain.get('transport_socket_matches'):
+            raise ValueError('Conditional transport sockets are unsupported')
         for f in fs:
+            if set(f) - {'name', 'typed_config'}:
+                raise ValueError('Unknown network filter discovery or options')
             config = f.get('typed_config', {})
             if f['name'] == 'envoy.filters.network.rbac':
                 result['rbac'].append(rbac_config(config, 'network'))
             elif f['name'] == 'envoy.filters.network.http_connection_manager':
+                if config.get('@type') != 'type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager':
+                    raise ValueError('Unknown HTTP connection manager type')
+                if set(config) - {'@type', 'stat_prefix', 'internal_address_config', 'http_protocol_options',
+                        'stream_idle_timeout', 'normalize_path', 'merge_slashes', 'path_with_escaped_slashes_action',
+                        'route_config', 'http_filters', 'access_log'}:
+                    raise ValueError('Unknown HTTP manager fields, upgrades or routing overrides are unsupported')
+                if config.get('internal_address_config', {}) or set(config.get('http_protocol_options', {})) - {'allow_custom_methods'}:
+                    raise ValueError('Unknown HTTP protocol or address options are unsupported')
+                custom_methods = config.get('http_protocol_options', {}).get('allow_custom_methods', False)
+                if type(custom_methods) is not bool:
+                    raise ValueError('HTTP custom-method option requires a boolean')
                 http_filters = config.get('http_filters', [])
+                if any(x.get('disabled') or set(x) - {'name', 'typed_config', 'disabled'} for x in http_filters):
+                    raise ValueError('Disabled or dynamically supplied HTTP filters are unsupported')
+                for item in http_filters:
+                    if item['name'] == 'envoy.filters.http.router' and item.get('typed_config') != {
+                            '@type': 'type.googleapis.com/envoy.extensions.filters.http.router.v3.Router'}:
+                        raise ValueError('Unknown HTTP router type or options are unsupported')
+                def reject_overrides(value):
+                    if isinstance(value, dict):
+                        if set(value) & {'typed_per_filter_config', 'per_filter_config', 'filter_action'}:
+                            raise ValueError('Per-route filter overrides are unsupported')
+                        for v in value.values(): reject_overrides(v)
+                    elif isinstance(value, list):
+                        for v in value: reject_overrides(v)
+                route = config.get('route_config', {})
+                reject_overrides(route)
+                if set(route) - {'name', 'ignore_port_in_host_matching', 'validate_clusters', 'virtual_hosts'}:
+                    raise ValueError('Unknown route configuration fields are unsupported')
+                for vh in route.get('virtual_hosts', []):
+                    if set(vh) - {'name', 'domains', 'routes'}:
+                        raise ValueError('Unknown virtual host fields, header mutation or overrides are unsupported')
+                    for r in vh.get('routes', []):
+                        if set(r) - {'match', 'route'} or set(r.get('match', {})) - {'prefix'} or \
+                                set(r.get('route', {})) - {'cluster', 'timeout'}:
+                            raise ValueError('Unknown routes, mirrors or rewrites are unsupported')
                 result['http'] = {'filters': [x['name'] for x in http_filters],
                     'rbac': [rbac_config(x['typed_config'], 'http')
                              for x in http_filters if x['name'] == 'envoy.filters.http.rbac'],
                     'normalize_path': config.get('normalize_path', False),
                     'merge_slashes': config.get('merge_slashes', False),
+                    'allow_custom_methods': custom_methods,
                     'path_with_escaped_slashes_action': config.get('path_with_escaped_slashes_action'),
-                    'logs': [x.get('filter') for x in config.get('access_log', [])]}
+                    'logs': audit_filters(config.get('access_log', []), True)}
+                result['http']['routing'] = {'ignore_port_in_host_matching': route.get('ignore_port_in_host_matching', False),
+                    'hosts': [{'domains': vh.get('domains', []), 'routes': [
+                        {'match': r.get('match', {}), 'cluster': r.get('route', {}).get('cluster')}
+                        for r in vh.get('routes', [])]} for vh in route.get('virtual_hosts', [])]}
+            elif f['name'] == 'envoy.filters.network.tcp_proxy':
+                if config.get('@type') != 'type.googleapis.com/envoy.extensions.filters.network.tcp_proxy.v3.TcpProxy' or \
+                        set(config) - {'@type', 'stat_prefix', 'cluster', 'idle_timeout', 'upstream_connect_mode', 'max_early_data_bytes'}:
+                    raise ValueError('Unknown TCP proxy routing or options')
+                result['tcp'] = {k: config.get(k) for k in ('cluster', 'upstream_connect_mode', 'max_early_data_bytes')}
         return result
     return {'name': listener.get('name'), 'inspectors': [x['name'] for x in listener.get('listener_filters', [])],
             'chains': [project(x) for x in listener.get('filter_chains', [])],
             'default': project(listener.get('default_filter_chain', {})),
-            'logs': [x.get('filter') for x in listener.get('access_log', [])]}
+            'logs': audit_filters(listener.get('access_log', []))}
 
 
 def _compare_permissions(policy, projected, api):
     try:
-        rules = supported_rules(policy, api)
-    except (ValueError, KeyError, TypeError) as exc:
+        return permission_module().compare(policy, projected, api, log_filter)
+    except ValueError as exc:
         return 'insufficient', str(exc)
-    audited = [r for r in rules if 'audit' in r['qualifiers']]
-    expected_filters = ['envoy.filters.listener.' + name for name in ('original_dst', 'tls_inspector', 'http_inspector')]
-    if projected.get('name') != 'varmor_outbound' or projected.get('inspectors') != expected_filters:
-        return 'insufficient', 'Unknown listener or inspector layout'
-    chains = projected.get('chains', [])
-    if len(chains) != 2 or {x.get('name') for x in chains} != {'http_chain', 'tls_chain'}:
-        return 'insufficient', 'Unknown filter-chain layout'
-    for chain in chains:
-        http = chain['name'] == 'http_chain'
-        match = {'application_protocols': ['http/1.0', 'http/1.1', 'h2c']} if http else {'transport_protocol': 'tls'}
-        if chain['match'] != match:
-            return 'contradicted', 'Chain selection differs from the supported policy layout'
-        fs = ['envoy.filters.network.http_connection_manager'] if http else ['envoy.filters.network.rbac', 'envoy.filters.network.tcp_proxy']
-        if chain['filters'] != fs:
-            return 'insufficient', 'Unknown or additional network filters'
-        area = chain.get('http', {}) if http else chain
-        wanted = [{'rules': expected_rbac(rules, not http)}]
-        if audited:
-            if http:
-                wanted.insert(0, {'shadow_rules': expected_rbac(audited)})
-            else:
-                wanted[0]['shadow_rules'] = expected_rbac(audited, True)
-        if area.get('rbac') != wanted:
-            return 'contradicted', 'Active default action, permission scope or audit qualifiers differ from candidate'
-        if http and (area.get('filters') != ['envoy.filters.http.rbac'] * len(wanted) + ['envoy.filters.http.router'] or
-                area.get('normalize_path') is not True or area.get('merge_slashes') is not True or
-                area.get('path_with_escaped_slashes_action') != 'UNESCAPE_AND_FORWARD' or
-                area.get('logs') != [log_filter(bool(audited), True)]):
-            return 'contradicted', 'HTTP filter order, normalization or audit selection differs'
-    default = projected.get('default', {})
-    if default.get('name') != 'tcp_default_chain' or default.get('match') or \
-            default.get('filters') != ['envoy.filters.network.rbac', 'envoy.filters.network.tcp_proxy'] or \
-            default.get('rbac') != [{'rules': expected_rbac([])}] or projected.get('logs') != [log_filter(bool(audited))]:
-        return 'contradicted', 'Default TCP permissions or listener audit selection differ'
-    return 'confirmed', 'Active HTTP/SNI RBAC scope and audit selection match candidate; raw TCP defaults to deny'
 
 
 def compare_permissions(policy, projected, api):
@@ -243,8 +290,12 @@ def active_config(args, api):
         raise ValueError('Policy or Pod identity changed during active configuration read')
     proof = {'kind': 'NetworkProxyActivePermissionProof', 'candidateHash': digest(candidate), 'policy': pinned,
         'podUID': args.pod_uid, 'startedAt': started, 'checkedAt': api['now'](), 'result': result, 'basis': basis,
-        'permissions': projected, 'permissionsHash': digest(projected),
-        'scope': 'HTTP/SNI permission enforcement, path normalization and audit selection; not full xDS or business coverage'}
+        'permissionsHash': digest(projected),
+        'scope': 'HTTP/SNI, literal DNS MITM and literal TCP permission enforcement, path normalization and audit selection; not full xDS, credentials or business coverage'}
+    # Only a supported projection equal to the reviewed candidate is persisted.
+    # Failed checks retain their result and hash, never unknown match values.
+    if result == 'confirmed':
+        proof['permissions'] = projected
     output = Path(args.output).resolve()
     output.parent.mkdir(parents=True, exist_ok=True)
     api['write'](output, proof)

@@ -5,6 +5,8 @@ from pathlib import Path
 
 
 TEXT = {
+    'verification-changed': ('已批准候选已变化，需重新审核并初始化验证。', 'The approved candidate changed; review it and initialize verification again.', 'assistant', 'Review the changed candidate and initialize a new verification workflow; local status does not prove deployment'),
+    'verification-prepared': ('已批准策略的独立验证已准备，尚未开始采集。', 'Independent verification of the approved policy is prepared; collection has not started.', 'assistant', 'Prepare a separate bounded collection and check readiness; unchanged approved scope needs no repeated review'),
     'prepared': ('观察方案已准备，等待确认和启动。', 'Observation is prepared; confirm the plan before starting.', 'assistant', 'Confirm the plan, prepare policy and check collector readiness'),
     'observe-startup': ('采集器已就绪，等待创建或重建应用。', 'The collector is ready; create or recreate the application.', 'user', 'Create or recreate target Pods, then exercise representative business'),
     'observing': ('正在观察应用的网络行为。', 'Application network observation is running.', 'user', 'Exercise the agreed business scenarios before the deadline'),
@@ -75,6 +77,8 @@ def summary(root, api, collection=None, verification=None, language=None):
     analysis = api['load'](root / 'analysis.json') if (root / 'analysis.json').exists() else {}
     stage = 'changed' if candidate and folders and not chosen else 'review' if candidate or analysis.get('pendingTcp') else \
         'no-data' if progress.get('phase') == 'stopped' or analysis else 'prepared'
+    if state.get('purpose') == 'verification-only' and not chosen:
+        stage = 'verification-prepared' if candidate_hash == state.get('initialCandidateHash') else 'verification-changed'
     ready = None
     if progress.get('phase') in ('initializing', 'ready', 'observing'):
         ready = api['collector_module']().handoff_status(folder, api)
@@ -128,6 +132,8 @@ def summary(root, api, collection=None, verification=None, language=None):
     zh = selected_language == 'zh-CN'
     chinese, english, actor, action = TEXT[stage]
     chinese_actions = {
+        'verification-changed': '审核变化后的候选，并重新初始化验证。此本地状态不证明集群部署状态。',
+        'verification-prepared': '准备独立验证采集窗口，再检查采集就绪。无需重新审核未变化的已批准范围。',
         'prepared': '确认观察方案，再准备策略和采集器。', 'observe-startup': '创建或重建目标 Pod，并运行代表性业务。',
         'observing': '在截止前运行约定的业务场景。', 'collector-check': '先核对采集器，再安排应用操作。',
         'review': '审核业务必需的请求及其权限范围。', 'no-data': '说明证据缺口，按需准备新的有界观察。',

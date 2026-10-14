@@ -99,10 +99,15 @@ class CompatibilityReceiptBoundaries(unittest.TestCase):
         plain = copy.deepcopy(self.p)
         plain['spec']['policy'].pop('networkProxyConfig', None)
         self.assertTrue(self.e.supported_rules(plain, vars(self.a)))
-        with self.assertRaisesRegex(ValueError, 'without MITM or raw TCP grants'):
+        self.assertTrue(self.e.supported_rules(self.p, vars(self.a)))
+        self.p['spec']['policy']['networkProxyConfig']['mitm']['headerMutations'] = [{'domain': 'mitm.owned.test'}]
+        with self.assertRaisesRegex(ValueError, 'header mutations'):
             self.e.supported_rules(self.p, vars(self.a))
         self.tcp()
-        with self.assertRaisesRegex(ValueError, 'without MITM or raw TCP grants'):
+        self.assertEqual(self.e.supported_rules(self.p, vars(self.a)), [])
+        rule = self.p['spec']['policy']['enhanceProtect']['networkProxyRawRules']['egress']['rules'][0]
+        rule['cidr'] = '10.0.0.0/8'
+        with self.assertRaisesRegex(ValueError, 'CIDRs'):
             self.e.supported_rules(self.p, vars(self.a))
 
 

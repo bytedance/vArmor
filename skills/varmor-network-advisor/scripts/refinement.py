@@ -281,7 +281,7 @@ def refine(args, api):
     root = Path(args.session).resolve()
     with api['locked'](root):
         state = api['load'](root / 'session.json')
-        if state.get('purpose') == 'verification':
+        if state.get('purpose') in ('verification', 'verification-only'):
             raise ValueError('Refine the original observation session, not enforcement evidence')
         choices = api['load'](args.decisions)
         if not isinstance(choices, dict) or set(choices) - {'decisions', 'silentRuleIds', 'auditRuleIds',

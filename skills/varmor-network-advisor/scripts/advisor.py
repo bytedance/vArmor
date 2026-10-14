@@ -637,6 +637,11 @@ def live_inventory(state, expected=None, allow_empty=False):
         raise RuntimeError('Live policy enables automatic workload updates; apply the generated policy with updateExistingWorkloads=false')
     if state.get('policyUID') and state['policyUID'] != policy['metadata']['uid']:
         raise RuntimeError('Policy was recreated; start a new session to avoid mixing identities')
+    if state.get('verificationOrigin') == 'approved-deployed-policy':
+        frozen = state.get('initialPolicy', {}).get('specHash')
+        if evidence_module().digest(policy['spec']) != frozen or expected is not None and \
+                evidence_module().digest(expected) != state.get('initialCandidateHash'):
+            raise RuntimeError('Approved full Policy spec or frozen candidate changed; initialize a new reviewed verification workflow')
     if expected:
         actual = policy['spec']['policy']
         wanted = expected['spec']['policy']
@@ -902,7 +907,7 @@ def collect(args):
     root = Path(args.session)
     with locked(root):
         state = load(root / 'session.json')
-        if state.get('purpose') == 'verification':
+        if state.get('purpose') in ('verification', 'verification-only'):
             raise ValueError('Use bounded monitor for enforcement evidence; never collect into observation modeling')
         if not args.offline and (root / 'collector.json').exists() and \
            'maxTransferMiBPerMinute' in load(root / 'collector.json').get('plan', {}):
@@ -1098,6 +1103,8 @@ def _replay_rules(rec, egress, state):
 
 def analyze(args):
     root = Path(args.session)
+    if load(root / 'session.json').get('purpose') == 'verification-only':
+        raise ValueError('This workflow verifies an approved policy; it has no observation data to model')
     if load(root / 'session.json').get('purpose') == 'verification':
         return refinement_module().collection_report(args, globals())
     with locked(root):
@@ -1421,7 +1428,16 @@ def refinement_module():
 
 
 def refine(args):
+    if load(Path(args.session) / 'session.json').get('purpose') == 'verification-only':
+        raise ValueError('Refine the source observation or review a new candidate; verification-only data cannot regenerate permissions')
     return refinement_module().refine(args, globals())
+
+
+def init_verification(args):
+    spec = importlib.util.spec_from_file_location('varmor_verification_init', Path(__file__).with_name('verification_init.py'))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.initialize(args, globals())
 
 
 def prepare_verification(args):
@@ -1576,6 +1592,21 @@ def parser():
     selection = prep.add_mutually_exclusive_group(required=True)
     selection.add_argument('--pod-uid', action='append', help='existing verified Pod UID; repeatable')
     selection.add_argument('--new-pods', action='store_true', help='arm startup evidence before user recreation; verify and enroll new target UIDs')
+    init = sub.add_parser('init-verification', help='initialize a new read-only verification workflow for an approved deployed policy; no observation or deployment')
+    for field in ('session', 'context', 'namespace', 'name', 'policy-file', 'approval-evidence'):
+        init.add_argument('--' + field, required=True)
+    init.add_argument('--language', choices=['en', 'zh-CN'], default='en')
+    init.add_argument('--budget-session', help='continue the same context/target budget ledger; preserve limits and storage accounting')
+    selection = init.add_mutually_exclusive_group(required=True)
+    selection.add_argument('--pod-uid', action='append', help='explicit currently injected Pod UID; repeatable')
+    selection.add_argument('--new-pods', action='store_true', help='freeze current identities before later startup verification')
+    for field, kind in (('interval', float), ('discovery-interval', float), ('analysis-interval', float),
+                        ('max-session-mb', int), ('max-read-mb', int), ('min-interval', float),
+                        ('max-transfer-mb-per-minute', float), ('max-concurrent-reads', int), ('max-round-seconds', float)):
+        init.add_argument('--' + field, type=kind)
+    init.add_argument('--source', choices=['auto', 'agent', 'sidecar'])
+    for field in ('agent-namespace', 'agent-selector', 'agent-container'):
+        init.add_argument('--' + field)
     f = sub.add_parser('refine', help='apply explicit denial/audit decisions locally; regenerate the single candidate, never deploy')
     f.add_argument('--session', required=True)
     f.add_argument('--decisions', required=True)

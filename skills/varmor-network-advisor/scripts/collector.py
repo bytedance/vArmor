@@ -679,7 +679,11 @@ def deadline(args):
 def plan(args, existing=None):
     if existing:
         return existing  # Recovery uses the latest acknowledged deadline, never new CLI defaults.
-    until = deadline(args)
+    return {'until': deadline(args).isoformat(), **resource_plan(args)}
+
+
+def resource_plan(args):
+    """Validate limits without starting a collection deadline."""
     if not 1 <= args.interval <= 300 or not 1 <= args.discovery_interval <= 30 or \
        args.analysis_interval < 1 or not math.isfinite(args.analysis_interval):
         raise ValueError('Invalid collection/discovery/analysis interval')
@@ -693,7 +697,7 @@ def plan(args, existing=None):
     if not 1 <= minimum <= args.interval or not math.isfinite(rate) or not 0.01 <= rate <= 1024 or \
        not 1 <= concurrency <= 8 or not 1 <= round_seconds <= 120 or args.max_read_mb > 64:
         raise ValueError('Invalid resource limits: min interval, rolling audit byte quota, concurrency or round deadline')
-    return {'until': until.isoformat(), 'intervalSeconds': args.interval,
+    return {'intervalSeconds': args.interval,
             'discoveryIntervalSeconds': args.discovery_interval, 'analysisIntervalSeconds': args.analysis_interval,
             'maxSessionMiB': args.max_session_mb, 'maxReadMiB': args.max_read_mb,
             'minIntervalSeconds': minimum, 'maxTransferMiBPerMinute': rate,
@@ -793,8 +797,10 @@ def monitor(args, api):
     lease = root / '.collector.lock'
     lease.mkdir(exist_ok=True)
     state = api['load'](root / 'session.json')
+    if state.get('purpose') == 'verification-only':
+        raise ValueError('Use prepare-verification to create a collection; this workflow has no observation data')
     workflow = Path(state.get('observationSession', str(root)))
-    workflow_lease = workflow / '.workflow-collector.lock'
+    workflow_lease = Path(state.get('budgetSession', str(workflow))) / '.workflow-collector.lock'
     workflow_lease.mkdir(exist_ok=True)
     with api['locked'](workflow_lease), api['locked'](lease):
         return run_monitor(args, api)
@@ -917,7 +923,8 @@ def handoff_status(root, api, min_remaining=None):
     try:
         state = api['load'](root / 'session.json')
         workflow = Path(state.get('observationSession', str(root)))
-        held = lease_held(root / '.collector.lock') and lease_held(workflow / '.workflow-collector.lock')
+        budget_owner = Path(state.get('budgetSession', str(workflow)))
+        held = lease_held(root / '.collector.lock') and lease_held(budget_owner / '.workflow-collector.lock')
         result['leasesHeld'] = held
         if not held:
             result['reasons'].append('collector-lease-not-held')
@@ -1058,12 +1065,12 @@ def run_monitor(args, api):
                     state['verifiedPodUIDs'] = []
             reader = Reader(api, state)
             workflow = Path(state.get('observationSession', str(root)))
-            ledger = workflow / 'resource-usage.json'
+            ledger = Path(state.get('budgetSession', str(workflow))) / 'resource-usage.json'
             reader.resource_budget = ResourceBudget(int(planned.get('maxTransferMiBPerMinute', 16) * 1024 * 1024),
                 ledger, api, planned.get('maxRoundSeconds', 30))
             reader.max_concurrent = planned.get('maxConcurrentReads', 2)
             roots = (api['load'](ledger).get('storageRoots', []) if ledger.exists() else [])
-            reader.resource_budget.storage_roots = sorted(set(roots + [str(root.resolve()), str(workflow.resolve())]))
+            reader.resource_budget.storage_roots = sorted(set(roots + [str(root.resolve()), str(workflow.resolve()), str(ledger.parent.resolve())]))
             operation_stage = 'log-source-preflight'
             targets = endpoints(api, state, args)
             with contextlib.closing(api['database'](root)) as con, con:

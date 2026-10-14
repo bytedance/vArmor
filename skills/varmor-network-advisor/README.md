@@ -369,10 +369,13 @@ The assistant saves actual test receipts. The checker validates output content,
 byte hashes, Pod identity and the traffic window. Confirmation flags alone
 cannot pass verification. Client and backend evidence must come from real tests.
 
-Common plaintext HTTP and TLS passthrough rules support automatic checks of
-active proxy permissions. MITM, raw TCP grants and other unsupported layouts
-require separate diagnostics. Quiet checks with missing configuration proof
-remain insufficient; the assistant explains the applicable visibility limits.
+Literal HTTP and TLS passthrough rules, DNS-based MITM, and literal IP/port TCP
+grants support automatic checks of active proxy permissions. The assistant
+compares actual permission scopes, routes and audit settings before and after
+traffic; version numbers alone do not prove them. Wildcards, CIDRs, port ranges,
+IP-based MITM, header injection and explicit deny constraints need separate
+diagnostics. Quiet checks with missing or unsupported configuration proof remain
+insufficient. Actual business results and coverage still need your review.
 
 Your decisions are saved in `refinement.json`; enforcement logs are kept in separate directories. You do not need to edit these files or learn script commands.
 
@@ -439,6 +442,18 @@ You execute requests; the assistant checks client results, backend records, and 
 - Necessary TCP connections and MITM requests.
 
 Note: Policy readiness or server-side validation does not replace real request verification.
+
+If the Policy was deleted and recreated, ask:
+
+> The Policy has been recreated under the same name. Keep the approved allowlist
+> and prepare a new verification session for the current Policy. Preserve the
+> old evidence and resource limits; do not reopen observation automatically.
+
+The assistant checks the complete current policy against the approved input and
+binds the new identity. Different protection or permissions need review. Old
+passes remain historical; the new session requires fresh business checks.
+This verification-only session does not regenerate permissions from old logs.
+Its legacy `observe.yaml` is frozen enforcement input, not an observation rollback.
 
 After confirming business coverage and test results, explicitly authorize switching the target policy. The assistant retains a current-policy backup and rollback materials for observation rules, always keeping `updateExistingWorkloads: false`.
 
@@ -558,6 +573,8 @@ python3 tests/smoke_collector.py --context CONTEXT --image APPROVED_CURL_IMAGE -
 Live tests create an isolated namespace and their own resources, then delete them. Provide a pullable curl image through `--image`, including sh, cat, and BusyBox nc.
 
 HTTPS tests also use the cluster's existing Envoy image and require local openssl. They read only the test policy's temporary CA to sign their own backend certificate. Private keys are not recorded in validation evidence, and clients always verify certificates.
+
+The MITM/TCP runner checks audited allowance and denial, DENIED-based TCP approval, silent allowance, and revocation. It compares active permissions before and after each acceptance window and saves the original tool receipts. Its overall limit is 30 minutes; each collector runs for at most 7 minutes. Use `--skill-dir` to test an extracted runtime package. A collection or cleanup failure fails the run; timeout output does not count as a denial.
 
 These tools are for maintainer regression testing and do not replace user management of business workloads. The assistant starts continuous collection according to observation authorization. Distribution packages do not create native notification schedules themselves.
 

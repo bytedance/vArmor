@@ -1,5 +1,50 @@
 # Separate enforcement verification
 
+## Verify an already approved, deployed policy
+
+Use `init-verification` when a reviewed candidate is already deployed and needs
+a new independent acceptance workflow, including after Policy recreation.
+Keep the old session unchanged; never edit its Policy UID to resume it.
+
+```sh
+python3 /ABS/SKILL/scripts/advisor.py init-verification --session /ABS/NEW_WORKFLOW \
+  --context CONTEXT --namespace NS --name POLICY --policy-file /ABS/APPROVED.yaml \
+  --approval-evidence "User approved this deployed scope and verification plan" \
+  --new-pods --language en
+python3 /ABS/SKILL/scripts/advisor.py prepare-verification --session /ABS/NEW_COLLECTION \
+  --observation-session /ABS/NEW_WORKFLOW --policy-file /ABS/NEW_WORKFLOW/candidate.yaml \
+  --new-pods
+python3 /ABS/SKILL/scripts/advisor.py monitor --session /ABS/NEW_COLLECTION --duration 600
+```
+
+Use `--pod-uid VERIFIED_UID` instead of `--new-pods` for existing injected Pods.
+Only startup acceptance requires user recreation. The initializer checks actual
+ownership and injection for supplied UIDs, freezes the other current UIDs, and
+compares the complete live spec with the candidate. System protection, target
+or network differences require review. If admission has added defaults, export
+the current Policy as JSON and review that exact spec as the approved input.
+
+Initialization does not apply a Policy, start collection, set a deadline, verify
+loading or import old events/results. `collector.json` is only `prepared` with
+resource limits. The deadline starts at monitor launch. Use the normal separate
+prepare/monitor/ready-check/verify sequence and fresh client/backend evidence.
+Approval evidence records supplied intent; the script cannot authenticate it.
+
+For the same iteration, pass `--budget-session /ABS/PREVIOUS_WORKFLOW` to retain
+its limits, rolling byte ledger, storage accounting and exclusive lease.
+Different limits or sources are rejected. A fresh independent budget needs its
+own reviewed plan; do not use new directories to bypass limits.
+
+`candidate.yaml` and the legacy `observe.yaml` are the same frozen default-deny
+verification input. The latter is **not** an observation rollback. The root has
+no observation data: collect/analyze/refine/monitor reject it. Prepare separate
+collections. To change permissions, refine a valid source observation or review
+and deploy a new candidate, then initialize another verification workflow.
+Keep approval provenance separately; old results never prove the new Policy's
+effective behavior.
+
+## Collect and check separate evidence
+
 For resource-budgeted workflows, use the bounded collection and quiet/DENIED review flow in [enforcement-iteration.md](enforcement-iteration.md). Legacy snapshot verification below is for sessions without a resource plan; it is rejected for budgeted workflows.
 
 `verify` is an assistant-facing, read-only snapshot interface. It never applies a

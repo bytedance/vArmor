@@ -73,6 +73,16 @@ Policy `.yaml` files use readable block YAML; machine state and review files rem
 
 ## Collect, review, and iterate
 
+For a previously approved, deployed candidate that needs new acceptance after
+Policy recreation, use `init-verification` in a new workflow directory as
+described in [verification.md](references/verification.md). It checks the full
+current spec and binds the new identity without importing old observation or
+results. This is a verification-only root; do not model/refine it or apply its
+legacy `observe.yaml` as an observation rollback. Continue the normal separate
+prepare/monitor/ready-check/verify sequence. Preserve iteration budgets through
+`--budget-session`; do not edit an old session's UID or construct fake collector
+state. A pause with an unchanged Policy UID does not require this new workflow.
+
 Agree resource budgets before starting: regular/minimum scan intervals, per-round processing bytes, rolling audit stdout bytes per minute, read concurrency, Kubernetes round deadline and local storage stop threshold. Defaults: 30-second scans, a five-second backlog floor, 4 MiB processing per round, 16 MiB audit stdout per rolling minute, two simultaneous reads, 30 seconds per Kubernetes read round, and 512 MiB storage threshold. The byte budget includes framing/overlap/retries but excludes API/watch/protocol overhead; it is not a hard network or CPU quota. Never exceed limits or shorten below the agreed floor to hide backlog. Explain pressure/incomplete coverage and let users choose a later focused scenario or explicitly revise a future plan. Inspect actual collector process liveness and heartbeat before claiming collection remains active.
 
 Prefer monitor for live observation. See [observation-and-collection.md](references/observation-and-collection.md) for planning, startup/stop, gap classification, and recovery. It calls no model API; the LLM need not wake for every round. Read local artifacts to explain new destinations, permission changes, gaps, completion, and review items.
@@ -109,8 +119,10 @@ Read [references/verification.md](references/verification.md) for the separate r
 
 Read [references/evidence-validation.md](references/evidence-validation.md) for
 `active-config` and `verify --receipts`. Use the automatic active-permission
-proof for its supported literal HTTP/SNI scope before and after traffic; do not
-claim MITM/raw-TCP/unknown layouts are automatically proved. Save actual supplied
+proof for supported literal HTTP/SNI, DNS MITM and literal IP/port TCP scopes
+before and after traffic. Compare permissions and audit selection, not version
+metadata. Unknown layouts, wildcard/CIDR/range grants, IP MITM, header mutations
+and explicit denies remain unsupported; never promote them to automatic proof. Save actual supplied
 client/backend command output, identities and times, then bind byte hashes and
 literal expected-result predicates to this candidate and window. True flags or
 receipt descriptions alone cannot confirm checks. Missing, changed or unsupported
