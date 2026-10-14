@@ -377,6 +377,13 @@ IP-based MITM, header injection and explicit deny constraints need separate
 diagnostics. Quiet checks with missing or unsupported configuration proof remain
 insufficient. Actual business results and coverage still need your review.
 
+HTTP rules match the host, port, method and path; they do not distinguish the
+URL scheme. A rule for decrypted HTTPS also permits matching plaintext HTTP.
+Without decryption, an HTTP rule can permit the whole TLS server/port. Explicit
+denials override allowances and may block that TLS scope. The assistant must
+explain these effects before you approve deployment; two HTTP rules do not
+necessarily mean that only two scheme-specific URLs are allowed.
+
 Your decisions are saved in `refinement.json`; enforcement logs are kept in separate directories. You do not need to edit these files or learn script commands.
 
 ### Withdraw or restore previously allowed access

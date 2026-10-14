@@ -40,6 +40,7 @@ For ordinary runtimes, read the node's violations.log; micro-VMs may use sidecar
 
 - Visible HTTP / MITM: Host or authority, actual destination port, normalized path, and case-sensitive method.
 - TLS passthrough: SNI and actual destination port; paths/methods are ignored. Adding a path to an HTTP host rule does not guarantee path restrictions for passthrough TLS on the same host/port. HTTPS path guarantees require MITM.
+- HTTP rules match host, port, method and path, not URL scheme. MITM also leaves matching plaintext HTTP permissions; it does not make a rule HTTPS-only. Approved HTTP deny rules override grants and can deny an entire non-MITM SNI/port, even when their HTTP methods or paths are narrower. Describe this candidate effect without claiming it is loaded or verified. Never invent a dummy denied method/path to disguise a protocol-only restriction.
 - Non-HTTP/TLS: IP/port; do not infer domain names.
 - Paths exclude the query. Do not decode a path again after Envoy has normalized it.
 - Prefix `/api` also allows `/apix`. Use `/api/` for a subtree and add exact `/api` separately if needed.

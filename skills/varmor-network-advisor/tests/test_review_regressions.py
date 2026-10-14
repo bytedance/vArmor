@@ -262,5 +262,80 @@ class ReviewRegressions(unittest.TestCase):
             self.assertNotIn(b'SECRET', (session / 'events.sqlite').read_bytes())
 
 
+class ProtocolScopeReportTests(unittest.TestCase):
+    def allow(self):
+        return {'qualifiers': ['allow', 'audit'], 'match': {'hosts': ['api.example.com'],
+                'ports': [{'port': 443}], 'methods': ['GET'], 'paths': [{'exact': '/read'}]}}
+
+    def deny(self, host='api.example.com', port=443):
+        return {'qualifiers': ['deny', 'audit'], 'match': {'hosts': [host],
+                'ports': [{'port': port}], 'methods': ['POST']}}
+
+    def test_real_write_denial_removes_whole_matching_passthrough_scope(self):
+        allow = self.allow()
+        egress = {'defaultAction': 'deny', 'httpRules': [allow, self.deny()]}
+        text = a.http_protocol_impact(allow, egress, state())
+        self.assertIn('block matching TLS passthrough', text)
+        self.assertTrue(a.replay_match(record(method='GET'), egress, state()))
+        self.assertFalse(a.replay_match(record('L4'), egress, state()))
+
+    def test_unrelated_or_partial_denial_cannot_claim_full_tls_block(self):
+        allow = self.allow()
+        for deny in (self.deny(host='other.example.com'), self.deny(port=444)):
+            text = a.http_protocol_impact(allow, {'httpRules': [allow, deny]}, state())
+            self.assertIn('subject to explicit deny constraints', text)
+            self.assertNotIn('block matching', text)
+        allow['match']['ports'] = [{'port': 443, 'endPort': 444}]
+        partial = {'httpRules': [allow, self.deny()]}
+        self.assertNotIn('block matching', a.http_protocol_impact(allow, partial, state()))
+        partial['httpRules'].append(self.deny(port=444))
+        self.assertIn('block matching', a.http_protocol_impact(allow, partial, state()))
+
+    def test_mitm_reports_plaintext_and_https_even_with_http_deny(self):
+        allow = self.allow()
+        s = state(); s['mitmDomains'] = ['api.example.com']
+        text = a.http_protocol_impact(allow, {'httpRules': [allow, self.deny()]}, s)
+        self.assertIn('Plaintext HTTP and MITM-decrypted HTTPS', text)
+        self.assertIn('not HTTPS-only', text)
+
+    def test_generated_bilingual_report_applies_denials_and_discloses_scheme(self):
+        for language in ('en', 'zh-CN'):
+            with self.subTest(language=language), tempfile.TemporaryDirectory() as folder:
+                observe(folder, '--language', language, '--mitm-domain', 'secure.example.com')
+                s=state(); s['mitmDomains']=['secure.example.com']
+                health=record()
+                secure=record(authority='secure.example.com', sni='secure.example.com', filterChain='mitm_tls_dns_chain')
+                with a.contextlib.closing(a.database(folder)) as con, con:
+                    a.ingest(con, s, [('source', '\n'.join(map(json.dumps, [health, secure])))], offline=True)
+                a.analyze(a.parser().parse_args(['analyze', '--session', folder]))
+                decisions=Path(folder)/'deny.json'
+                a.write(decisions, {'denyRules': [{'layer': 'HTTP/SNI', 'rule': self.deny(),
+                    'reason': 'No writes or matching TLS allowed', 'approvalEvidence': 'User approved writes and whole SNI/port refusal'}]})
+                a.refine(a.parser().parse_args(['refine', '--session', folder, '--decisions', str(decisions)]))
+                report=(Path(folder)/'report.md').read_text()
+                self.assertIn('阻断对应 TLS 透传' if language=='zh-CN' else 'block matching TLS passthrough', report)
+                self.assertIn('并非仅允许 HTTPS' if language=='zh-CN' else 'not HTTPS-only', report)
+                candidate=a.load(Path(folder)/'candidate.yaml')
+                self.assertEqual(candidate['spec']['policy']['networkProxyConfig']['mitm']['domains'], ['secure.example.com'])
+                self.assertEqual(len(a.network_rules(candidate['spec']['policy'])['egress']['httpRules']), 3)
+
+    def test_domain_wide_base_grant_does_not_claim_denied_http_methods_allowed(self):
+        with tempfile.TemporaryDirectory() as folder:
+            observe(folder)
+            with a.contextlib.closing(a.database(folder)) as con, con:
+                a.ingest(con, state(), [('source', json.dumps(record('L4')))], offline=True)
+            a.analyze(a.parser().parse_args(['analyze', '--session', folder]))
+            decisions=Path(folder)/'deny.json'
+            a.write(decisions, {'denyRules': [{'layer': 'HTTP/SNI', 'rule': self.deny(),
+                'reason': 'No POST', 'approvalEvidence': 'Explicit user refusal of POST and matching whole TLS'}]})
+            a.refine(a.parser().parse_args(['refine', '--session', folder, '--decisions', str(decisions)]))
+            report=(Path(folder)/'report.md').read_text()
+            self.assertIn('base grant matches all HTTP paths and methods; explicit denies still apply', report)
+            self.assertNotIn('all HTTP requests to the same domain/port are also allowed', report)
+            eg=a.network_rules(a.load(Path(folder)/'candidate.yaml')['spec']['policy'])['egress']
+            self.assertFalse(a.replay_match(record(method='POST'), eg, state()))
+            self.assertTrue(a.replay_match(record(method='GET'), eg, state()))
+
+
 if __name__ == '__main__':
     unittest.main()

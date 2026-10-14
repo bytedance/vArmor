@@ -4,6 +4,14 @@ Read this for live observation, before users create/recreate Pods, for long-runn
 
 ## Plan, handoff, and stopping
 
+Readiness messages must qualify running state and remaining time with their
+actual `checkedAt` and absolute deadline/timezone. Never present an older
+snapshot as current after a delayed reply or cross-agent relay. Refresh status
+before a new lifecycle/traffic instruction, and require the receiving actor to
+run `ready-check` immediately before execution. Prepare exact runnable traffic
+commands before launching a short monitor; keep the original cutoff when a
+message is delayed.
+
 The default maximum duration is one hour from monitor startup. File scans run at 30-second intervals, Pod LIST recovery checks at five-second intervals, and Pod watch runs continuously. Deterministic analysis runs every five minutes when new events exist, with local analysis again at completion. Read/API latency increases actual periods; collector.json records round durations. Intervals do not guarantee execution at exact times. Users may specify an exact deadline, a short window, or a business cycle. For long windows, explain local capacity and process survival limits; prefer an existing log backend at larger scale. Never extend the deadline yourself or interpret stable/empty data as complete business coverage.
 
 Recommend at least 10 minutes for the first interactive window, or 15 minutes for slow rollouts/multiple handoffs. This reserves preparation + user recreation + representative traffic + a final scan; it is not a hard minimum or coverage guarantee. Scheduled tasks can require a longer business cycle. An explicitly shorter window remains supported: explain the risk once and prepare all user-run commands before launch, minimizing unnecessary round trips. Do not recommend an even shorter retry after a timing failure unless changed work makes it feasible.

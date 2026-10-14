@@ -57,9 +57,17 @@ ZH_REPORT_TEXT = {
     '| Destination | Port | Path | Method | Granularity and impact |': '| 目标 | 端口 | 路径 | 方法 | 授权粒度与影响 |',
     'All paths': '所有路径', 'All methods': '所有方法',
     'Requests visible through MITM': '经 MITM 解密后可见的请求',
+    'Plaintext HTTP and MITM-decrypted HTTPS share these host/port/method/path rules; not HTTPS-only':
+        '明文 HTTP 和 MITM 解密后的 HTTPS 共用这些主机、端口、方法和路径规则；并非仅允许 HTTPS',
+    'Plaintext HTTP; approved HTTP deny constraints block matching TLS passthrough in this candidate':
+        '明文 HTTP；本候选已批准的 HTTP 拒绝约束会阻断对应 TLS 透传',
+    'Plaintext HTTP; TLS passthrough is subject to explicit deny constraints; inspect their host/port scope':
+        '明文 HTTP；TLS 透传受显式拒绝约束影响，请核对其主机和端口范围',
     'Plaintext HTTP; HTTPS passthrough checks SNI/port only, without path or method restrictions':
         '明文 HTTP；HTTPS 透传仅检查 SNI 和端口，不限制路径或方法',
     '; all HTTP requests to the same domain/port are also allowed': '；同域名和端口的所有 HTTP 请求也会被允许',
+    '; the base grant matches all HTTP paths and methods; explicit denies still apply':
+        '；基础放行规则匹配所有 HTTP 路径和方法，显式拒绝仍然生效',
     'Entire IP/port allowed, including HTTP/TLS': '放行整个 IP 和端口，包括 HTTP/TLS',
     '## Observed behavior not covered': '## 未覆盖的已观测行为',
     '| Destination | Method | Path | Action | Uncovered events |': '| 目标 | 方法 | 路径 | 动作 | 未覆盖事件数 |',
@@ -73,8 +81,10 @@ ZH_REPORT_TEXT = {
         '开启拦截前，请审核启动、定时任务、重试和故障切换及多副本的覆盖情况。',
     'Paths remain sensitive after query removal; keep session files private.':
         '移除查询字符串后，路径仍可能包含敏感信息，请妥善保管会话文件。',
-    'A host/port HTTP rule also authorizes passthrough TLS by SNI; path/method limits require MITM for HTTPS.':
-        'HTTP 域名和端口规则也会按 SNI 放行透传 TLS；限制 HTTPS 路径和方法需要 MITM。',
+    'A host/port HTTP allow rule can authorize passthrough TLS by SNI unless explicit denies block it; HTTPS path/method limits require MITM.':
+        'HTTP 域名和端口放行规则可能按 SNI 放行透传 TLS，除非被显式拒绝阻断；限制 HTTPS 路径和方法需要 MITM。',
+    'HTTP rules do not select a URL scheme: MITM does not remove matching plaintext HTTP permissions, and explicit denies take precedence over grants.':
+        'HTTP 规则不按 URL 协议区分权限：MITM 不会移除对应的明文 HTTP 权限；显式拒绝优先于放行。',
     'Snapshot dedupe cannot distinguish identical entries across log rotation without an event ID.':
         '没有事件 ID 时，快照去重无法区分轮转日志中的相同记录。',
     'No detected collection gap is not a guarantee of complete logs; upstream loss may be invisible.':
@@ -1101,6 +1111,42 @@ def _replay_rules(rec, egress, state):
     return False
 
 
+def http_protocol_impact(rule, egress, state):
+    """Describe candidate scope, never claim proxy loading or traffic acceptance."""
+    match = rule['match']
+    domains = match.get('hosts', [])
+    if domains and all(mitm_applies(domain, state['mitmDomains']) for domain in domains):
+        return 'Plaintext HTTP and MITM-decrypted HTTPS share these host/port/method/path rules; not HTTPS-only'
+    denies = [r.get('match', {}) for r in egress.get('httpRules', []) if 'deny' in r.get('qualifiers', [])]
+    if not denies:
+        return 'Plaintext HTTP; HTTPS passthrough checks SNI/port only, without path or method restrictions'
+
+    def interval(port):
+        start, end = port.get('port'), port.get('endPort', port.get('port'))
+        if type(start) is not int or type(end) is not int or not 1 <= start <= end <= 65535:
+            return None
+        return start, end
+
+    def covered(domain, required):
+        # Only literal host equality is inferred here. Wildcards and unknown
+        # matches keep a caveat, rather than being promoted to a scope proof.
+        ranges = [interval(p) for m in denies if domain in m.get('hosts', []) for p in m.get('ports', [])]
+        cursor = required[0]
+        for start, end in sorted(r for r in ranges if r is not None):
+            if start > cursor:
+                break
+            cursor = max(cursor, end + 1)
+            if cursor > required[1]:
+                return True
+        return False
+
+    ports = [interval(p) for p in match.get('ports', [])]
+    if domains and ports and all(p is not None for p in ports) and \
+            all(not mitm_applies(domain, state['mitmDomains']) and covered(domain, p) for domain in domains for p in ports):
+        return 'Plaintext HTTP; approved HTTP deny constraints block matching TLS passthrough in this candidate'
+    return 'Plaintext HTTP; TLS passthrough is subject to explicit deny constraints; inspect their host/port scope'
+
+
 def analyze(args):
     root = Path(args.session)
     if load(root / 'session.json').get('purpose') == 'verification-only':
@@ -1251,7 +1297,8 @@ def analyze(args):
                     'TCP only; DNS/UDP, QUIC, loopback and traffic bypassing redirection are not covered.',
                     'Review startup, scheduled jobs, retry/failover and multi-replica coverage before enforcement.',
                     'Paths remain sensitive after query removal; keep session files private.',
-                    'A host/port HTTP rule also authorizes passthrough TLS by SNI; path/method limits require MITM for HTTPS.',
+                    'A host/port HTTP allow rule can authorize passthrough TLS by SNI unless explicit denies block it; HTTPS path/method limits require MITM.',
+                    'HTTP rules do not select a URL scheme: MITM does not remove matching plaintext HTTP permissions, and explicit denies take precedence over grants.',
                     'Snapshot dedupe cannot distinguish identical entries across log rotation without an event ID.',
                     'No detected collection gap is not a guarantee of complete logs; upstream loss may be invisible.']}
         write(root / 'analysis.json', report)
@@ -1304,10 +1351,9 @@ def analyze(args):
             domain = match['hosts'][0]
             paths = ', '.join(k + ': ' + v for p in match.get('paths', []) for k, v in p.items()) or tr('All paths')
             methods = ', '.join(match.get('methods', [])) or tr('All methods')
-            impact = tr('Requests visible through MITM') if mitm_applies(domain, state['mitmDomains']) else \
-                     tr('Plaintext HTTP; HTTPS passthrough checks SNI/port only, without path or method restrictions')
+            impact = tr(http_protocol_impact(rule, egress, state))
             if not match.get('paths') and not match.get('methods'):
-                impact += tr('; all HTTP requests to the same domain/port are also allowed')
+                impact += tr('; the base grant matches all HTTP paths and methods; explicit denies still apply')
             lines.append('| ' + ' | '.join(map(cell, [domain, ','.join(str(p['port']) for p in match['ports']), paths, methods, impact])) + ' |')
         for rule in egress.get('rules', []):
             if 'allow' not in rule.get('qualifiers', []) or 'deny' in rule.get('qualifiers', []):
