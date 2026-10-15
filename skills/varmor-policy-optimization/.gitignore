@@ -1,0 +1,8 @@
+__pycache__/
+*.py[cod]
+.DS_Store
+dist/
+*.zip
+# Local diagnostic and observation artifacts.
+evidence/
+sessions/
