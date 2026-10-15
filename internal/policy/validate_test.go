@@ -744,7 +744,44 @@ func TestValidateUpdatePolicy_RemoveAppArmorEnforcer(t *testing.T) {
 
 	valid, message := ValidateUpdatePolicy(policy, oldEnforcer, oldTarget, nil)
 	assert.False(t, valid, "Removal of AppArmor enforcer should fail validation")
-	assert.Contains(t, message, "Modifying a policy to remove the AppArmor or Seccomp enforcer is not allowed")
+	assert.Contains(t, message, "Modifying a policy to remove the AppArmor, Seccomp, or NetworkProxy enforcer is not allowed")
+}
+
+func TestValidateUpdatePolicy_RemoveNetworkProxyEnforcer(t *testing.T) {
+	target := varmor.Target{Kind: "Deployment", Name: "test-deployment"}
+	policies := []struct {
+		name   string
+		policy interface{}
+	}{
+		{
+			name: "VarmorPolicy",
+			policy: &varmor.VarmorPolicy{
+				Spec: varmor.VarmorPolicySpec{
+					Target: target,
+					Policy: varmor.Policy{Enforcer: "BPF", Mode: varmor.RuntimeDefaultMode},
+				},
+				Status: varmor.VarmorPolicyStatus{Phase: varmor.VarmorPolicyProtecting},
+			},
+		},
+		{
+			name: "VarmorClusterPolicy",
+			policy: &varmor.VarmorClusterPolicy{
+				Spec: varmor.VarmorPolicySpec{
+					Target: target,
+					Policy: varmor.Policy{Enforcer: "BPF", Mode: varmor.RuntimeDefaultMode},
+				},
+				Status: varmor.VarmorPolicyStatus{Phase: varmor.VarmorPolicyProtecting},
+			},
+		},
+	}
+
+	for _, tt := range policies {
+		t.Run(tt.name, func(t *testing.T) {
+			valid, message := ValidateUpdatePolicy(tt.policy, "NetworkProxyBPF", target, nil)
+			assert.False(t, valid, "Removing NetworkProxy while retaining BPF should fail validation")
+			assert.Contains(t, message, "remove the AppArmor, Seccomp, or NetworkProxy enforcer is not allowed")
+		})
+	}
 }
 
 // TestValidateUpdatePolicy_EnhanceProtectModeWithoutConfig tests EnhanceProtect mode without configuration

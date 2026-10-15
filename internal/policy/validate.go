@@ -209,10 +209,11 @@ func ValidateUpdatePolicy(policy interface{}, oldEnforcer string, oldTarget varm
 		return false, "Modifying the enforcer field of a policy is not allowed when behavior modeling is still incomplete."
 	}
 
-	// Disallow removing the activated AppArmor or Seccomp enforcer.
+	// Only BPF supports safe dynamic removal; other enforcers require policy recreation.
 	removedEnforcers := oldEnforcers &^ newEnforcers
-	if removedEnforcers&(varmortypes.AppArmor|varmortypes.Seccomp) != 0 {
-		return false, "Modifying a policy to remove the AppArmor or Seccomp enforcer is not allowed. To remove them, you need to recreate the policy object."
+	nonRemovableEnforcers := varmortypes.AppArmor | varmortypes.Seccomp | varmortypes.NetworkProxy
+	if removedEnforcers&nonRemovableEnforcers != 0 {
+		return false, "Modifying a policy to remove the AppArmor, Seccomp, or NetworkProxy enforcer is not allowed. To remove them, you need to recreate the policy object."
 	}
 
 	// Make sure the enhanceProtect field has been set when the policy runs in the EnhanceProtect mode.
