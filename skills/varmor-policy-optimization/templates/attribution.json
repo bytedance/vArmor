@@ -1,0 +1,54 @@
+[
+  {
+    "eventId": "evt-000001",
+    "summary": "Built-in rule example",
+    "matches": [
+      {
+        "source": "hardeningRules",
+        "rule": "disallow-umount",
+        "context": {},
+        "decision": "<remove|keep|observe-after-user-confirmation>"
+      }
+    ]
+  },
+  {
+    "eventId": "evt-000002",
+    "summary": "AppArmor raw-rule example; copy the normalized catalog string exactly",
+    "matches": [
+      {
+        "source": "appArmorRawRules",
+        "rule": "audit deny /etc/shadow r",
+        "context": {
+          "targets": []
+        },
+        "decision": "<remove|keep|observe-after-user-confirmation>"
+      }
+    ]
+  },
+  {
+    "eventId": "evt-000003",
+    "summary": "BPF raw-rule example; copy the catalog object exactly",
+    "matches": [
+      {
+        "source": "bpfRawRules.files",
+        "rule": {
+          "qualifiers": [
+            "audit",
+            "deny"
+          ],
+          "pattern": "/etc/example/**",
+          "permissions": [
+            "read"
+          ]
+        },
+        "context": {},
+        "decision": "<remove|keep|observe-after-user-confirmation>"
+      }
+    ]
+  },
+  {
+    "eventId": "evt-000004",
+    "summary": "Every aggregated event must appear exactly once; keep an empty list when evidence is insufficient",
+    "matches": []
+  }
+]

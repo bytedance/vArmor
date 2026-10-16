@@ -1,0 +1,4 @@
+interface:
+  display_name: "vArmor Policy Optimization"
+  short_description: "Refine EnhanceProtect policies from observed violations"
+  default_prompt: "Use $varmor-policy-optimization to review my EnhanceProtect policy and plan an observation window before any deployment."
