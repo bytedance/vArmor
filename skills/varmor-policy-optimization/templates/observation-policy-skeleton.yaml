@@ -1,0 +1,55 @@
+# 观察策略组装骨架（供阶段一的填写步骤使用）
+#
+# 这不是可直接下发的策略，而是模型在收集到用户确认的信息后，据此"组装"出
+# 完整 VarmorPolicy / VarmorClusterPolicy 的骨架。组装只允许填入用户已确认的
+# 信息；任何规则的取舍以用户意图为准。组装完成后必须交给 validate_policy.py
+# 做确定性校验 + server dry-run + 用户最终确认，模型不得跳过校验直接下发。
+#
+# 必填信息（缺一不可，模型应先逐项与用户确认）：
+#   1) 策略类型：VarmorPolicy 还是 VarmorClusterPolicy
+#   2) metadata.name；VP 还需 namespace
+#   3) target.kind（Deployment/StatefulSet/DaemonSet/Pod）
+#   4) 目标定位：target.name 或 target.selector（二选一）
+#   5) target.containers（可空；空=全部业务容器）
+#   6) policy.enforcer（与集群节点实际支持一致；预检确认）
+#   7) 用户期望启用的内置规则 / 自定义规则；参考 builtin-rules-semantics.md
+#      理解其语义、Enforcer 兼容性和误伤风险，不替用户扩充规则
+#   8) updateExistingWorkloads（必须确认；true 会立即滚动现有工作负载）
+#   9) privileged（必须确认；默认 false；true 时基线改变且不生成 Seccomp）
+#
+# 组装阶段：允许根据上述确认信息填充/生成 CRD。
+# 校验阶段：模型不得擅自修复校验错误；只能由脚本执行固定规范化，或回到用户
+# 重新确认信息。
+
+apiVersion: crd.varmor.org/v1beta1
+kind: <VarmorPolicy|VarmorClusterPolicy>
+metadata:
+  name: <name>
+  namespace: <namespace>   # 仅 VarmorPolicy
+spec:
+  updateExistingWorkloads: <true|false>   # 必须由用户确认，勿默认 true
+  target:
+    kind: <Deployment|StatefulSet|DaemonSet|Pod>
+    # name 与 selector 二选一：
+    name: <workload-name>
+    # selector:
+    #   matchLabels: {app: <label>}
+    # containers: [<container-name>]   # 可空
+  policy:
+    enforcer: <AppArmor|BPF|Seccomp|组合>
+    mode: EnhanceProtect
+    enhanceProtect:
+      privileged: <true|false>   # 必须确认；默认 false
+      # 观察模式双开关（validate_policy.py 会自动补全，无需手填）
+      auditViolations: true
+      allowViolations: true
+      hardeningRules:
+      - <用户确认的加固规则>
+      attackProtectionRules:
+      - rules:
+        - <用户确认的攻击防护规则>
+        # targets: [<可执行文件路径>]   # 仅 AppArmor
+      vulMitigationRules:
+      - <用户确认的漏洞缓解规则>
+      # 可选 RawRules：appArmorRawRules / bpfRawRules /
+      # syscallRawRules（观察期建议 SCMP_ACT_LOG）/ networkProxyRawRules

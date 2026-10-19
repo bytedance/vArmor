@@ -1,0 +1,51 @@
+{
+  "taskVersion": 1,
+  "taskType": "varmor-policy-optimization",
+  "taskId": "<stable-task-id>",
+  "status": "observing",
+  "createdAt": "<epoch-seconds>",
+  "updatedAt": "<epoch-seconds>",
+  "clusterContext": "<kubectl-context>",
+  "policy": {
+    "kind": "<VarmorPolicy|VarmorClusterPolicy>",
+    "namespace": "<namespace-or-empty>",
+    "name": "<policy-name>"
+  },
+  "policySnapshotFile": "<absolute-artifact-directory>/1.7-policy-snapshot.json",
+  "agentInventoryStartFile": "<absolute-artifact-directory>/1.7-agent-inventory.json",
+  "window": {
+    "start": "<inclusive-epoch-seconds>",
+    "plannedEnd": "<inclusive-epoch-seconds>",
+    "end": "<inclusive-epoch-seconds>",
+    "endReason": "planned"
+  },
+  "windowConstraints": [
+    "window.start >= capturedAt read from policySnapshotFile",
+    "window.start >= capturedAt read from agentInventoryStartFile",
+    "incremental initialization must finish by window.start and final drain must finish after window.end",
+    "snapshot fallback copies must start at or after window.end"
+  ],
+  "trigger": {
+    "mode": "<scheduled|reminder|manual>",
+    "scheduledFor": "<epoch-seconds-or-empty>",
+    "reference": "<external-task-or-reminder-id-or-empty>"
+  },
+  "lastTrigger": {
+    "mode": "none",
+    "at": ""
+  },
+  "artifactDirectory": "<local-directory-created-with-mode-0700>",
+  "artifactRetention": "<user-or-organization-retention-requirement>",
+  "coverageNotes": [
+    "<startup-release-scaling-cron-failover coverage>"
+  ],
+  "outputs": {
+    "latestRunDirectory": "",
+    "collectorDirectory": "",
+    "preFile": "",
+    "attributionFile": "",
+    "candidateFile": ""
+  },
+  "nextAction": "Start the authorized incremental collector before window.start. It saves logs periodically and creates pre.json at window.end. Resume attribution from the task after collection completes; request removal-scope decisions before generating a candidate, then final confirmation before apply.",
+  "applyAllowed": false
+}
