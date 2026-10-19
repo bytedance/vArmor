@@ -13,6 +13,7 @@ __pycache__
 venv
 coverage.out
 .DS_Store
+.agents
 
 # Local assistant skill installations
 /.agents/
