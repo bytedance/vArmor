@@ -1,4 +1,4 @@
 interface:
-  display_name: "vArmor Diagnosis"
+  display_name: "Automated Diagnosis"
   short_description: "Diagnose vArmor policy and runtime issues with evidence"
   default_prompt: "Use $varmor-diagnosis to investigate my vArmor issue using read-only checks and explain the evidence and next steps."

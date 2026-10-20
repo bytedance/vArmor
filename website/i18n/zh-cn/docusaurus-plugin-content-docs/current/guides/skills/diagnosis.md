@@ -1,12 +1,12 @@
 ---
 slug: /guides/skills/diagnosis
-sidebar_position: 3
+sidebar_position: 1
 description: 自动诊断 vArmor 策略与组件异常，定位问题并提供处理建议。
 ---
 
-# vArmor Diagnosis
+# 自动诊断
 
-vArmor Diagnosis（`varmor-diagnosis`）提供策略与组件自动诊断能力。描述策略未生效、应用出现权限错误或组件运行异常等现象后，助手会自动选择检查步骤，关联配置、状态、事件与日志，协助定位原因并给出处理建议。
+自动诊断（`varmor-diagnosis`）提供策略与组件自动诊断能力。描述策略未生效、应用出现权限错误或组件运行异常等现象后，助手会自动选择检查步骤，关联配置、状态、事件与日志，协助定位原因并给出处理建议。
 
 ## 可以帮你做什么
 
@@ -42,4 +42,4 @@ vArmor Diagnosis（`varmor-diagnosis`）提供策略与组件自动诊断能力�
 
 你会得到已确认事实、可能原因与缺失证据的区分，需要时可整理成正式诊断报告。策略显示 Ready 不单独证明防护已生效，权限错误也不单独证明由 vArmor 引起。
 
-诊断后需要收敛 EnhanceProtect 策略时，可以使用 [vArmor Policy Optimization](policy-optimization.md)。安装步骤与详细用法见[英文说明](https://github.com/bytedance/vArmor/blob/main/skills/varmor-diagnosis/README.md)和[中文说明](https://github.com/bytedance/vArmor/blob/main/skills/varmor-diagnosis/README.zh_CN.md)。
+诊断后需要收敛 EnhanceProtect 策略时，可以使用 [策略自动优化](policy-optimization.md)。安装步骤与详细用法见[英文说明](https://github.com/bytedance/vArmor/blob/main/skills/varmor-diagnosis/README.md)和[中文说明](https://github.com/bytedance/vArmor/blob/main/skills/varmor-diagnosis/README.zh_CN.md)。

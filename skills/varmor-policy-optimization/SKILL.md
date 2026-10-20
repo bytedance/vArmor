@@ -4,7 +4,7 @@ license: Apache-2.0
 description: Validate and optimize vArmor EnhanceProtect policies. Use for policy review, creation, observation, or convergence. Explain the workflow first when the user is exploring it. Not for DefenseInDepth.
 ---
 
-# vArmor 增强策略自动优化
+# 策略自动优化
 
 协助用户校验或创建观察模式 `EnhanceProtect` 策略，并根据违规日志逐步收敛到最贴近业务的策略。
 只处理 EnhanceProtect；不处理 DefenseInDepth 的优化。
@@ -115,8 +115,8 @@ NetworkProxy 使用独立的功能与日志版本门控，见
 - [references/raw-rules-syntax.md](references/raw-rules-syntax.md)：四类 RawRules 结构
 - [references/violation-log.md](references/violation-log.md)：violations.log 位置/轮转/Envelope/event
 - [references/policy-crd-lifecycle.md](references/policy-crd-lifecycle.md)：可变性与 Kubernetes 生效边界
-- [vArmor 官方文档索引](https://www.varmor.org/zh-cn/llms.txt)：仅当本地 references 无法解释
-  额外背景知识时按需查阅；该索引随官方文档更新。官方文档用于补充背景，不能替代当前集群事实、
+- [vArmor 官方文档索引（main）](https://www.varmor.org/zh-cn/docs/main/llms.txt)：仅当本地 references 无法解释
+  额外背景知识时按需查阅；已发布版本优先查阅对应版本文档。官方文档用于补充背景，不能替代当前集群事实、
   server dry-run 或本 skill 的确定性门禁。
 
 产物模板：[templates/optimization-analysis.md](templates/optimization-analysis.md)、

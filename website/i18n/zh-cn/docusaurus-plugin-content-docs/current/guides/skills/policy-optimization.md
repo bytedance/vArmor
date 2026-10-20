@@ -4,9 +4,9 @@ sidebar_position: 2
 description: 自动分析与调优 EnhanceProtect 策略，减少防护规则对必要业务行为的误伤。
 ---
 
-# vArmor Policy Optimization
+# 策略自动优化
 
-vArmor Policy Optimization（`varmor-policy-optimization`）将策略校验、观察日志分析与候选策略生成自动化，减少手工调优工作。从符合安全目标的 EnhanceProtect 策略出发，助手自动识别与必要业务行为冲突的规则并提出优化建议；由你选择删除范围后，再生成候选策略供你审核，经你授权后才由助手更新策略。
+策略自动优化（`varmor-policy-optimization`）将策略校验、观察日志分析与候选策略生成自动化，减少手工调优工作。从符合安全目标的 EnhanceProtect 策略出发，助手自动识别与必要业务行为冲突的规则并提出优化建议；由你选择删除范围后，再生成候选策略供你审核，经你授权后才由助手更新策略。
 
 ## 可以帮你做什么
 

@@ -4,9 +4,9 @@ sidebar_position: 2
 description: Automate EnhanceProtect policy analysis and tuning to reduce disruption to necessary application behavior.
 ---
 
-# vArmor Policy Optimization
+# Automated Policy Optimization
 
-The vArmor Policy Optimization skill (`varmor-policy-optimization`) automates policy checks, observation log analysis, and candidate preparation to reduce manual tuning. Starting from an EnhanceProtect policy that meets your security goals, the assistant identifies conflicts with necessary application behavior and prepares optimization recommendations. After you select which rules to remove, it generates a candidate policy for your review and authorization before any update.
+The Automated Policy Optimization skill (`varmor-policy-optimization`) automates policy checks, observation log analysis, and candidate preparation to reduce manual tuning. Starting from an EnhanceProtect policy that meets your security goals, the assistant identifies conflicts with necessary application behavior and prepares optimization recommendations. After you select which rules to remove, it generates a candidate policy for your review and authorization before any update.
 
 ## What it helps you do
 

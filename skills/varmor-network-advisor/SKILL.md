@@ -3,7 +3,7 @@ name: varmor-network-advisor
 description: Help Kubernetes users build vArmor NetworkProxy egress allowlists from real audit evidence. Guide observation, HTTP/HTTPS MITM or SNI visibility, path and method review, TCP approval, and iterative refinement while preserving existing system protection.
 ---
 
-# vArmor Network Allowlist Advisor
+# Network Allowlist Advisor
 
 Guide users through observation, review, and allowlist validation in business terms. This Skill targets vArmor v0.10 and later and requires Python 3.9+ and kubectl; no pip packages, MCP server, or model API key are required. Resolve script paths relative to this SKILL.md and use absolute session paths.
 

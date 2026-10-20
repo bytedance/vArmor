@@ -4,7 +4,7 @@ license: Apache-2.0
 description: Diagnose vArmor and Kubernetes security issues involving components, policies, Profiles, webhooks, node enforcers, BehaviorModeling, and NetworkProxy. Use when Pods are Pending, containers exit unexpectedly, policies fail to inject or take effect, policy status is abnormal, node Profiles fail to load, audit events need investigation, or vArmor components are unhealthy. Provide domain context, targeted read-only checks, and evidence interpretation.
 ---
 
-# vArmor 诊断 Skill
+# 自动诊断
 
 模型基于 Kubernetes 诊断能力自主选择查询与排查路径，本 Skill 补充 vArmor 的对象关系、
 生效语义和容易误判的证据边界。优先用小范围、低影响的动作回答当前问题。
@@ -77,7 +77,7 @@ description: Diagnose vArmor and Kubernetes security issues involving components
 
 知识按需读取，不一次加载全部：解释“某模式默认会保护什么”时读 `policy-mode-profiles.md`；分析某条 EnhanceProtect 内置规则是否可能导致异常时，先确认实际 enforcer，再读对应的规则实施文档。
 
-本地参考不足时，按实际部署版本从 [官方文档索引](https://www.varmor.org/zh-cn/llms.txt) 查阅相关页面作为补充；不默认全量阅读，也不混用稳定版与 main 的语义。
+本地参考不足时，从 [官方文档索引（main）](https://www.varmor.org/zh-cn/docs/main/llms.txt) 按需查阅相关页面作为补充；已发布版本优先查阅对应版本文档，不默认全量阅读，也不混用稳定版与 main 的语义。
 
 ### 操作层（playbooks/）：执行诊断查询
 

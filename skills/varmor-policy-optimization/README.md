@@ -1,4 +1,4 @@
-# vArmor Policy Optimization
+# Automated Policy Optimization
 
 English | [简体中文](README.zh_CN.md)
 
@@ -95,7 +95,7 @@ Results include the task, coverage findings, attribution, and review decisions. 
 - An interruption can recover only when the original identities and file checkpoints prove continuity. Unrecoverable gaps or policy drift block deletion.
 - NetworkProxy rule removal requires eligible node logs on vArmor v0.10.3+ with runc. Unknown/older versions and micro-VM evidence do not qualify for NetworkProxy deletion in this workflow.
 
-For troubleshooting an existing failure, use [vArmor Diagnosis](../varmor-diagnosis/README.md).
+For troubleshooting an existing failure, use [Automated Diagnosis](../varmor-diagnosis/README.md).
 
 ## Further reading
 

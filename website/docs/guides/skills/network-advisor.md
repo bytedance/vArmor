@@ -1,12 +1,12 @@
 ---
 slug: /guides/skills/network-advisor
-sidebar_position: 1
+sidebar_position: 3
 description: Get network access policy recommendations for your application and validate them before deployment.
 ---
 
-# vArmor Network Allowlist Advisor
+# Network Allowlist Advisor
 
-The vArmor Network Allowlist Advisor (`varmor-network-advisor`) helps you decide which outbound connections an application needs and prepare a suitable network access policy. Describe the application and its requirements; the assistant recommends a NetworkProxy allowlist and guides you through review, testing, and deployment.
+The Network Allowlist Advisor (`varmor-network-advisor`) helps you decide which outbound connections an application needs and prepare a suitable network access policy. Describe the application and its requirements; the assistant recommends a NetworkProxy allowlist and guides you through review, testing, and deployment.
 
 ## What it helps you do
 
@@ -41,7 +41,7 @@ Known requirements can also lead directly to a reviewed draft and validation. Yo
 
 ## Results and considerations
 
-When reusing an existing policy, this skill preserves its system protection mode and rules while focusing on NetworkProxy access control. To refine the system protection rules in an EnhanceProtect policy, use [vArmor Policy Optimization](policy-optimization.md). For ineffective policies or unhealthy components, use [vArmor Diagnosis](diagnosis.md).
+When reusing an existing policy, this skill preserves its system protection mode and rules while focusing on NetworkProxy access control. To refine the system protection rules in an EnhanceProtect policy, use [Automated Policy Optimization](policy-optimization.md). For ineffective policies or unhealthy components, use [Automated Diagnosis](diagnosis.md).
 
 You receive a policy draft, permission explanations, review records, and validation results. Recommendations depend on the business scenarios you cover; observed access alone does not establish that it should be allowed. HTTPS visibility affects how precisely access can be restricted, so the assistant explains the available scope before you approve a policy.
 

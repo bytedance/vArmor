@@ -1,4 +1,4 @@
 interface:
-  display_name: "vArmor Network Allowlist Advisor"
+  display_name: "Network Allowlist Advisor"
   short_description: "Build reviewable HTTP, SNI, and TCP allowlists from vArmor audit"
   default_prompt: "Use $varmor-network-advisor to observe my Kubernetes workload's network behavior and generate a reviewable allowlist template."

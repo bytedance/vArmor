@@ -1,7 +1,7 @@
 ---
 slug: /guides/skills
 sidebar_position: 6
-description: 借助开箱即用的智能体 Skills，完成策略推荐、策略自动优化及策略与组件自动诊断。
+description: 借助开箱即用的智能体 Skills，完成策略与组件自动诊断、策略自动优化及网络策略推荐。
 ---
 
 # Skills
@@ -12,9 +12,9 @@ description: 借助开箱即用的智能体 Skills，完成策略推荐、策略
 
 | Skill | 什么时候用 | 详细说明 |
 | --- | --- | --- |
-| [vArmor Network Allowlist Advisor](network-advisor.md) | 想限制应用的对外访问，但不清楚如何制定 NetworkProxy 策略时：由助手引导观测业务访问，推荐网络白名单策略，并协助审核与验证。 | [English](https://github.com/bytedance/vArmor/blob/main/skills/varmor-network-advisor/README.md) · [简体中文](https://github.com/bytedance/vArmor/blob/main/skills/varmor-network-advisor/README.zh_CN.md) |
-| [vArmor Policy Optimization](policy-optimization.md) | 使用 EnhanceProtect 加固应用，希望减少业务误伤时：通过多轮观察和规则调整，结合业务需求与防护目标，逐步收敛到更合适的策略。 | [English](https://github.com/bytedance/vArmor/blob/main/skills/varmor-policy-optimization/README.md) · [简体中文](https://github.com/bytedance/vArmor/blob/main/skills/varmor-policy-optimization/README.zh_CN.md) |
-| [vArmor Diagnosis](diagnosis.md) | 遇到策略未生效、Pod 异常或组件故障，难以确定原因时：结合集群与节点的配置、状态、事件和日志，自动排查并给出处理建议。 | [English](https://github.com/bytedance/vArmor/blob/main/skills/varmor-diagnosis/README.md) · [简体中文](https://github.com/bytedance/vArmor/blob/main/skills/varmor-diagnosis/README.zh_CN.md) |
+| [自动诊断](diagnosis.md) | 遇到策略未生效、Pod 异常或组件故障，难以确定原因时：结合集群与节点的配置、状态、事件和日志，自动排查并给出处理建议。 | [English](https://github.com/bytedance/vArmor/blob/main/skills/varmor-diagnosis/README.md) · [简体中文](https://github.com/bytedance/vArmor/blob/main/skills/varmor-diagnosis/README.zh_CN.md) |
+| [策略自动优化](policy-optimization.md) | 使用 EnhanceProtect 加固应用，希望减少业务误伤时：通过多轮观察和规则调整，结合业务需求与防护目标，逐步收敛到更合适的策略。 | [English](https://github.com/bytedance/vArmor/blob/main/skills/varmor-policy-optimization/README.md) · [简体中文](https://github.com/bytedance/vArmor/blob/main/skills/varmor-policy-optimization/README.zh_CN.md) |
+| [网络白名单助手](network-advisor.md) | 想限制应用的对外访问，但不清楚如何制定 NetworkProxy 策略时：由助手引导观测业务访问，推荐网络白名单策略，并协助审核与验证。 | [English](https://github.com/bytedance/vArmor/blob/main/skills/varmor-network-advisor/README.md) · [简体中文](https://github.com/bytedance/vArmor/blob/main/skills/varmor-network-advisor/README.zh_CN.md) |
 
 三个 Skills 可独立使用，按当前任务选择即可。
 

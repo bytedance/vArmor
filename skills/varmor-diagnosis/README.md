@@ -1,4 +1,4 @@
-# vArmor Diagnosis
+# Automated Diagnosis
 
 English | [简体中文](README.zh_CN.md)
 
@@ -70,7 +70,7 @@ You provide business context and any authorization needed to extend the investig
 
 Policy Ready alone does not prove protection, and permission errors alone do not prove vArmor caused them. When evidence is insufficient, the assistant identifies the next useful check rather than claiming a root cause.
 
-To create or refine an EnhanceProtect policy, use [vArmor Policy Optimization](../varmor-policy-optimization/README.md).
+To create or refine an EnhanceProtect policy, use [Automated Policy Optimization](../varmor-policy-optimization/README.md).
 
 ## Further reading
 
