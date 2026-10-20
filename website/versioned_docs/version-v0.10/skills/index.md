@@ -1,6 +1,6 @@
 ---
 slug: /guides/skills
-sidebar_position: 6
+sidebar_position: 4
 description: Ready-to-use AI agent skills for automated policy and component diagnosis, automated policy optimization, and network policy recommendation.
 ---
 

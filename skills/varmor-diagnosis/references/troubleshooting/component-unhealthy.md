@@ -15,6 +15,9 @@ manager/agent/classifier Pod 不 Ready、反复重启、OOMKilled、ImagePullBac
 
 manager 异常主要影响策略编译、reconcile 和 Webhook；agent 异常主要影响节点 Profile 加载；NetworkProxy sidecar 异常主要影响注入后的转发和规则执行；classifier 主要影响 BehaviorModeling。组件 Pod Running/Ready 不能替代 VP/VCP、AP、Pod 实际配置和运行时事件证据。
 
+agent 正常运行但 AppArmor Profile 加载失败，尤其出现内核接口发现或访问错误时，进入
+[AppArmor 加载失败](agent-apparmor-load-failure.md)，核对 agent 自身的配置和实际运行条件。
+
 ## 证据顺序
 
 先看 Pod 状态、lastState、事件和资源，再看组件日志；manager 异常时关联 Leader 和 Webhook；agent 异常时关联节点与 AP node condition；classifier 异常时关联 APM 和上报链路。

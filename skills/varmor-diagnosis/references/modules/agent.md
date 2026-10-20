@@ -31,10 +31,14 @@ Running 不是功能健康；“Pod Ready 但 AP 该节点未 Ready”应按假�
 
 ### Profile 加载失败
 
-- AppArmor：语法、LSM、securityfs、加载器或 Profile 冲突；
+- AppArmor：语法、LSM、securityfs、agent 自身的运行约束、加载器或 Profile 冲突；
 - Seccomp：文件写入/路径、kubelet/runtime 可见性和 Profile 内容；
 - BPF：内核/架构/BTF/BPF LSM、map/program 资源、load/attach；
 - NetworkProxy：代理 Secret/配置由 manager 传播，节点侧关注挂载、运行时和 AP 状态。
+
+AppArmor 接口不可访问、加载器报权限错误或 agent 安全配置与模板不一致时，按
+[AppArmor 加载失败](../troubleshooting/agent-apparmor-load-failure.md) 区分部署、准入、后续更新、运行时与
+内核接口问题。agent 自身的 `Unconfined` 是运行配置，与业务容器显式绕过防护分开判断。
 
 ### 节点级异常
 

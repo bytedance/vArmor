@@ -73,6 +73,7 @@ description: Diagnose vArmor and Kubernetes security issues involving components
 - 各模式默认 Profile/基线（无自定义规则时是否仍有防护）→ `references/modules/policy-mode-profiles.md`
 - EnhanceProtect 内置规则的实际实施范围（按 enforcer）→ `references/modules/built-in-rules-apparmor.md`、`references/modules/built-in-rules-bpf.md`、`references/modules/built-in-rules-seccomp.md`
 - 症状路标 → `references/troubleshooting/` 下对应文件
+- Agent AppArmor 加载失败、内核接口不可访问或安全配置与模板不一致 → `references/troubleshooting/agent-apparmor-load-failure.md`（即使 Agent Running/Ready 也适用）
 - 跨 enforcer 冲突、VP/VCP 重叠、统一结论分类 → `references/troubleshooting/enforcer-conflicts.md`
 
 知识按需读取，不一次加载全部：解释“某模式默认会保护什么”时读 `policy-mode-profiles.md`；分析某条 EnhanceProtect 内置规则是否可能导致异常时，先确认实际 enforcer，再读对应的规则实施文档。

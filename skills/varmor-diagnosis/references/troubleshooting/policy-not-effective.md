@@ -30,6 +30,8 @@
 ### AP 部分节点未加载
 
 根据失败 nodeName 逐节点关联 agent、kernel/LSM/BTF、runtime 和 Profile 加载证据。
+AppArmor 加载失败时按 [专项路标](agent-apparmor-load-failure.md) 定位失败阶段；agent Ready
+不能排除其自身安全约束、挂载或准入配置差异导致的加载异常。
 
 ### AP 完整但 Pod 没注入
 

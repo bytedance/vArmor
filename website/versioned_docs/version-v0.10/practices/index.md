@@ -1,6 +1,6 @@
 ---
 slug: /practices
-sidebar_position: 4
+sidebar_position: 5
 ---
 
 import ThemeImage from '@site/src/components/ThemeImage';

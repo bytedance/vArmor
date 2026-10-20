@@ -61,6 +61,49 @@ kubectl --context <context> -n <varmor-namespace> exec <agent-pod> -c <agent-con
 `/proc/self/mountinfo` 并本地筛选，复用结果；它只描述 agent 的挂载视图。
 Seccomp 路径按 agent 参数、volumes/volumeMounts 与日志确认，不默认搜索整个 kubelet 目录。
 
+### 2.1 AppArmor 加载失败时的配置与运行约束
+
+按 [专项路标](../references/troubleshooting/agent-apparmor-load-failure.md) 解释日志与版本差异。
+先比较已确认 agent Pod 及其对应模板的相关字段，不用业务 Pod 的配置代替 agent 的配置：
+
+```bash
+kubectl --context <context> -n <varmor-namespace> get pod <agent-pod> -o jsonpath='{.spec.securityContext}{"\n"}{range .spec.containers[*]}{.name}{"\t"}{.securityContext}{"\n"}{end}'
+kubectl --context <context> -n <varmor-namespace> get ds <agent-daemonset-name> -o jsonpath='{.spec.template.spec.securityContext}{"\n"}{range .spec.template.spec.containers[*]}{.name}{"\t"}{.securityContext}{"\n"}{end}'
+```
+
+结合 Pod 创建时间与模板修订排除旧实例；按实际容器名定向读取对应 AppArmor 旧注解，避免
+整体展示 annotations。容器字段缺失时检查 Pod 级继承及该版本的注解兼容，不直接认定受限。
+若线上 DaemonSet 模板也缺字段，向前比较安装渲染清单并调查 DaemonSet 请求；模板有而 Pod
+没有时，调查对应 Pod 请求。不要将两个层级的安全上下文路径混用。
+
+已有授权覆盖时，下面两项按需选择，读取失败保留错误：
+
+```bash
+# exec 命令自身的 AppArmor 状态；若该内核不提供专用路径，可选 /proc/self/attr/current。
+kubectl --context <context> -n <varmor-namespace> exec <agent-pod> -c <agent-container> -- cat /proc/self/attr/apparmor/current
+# 核对实际管理进程时，先从已有运行时/进程信息确认 PID，再定向读取。
+kubectl --context <context> -n <varmor-namespace> exec <agent-pod> -c <agent-container> -- cat /proc/<confirmed-agent-pid>/attr/apparmor/current
+```
+
+hostPID 环境下 `/proc/1` 可能指向宿主机 init，不能当作 agent 状态。exec 进程与 agent/parser
+存在 profile 切换时需分别确认；属性读取失败不能当作 `unconfined`。
+
+接口问题复用已确认挂载与一次 `/proc/self/mountinfo` 读取，核对接口是否可见、挂载是否只读。
+需要权限证据时，可从已确认进程的 `/proc/<pid>/status` 等已有信息核对实际 capabilities，
+再按时间、进程、profile、operation 和路径关联有限内核审计；声明了管理能力不能代替实际状态。
+不通过加载 Profile 或写入 `.load`、`.replace` 等内核接口测试权限。
+配置差异的修改来源按专项路标追查，覆盖创建及后续更新；不预设来自 Webhook。
+
+需要追查写入来源时，使用已有审计通道按 namespace、对象名/UID 和时间筛选，复用已提供记录。
+保留 auditID、stage、verb、objectRef（含 subresource）、requestURI、调用/模拟身份、userAgent、
+来源、responseStatus，以及相关字段的请求/响应差异；旧注解、容器和 Pod 级字段一并按需核对。
+Request 级别可有请求体，RequestResponse 级别可有响应体；缺失内容注明未采集，不假设总能读取。
+只展示必要的脱敏字段，不输出完整请求体。完整 UPDATE 与 PATCH 按各自语义解释，确认请求
+是否成功，再与同 UID 的前后版本关联；审计请求不等于实际写入。
+怀疑准入修改时，按同次请求的 auditID 关联 Webhook 调用与可用补丁，检查是否删除字段或替换
+其父对象；仅有“发生过 mutation”的标记不能证明修改了 AppArmor 配置。无补丁时注明证据缺口，
+不根据匹配范围或旧依赖版本直接给出确定归因。具体判读见专项路标第 4 节。
+
 ## 3. 目标 Profile 是否落地
 
 先使用 AP node condition 与该节点 agent 日志；只有证据不足时才补充以下检查。

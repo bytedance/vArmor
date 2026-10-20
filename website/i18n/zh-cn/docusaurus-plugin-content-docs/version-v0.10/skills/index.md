@@ -1,6 +1,6 @@
 ---
 slug: /guides/skills
-sidebar_position: 6
+sidebar_position: 4
 description: 借助开箱即用的智能体 Skills，完成策略与组件自动诊断、策略自动优化及网络策略推荐。
 ---
 

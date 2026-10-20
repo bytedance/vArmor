@@ -131,6 +131,9 @@ Pod Running 但无法加载 Profile，这是最容易忽略的故障模式：
 
 先把该节点 AP condition 与 agent 日志对应，再查看相关容器的安全上下文与挂载配置。
 hostPath 和 volumeMount 要成对关联；泛词可以帮助定位候选卷，不能仅凭卷名判断内核可见性。
+AppArmor 加载异常时补充比较 agent 对应模板与实际 Pod 的安全配置，按
+[AppArmor 加载失败路标](../references/troubleshooting/agent-apparmor-load-failure.md) 选择分支，
+定向查询见 [node.md](node.md#21-apparmor-加载失败时的配置与运行约束)。
 
 ```bash
 kubectl -n <varmor-namespace> get pod <agent-pod-on-node> -o jsonpath='{range .spec.volumes[*]}{.name}{"\t"}{.hostPath.path}{"\n"}{end}'
@@ -152,7 +155,8 @@ kubectl -n <varmor-namespace> logs <agent-pod-on-node> -c <agent-container> --si
 **重点关注日志关键词：**
 | 关键词 | 含义 |
 |---|---|
-| `failed to load apparmor profile` | AppArmor Profile 加载失败，可能是语法/LSM问题 |
+| `failed to load apparmor profile` / `LoadAppArmorProfile()` / `UpdateAppArmorProfile()` | 结合 parser 输出，按 AppArmor 加载失败路标区分规则、接口、权限和兼容问题 |
+| `interface file missing` / `unable to find a suitable fs` / `--subdomainfs` | 检查 agent 的 AppArmor 接口可见性与访问约束，不能直接判定缺内核补丁或未挂载 |
 | `failed to load bpf` / `invalid argument` | BPF 程序加载失败，可能是内核/BTF/架构不兼容 |
 | `failed to write seccomp profile` | Seccomp Profile 写入失败，可能是路径/权限问题 |
 | `failed to process ArmorProfile` | AP 处理失败 |
