@@ -1,133 +1,133 @@
-# 节点 enforcer 状态检查（Node）
+# Node enforcer inspection (Node)
 
-执行与授权遵循 [统一约定](README.md)。从 AP 失败节点或目标 Pod 的 nodeName 进入，
-按实际 enforcer 选用检查；不要求完成整套节点体检。
+Follow the [shared conventions](README.md) for execution and authorization. Start from an AP failed node or target Pod nodeName,
+and select checks for the actual enforcer; a full node health check is not required.
 
-## 检查目标
+## Objective
 
-区分 agent 未覆盖/启动异常、内核能力不满足、Profile 准备或加载失败，以及已加载但容器未使用。
-节点 NotReady、OOM、BUG/Oops/panic 时优先已有 API 与日志证据，避免继续增加节点负担。
+Distinguish missing/unhealthy agents, unmet kernel capabilities, Profile preparation/load failure, and loaded Profiles not used by containers.
+For node NotReady, OOM, BUG/Oops/panic, prioritize existing API/log evidence and avoid adding node load.
 
-## 1. 节点与 agent 的 API 证据
+## 1. Node and agent API evidence
 
 ```bash
 kubectl --context <context> get node <node-name> -o jsonpath='READY={.status.conditions[?(@.type=="Ready")].status}{"\n"}KERNEL={.status.nodeInfo.kernelVersion}{"\n"}RUNTIME={.status.nodeInfo.containerRuntimeVersion}{"\n"}ARCH={.status.nodeInfo.architecture}{"\n"}'
 kubectl --context <context> -n <varmor-namespace> get pods -l <agent-selector> --field-selector spec.nodeName=<node-name> -o wide
 ```
 
-结合 DaemonSet owner、Pod UID、创建/删除时间、目标 agent 容器 Ready 和重启状态确认身份。
-多个 Pod 可能是更新中的新旧实例；保留相关候选并说明角色。不 Ready 的 Pod 仍是状态、事件和
-日志的取证对象；无需等到唯一 Running+Ready 才诊断。exec 前再确认单个 Pod 与容器。
+Confirm identity with DaemonSet ownership, Pod UID, creation/deletion times, and target agent-container Ready/restart state.
+Multiple Pods may be old/new rollout instances. Keep relevant candidates and explain their roles. Unready Pods still provide status, events,
+and logs; diagnosis need not wait for one uniquely Running+Ready Pod. Confirm one Pod and container before exec.
 
-优先看相关 AP node condition、agent lastState、事件和有限日志。AP namespace 沿
-[policy.md 第 2.1 节](policy.md#21-ap-是否存在且状态正确) 的 VP/VCP 关系或按名称跨 namespace
-摘要查询确认，复用前一步结果；CRD scope 不能单独给出 namespace。
+Prefer relevant AP node conditions, agent lastState, events, and bounded logs. Establish AP namespace through VP/VCP relationships in
+[policy.md section 2.1](policy.md#21-does-the-ap-exist-with-correct-status) or a cross-namespace name-filtered
+summary, reusing prior results. CRD scope alone does not identify the namespace.
 
 ```bash
 kubectl --context <context> -n <confirmed-ap-namespace> get armorprofiles.crd.varmor.org <profile-name> -o json
 kubectl --context <context> -n <varmor-namespace> logs <agent-pod> -c <agent-container> --since=<duration> --tail=300
-# 重启相关时，可改用 --previous，区分无上一实例与权限/连接错误。
+# For restart-related issues, use --previous; distinguish no previous instance from authorization/connection errors.
 ```
 
-Cluster-scoped AP 不传 namespace。对单 AP 的本地 JSON 按目标 nodeName 筛选 conditions；
-失败 reason/message 是加载方向的线索，不直接证明最终根因。
+Do not pass namespace for a cluster-scoped AP. Filter one AP's local JSON conditions by target nodeName.
+Failure reason/message guides loading investigation; it does not directly prove the root cause.
 
-## 2. 按需验证 enforcer 能力
+## 2. Verify enforcer capabilities on demand
 
-Node API 的版本/架构与 agent 加载错误通常足以决定下一步。复杂版本前置条件可借助：
+Node API version/architecture and agent load errors usually determine the next step. For complex version prerequisites, optionally use:
 
 ```bash
 python3 scripts/check-enforcer-compatibility.py --context <context> --node <node-name> --enforcer <apparmor|bpf|seccomp>
 ```
 
-脚本可选。内核版本满足不能证明 LSM 已启用；`TO_PROVE/PARTIALLY_VERIFIED` 可由下面的独立
-证据补齐。NetworkProxy 转到专项手册。BTF 只在 BehaviorModeling、版本依赖或加载错误指向它时
-检查，不把 BTF 未验证作为普通 BPF enforcer 不兼容的依据。
+The script is optional. A sufficient kernel version does not prove LSM enablement. Close `TO_PROVE/PARTIALLY_VERIFIED` with independent
+evidence below. Use the specialized playbook for NetworkProxy. Check BTF only when BehaviorModeling, version requirements, or load errors
+point to it; unverified BTF alone does not establish ordinary BPF-enforcer incompatibility.
 
-需要节点视图时，经已有 agent 的已确认挂载做短时定向读取；exec 进入 agent 前确认当前授权
-覆盖该容器、路径与读取动作，不能仅因命令只读就推定已获授权。已有覆盖授权无需重复询问。
-以下示例一次只选当前问题相关项，显式指定容器，并由执行工具限定 exec 时长：
+For a node view, use short, targeted reads through confirmed mounts in an existing agent. Before exec, verify current authorization
+covers that container, path, and read action; read-only does not automatically mean authorized. Do not ask again when authorization already covers it.
+Select only relevant examples, specify the container explicitly, and bound exec duration with the execution tool:
 
 ```bash
-# LSM：精确读取一个内核状态文件
+# LSM: read one exact kernel-state file.
 kubectl --context <context> -n <varmor-namespace> exec <agent-pod> -c <agent-container> -- cat /sys/kernel/security/lsm
-# AppArmor 启用状态
+# AppArmor enablement.
 kubectl --context <context> -n <varmor-namespace> exec <agent-pod> -c <agent-container> -- cat /sys/module/apparmor/parameters/enabled
-# BTF 只检查已知文件是否可读，不读取整个 BTF 文件
+# BTF: test readability of the known file; do not read its entire contents.
 kubectl --context <context> -n <varmor-namespace> exec <agent-pod> -c <agent-container> -- test -r /sys/kernel/btf/vmlinux
 ```
 
-文件不可访问时区分挂载视图、权限和能力缺失，不自动判不支持。需要挂载信息时一次读取
-`/proc/self/mountinfo` 并本地筛选，复用结果；它只描述 agent 的挂载视图。
-Seccomp 路径按 agent 参数、volumes/volumeMounts 与日志确认，不默认搜索整个 kubelet 目录。
+For inaccessible files, distinguish mount view, permissions, and missing capability; do not automatically conclude unsupported. If mount information is needed, read
+`/proc/self/mountinfo` once, filter locally, and reuse it. It describes only the agent's mount view.
+Establish Seccomp paths from agent settings, volumes/volumeMounts, and logs; do not search the entire kubelet tree by default.
 
-### 2.1 AppArmor 加载失败时的配置与运行约束
+### 2.1 Configuration and runtime constraints for AppArmor load failures
 
-按 [专项路标](../references/troubleshooting/agent-apparmor-load-failure.md) 解释日志与版本差异。
-先比较已确认 agent Pod 及其对应模板的相关字段，不用业务 Pod 的配置代替 agent 的配置：
+Use the [specialized guide](../references/troubleshooting/agent-apparmor-load-failure.md) to interpret logs and version differences.
+Compare the confirmed agent Pod and its corresponding template; application Pod settings cannot substitute for agent settings:
 
 ```bash
 kubectl --context <context> -n <varmor-namespace> get pod <agent-pod> -o jsonpath='{.spec.securityContext}{"\n"}{range .spec.containers[*]}{.name}{"\t"}{.securityContext}{"\n"}{end}'
 kubectl --context <context> -n <varmor-namespace> get ds <agent-daemonset-name> -o jsonpath='{.spec.template.spec.securityContext}{"\n"}{range .spec.template.spec.containers[*]}{.name}{"\t"}{.securityContext}{"\n"}{end}'
 ```
 
-结合 Pod 创建时间与模板修订排除旧实例；按实际容器名定向读取对应 AppArmor 旧注解，避免
-整体展示 annotations。容器字段缺失时检查 Pod 级继承及该版本的注解兼容，不直接认定受限。
-若线上 DaemonSet 模板也缺字段，向前比较安装渲染清单并调查 DaemonSet 请求；模板有而 Pod
-没有时，调查对应 Pod 请求。不要将两个层级的安全上下文路径混用。
+Exclude old instances by Pod creation time and template revision. Read the legacy AppArmor annotation for the actual container name, avoiding
+a full annotations dump. If container fields are absent, check Pod inheritance and version-specific annotation compatibility before concluding confinement.
+If fields are also missing from the live DaemonSet template, compare rendered installation manifests and investigate DaemonSet requests. If the template has them but the Pod
+does not, investigate the corresponding Pod request. Do not mix security-context paths from these object levels.
 
-已有授权覆盖时，下面两项按需选择，读取失败保留错误：
+When already authorized, select either read below as needed, retaining read errors:
 
 ```bash
-# exec 命令自身的 AppArmor 状态；若该内核不提供专用路径，可选 /proc/self/attr/current。
+# AppArmor state of the exec command itself; if this kernel lacks the dedicated path, optionally use /proc/self/attr/current.
 kubectl --context <context> -n <varmor-namespace> exec <agent-pod> -c <agent-container> -- cat /proc/self/attr/apparmor/current
-# 核对实际管理进程时，先从已有运行时/进程信息确认 PID，再定向读取。
+# For the actual management process, confirm PID from existing runtime/process information before a targeted read.
 kubectl --context <context> -n <varmor-namespace> exec <agent-pod> -c <agent-container> -- cat /proc/<confirmed-agent-pid>/attr/apparmor/current
 ```
 
-hostPID 环境下 `/proc/1` 可能指向宿主机 init，不能当作 agent 状态。exec 进程与 agent/parser
-存在 profile 切换时需分别确认；属性读取失败不能当作 `unconfined`。
+With hostPID, `/proc/1` may be the host init process; do not use it as the agent's state. If exec and agent/parser processes
+transition between profiles, inspect them separately. Failed attribute reads do not mean `unconfined`.
 
-接口问题复用已确认挂载与一次 `/proc/self/mountinfo` 读取，核对接口是否可见、挂载是否只读。
-需要权限证据时，可从已确认进程的 `/proc/<pid>/status` 等已有信息核对实际 capabilities，
-再按时间、进程、profile、operation 和路径关联有限内核审计；声明了管理能力不能代替实际状态。
-不通过加载 Profile 或写入 `.load`、`.replace` 等内核接口测试权限。
-配置差异的修改来源按专项路标追查，覆盖创建及后续更新；不预设来自 Webhook。
+For interface issues, reuse confirmed mounts and one `/proc/self/mountinfo` read to verify visibility and read-only status.
+For permission evidence, inspect actual capabilities through confirmed-process `/proc/<pid>/status` or existing information,
+then correlate bounded kernel audit by time, process, profile, operation, and path. Declared administrative capabilities cannot replace actual state.
+Do not test permissions by loading Profiles or writing kernel interfaces such as `.load` or `.replace`.
+Trace configuration changes using the specialized guide across creation and later updates; do not presume a webhook caused them.
 
-需要追查写入来源时，使用已有审计通道按 namespace、对象名/UID 和时间筛选，复用已提供记录。
-保留 auditID、stage、verb、objectRef（含 subresource）、requestURI、调用/模拟身份、userAgent、
-来源、responseStatus，以及相关字段的请求/响应差异；旧注解、容器和 Pod 级字段一并按需核对。
-Request 级别可有请求体，RequestResponse 级别可有响应体；缺失内容注明未采集，不假设总能读取。
-只展示必要的脱敏字段，不输出完整请求体。完整 UPDATE 与 PATCH 按各自语义解释，确认请求
-是否成功，再与同 UID 的前后版本关联；审计请求不等于实际写入。
-怀疑准入修改时，按同次请求的 auditID 关联 Webhook 调用与可用补丁，检查是否删除字段或替换
-其父对象；仅有“发生过 mutation”的标记不能证明修改了 AppArmor 配置。无补丁时注明证据缺口，
-不根据匹配范围或旧依赖版本直接给出确定归因。具体判读见专项路标第 4 节。
+When tracing a writer, filter existing audit channels by namespace, object name/UID, and time; reuse records already provided.
+Retain auditID, stage, verb, objectRef (including subresource), requestURI, caller/impersonated identity, userAgent,
+source, responseStatus, and relevant request/response field differences. Include legacy annotations and container/Pod fields as needed.
+Request level may include request bodies; RequestResponse may include response bodies. Mark missing content as not collected rather than assuming availability.
+Show only necessary redacted fields, not full bodies. Interpret full UPDATE and PATCH according to their own semantics, verify request
+success, and correlate same-UID before/after versions. A logged request is not proof of persistence.
+For suspected admission mutation, correlate webhook invocation and available patches within the same auditID. Check field deletion or replacement of
+a parent object; a generic "mutation occurred" annotation does not prove AppArmor settings changed. State the gap if no patch is available;
+matching scope or an old dependency version alone is not conclusive attribution. See section 4 of the specialized guide.
 
-## 3. 目标 Profile 是否落地
+## 3. Was the target Profile prepared?
 
-先使用 AP node condition 与该节点 agent 日志；只有证据不足时才补充以下检查。
+Start with AP node conditions and the relevant agent logs; add these checks only if evidence remains insufficient.
 
-- **AppArmor**：需要核对具体 Profile 时，可读取内核 Profile 列表并按已确认名称精确匹配，
-  复用一次结果。`aa-status` 是可选替代，不要求两种方式都执行；列表未包含目标也要确认读取成功。
-- **Seccomp**：确认实际挂载点与文件名后用 `test -r <exact-profile-file>` 或 `stat` 检查。
-  文件名未知才做浅层搜索，限定目录、深度和时长，不默认递归 `find`。文件存在只证明资源存在，
-  不证明容器已使用；文件可读性也是当前 agent 身份下的事实。
-- **BPF**：先从日志、AP 和已知 bpffs 对象引用定位。需要 bpftool 时优先查询已知 ID/对象；
-  没有定位线索且确有必要才枚举程序/映射，评估节点开销并限制时长。关键词可发现候选，
-  名称无匹配不能直接写“没有 vArmor 程序”。
+- **AppArmor**: Read the kernel Profile list when needed, match the confirmed name exactly,
+  and reuse one result. `aa-status` is an optional alternative; both are not required. Absence from the list is meaningful only after a successful read.
+- **Seccomp**: After confirming mount point and filename, use `test -r <exact-profile-file>` or `stat`.
+  Search only when the filename is unknown, bounding directory, depth, and time rather than using unrestricted recursive `find`. Existence proves resource presence,
+  not container use; readability is also specific to the current agent identity.
+- **BPF**: Identify objects through logs, AP, and known bpffs references. If bpftool is needed, query known IDs/objects first;
+  enumerate programs/maps only when no locator exists and necessary, after assessing node cost and bounding duration. Keywords discover candidates;
+  no matching name does not establish "no vArmor program".
 
-加载成功后仍需核对实际 Pod 的 Profile 引用和运行时身份，见 `workload.md` 与 `audit.md`。
-Seccomp 规则变化需要新容器生效，不能由文件存在或 AP Ready 推断旧容器已更新。
+After successful loading, still verify actual Pod Profile references and runtime identity; see `workload.md` and `audit.md`.
+Seccomp changes require new containers; file presence or AP Ready does not prove an old container was updated.
 
-## 4. 内核异常分支
+## 4. Kernel failure branch
 
-节点事件、agent 错误与已收集内核日志先按故障时间关联。需要 journal/kernel 日志时限定
-时间与读取量，优先现有节点日志通道，不创建特权调试 Pod 或进入宿主命名空间。
-BPF 加载与 BUG/Oops/Call Trace 同时出现只能先建立时间关联；建议按节点风险处理，
-不要通过反复加载 Profile 验证。隔离节点、切换 enforcer、升级内核只提供建议。
+Correlate node events, agent errors, and existing kernel logs by failure time first. For journal/kernel logs, bound
+time and volume and prefer existing node-log channels. Do not create privileged debug Pods or enter host namespaces.
+BPF loading coinciding with BUG/Oops/Call Trace establishes timing only. Recommend treating it as a node risk;
+do not validate through repeated Profile loading. Node isolation, enforcer changes, and kernel upgrades are recommendations only.
 
-## 可选汇总要点
+## Optional summary points
 
-当前节点与 agent 身份、失败 AP 条件、相关能力证据、Profile 落地与实际使用的区别，
-以及节点风险、未确认项和最小下一探针。仅汇总已采集且与问题相关的项。
+Summarize current node/agent identity, failed AP conditions, relevant capability evidence, Profile preparation versus actual use,
+node risk, unconfirmed points, and the smallest next probe. Include only collected facts relevant to the issue.

@@ -1,31 +1,32 @@
-# varmor-classifier 与 BehaviorModeling
+# varmor-classifier and BehaviorModeling
 
-## 角色
+## Role
 
-classifier 是行为建模场景的辅助 DaemonSet，不是普通 EnhanceProtect/RuntimeDefault/AlwaysAllow 防护的必需组件。它帮助处理节点采集的行为数据，尤其是路径中的随机元素；manager 再汇总跨节点数据并生成 APM/Profile。
+The official Chart deploys the classifier as a Deployment behind a Service. Agents call it to classify random path elements during local behavior preprocessing; agents then report their results to the manager, which aggregates cross-node data into APM/Profiles. The classifier does not need a Pod on each node and does not report modeling results to the manager itself. It is not a prerequisite for ordinary EnhanceProtect/RuntimeDefault/AlwaysAllow protection.
 
-## 建模链路
+## Modeling chain
 
 ```text
-目标 Workload 行为 → agent/audit/BPF 采集 → classifier 归一化/上报 → manager 汇总、建模、持久化 → ArmorProfileModel → 后续分析或 DefenseInDepth
+Target workload behavior -> agent/audit/BPF collection -> agent preprocessing (calls classifier Service for random paths) -> agent reports to manager -> manager aggregation, profile generation, persistence -> ArmorProfileModel -> subsequent analysis or DefenseInDepth
 ```
 
-任一段失败都可能表现为“建模没有数据”，但根因不同。
+Failure at any stage may look like "no modeling data", but the causes differ.
 
-## 前置条件
+## Prerequisites
 
-重点核对 containerd、BTF、审计日志来源、BehaviorModeling 开关、agent/classifier 资源和节点覆盖。行为数据过大时，APM 可能使用本地磁盘而不是 CRD 内部存储，需结合 `storageType` 判断可见性。
+Check containerd, BTF, audit-log sources, BehaviorModeling flags, agent node coverage, and classifier Deployment/Service availability and resources. Large behavior datasets may use local disk instead of inline CRD storage; interpret visibility using `storageType`.
 
-## 典型故障
+## Typical failures
 
-- **classifier 不存在**：只有在行为建模功能启用时才是异常；
-- **未覆盖节点**：该节点行为不会进入完整模型；
-- **Running 但无数据**：区分采集能力、审计来源、classifier 上报、manager 接收和持久化；
-- **建模一直未完成**：结合策略 phase、duration、目标 Pod 是否重新进入建模、APM desired/completed/ready 和 manager 日志；
-- **完成后切换失败**：BehaviorModeling 与其他模式存在生命周期限制，以策略 status 和当前版本校验结果为准。
+- **Classifier absent**: abnormal only when behavior modeling is enabled;
+- **Node not covered by an agent**: that node's behavior cannot contribute to a complete model;
+- **Classifier unavailable**: inspect Service endpoints and agent-to-classifier requests. The current preprocessor retains the original path when classification fails, so this may reduce path generalization without preventing all modeling data;
+- **Running but no data**: distinguish collection capability, audit source, agent preprocessing/reporting, manager receipt, and persistence;
+- **Modeling never completes**: correlate policy phase, duration, whether target Pods re-entered modeling, APM desired/completed/ready, and manager logs;
+- **Transition fails after completion**: transitions between BehaviorModeling and other modes have lifecycle restrictions; use policy status and validation for the actual version.
 
-行为建模只描述“观察到的行为”，不证明行为完整，也不自动等于安全许可清单。
+Behavior modeling describes observed behavior only. It proves neither completeness nor that observed actions should be allowed.
 
-## 建议方向（仅建议）
+## Recommendations only
 
-先确认采集链和数据完整性，再考虑用模型生成或调整防护 Profile。不要把“建模完成”直接当作“策略已经启用”，也不要未经确认用观察数据替代最小权限审查。
+Establish collection-chain health and data completeness before considering model-based Profile generation or changes. Do not equate completed modeling with active protection, or replace least-privilege review with observed data without approval.

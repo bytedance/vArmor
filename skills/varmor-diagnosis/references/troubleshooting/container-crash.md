@@ -1,29 +1,29 @@
-# Container Crash / CrashLoopBackOff 诊断路标
+# Container Crash / CrashLoopBackOff diagnosis guide
 
-## 入口信号
+## Entry signals
 
-容器反复重启、非零退出、SIGSYS、Permission denied、Operation not permitted、Bad system call，或 NetworkProxy sidecar/initContainer 异常。
+Repeated container restarts, nonzero exit, SIGSYS, Permission denied, Operation not permitted, Bad system call, or NetworkProxy sidecar/initContainer failures.
 
-## 证据分流
+## Evidence routing
 
-1. 看 lastState、退出码/信号、事件和崩溃前日志；
-2. 关联 Pod 使用的 Profile、策略模式和 enforcer；
-3. 关联节点状态和内核日志，判断是容器级拒绝还是节点级异常；
-4. 用审计事件的 profileName、Pod UID、nodeName、action 和时间确认处置；
-5. 若临时进入观察模式或 AlwaysAllow，只作为受控二分验证，说明安全风险和回滚条件。
+1. Inspect lastState, exit code/signal, events, and logs immediately before the crash;
+2. Correlate the Pod's Profile, policy mode, and enforcer;
+3. Correlate node status and kernel logs to distinguish container denials from node failures;
+4. Confirm disposition with audit profileName, Pod UID, nodeName, action, and time;
+5. If temporarily switching to observation or AlwaysAllow is proposed, treat it as a controlled isolation experiment and explain security risks and rollback conditions.
 
-## 典型信号
+## Typical signals
 
-- `Permission denied`/`EACCES`：优先检查 AppArmor/BPF 文件、能力、挂载和路径规则；
-- `SIGSYS`/`Bad system call`：优先检查 Seccomp syscall 规则；
-- `EPERM`：可能来自 BPF、Seccomp、能力、NetworkProxy 或业务自身，不能单独定性；
-- 节点 NotReady、重启、kernel BUG/Oops/Call Trace：优先按节点/BPF 内核问题处理；
-- NetworkProxy sidecar/init 失败或应用 TLS 错误：检查代理注入、证书、端口、重定向和 MITM 配置。
+- `Permission denied`/`EACCES`: prioritize AppArmor/BPF file, capability, mount, and path rules;
+- `SIGSYS`/`Bad system call`: prioritize Seccomp syscall rules;
+- `EPERM`: may originate from BPF, Seccomp, capabilities, NetworkProxy, or the application; insufficient for attribution alone;
+- Node NotReady, reboots, kernel BUG/Oops/Call Trace: prioritize node/BPF kernel issues;
+- NetworkProxy sidecar/init failure or application TLS errors: inspect proxy injection, certificates, ports, redirection, and MITM.
 
-## Enforcer 归因顺序
+## Enforcer attribution order
 
-先区分业务容器、initContainer 和 NetworkProxy sidecar，再关联各自的 Profile、enforcer、节点加载状态和审计事件。错误码只能作为线索；没有 Profile、Pod UID、时间和 action 的闭合证据，不直接判定为 vArmor 拦截。
+First distinguish application container, initContainer, and NetworkProxy sidecar, then correlate each one's Profile, enforcer, node loading, and audit events. Error codes are clues only; do not conclude vArmor denied an operation without correlated Profile, Pod UID, time, and action evidence.
 
-## 结论边界
+## Conclusion boundaries
 
-只有在 Profile、enforcer、时间和审计/日志证据闭合时，才能判定 vArmor 拦截；否则保留业务、runtime、节点或其他安全机制作为未排除项。
+Attribute denial to vArmor only with correlated Profile, enforcer, time, and audit/log evidence. Otherwise retain application, runtime, node, or other security mechanisms as unexcluded possibilities.

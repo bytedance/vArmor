@@ -1,93 +1,93 @@
-# 策略优化收敛回路与证据边界
+# Policy Optimization Convergence Loop and Evidence Boundaries
 
-## 1. 核心思路
+## 1. Core approach
 
-用户提供一个待优化的 `EnhanceProtect` 策略，以**观察模式**运行。业务实际运行时，
-触发的违规行为只记录、不拦截。每次读取一个固定时间区间的违规日志，把触发日志归因到 Policy
-中的源规则，先向用户汇报，再根据用户决定移除规则，使策略逐步收敛到最贴近业务的形态。
+The user provides an `EnhanceProtect` policy to optimize in **observation mode**. During actual application execution,
+violations are logged without blocking. Read violation logs from a fixed interval, attribute events to source rules in the Policy,
+report to the user first, then remove rules according to the user's decisions so the policy gradually converges toward application needs.
 
-违规日志应当**越触发越少**。一次优化只依赖**已确认的时间戳闭区间 + 起点策略快照 + 当前
-策略**；快照是可复核文件，用于证明观察期间策略身份和 spec 未漂移，不依赖隐藏轮次状态。
-策略成功生效并确认窗口后，创建独立任务记录，后续从该记录恢复范围和证据。
+Violation logs should **decrease over successive rounds**. Each optimization relies only on the **confirmed closed timestamp interval + start policy snapshot + current
+policy**. The snapshot is a reviewable file proving policy identity/spec stability during observation; no hidden round state is required.
+After successful activation and window confirmation, create an independent task record; later restore scope and evidence from that record.
 
-## 2. 观察周期与任务安排
+## 2. Observation periods and task scheduling
 
-观察周期需要在覆盖率、日志保留和分析成本之间取舍：
+Balance observation coverage, log retention, and analysis cost:
 
-- 太短：可能覆盖不到启动、发布、扩缩容、故障切换和低频定时任务。
-- 太长：`violations.log` 可能轮转覆盖早期事件，单次分析量也会增大。
-- 默认在观察期增量保存日志，到期自动过滤、归一化和聚合；轮转前已读取的数据保留在本地，
-  不把完整性寄托于 end 后仍保留的备份。频率、容量及缺口边界见 [增量采集](incremental-collection.md)。
-- 优先覆盖一个有代表性的业务周期；若违规速率高或日志保留短，使用更短窗口并多次收敛。
-- 对能够主动触发主要行为的测试业务，可先建议约两小时，再根据实际业务量和违规速率调整。
+- Too short: May miss startup, release, scaling, failover, and infrequent scheduled tasks.
+- Too long: `violations.log` may rotate away early events, and each analysis grows larger.
+- Default to incremental preservation during observation, followed by automatic filtering, normalization, and aggregation at expiry. Preserve already-read data locally before rotation;
+  do not rely on backups surviving beyond end. See [incremental collection](incremental-collection.md) for frequency, capacity, and gap boundaries.
+- Prefer a representative application cycle; use shorter windows and multiple convergence rounds for high violation rates or short retention.
+- For test applications whose main behaviors can be triggered actively, suggest roughly two hours initially, then adjust to actual activity and violation rates.
 
-模型根据业务节奏、预期操作和当前日志速率提出周期建议，由用户确认 `start`、`end`。通常建议
-进行 3～5 个周期，但以代表性行为覆盖和违规收敛情况为准，不强制固定次数。
+Propose a period based on application cadence, planned operations, and current log rate; the user confirms `start` and `end`. Usually suggest
+3-5 cycles, but prioritize representative coverage and convergence rather than enforcing a fixed count.
 
-无论智能体是否支持调度，都先生成 `templates/observation-task.json` 格式的任务记录。一次性
-定时任务、提醒和用户手动继续只是触发入口，统一携带任务记录路径。增量脚本独立采集并在 end
-生成预处理输入；自动触发适合读取该输入和完成归因
-汇总；删除范围和最终 CRD 更新分别由用户决定。
+Always generate a task record matching `templates/observation-task.json`, regardless of scheduling support. One-shot
+scheduled tasks, reminders, and manual continuation are only triggers carrying the task-record path. The incremental script collects independently and produces preprocessed input at end;
+automatic triggers can read that input and summarize
+attribution, while the user separately decides deletion scope and final CRD updates.
 
-### 与行为建模（BehaviorModeling）的区别
+### Difference from BehaviorModeling
 
-二者相似但技术路径不同：
+The approaches are similar but follow different technical paths:
 
-| 维度 | 本方案（观察日志收敛） | BehaviorModeling |
+| Dimension | This approach (observation-log convergence) | BehaviorModeling |
 |---|---|---|
-| 模式 | EnhanceProtect + 观察开关 | BehaviorModeling |
-| 路径 | 读违规日志 → 归因确认 → 移除源规则 | 采集全量行为 → 生成模型 Profile |
-| 重量 | 轻，门槛低 | 重，前置条件多 |
-| 周期 | 可很长，多次收敛 | 固定建模时长 |
-| 趋势 | 违规日志逐次减少 | 一次性产出 APM |
+| Mode | EnhanceProtect + observation switches | BehaviorModeling |
+| Path | Read violation logs -> confirm attribution -> remove source rules | Collect full behavior -> generate model Profile |
+| Cost | Lightweight, fewer prerequisites | Heavier, more prerequisites |
+| Period | Can be long, with repeated convergence | Fixed modeling duration |
+| Trend | Violation logs decrease each round | One-time APM output |
 
-## 3. 两个阶段
+## 3. Two phases
 
-两个阶段是可异步进入的能力划分，不要求在一次调用中顺序完成。一次调用可以为多个策略建立任务，
-也可以收敛多个已有任务；每个任务的窗口和证据独立。
+These are independently enterable asynchronous capabilities; they need not run sequentially in one invocation. One invocation may establish tasks for several policies
+or converge several existing tasks; every task retains an independent window and evidence.
 
-1. **建立观察任务**：校验、规范化用户策略，确认后下发 VP/VCP，并为每个策略和窗口保存任务记录。
-2. **周期性收敛**：读取固定闭区间违规日志并汇报归因，根据用户决定生成候选，确认后更新 CRD，
-   再按需进入下一观察周期。
+1. **Establish observation tasks**: Validate and normalize user policies, submit VP/VCP after confirmation, and save a task record for each policy/window.
+2. **Periodic convergence**: Read the fixed closed-interval logs and report attribution, generate a candidate from user decisions, update the CRD after confirmation,
+   and start another observation period if needed.
 
-## 4. 证据边界（必须遵守）
+## 4. Evidence boundaries (mandatory)
 
-- 时间窗口来自任务记录中的**闭区间 `[start, end]`**。首次正式采集前，用户可明确提前结束观察：
-  保留原 `plannedEnd`，将实际 `end` 更新为已到时间并记录原因；采集开始后范围固定。不得从
-  YAML、文件名或日志内容反推范围。
-  运行中的增量任务按用户要求通过 close 请求提前结束，并由采集器确认实际 end；最终归因开始后
-  不再修改窗口，不能通过人工编辑 collector.json 改写采集证据。
-- 快照必须记录创建时间 `capturedAt`，窗口起点不得早于该值，并绑定策略 UID、generation、
-  spec 哈希和 profileName。缺少快照、时间范围无效或校验不一致时，旧窗口只能用于只读分析，
-  不能产生删除候选；不得在窗口结束后补造起点快照。
-- 默认增量采集在 start 前完成全部节点初始化，日志行与文件位置事务提交，end 后每节点做两次
-  排空读，第二次开始不早于第一次完成后一个扫描周期，再自动预处理。无法恢复的缺口、拓扑漂移、
-  晚初始化、无法验证连续性的进程中断、未排空或缺少确认读均无删除资格。快照回退每个节点的日志复制必须在
-  窗口结束后开始；节点日志携带采集起点并验证各文件完成时间，manifest 分别记录
-  `collectedAt` 与 `manifestBuiltAt`，不得用预处理时间冒充采集时间。起止两份 agent inventory
-  都要完整，采集节点取两端并集；节点增删、agent Pod UID/DaemonSet 身份变化、起止 NotReady、
-  terminating、缺失或未采集均阻断删除。增量窗内单次读取失败或同 UID 的 NotReady 先记疑点，
-  仅当原活动文件检查点仍保留、指纹连续、游标追平且 Ready 恢复时解除，并保留恢复依据；
-  采集器重启必须逐节点验证中断前检查点、原身份及游标连续，不能用新建游标替代。
-  节点扩缩容和 DaemonSet desired/current 数变化仍阻断整策略删除，原节点证据可只读分析。
-  具体执行见 [增量采集](incremental-collection.md)。
-- 仅当策略包含 NetworkProxy 时应用其版本/runtime 日志矩阵；`<v0.10.3`、版本未知或 micro-VM
-  将确定性标记 `networkProxyEvidenceEligible=false`，后续各层拒绝该来源的删除。
-- 只能**移除当前策略中已存在的原子规则**。不新增规则、不改写规则内容、不改模式/target/
-  enforcer，也不动 `privileged`、`auditViolations`、`allowViolations`、NetworkProxy
-  `defaultAction` 等控制字段。
-- 归因必须基于"当前策略中的实际原子规则 + 日志中的实际 enforcer + 充分的事件字段"。
-  不得因规则名相似、行为看似高风险或主观判断而关联或删除。
-- 一个事件可关联多条规则；关联不等于立即删除。最终必须通过确定性脚本的删除资格与 diff 校验。
-- 证据不足时保持未匹配（`matches=[]`），不要强行归因，更不要删除。
-- 违规日志描述的是"被记录到的运行时行为"，不是工作负载所有可能行为的完整集合。无日志不等于
-  该行为不存在。
+- The window is the **closed interval `[start, end]`** from the task record. Before the first formal collection, the user may explicitly end observation early:
+  retain original `plannedEnd`, set actual `end` to an already-reached time, and record why. Once collection starts, scope is fixed. Never infer scope
+  from YAML, filenames, or log contents.
+  For an active incremental task, submit a close request according to user instructions and let the collector confirm actual end. Once final attribution starts,
+  do not modify the window or manually edit collector.json to rewrite collection evidence.
+- A snapshot must record `capturedAt`, which must not be later than the window start, and bind policy UID, generation,
+  spec hash, and profileName. Missing snapshots, invalid time ranges, or inconsistent validation make old windows read-only analysis inputs,
+  ineligible for deletion candidates. Never fabricate a start snapshot after the window ends.
+- Default incremental collection initializes every node before start and commits log lines/file positions transactionally. After end, each node needs two
+  draining reads; the second starts at least one scan interval after the first completes, followed by automatic preprocessing. Unrecoverable gaps, topology drift,
+  late initialization, process interruptions without verified continuity, undrained data, or missing confirmation reads make deletion ineligible. In snapshot fallback, every node log copy must begin
+  after the window ends. Node logs carry collection start times and validate completion times for every file; the manifest records
+  `collectedAt` and `manifestBuiltAt` separately. Never substitute preprocessing time for collection time. Both start/end agent inventories
+  must be complete; collect the node union. Node additions/removals, agent Pod UID/DaemonSet identity changes, start/end NotReady,
+  terminating, missing, or uncollected nodes block deletion. A single incremental read failure or NotReady with the same UID is initially suspected;
+  resolve only if original active-file checkpoints remain, fingerprints are continuous, cursors catch up, and Ready recovers; retain the recovery basis.
+  Collector restart requires per-node verification of pre-interruption checkpoints, original identities, and cursor continuity; newly created cursors cannot replace them.
+  Node scaling and DaemonSet desired/current count changes still block deletion across the policy; original-node evidence remains available for read-only analysis.
+  See [incremental collection](incremental-collection.md) for execution details.
+- Apply the NetworkProxy version/runtime log matrix only when the policy includes it. Versions `<v0.10.3`, unknown versions, or micro-VM
+  deterministically set `networkProxyEvidenceEligible=false`; later layers reject deletions from that source.
+- Only **remove atomic rules already present in the current policy**. Do not add rules, rewrite rule contents, change mode/target/
+  enforcer, or modify control fields such as `privileged`, `auditViolations`, `allowViolations`, or NetworkProxy
+  `defaultAction`.
+- Attribution requires actual atomic rules in the current policy, the actual enforcer in logs, and sufficient event fields.
+  Similar rule names, apparently high-risk behavior, or subjective judgments do not justify attribution or deletion.
+- One event may match multiple rules; association does not imply immediate deletion. Deterministic deletion-eligibility and diff checks remain mandatory.
+- Retain unmatched results (`matches=[]`) when evidence is insufficient; do not force attribution or delete.
+- Violation logs describe recorded runtime behavior, not every possible behavior of the workload. Absence of logs does not establish
+  absence of behavior.
 
-## 5. 两层职责
+## 5. Two responsibility layers
 
-| 层 | 承担者 | 职责 |
+| Layer | Owner | Responsibility |
 |---|---|---|
-| 确定性层 | scripts/ | 结构解析、规则表、enforcer 兼容、规则原子化、Seccomp 计划、仅删除 diff、schema |
-| 模型层 | 主模型 | 自定义规则理解、聚合事件到当前原子规则的确定归因 |
+| Deterministic | scripts/ | Structure parsing, catalog, enforcer compatibility, rule atomization, Seccomp plans, deletion-only diffs, schema |
+| Model | Primary model | Custom-rule interpretation and evidence-based attribution from aggregated events to current atomic rules |
 
-模型不直接产出并下发未经脚本校验的 YAML；任何写操作前都要重新解析、校验并取得用户确认。
+The model must not generate and submit YAML without script validation; reparse, validate, and obtain user confirmation before every write.

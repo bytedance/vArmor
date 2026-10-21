@@ -1,31 +1,31 @@
-# vArmor 组件异常诊断路标
+# Unhealthy vArmor component diagnosis guide
 
-## 入口信号
+## Entry signals
 
-manager/agent/classifier Pod 不 Ready、反复重启、OOMKilled、ImagePullBackOff、功能假活，或对应的 AP/Webhook/建模链路异常。
+Manager/agent/classifier Pods not Ready, repeated restarts, OOMKilled, ImagePullBackOff, functional failure despite readiness, or associated AP/webhook/modeling failures.
 
-## 分组件判断
+## Assess each component
 
-- **manager**：Leader、reconcile、CRD/RBAC、Webhook、证书、API Server；
-- **agent**：节点覆盖、AP 处理、Profile load、内核/LSM/BTF/runtime；
-- **classifier**：仅在 BehaviorModeling 启用时关注采集、归一化和上报；
-- **NetworkProxy 相关 Pod/sidecar**：注入、Secret、证书、资源、端口和 readiness。
+- **Manager**: Leader, reconciliation, CRD/RBAC, webhooks, certificates, API server;
+- **Agent**: Node coverage, AP processing, Profile loading, kernel/LSM/BTF/runtime;
+- **Classifier**: Shared Deployment/Service for random-path classification during BehaviorModeling; node agents perform collection, preprocessing, and reporting;
+- **NetworkProxy Pods/sidecars**: Injection, Secret, certificates, resources, ports, and readiness.
 
-## 诊断层次
+## Investigation layers
 
-manager 异常主要影响策略编译、reconcile 和 Webhook；agent 异常主要影响节点 Profile 加载；NetworkProxy sidecar 异常主要影响注入后的转发和规则执行；classifier 主要影响 BehaviorModeling。组件 Pod Running/Ready 不能替代 VP/VCP、AP、Pod 实际配置和运行时事件证据。
+Manager failures primarily affect compilation, reconciliation, and webhooks; agent failures affect node Profile loading; NetworkProxy sidecar failures affect post-injection forwarding/enforcement; classifier failures primarily affect BehaviorModeling. Component Running/Ready cannot replace VP/VCP, AP, actual Pod configuration, and runtime-event evidence.
 
-agent 正常运行但 AppArmor Profile 加载失败，尤其出现内核接口发现或访问错误时，进入
-[AppArmor 加载失败](agent-apparmor-load-failure.md)，核对 agent 自身的配置和实际运行条件。
+If the agent runs normally but AppArmor loading fails, especially with kernel-interface discovery/access errors, use
+[AppArmor load failure](agent-apparmor-load-failure.md) to inspect the agent's own configuration and actual runtime conditions.
 
-## 证据顺序
+## Evidence order
 
-先看 Pod 状态、lastState、事件和资源，再看组件日志；manager 异常时关联 Leader 和 Webhook；agent 异常时关联节点与 AP node condition；classifier 异常时关联 APM 和上报链路。
+Inspect Pod status, lastState, events, and resources before component logs. Correlate manager failures with Leader/webhooks, agent failures with node/AP conditions, and classifier failures with APM/reporting.
 
-## 常见根因
+## Common causes
 
-RBAC/配置/CRD 版本不一致、镜像或资源问题、节点污点/资源/挂载、内核能力不满足、证书/Endpoint、API Server 限流或行为建模存储不足。Running 但 AP/建模/代理不前进时，按假活处理。
+RBAC/configuration/CRD version mismatches, image/resources, node taints/resources/mounts, missing kernel capabilities, certificates/endpoints, API server throttling, or insufficient modeling storage. Running with stalled AP/modeling/proxy progress indicates a functional-health failure.
 
-## 修复方向
+## Remediation direction
 
-优先恢复控制面可用性和节点覆盖，再处理策略内容。任何重启、扩容、重建、切换模式或修改安全策略的建议都要说明影响、范围和回滚方案。
+Restore control-plane availability and node coverage before policy content. Explain impact, scope, and rollback for any recommended restart, scaling, recreation, mode switch, or policy change.

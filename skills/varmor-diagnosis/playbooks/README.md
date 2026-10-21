@@ -1,94 +1,94 @@
-# vArmor 诊断 Playbooks
+# vArmor diagnosis playbooks
 
-## 定位与使用
+## Purpose and use
 
-手册提供 vArmor 特有的检查点、查询示例和判读依据。模型负责根据症状与现场事实选择命令、
-关联对象和调整排查路径；示例不是固定流水线，也不是允许执行的命令白名单。
-通用 Kubernetes 查询与故障处理由模型判断，领域原理按需查 `references/`。
+These playbooks provide vArmor-specific checkpoints, query examples, and interpretation guidance. Choose commands,
+correlate objects, and adapt the investigation to symptoms and actual facts. Examples are neither a fixed pipeline nor a command allowlist.
+Use your judgment for general Kubernetes queries/troubleshooting; consult `references/` for domain principles as needed.
 
-用户已指定 Pod、策略、Workload 或节点时从该对象开始；范围不清时用 `overview.md` 做有限发现。
-组件异常看 `component.md`，策略/AP 看 `policy.md`，注入看 `webhook.md` 与 `workload.md`，
-节点加载看 `node.md`，运行时拒绝看 `audit.md`；NetworkProxy 和 BehaviorModeling 有专项手册。
-找到足以解释现象的断点后，围绕该断点补齐原因或验证，不为了完整而遍历其他环节。
+Start from a user-specified Pod, policy, workload, or node. When scope is unclear, use `overview.md` for limited discovery.
+Use `component.md` for component health, `policy.md` for policy/AP issues, `webhook.md` and `workload.md` for injection,
+`node.md` for node loading, and `audit.md` for runtime denials. NetworkProxy and BehaviorModeling have specialized playbooks.
+Once a break adequately explains the symptom, establish its cause or verification; do not traverse unrelated stages for completeness.
 
-## 用小动作补齐证据
+## Close evidence gaps with small actions
 
-每次查询应回答一个当前问题。通常先读目标对象状态和关联事件，再读相关组件的有限日志，
-只有这些信息不足时才进入容器或节点视图。已获得的对象身份、配置和查询结果可直接复用；
-需要验证状态变化时才重新读取。
+Each query should answer a current question. Usually inspect target status and related events first, then bounded component logs,
+and enter container/node views only if insufficient. Reuse established object identities, configurations, and results;
+read again only when verifying a state change.
 
-- **发现范围**：优先 namespace、资源类型、label/field selector、owner 和节点约束。关键词搜索
-  可以发现候选，归属仍需结合对象引用、owner、镜像、策略和版本核实。没有定位线索时可做一次
-  有限摘要列表，再缩到相关对象；不默认遍历全节点、全 Pod 或全量历史日志。
-- **读取成本**：优先精确文件或字段，其次浅层目录/有界列表。日志尽量同时限定时间和行数，
-  高流量时再限制字节数；必要时把有限原始片段存到受限本地文件后分析。`grep/head/tail` 在本地
-  截短输出不等于限制了远端读取、传输或扫描。单对象 `-o json` 可用于本地解析，避免重复 GET；
-  jsonpath/custom-columns 主要限制展示，不应把它们当作服务端字段裁剪。
-- **节点影响**：容器 exec 优先短时、定向只读命令，例如读取一个 LSM 状态文件、检查一个
-  Profile 文件或查看监听端口。目录搜索限定路径、深度和超时；先定位对象，再考虑 BPF 全表
-  枚举或较大日志读取。节点 NotReady、OOM 或内核异常时减少远端探测，优先已有日志/API 证据。
-- **失败处理**：区分查询失败、对象不存在、未匹配和证据不足。保留 stderr 与退出状态；复杂
-  管道可使用 pipefail 或显式检查，不让过滤器的成功掩盖 kubectl 失败。命令缺失时选择等价
-  低影响路径，不自动安装工具或创建调试容器。
-- **参数与时间**：自动发现并传递实际名称、scope、容器、路径和故障窗口，不执行未解析占位符。
-  exec 显式选择容器。对远端查询和 exec 设置合理超时；kubectl request timeout 用于 API 请求，
-  长时间 exec 另由执行工具或可用的 timeout 控制，不假设它会终止容器内进程。
+- **Discovery scope**: Prefer namespace, resource kind, label/field selectors, owners, and node constraints. Keywords
+  can discover candidates, but verify ownership through references, owner, image, policy, and version. Without a locator, perform one
+  bounded summary list, then narrow to relevant objects. Do not scan all nodes, Pods, or historical logs by default.
+- **Read cost**: Prefer exact files/fields, then shallow directories/bounded lists. Bound logs by both time and lines,
+  adding byte limits for high volume. Save bounded raw excerpts locally with restricted permissions if needed. Local `grep/head/tail`
+  truncation does not bound remote reads, transfer, or scanning. A single-object `-o json` can support local parsing and avoid repeated GETs;
+  jsonpath/custom-columns mainly limit display, not server-side field projection.
+- **Node impact**: Prefer short, targeted, read-only exec commands: one LSM-state file, one
+  Profile file, or listening ports. Bound directory searches by path, depth, and timeout. Locate objects before considering full BPF-table
+  enumeration or large logs. For node NotReady, OOM, or kernel errors, reduce remote probing and prefer existing logs/API evidence.
+- **Failures**: Distinguish query failure, absent objects, no matches, and insufficient evidence. Retain stderr and exit status. Complex
+  pipelines may use pipefail or explicit checks so filter success cannot hide kubectl failure. If a command is unavailable, choose an equivalent
+  low-impact path; do not automatically install tools or create debug containers.
+- **Parameters and time**: Discover and propagate actual names, scope, containers, paths, and failure windows; never execute unresolved placeholders.
+  Specify exec containers explicitly and apply reasonable remote-query/exec timeouts. kubectl request timeout bounds API requests;
+  bound long exec separately using the execution tool or available timeout utility, without assuming this kills the remote process.
 
-无需向用户逐项播报这些例行设置；说明重要发现、范围扩大和影响即可。
+Do not narrate every routine setting. Communicate material findings, scope expansion, and impact.
 
-## 操作边界与授权
+## Operational boundaries and authorization
 
-本 skill 只做诊断。策略修改、资源删除/重建、滚动更新、加载或卸载 Profile、修改网络规则、
-调整节点状态等只提供建议，不执行。不要为取证新建特权 Pod、进入宿主命名空间或扩大权限。
+This Skill diagnoses only. Policy changes, resource deletion/recreation, rollouts, Profile load/unload, network-rule changes,
+and node-state changes are recommendations only. Do not create privileged Pods, enter host namespaces, or broaden privileges for evidence collection.
 
-风险按**实际动作、访问范围、资源成本与外部影响**判断。以下等级用于说明影响，不是固定审批
-流水线；privileged/hostPath/hostNetwork 是风险因素，不把所有进入此类容器的命令等同于写操作：
+Assess impact by **actual action, access scope, resource cost, and external effects**. These levels describe impact rather than a fixed approval
+pipeline. privileged/hostPath/hostNetwork are risk factors; not every command inside such containers is a write:
 
-| 等级 | 典型动作 | 执行考虑 |
+| Level | Typical action | Execution considerations |
 |---|---|---|
-| L0 | 目标对象状态、关系和摘要 API 查询 | 当前诊断范围内自主执行 |
-| L1 | 有界日志、事件、相关配置与证书元数据读取 | 限定范围，处理敏感信息 |
-| L2 | 已确认容器中的定向只读状态/文件/监听检查；包括经已有 agent 挂载读取已确认的内核状态 | 评估具体路径与命令，限定容器、读取量和时长；当前授权需覆盖该访问 |
-| L3 | 主动连通性/业务请求、port-forward、访问代理管理端点 | 明确目标、请求影响和总时限；使用覆盖该动作的授权，结束后清理转发 |
-| L4 | 大范围或高成本节点取证、敏感宿主数据访问；集群/节点状态变更 | 只读取证仅在必要且授权覆盖具体范围时进行；状态变更只建议 |
+| L0 | Target-object status, relationships, and summary API queries | Execute autonomously within the current investigation scope. |
+| L1 | Bounded logs/events, relevant configuration, and certificate metadata | Bound scope and handle sensitive information. |
+| L2 | Targeted read-only state/file/listener checks in a confirmed container, including confirmed kernel state through existing agent mounts | Assess exact path/command; bound container, volume, and duration; current authorization must cover access. |
+| L3 | Active connectivity/application requests, port-forward, or proxy admin endpoints | Establish target, request effects, and total timeout; use authorization covering the action and clean up forwarding afterward. |
+| L4 | Broad/expensive node evidence collection or sensitive host data; cluster/node changes | Read-only collection only when needed and specifically authorized; state changes are recommendations only. |
 
-先核实并展示目标 context；用户已经指定集群或当前授权已覆盖时无需再次确认。不自动切换
-context，后续命令尽量显式绑定它。仅介绍流程或分析用户提供的材料时不要求连接集群。
-授权可来自用户对当前范围的许可或执行平台覆盖相应动作的审批/访问策略。同一范围无需逐条
-确认；目标不清、超出原范围或影响明显升级时才询问。RBAC 和命令可执行性只证明技术权限。
+Verify and show the target context first. Do not seek confirmation again when the user specified the cluster or current authorization covers it. Do not switch
+contexts automatically; bind later commands explicitly where possible. Explaining workflows or analyzing supplied material does not require cluster access.
+Authorization may come from the user's permission for the current scope or platform approval/access policy covering the action. Do not confirm every command
+within the same scope; ask when the target is unclear, scope expands, or impact materially increases. RBAC and command executability establish technical access only.
 
-## 可选脚本
+## Optional scripts
 
-脚本用于容易遗漏的结构处理和重复判断，不选择诊断路径，也不是结论门禁。
-简单字段优先原生命令；完整 selector、规则元数据或批量注入字段提取可借助脚本。
-已有材料足够时不必为了完成步骤重跑脚本；也可使用等价 kubectl/本地解析，保留同样的语义。
-调用脚本时按其接口从 Skill 根目录执行，或使用绝对路径，并绑定目标与 context。
+Scripts help with error-prone structures and repeated judgments; they do not choose the diagnostic path or gate conclusions.
+Prefer native commands for simple fields. Scripts help with full selectors, rule metadata, or batches of injection fields.
+Do not rerun scripts merely to complete a step when evidence is sufficient. Equivalent kubectl/local parsing is acceptable if semantics are preserved.
+Follow script interfaces, invoke from the Skill root or with absolute paths, and bind target/context.
 
-脚本输出是辅助证据：`ERROR` 是失败，`TO_PROVE/PARTIALLY_VERIFIED` 是能力未闭合；
-`REVIEW_REQUIRED/UNASSESSED/APM_DATA_UNAVAILABLE` 不能排除规则冲突，APM 未命中也只能说明
-给定样本未命中。模型可用独立证据补齐待证明项，不必为获得某个脚本状态反复查询。
-注入脚本仅提取事实，归属与生命周期仍需模型解释。脚本 catalog 有版本边界，实际对象和
-对应版本实现优先，不凭规则名字补造语义。
+Script results are supporting evidence: `ERROR` means failure; `TO_PROVE/PARTIALLY_VERIFIED` means a capability remains unproven;
+`REVIEW_REQUIRED/UNASSESSED/APM_DATA_UNAVAILABLE` cannot rule out rule conflicts, and no APM match means only
+the supplied sample did not match. Close unproven points with independent evidence instead of repeatedly querying for a desired script state.
+Injection scripts extract facts only; interpret origin and lifecycle yourself. Script catalogs have version limits; prefer actual objects and
+corresponding implementations, and do not invent rule semantics from names.
 
-## 证据与交付
+## Evidence and delivery
 
-保留支持结论所需的对象身份、来源、时间、关键状态/日志及关联关系。UID、containerID、
-generation/resourceVersion 在区分重建、旧实例或配置变化时使用，不要求每次查询都填完整表。
-区分直接事实、推断、未确认项和置信度；能证明某操作被拒绝，不一定能证明它导致整个业务故障。
-缺字段时可使用其他独立证据关联，仍无法确认时给出最小下一探针。
+Retain object identity, source, time, key status/logs, and relationships needed for conclusions. Use UID, containerID,
+generation/resourceVersion to distinguish recreation, old instances, or configuration changes; every query need not fill a complete table.
+Separate direct facts, inference, unconfirmed points, and confidence. Proving a denial does not necessarily prove it caused the entire application failure.
+Use independent evidence when fields are missing; otherwise provide the smallest next probe.
 
-普通答复给出范围、结论、关键证据和下一步即可；正式或复杂诊断按报告模板组织。
-字段清单是检查提示，按当前问题选用，不为了填表额外采集。不输出 Secret、私钥、Token、
-无关业务日志或完整资源 dump。Annotation/配置值可定向读取必要的非敏感项（如 Profile 引用、
-开关、端口），展示时脱敏；不能把关键词过滤当作脱敏。需要落盘的原始材料使用受限目录与
-文件权限（建议 0700/0600），不依赖跨 shell 的 umask，不主动删除用户材料。
+Ordinary replies need scope, findings, key evidence, and next steps. Organize formal/complex diagnoses with the report template.
+Field lists are prompts selected for the question; do not collect data to fill a form. Do not expose Secrets, private keys, tokens,
+unrelated application logs, or full resource dumps. Read necessary non-sensitive annotation/configuration values selectively (such as Profile references,
+flags, and ports), and redact display. Keyword filtering is not redaction. Store required raw material with restricted directory/file
+permissions (recommended 0700/0600), without relying on cross-shell umask; do not proactively delete user material.
 
-## vArmor 判读要点
+## vArmor interpretation reminders
 
-- Policy Ready 不能证明 target 命中、Pod 已注入或运行时使用了预期 Profile。
-- PodTemplate 与实际 Pod 分开观察；Webhook 不会回写已经存在的 Pod。
-- Profile 存在/加载与容器实际使用是不同证据；VP/VCP 重叠按最终 AP 和 Pod 配置判断。
-- `EPERM/EACCES/SIGSYS` 不能单独证明 vArmor；`AUDIT/ALLOWED` 不是拒绝。
-- `allowViolations` 与 `auditViolations` 语义按 enforcer 判读；NetworkProxy 还需看规则、qualifier
-  与 defaultAction。sidecar Ready 不能证明流量经过代理。
-- APM 是行为建模样本，不是普通审计存储或完整业务许可清单。
+- Policy Ready does not prove target matches, Pod injection, or runtime use of the intended Profile.
+- Observe PodTemplate and actual Pod separately; webhooks do not write back to existing Pods.
+- Profile presence/loading and actual container use are different evidence. Resolve VP/VCP overlap from final AP and Pod configuration.
+- `EPERM/EACCES/SIGSYS` alone does not prove vArmor attribution; `AUDIT/ALLOWED` does not mean denial.
+- Interpret `allowViolations` and `auditViolations` by enforcer. NetworkProxy also requires rule, qualifier,
+  and defaultAction analysis. Sidecar Ready does not prove traffic passes through it.
+- APM is a behavior-modeling sample, not ordinary audit storage or a complete application allowlist.

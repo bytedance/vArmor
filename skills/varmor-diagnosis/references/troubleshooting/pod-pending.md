@@ -1,27 +1,27 @@
-# Pod Pending / ContainerCreating 诊断路标
+# Pod Pending / ContainerCreating diagnosis guide
 
-## 入口信号
+## Entry signals
 
-Pod 处于 Pending 或 ContainerCreating，事件/状态涉及 Profile、AppArmor、Seccomp、NetworkProxy、Secret、sidecar、initContainer 或证书。
+Pod Pending or ContainerCreating with events/status involving Profiles, AppArmor, Seccomp, NetworkProxy, Secrets, sidecars, initContainers, or certificates.
 
-## 先排除通用 Kubernetes 原因
+## Rule out general Kubernetes causes first
 
-如果没有 vArmor Profile/注入/代理相关证据，优先走调度、镜像、资源、PVC、节点污点、CNI 等通用路径，不要强行归因 vArmor。
+Without vArmor Profile/injection/proxy evidence, prioritize scheduling, images, resources, PVCs, node taints, CNI, and other general causes. Do not force a vArmor attribution.
 
-## vArmor 路径
+## vArmor investigation path
 
-1. Pod 是否被调度，目标节点是谁；
-2. Pod 是否有 AppArmor/Seccomp/BPF/NetworkProxy 注入痕迹；
-3. 策略是否仍存在，`profileName` 是否对应 AP；
-4. AP 是否包含目标节点失败条件；
-5. 节点 agent、Profile 加载、kubelet/runtime 是否健康；
-6. 若 NetworkProxy，检查 init、sidecar、Secret/证书、资源和端口。
+1. Is the Pod scheduled, and to which node?
+2. Does it show AppArmor/Seccomp/BPF/NetworkProxy injection?
+3. Does the policy still exist, and does `profileName` identify an AP?
+4. Does AP contain a failed condition for that node?
+5. Are the node agent, Profile loading, and kubelet/runtime healthy?
+6. For NetworkProxy, inspect init, sidecar, Secret/certificates, resources, and ports.
 
-## 典型场景
+## Typical scenarios
 
-- **Profile not found**：策略/AP 存在但节点资源未落地，或 Pod 引用旧/错误 Profile；
-- **策略删除后仍引用**：Workload PodTemplate、裸 Pod 或旧 Pod 残留 annotation/SecurityContext；
-- **NetworkProxy init/sidecar 失败**：常见于重定向能力、Secret/证书、资源、端口或代理 readiness；
-- **Pod 已在旧模板创建**：策略更新或 Webhook 恢复不会自动修改旧 Pod。
+- **Profile not found**: Policy/AP exists but node resources are not prepared, or the Pod references an old/incorrect Profile;
+- **Reference remains after policy deletion**: Residual annotations/SecurityContext in workload PodTemplate, bare Pod, or old Pod;
+- **NetworkProxy init/sidecar failure**: Commonly redirection capabilities, Secret/certificates, resources, ports, or proxy readiness;
+- **Pod created from an old template**: Policy updates or webhook recovery do not automatically modify old Pods.
 
-修复建议应先确认对象归属和影响范围，避免直接删除业务 Pod 或放宽策略。
+Establish object ownership and affected scope before remediation recommendations; avoid directly deleting application Pods or weakening policies.

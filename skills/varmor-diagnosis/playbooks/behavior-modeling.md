@@ -1,34 +1,34 @@
-# BehaviorModeling 专项检查（Behavior Modeling）
+# BehaviorModeling-Specific Checks (Behavior Modeling)
 
-执行与授权遵循 [统一约定](README.md)。以下是按需选用的检查点与命令示例；
-复用已有事实，按当前问题选择字段与分支，不需要完整执行或填齐输出清单。
+Follow the [shared conventions](README.md) for execution and authorization. The checkpoints and example commands below are optional;
+reuse known facts and select fields and branches for the current issue. Do not run every step or fill every output item.
 
-## 检查目标
-排查行为建模场景的链路问题：采集 → 归一化 → 上报 → 汇总 → 持久化。建模只描述观察到的行为，不证明行为完整，也不自动等于安全许可清单。
+## Objective
+Investigate the behavior-modeling chain: collection -> normalization -> reporting -> aggregation -> persistence. Modeling describes observed behavior; it establishes neither completeness nor an automatically safe allowlist.
 
-## 适用场景
-- 策略 mode=BehaviorModeling 但无数据
-- 建模一直未完成
-- APM（ArmorProfileModel）不存在或无数据
-- 完成建模后切换模式失败
-- classifier 异常
+## When to use
+- Policy mode=BehaviorModeling but no data
+- Modeling never completes
+- APM (ArmorProfileModel) absent or empty
+- Mode switch fails after modeling completes
+- Classifier unhealthy
 
-## 前置依赖
-- 已知策略类型（VP/VCP）、策略名、VP 的 namespace，以及 vArmor 组件 namespace
-- 已知建模 duration 和开始时间
-- 目标 Workload 已在运行且产生行为
+## Prerequisites
+- Known policy type (VP/VCP), policy name, VP namespace, and vArmor component namespace
+- Known modeling duration and start time
+- Target Workload is running and generating behavior
 
-APM 与 `status.profileName` 同名，并沿已发现 AP 的 namespace 定位；VP 通常在策略 namespace，
-VCP 通常在 vArmor 组件 namespace。未知时先按 policy.md 第 2.1 节定位 AP，再查询同 namespace
-的 APM。下方 scope 示例可按已有结果调整，CRD scope 不单独证明对象所在 namespace。
+APM shares the name in `status.profileName`; locate it in the discovered AP namespace. For VP this is usually the policy namespace,
+and for VCP the vArmor component namespace. If unknown, first locate AP using policy.md section 2.1, then query APM in the same
+namespace. Adapt the scope examples below to existing results; CRD scope alone does not establish the object namespace.
 
-使用 BPF enforcer 建模时，进入目标业务容器执行命令可能引入额外行为样本，优先 API 与已有
-日志；必要 exec 应说明对样本的影响，不把诊断产生的行为当作原有业务行为。
+When modeling with the BPF enforcer, executing commands inside target application containers may introduce additional behavior samples. Prefer API queries and existing
+logs. Explain the sample impact of necessary exec operations; do not treat diagnostic activity as original application behavior.
 
 ```bash
-POLICY_KIND=vp                  # 仅允许 vp 或 vcp
+POLICY_KIND=vp                  # Only vp or vcp is allowed
 POLICY_NAME=<policy-name>
-POLICY_NAMESPACE=<policy-namespace>  # VCP 时忽略
+POLICY_NAMESPACE=<policy-namespace>  # Ignored for VCP
 VARMOR_NAMESPACE=<varmor-namespace>
 
 case "$POLICY_KIND" in
@@ -55,80 +55,80 @@ policy_get() {
 
 ---
 
-## 1. 建模前置条件检查
+## 1. Modeling prerequisites
 
-### 1.1 containerd 与 BTF
+### 1.1 containerd and BTF
 
-从已确认目标 Pod 的 nodeName 检查相关节点 runtime；多节点问题先选择异常节点，按证据扩展。
-BTF 等节点能力按 [node.md](node.md) 定向验证。优先 AP/agent 日志中的采集错误；必要时检查
-一个已知 BTF 文件，不为建模故障进行完整节点体检。
+Use the confirmed target Pod nodeName to inspect relevant node runtimes. For multi-node issues, start with failing nodes and expand based on evidence.
+Validate node capabilities such as BTF through targeted [node.md](node.md) checks. Prefer collection errors in AP/agent logs; if needed, inspect
+one known BTF file rather than performing a complete node inspection for a modeling failure.
 
 ```bash
 kubectl get node <target-node> -o jsonpath='{.status.nodeInfo.containerRuntimeVersion}{"\n"}'
 ```
 
-从相关 DaemonSet owner、节点和容器确认 agent；未 Ready 不阻止状态/日志取证。
-后续示例的 NODE_NAME、AGENT_POD 和容器由模型根据已有事实填写。
+Confirm the agent through the relevant DaemonSet owner, node, and container. Unready state does not prevent status/log evidence collection.
+Fill NODE_NAME, AGENT_POD, and container in later examples from existing facts.
 
-### 1.2 classifier 部署
+### 1.2 classifier deployment
 
 ```bash
-# classifier 是否部署
-CLASSIFIER_DS=$(kubectl -n "$VARMOR_NAMESPACE" get ds <classifier-daemonset-name> -o name 2>&1)
+# Check whether the shared classifier Deployment exists
+CLASSIFIER_DEPLOY=$(kubectl -n "$VARMOR_NAMESPACE" get deploy <classifier-deployment-name> -o name 2>&1)
 if [ $? -eq 0 ]; then
-  echo "$CLASSIFIER_DS"
-  # classifier 节点覆盖
-  kubectl -n "$VARMOR_NAMESPACE" get ds <classifier-daemonset-name> -o jsonpath='DESIRED={.status.desiredNumberScheduled}\tREADY={.status.numberReady}{"\n"}'
-  # 目标节点是否有 classifier
-  kubectl -n "$VARMOR_NAMESPACE" get pods -l <classifier-pod-selector> --field-selector spec.nodeName="$NODE_NAME" -o wide
+  echo "$CLASSIFIER_DEPLOY"
+  # Replica availability and shared Service endpoints; no per-node classifier is required
+  kubectl -n "$VARMOR_NAMESPACE" get deploy <classifier-deployment-name> -o jsonpath='DESIRED={.spec.replicas}{"\t"}READY={.status.readyReplicas}{"\n"}'
+  kubectl -n "$VARMOR_NAMESPACE" get endpoints <classifier-service-name> -o wide
+  kubectl -n "$VARMOR_NAMESPACE" get pods -l <classifier-pod-selector> -o wide
 else
-  printf '%s\n' "$CLASSIFIER_DS"
+  printf '%s\n' "$CLASSIFIER_DEPLOY"
   echo "CLASSIFIER_QUERY_FAILED: inspect the kubectl error; distinguish NotFound from permission or connectivity failures"
 fi
 ```
 
-在当前部署实现中，如果 BehaviorModeling 依赖 classifier，则 classifier 缺失会导致建模链路不完整；应以实际版本架构、配置和日志确认 classifier 是否为必需组件。
+The official Chart enables classifier with BehaviorModeling. Confirm its actual Deployment and Service from installation resources. Agent preprocessing calls the Service for random-path classification; failed calls currently retain the original path, so classifier absence alone does not prove no data can be reported.
 
-### 1.3 审计来源配置
+### 1.3 Audit source configuration
 
 ```bash
-# 检查 agent 配置中审计/行为采集是否启用
-# 查看相关 agent 的启动参数；可读取必要的非敏感开关值，凭据与端点按需脱敏
+# Check whether audit/behavior collection is enabled in agent configuration
+# Inspect relevant agent startup arguments; read necessary nonsensitive switches and redact credentials/endpoints as needed
 kubectl -n "$VARMOR_NAMESPACE" get ds <agent-daemonset-name> -o go-template='{{range .spec.template.spec.containers}}{{$name := .name}}{{range .args}}{{$name}}{{"\t"}}{{.}}{{"\n"}}{{end}}{{end}}' |
   grep -iE 'audit|behavior|model|bpf' |
   sed -E 's/(--[^=[:space:]]+)=.*$/\1=<redacted>/'
-# 查看 agent ConfigMap 是否存在及键名（仅列键名，不输出 data 内容，ConfigMap 可能含内部端点/证书/凭据）
+# Check agent ConfigMap presence and key names only; do not output data, which may contain internal endpoints, certificates, or credentials
 kubectl -n "$VARMOR_NAMESPACE" get cm -l <agent-pod-selector> -o go-template='{{range .items}}{{.metadata.name}}{{":"}}{{"\n"}}{{range $k,$v := .data}}  {{$k}}{{"\n"}}{{end}}{{end}}'
-# 如需检查特定配置项，确认键名后定向查询：
+# If a specific setting is needed, confirm the key and query it directly:
 # kubectl -n "$VARMOR_NAMESPACE" get cm <confirmed-cm-name> -o jsonpath='{.data.<confirmed-config-key>}'
 ```
 
 ---
 
-## 2. 策略建模状态
+## 2. Policy modeling status
 
 ```bash
-# 建模策略状态
+# Modeling policy status
 policy_get -o jsonpath='KIND={.kind}\tREADY={.status.ready}\tPHASE={.status.phase}{"\n"}DURATION={.spec.policy.modelingOptions.duration}{"\n"}PROFILE={.status.profileName}{"\n"}'
 
 # conditions
 policy_get -o jsonpath='{range .status.conditions[*]}{.type}{"\t"}{.status}{"\t"}{.reason}{"\t"}{.message}{"\n"}{end}'
 ```
 
-**建模阶段（phase）含义：**
-| Phase | 含义 |
+**Modeling phase meanings:**
+| Phase | Meaning |
 |---|---|
-| `Pending` | 等待建模开始或条件不满足 |
-| `Modeling` | 正在采集中 |
-| `Completed` | 建模完成，APM 已生成 |
-| `Error/Failed` | 建模失败 |
+| `Pending` | Waiting for modeling to start or prerequisites unmet |
+| `Modeling` | Collection in progress |
+| `Completed` | Modeling complete and APM generated |
+| `Error/Failed` | Modeling failed |
 
 ---
 
-## 3. APM（ArmorProfileModel）检查
+## 3. APM (ArmorProfileModel) checks
 
 ```bash
-# APM 与策略 status.profileName 同名
+# APM has the same name as policy status.profileName
 APM_NAME=$(policy_get -o jsonpath='{.status.profileName}') ||
   { echo "POLICY_QUERY_FAILED: cannot read status.profileName"; return 1 2>/dev/null || exit 1; }
 if [ -z "$APM_NAME" ]; then
@@ -154,79 +154,79 @@ for condition in status.get('conditions') or []:
 "
 ```
 
-**APM 存储类型注意：**
-- `storageType` 是 APM 顶层字段；建模数据位于顶层 `data` 下
-- APM 数据量过大时可能使用本地存储（`storageType=LocalDisk`）而非完整保存在 CRD 中
-- 此时查询 `armorprofilemodels.crd.varmor.org` 可能看不到完整模型，需结合 manager 存储配置与日志判断
+**APM storage considerations:**
+- `storageType` is a top-level APM field; modeling data is under top-level `data`
+- Large APM data may use local storage (`storageType=LocalDisk`) instead of residing entirely in the CRD
+- In that case, queries to `armorprofilemodels.crd.varmor.org` may not expose the full model; interpret using manager storage configuration and logs
 
 ---
 
-## 4. 建模三段链路排查
+## 4. Investigate the three modeling stages
 
-建模无数据时，按以下三段分别验证：
+When modeling produces no data, verify these stages separately:
 
-### 4.1 第一段：采集能力（节点侧）
+### 4.1 Stage 1: collection capability (node)
 
 ```bash
-# 目标节点 agent 日志中的采集错误
+# Collection errors in target node agent logs
 kubectl -n "$VARMOR_NAMESPACE" logs "$AGENT_POD" -c <agent-container> --since=<duration> --tail=300 | grep -iE 'modeling|audit|collect|bpf|behavior|error|failed'
 
-# 日志不足时再按 node.md 检查已定位的 BPF 对象；不默认枚举全部程序。
+# If logs are insufficient, inspect the identified BPF objects using node.md; do not enumerate all programs by default.
 
-# 目标 Pod 确实在产生行为（应用在运行）
+# Confirm the target Pod actually generates behavior (application running)
 kubectl -n <namespace> get pod <target-pod> -o jsonpath='PHASE={.status.phase}{"\n"}{range .status.containerStatuses[*]}CONTAINER={.name}{"\t"}READY={.ready}{"\t"}RESTARTS={.restartCount}{"\n"}{end}'
-# 如果目标 Pod 没有启动或一直崩溃，自然无行为可采集
+# A target Pod that never starts or continuously crashes may produce no behavior to collect
 ```
 
-**采集层问题：**
-- BTF 不可用 → BPF 采集程序无法加载
-- agent 未启用行为采集模式 → 检查配置
-- 目标 Workload 未运行/无流量 → 无行为数据
-- containerd 版本/配置问题 → 进程身份关联失败
+**Collection-layer issues:**
+- BTF unavailable -> BPF collection program cannot load
+- Behavior collection not enabled in agent -> inspect configuration
+- Target Workload not running/no traffic -> no behavior data
+- containerd version/configuration issue -> process identity correlation fails
 
-### 4.2 第二段：归一化与上报（classifier）
+### 4.2 Stage 2: agent preprocessing and reporting, with classifier assistance
 
-结合目标节点与 classifier DaemonSet owner 确认相关实例，检查该容器 Ready、重启、
-lastState 和资源。异常实例或升级中的旧实例可按故障时间取证，不要求唯一 Ready 才读取日志。
+Identify classifier instances from Service selectors and Deployment/ReplicaSet ownership, independently of the target node. Inspect container readiness, restarts,
+lastState, and resources. Use failure time to investigate unhealthy or old instances during upgrades; a unique Ready instance is not required for log reads.
 
 ```bash
 kubectl -n "$VARMOR_NAMESPACE" logs <classifier-pod> -c <classifier-container> --since=<duration> --tail=300
-# 怀疑 OOM 时结合 lastState、resources 和事件；metrics 可用时按需 top 单个 Pod。
+# If OOM is suspected, correlate lastState, resources, and events; use top for one Pod if metrics are available and needed.
 ```
 
-**上报层问题：**
-- classifier 未覆盖目标节点 → 该节点行为数据丢失
-- classifier OOM → 数据量大导致归一化失败
-- classifier 到 manager 的网络不通 → 上报失败
-- RBAC/权限不足 → classifier 无法上报数据
+**Preprocessing/reporting issues:**
+- Agent-to-classifier Service failure or classifier OOM -> random-path classification may fail and original paths may remain in the model
+- Agent preprocessing failure -> inspect audit/BPF parsing and agent resource errors
+- Agent-to-manager status Service failure -> behavior-data reporting fails
+- Agent authentication/authorization failure -> inspect token, TLS, manager status-service errors, and relevant RBAC; the classifier does not submit reports
 
-### 4.3 第三段：汇总与持久化（manager）
+### 4.3 Stage 3: aggregation and persistence (manager)
 
-reconcile/汇总问题优先 manager Leader，身份按 component.md 发现。无法解析 Leader 时
-可从少量相关实例的有限日志寻找证据，不要求用户手动确认后才能继续。
+Prefer the manager Leader for reconcile/aggregation issues; discover its identity through component.md. If the Leader cannot be resolved,
+seek evidence in bounded logs from a small relevant instance set without requiring manual user confirmation before proceeding.
 
 ```bash
 kubectl -n "$VARMOR_NAMESPACE" logs <manager-pod> -c <manager-container> --since=<duration> --tail=300
 ```
 
-storageType=LocalDisk 且日志指向持久化失败时，确认存储挂载与目标文件再检查，优先文件元数据和
-定向可读性检查；不扫描整个存储目录。必要访问按统一授权约定，不把普通容器身份自动当 L4。
+When storageType=LocalDisk and logs indicate persistence failure, confirm the storage mount and target file first. Prefer metadata and
+targeted readability checks rather than scanning the entire storage directory. Follow shared authorization conventions; an ordinary container identity is not automatically L4.
 
-**汇总层问题：**
-- manager OOM → 跨节点数据汇总内存不足
-- 存储权限问题 → APM 无法持久化
-- manager reconcile 错误 → APM 未创建或更新
+**Aggregation-layer issues:**
+- Manager OOM -> insufficient memory for cross-node aggregation
+- Storage permission issue -> APM cannot persist
+- Manager reconcile error -> APM not created or updated
 
 ---
 
-## 5. 建模完成后验证
+## 5. Validate completed modeling
 
-已有 APM_JSON 可直接复用；需要确认状态变化时才重新读取。
+Reuse existing APM_JSON; reread only when checking a status change.
 
 ```bash
-# 建模完成后 APM 是否包含数据
+# Check whether APM contains data after modeling completes
 if [ -n "$APM_NAME" ]; then
-  # 仅判断实际模型字段是否非空，不输出可能包含路径等敏感行为数据的原文
+  # Check only whether actual model fields are nonempty; do not output raw behavior data that may contain sensitive paths
   APM_JSON=$(kubectl -n "$APM_NAMESPACE" get armorprofilemodels.crd.varmor.org "$APM_NAME" -o json) ||
     { echo "APM_QUERY_FAILED: cannot inspect model data"; return 1 2>/dev/null || exit 1; }
   printf '%s' "$APM_JSON" | python3 -c "
@@ -241,42 +241,42 @@ print(f'APM has profile content: {bool(profile)}')
 fi
 ```
 
-**⚠️ 建模完成≠防护就绪：**
-- 建模只描述「观察到的行为」，不证明行为完整
-- 短时间建模可能遗漏周期性行为（定时任务、低频操作）
-- 完成建模后需要确认模式切换（DefenseInDepth）是否成功
-- 不建议未经人工审查直接将建模结果用于 Deny-by-Default 策略
+**⚠️ Completed modeling does not imply protection readiness:**
+- Modeling describes only observed behavior, not completeness
+- Short windows may miss periodic behavior such as scheduled tasks or infrequent operations
+- Confirm successful mode switching to DefenseInDepth after modeling
+- Do not use modeling results directly for Deny-by-Default policies without human review
 
 ---
 
-## 6. 建模后模式切换检查
+## 6. Check post-modeling mode switching
 
 ```bash
-# 从 BehaviorModeling 切换到 DefenseInDepth 后
-# 1. 策略 phase 是否变为 Protecting
+# After switching from BehaviorModeling to DefenseInDepth
+# 1. Check whether policy phase becomes Protecting
 policy_get -o jsonpath='PHASE={.status.phase}{"\t"}READY={.status.ready}{"\n"}'
 
-# 2. 确认当前 Profile/AP 及其配置变化，不以名称变化作为切换成功的必要条件
+# 2. Confirm current Profile/AP and configuration changes; a name change is not required for a successful switch
 policy_get -o jsonpath='{.status.profileName}{"\n"}'
 
-# 3. AP 是否加载成功
+# 3. Check successful AP loading
 AP_NAME=$(policy_get -o jsonpath='{.status.profileName}')
-# ArmorProfile 的 namespace 按 policy.md 第 2.1 节定位：优先 VP/VCP 关系，未知时按名称跨 namespace 查摘要
+# Locate the ArmorProfile namespace using policy.md section 2.1: prefer VP/VCP relationships; if unknown, query name-filtered summaries across namespaces
 kubectl -n <confirmed-ap-namespace> get armorprofiles.crd.varmor.org "$AP_NAME" -o jsonpath='DESIRED={.status.desiredNumberLoaded}\tCURRENT={.status.currentNumberLoaded}{"\n"}'
 
-# 4. 新 Pod 是否获得新 Profile 注入（需要滚动更新）
+# 4. Check whether new Pods receive the new Profile injection (rollout required)
 ```
 
 ---
 
-## 可选汇总要点
-BehaviorModeling 检查可汇总：
-1. 前置条件满足情况（containerd/BTF/classifier/审计配置）
-2. 策略 phase 和 modeling duration/开始时间
-3. APM 存在性和完成节点数
-4. storageType（判断数据可见性）
-5. 三段链路中哪一段有问题（采集/上报/汇总）
-6. 各组件（agent/classifier/manager）的错误日志摘要
-7. 目标 Workload 是否确实在产生行为
-8. 若已完成，APM 数据可见性、观察覆盖缺口与模式切换状态
-9. 下一步方向
+## Optional summary points
+A BehaviorModeling summary may include:
+1. Prerequisite status (containerd/BTF/classifier/audit configuration)
+2. Policy phase and modeling duration/start time
+3. APM existence and completed-node count
+4. storageType and its implications for data visibility
+5. Which of the three stages is affected (collection/preprocessing and reporting/aggregation)
+6. Error-log summaries from agent/classifier/manager
+7. Whether the target Workload actually generates behavior
+8. If complete: APM visibility, observation gaps, and mode-switch status
+9. Next direction

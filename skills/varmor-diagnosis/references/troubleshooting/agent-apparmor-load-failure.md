@@ -1,183 +1,183 @@
-# Agent AppArmor Profile 加载失败诊断路标
+# Agent AppArmor Profile load failure diagnosis guide
 
-## 入口信号
+## Entry signals
 
-AppArmor 策略创建或更新后，AP 的节点条件或 agent 日志指向 Profile 保存、解析、加载或替换失败时使用。
-agent Pod Running/Ready 不排除这类故障；启动自检通过也不证明后续能访问内核管理接口。
-从已失败的节点与 AP 开始，复用已有证据，不要求遍历全部节点。查询示例见
-[节点检查](../../playbooks/node.md)，操作边界见 [统一约定](../../playbooks/README.md)。
+Use this guide when AP node conditions or agent logs identify Profile saving, parsing, loading, or replacement failures after an AppArmor policy create/update.
+An agent Pod being Running/Ready does not rule out these failures. Passing startup self-checks does not prove later kernel-management-interface access.
+Start with the failed node and AP and reuse existing evidence; do not require a scan of every node. For queries, see
+[node inspection](../../playbooks/node.md); for operational boundaries, see the [shared conventions](../../playbooks/README.md).
 
-## 1. 定位失败阶段
+## 1. Identify the failing stage
 
-关联 AP/Profile 名、失败节点、agent Pod 与容器身份、日志时间，保留加载器的原始输出与退出状态。
-按日志选择后续分支，不把所有 `exit status 1` 都解释成权限不足：
+Correlate AP/Profile name, failed node, agent Pod/container identity, and log time. Retain original loader output and exit status.
+Choose branches from the logs; do not interpret every `exit status 1` as insufficient permission:
 
-| 信号示例 | 优先验证 |
+| Example signal | Verify first |
 |---|---|
-| `SaveAppArmorProfile()` 失败 | 按底层错误区分内容检查、文件创建/写入、`/proc/partitions` 读取及模板解析/渲染失败；文件问题再查路径、目录挂载、只读状态、空间和权限 |
-| parser 报语法、include、ABI 或规则不支持 | 实际生成内容、对应文件及 parser/内核能力；区分文件缺失与语法错误 |
-| `LoadAppArmorProfile()` / `UpdateAppArmorProfile()` 失败 | 结合完整 parser 输出区分接口访问、权限、兼容性和 Profile 冲突 |
-| `interface file missing`、`unable to find a suitable fs`、`--subdomainfs` | AppArmor 启用状态、agent 的接口挂载视图与访问约束 |
-| `Permission denied` / `Operation not permitted` | 实际运行身份、管理能力、安全约束、挂载和相关内核拒绝日志 |
+| `SaveAppArmorProfile()` failure | Distinguish content checks, file creation/writes, `/proc/partitions` reads, and template parsing/rendering from the underlying error. For file errors, inspect path, directory mount, read-only status, space, and permissions. |
+| Parser syntax/include/ABI/unsupported-rule error | Actual generated content, related files, and parser/kernel capabilities; distinguish missing files from syntax errors. |
+| `LoadAppArmorProfile()` / `UpdateAppArmorProfile()` failure | Full parser output to distinguish interface access, permission, compatibility, and Profile conflicts. |
+| `interface file missing`, `unable to find a suitable fs`, `--subdomainfs` | AppArmor enablement, agent interface mount view, and access constraints. |
+| `Permission denied` / `Operation not permitted` | Actual runtime identity, administrative capabilities, security constraints, mounts, and related kernel denials. |
 
 `Cache read/write disabled: interface file missing. (Kernel needs AppArmor 2.4 compatibility patch.)`
-和 `Warning: unable to find a suitable fs in /proc/mounts, is it mounted?` 是接口发现/访问失败的线索。
-它们既不能单独证明宿主机没有挂载接口，也不能证明缺少某个内核补丁或被特定 Webhook 修改。
-缓存警告与最终加载失败分开判断；不要根据提示文字直接建议升级内核或添加 `--subdomainfs`。
+and `Warning: unable to find a suitable fs in /proc/mounts, is it mounted?` are clues to interface discovery/access failure.
+They do not alone prove an unmounted host interface, a missing kernel patch, or modification by a particular webhook.
+Separate cache warnings from final load failure. Do not recommend kernel upgrades or `--subdomainfs` merely from the warning text.
 
-`SaveAppArmorProfile()` 在创建文件后，还会读取 `/proc/partitions` 准备磁盘设备模板数据，
-再解析并渲染 Profile 模板。这些步骤均可能返回错误；文件已存在不代表本次保存完整，
-也不能据此判断宿主目录或内核接口已准备好。
+After creating a file, `SaveAppArmorProfile()` reads `/proc/partitions` to prepare disk-device template data,
+then parses and renders the Profile template. Any step can fail; file existence does not prove this save completed,
+nor that the host directory or kernel interface is ready.
 
-## 2. 核对部署意图与实际 Pod
+## 2. Compare deployment intent with the actual Pod
 
-接口或权限方向的故障，应检查 **agent 自身** 的安全配置和挂载，而不只检查受保护业务 Pod。
-将已安装版本的渲染清单、实际 DaemonSet 模板、对应 agent Pod 的相关字段按需比较。
-先核对 owner、创建时间、镜像和模板修订，排除滚动升级中旧 Pod 与新模板的正常差异。
+For interface/permission failures, inspect **the agent itself**, not only protected application Pods: security settings and mounts.
+Compare relevant fields in the installed version's rendered manifest, actual DaemonSet template, and corresponding agent Pod as needed.
+First verify owner, creation time, image, and template revision to exclude normal differences between old Pods and a new template during rollout.
 
-重点看容器与 Pod 级 `securityContext`、兼容注解、capabilities、运行用户，以及内核接口对应的
-hostPath/volumeMount；挂载只读状态也要核对。root、管理能力、接口可见性和 AppArmor 约束是
-不同条件，不能从 `runAsUser: 0` 或某个 capability 已声明推断加载一定成功。
+Focus on container/Pod `securityContext`, compatibility annotations, capabilities, runtime user, and hostPath/volumeMount pairs
+for kernel interfaces, including read-only status. Root identity, administrative capabilities, interface visibility, and AppArmor confinement are
+separate requirements. Neither `runAsUser: 0` nor a declared capability guarantees successful loading.
 
-当前 Chart 默认路径可帮助区分文件保存、自检与内核加载失败：
+Current Chart defaults help distinguish file-save, self-check, and kernel-load failures:
 
-| agent 内路径 | 默认宿主来源 | 作用 |
+| Path inside agent | Default host source | Purpose |
 |---|---|---|
-| `/etc/apparmor.d` | `/var/run/varmor/apparmor.d` | 保存 Profile、ABI、include 等文件；agent 的 `AppArmorProfileDir` 指向此目录 |
-| `/sys/module/apparmor` | 同名宿主路径 | `isAppArmorEnabled()` 读取其中的 `parameters/enabled` |
-| `/sys/kernel/security` | 同名宿主路径 | 提供 AppArmor 等内核安全接口；文件保存成功不证明接口可访问 |
+| `/etc/apparmor.d` | `/var/run/varmor/apparmor.d` | Stores Profiles, ABI, and includes; the agent's `AppArmorProfileDir` points here. |
+| `/sys/module/apparmor` | Same host path | `isAppArmorEnabled()` reads `parameters/enabled` here. |
+| `/sys/kernel/security` | Same host path | Exposes AppArmor and other kernel security interfaces; saving a file does not prove interface access. |
 
-前两项的默认 volumes/volumeMounts 由 Chart 的 `appArmorLsmEnforcer.enabled` 控制，
-`/sys/kernel/security` 在模板中单独挂载。现场路径可能被覆盖，应按实际渲染清单成对核对。
-目录未挂载时写入也可能落到容器文件系统，不能仅凭文件写入成功认定宿主目录已准备好。
+The first two default volume/mount pairs are controlled by Chart `appArmorLsmEnforcer.enabled`;
+`/sys/kernel/security` is mounted separately in the template. Paths may be overridden; verify pairs in actual rendered manifests.
+Without the mount, writes may land in the container filesystem. Successful writes alone do not establish host-directory preparation.
 
-当前 vArmor Chart 为 agent 声明 AppArmor 豁免，其表达随目标 Kubernetes 版本变化：
+The current vArmor Chart exempts the agent from AppArmor confinement, using different expressions by target Kubernetes version:
 
-| Chart 渲染分支 | 预期表达 |
+| Chart rendering branch | Expected expression |
 |---|---|
-| Kubernetes < 1.30 | Pod 注解 `container.apparmor.security.beta.kubernetes.io/agent: unconfined`；当前模板的后缀固定为 `agent` |
-| Kubernetes >= 1.30 | agent 容器的 `securityContext.appArmorProfile.type: Unconfined` |
+| Kubernetes < 1.30 | Pod annotation `container.apparmor.security.beta.kubernetes.io/agent: unconfined`; the current template hardcodes the `agent` suffix. |
+| Kubernetes >= 1.30 | Agent container `securityContext.appArmorProfile.type: Unconfined`. |
 
-以现场安装版本的 Chart 与配置为准；这里的版本分界说明 API 表达迁移，不说明较新集群必然有故障。
-新字段在 Kubernetes 1.30 引入、1.31 进入稳定状态；Chart 切换表达不等于旧注解停止兼容。
-例如 [1.32 的 Pod 创建实现](https://github.com/kubernetes/kubernetes/blob/v1.32.0/pkg/registry/core/pod/strategy.go)
-仍执行注解与字段的兼容转换；后续版本按对应文档和实现核对，不把废弃、移除 feature gate
-与移除注解兼容混为一谈。
-注解后缀必须匹配实际容器名。当前 Chart 的旧注解分支不会随 `agent.name` 自动调整后缀；
-自定义该值时需检查渲染结果，不能把名称不匹配误判成准入删除配置。
-容器级字段优先于 Pod 级字段；容器级字段缺失时，还需检查
-Pod 级设置与该版本对旧注解的兼容处理。两种表达同时存在时核对一致性。
+Use the installed Chart version and settings. This version boundary describes API-expression migration, not an inevitable failure on newer clusters.
+The structured field was introduced in Kubernetes 1.30 and became stable in 1.31. A Chart expression change does not mean old annotations stopped working.
+For example, the [1.32 Pod creation implementation](https://github.com/kubernetes/kubernetes/blob/v1.32.0/pkg/registry/core/pod/strategy.go)
+still converts annotations and fields for compatibility. Verify later versions against corresponding documentation/source; do not conflate deprecation, feature-gate removal,
+and removal of annotation compatibility.
+Annotation suffixes must match actual container names. The current Chart's legacy annotation branch does not automatically follow `agent.name`;
+inspect rendered output when customizing it, and do not mistake a name mismatch for admission deleting settings.
+Container-level fields take precedence over Pod-level fields. When a container field is absent, also inspect
+Pod-level settings and that version's legacy-annotation handling. If both forms exist, verify consistency.
 
-agent 的 `Unconfined` 用于避免它自身受 AppArmor profile 约束，不是业务容器绕过防护的证据。
-删除显式设置后可能回落到继承或运行时默认值；仅发现一个字段缺失，不能直接断言实际状态。
-自定义部署采用其他安全配置时，应验证其管理能力与实际限制，不自动要求改成特权模式。
+The agent's `Unconfined` setting prevents its own AppArmor confinement; it is not evidence that application containers bypass protection.
+Removing explicit settings may fall back to inheritance or runtime defaults. One missing field alone does not establish actual confinement.
+For custom deployments with other security settings, verify administrative capability and actual restrictions; do not automatically require privileged mode.
 
-## 3. 按缺口验证实际执行条件
+## 3. Verify actual execution requirements by evidence gap
 
-先用 API 配置、AP 条件和有限日志判断；证据不足且授权覆盖时，再按
-[节点检查 2.1](../../playbooks/node.md#21-apparmor-加载失败时的配置与运行约束) 定向只读验证。
-根据缺口选择分支，不要求完成全部检查：
+Start with API configuration, AP conditions, and bounded logs. If insufficient and authorization covers it, perform targeted read-only checks from
+[node inspection 2.1](../../playbooks/node.md#21-configuration-and-runtime-constraints-for-apparmor-load-failures).
+Choose only branches needed to close a gap; not every check is required:
 
-| 待区分条件 | 判读边界 |
+| Requirement to distinguish | Interpretation boundary |
 |---|---|
-| 内核/LSM 与 parser 能力 | 内核版本满足不等于 LSM 已启用；接口不可读也不等于未启用 |
-| 实际挂载与接口访问 | 配置声明不等于实际可见；区分缺失、只读和访问拒绝 |
-| agent/parser 的实际 AppArmor 约束 | 核对正确进程；字段缺失或属性读取失败不等于 `unconfined` |
-| 实际管理能力与相关内核拒绝 | 声明 `MAC_ADMIN` 不等于实际保留或操作被允许；无审计记录不能单独排除限制 |
+| Kernel/LSM and parser capability | Sufficient kernel version does not prove LSM enablement; unreadable interfaces do not prove it is disabled. |
+| Actual mounts and interface access | Declared configuration does not prove visibility; distinguish missing, read-only, and access-denied interfaces. |
+| Actual agent/parser AppArmor confinement | Inspect the correct process; absent fields or failed attribute reads do not mean `unconfined`. |
+| Actual administrative capability and related kernel denials | Declared `MAC_ADMIN` does not prove it was retained or the operation allowed; no audit record alone does not exclude a restriction. |
 
-进程实际受默认或自定义 profile 约束时，结合接口可见性、拒绝记录和失败操作判断其影响。
-若进程确为 `unconfined`，继续检查挂载、能力、规则内容和兼容性；不要坚持配置丢失假设。
+If a process is confined by a default/custom profile, assess its impact using interface visibility, denial records, and the failed operation.
+If it is actually `unconfined`, continue with mounts, capabilities, rule content, and compatibility rather than insisting on configuration loss.
 
-## 4. 配置不一致时，再追查来源
+## 4. Trace origin only after proving a configuration discrepancy
 
-确认 agent 的安全配置与对应部署意图不一致后，沿字段最早出现差异的位置调查：
+After confirming agent security settings differ from deployment intent, investigate where the first difference appears:
 
-| 差异位置 | 排查对象与请求 |
+| First discrepancy | Objects and requests to inspect |
 |---|---|
-| 渲染结果已缺失 | 安装参数、Chart 版本、渲染时采用的 Kubernetes 版本及部署工具处理 |
-| 渲染结果正确、线上 DaemonSet 模板不同 | DaemonSet 的 CREATE/UPDATE/PATCH 发起方、匹配 DaemonSet 的准入组件及后续配置管理 |
-| 对应模板正确、实际 Pod 不同 | Pod 的创建处理及后续 UPDATE/PATCH 发起方、匹配 Pod 的准入组件 |
-| Pod 声明正确、进程状态不符 | 节点 kubelet、运行时版本与日志、实际进程身份 |
+| Missing in rendered output | Installation settings, Chart version, Kubernetes version used for rendering, and deployment-tool processing. |
+| Rendered output correct, live DaemonSet template differs | DaemonSet CREATE/UPDATE/PATCH initiators, admission components matching DaemonSets, and later configuration management. |
+| Corresponding template correct, actual Pod differs | Pod creation processing, later UPDATE/PATCH initiators, and admission components matching Pods. |
+| Pod declaration correct, process state differs | Node kubelet, runtime version/logs, and actual process identity. |
 
-按容器名对照 DaemonSet 的 `.spec.template.spec.containers[].securityContext.appArmorProfile`
-与 Pod 的 `.spec.containers[].securityContext.appArmorProfile`；Pod 级字段与旧注解也要在
-对应模板/对象层级核对。若模板已经丢字段，后续 Pod 可能只是正常继承，不必假设 Pod 准入再次删除。
-若同一修订模板仍有字段而 Pod 没有，仅在 DaemonSet 上发生字段删除不能解释这项差异。
+Compare DaemonSet `.spec.template.spec.containers[].securityContext.appArmorProfile` by container name
+with Pod `.spec.containers[].securityContext.appArmorProfile`. Check Pod-level fields and legacy annotations at
+their correct template/object levels too. If the template already lost the field, subsequent Pods may simply inherit it; do not assume another deletion during Pod admission.
+If the same revision's template retains the field but the Pod lacks it, deletion on the DaemonSet alone does not explain that difference.
 
-将部署渲染、请求发起方、API Server 兼容转换和准入修改分开判断，沿该对象的创建/更新记录
-定位字段最早出现差异的位置。当前 Webhook 匹配配置只说明可能参与，不能证明历史上确实修改过。
-直接 UPDATE/PATCH 与 Webhook 并不互斥，同一次请求可能先由控制器、Operator 或运维工具构造，
-再被匹配的 Webhook 修改。审计资源是 DaemonSet 还是 Pod，应由 objectRef/requestURI 确认，
-不依据口头描述选定。Webhook 的资源、operation、selector 等需与该次请求相符。
-审计中的 ServiceAccount 是调用身份，还需结合 userAgent、来源和组件日志关联实际程序；
-同一身份可能被多个进程使用。
+Distinguish deployment rendering, request initiation, API server compatibility conversion, and admission mutation. Follow create/update records
+to the earliest discrepancy. Current webhook matching shows potential participation, not proof of a historical change.
+Direct UPDATE/PATCH and webhooks are not mutually exclusive: a controller, Operator, or operational tool may construct a request
+that a matching webhook then changes. Identify DaemonSet versus Pod audit resources using objectRef/requestURI,
+not informal descriptions. Webhook resources, operations, and selectors must match that request.
+An audit ServiceAccount identifies the caller, not necessarily a specific program; correlate userAgent, source, and component logs.
+Multiple processes may share one identity.
 
-旧组件使用的 Kubernetes API 类型可能不认识 `appArmorProfile` 等新字段。如果读取成旧类型后
-重新生成 DaemonSet/Pod 更新请求，或在准入补丁中替换整个模板、容器列表或安全上下文，
-就可能无意丢失新字段。Webhook 常见处理过程是“反序列化 → 加工 → 重新序列化 → 计算补丁”；
-它通过 AdmissionResponse 中的补丁表达修改，并非仅返回重新序列化的对象就自动覆盖资源。
-应核对计算差异时使用的原始对象与输出对象，以及补丁实际删除/替换的范围。
-即使原始清单只使用旧注解，API Server 在支持兼容转换的版本中也可能在创建后补出结构化字段，
-使旧更新方读取到它不认识的内容。旧注解是通用字符串字典，通常较容易被保留；不能因注解
-仍在就推断更新请求完整，也不能把正常兼容转换当成删除配置的证据。
+Older components' Kubernetes API types may not recognize fields such as `appArmorProfile`. Decoding into old types and
+regenerating DaemonSet/Pod updates, or replacing an entire template, container list, or security context in an admission patch,
+can lose new fields unintentionally. A common webhook pipeline is deserialize -> transform -> serialize -> compute patch.
+It mutates via the patch in AdmissionResponse; returning a reserialized object alone does not overwrite the resource.
+Verify the raw input and output used for diff computation and the patch's actual deletion/replacement scope.
+Even when the original manifest uses only legacy annotations, compatible API server versions may populate structured fields during creation,
+exposing fields an old updater does not recognize. Legacy annotations are string maps and often survive more easily; their
+presence does not establish a complete update, and normal compatibility conversion is not evidence of deletion.
 
-**不认识字段不等于一定删除。** 只对必要字段生成精确补丁的组件可以保留其余字段。
-需结合组件支持范围、API 库版本、补丁实现或实际审计记录验证；组件较旧、Webhooks 存在及
-字段缺失都不能单独证明归属。验证型准入拒绝创建与修改型准入改变配置也要区分。
-其他已知字段不变而新字段缺失，与旧类型处理机制吻合，但不是特定组件执行删除的直接证据。
+**Unknown fields are not necessarily deleted.** Components generating precise patches for required fields can preserve everything else.
+Verify supported scope, API-library version, patch implementation, or actual audit records. An old component, existing webhooks, and
+a missing field do not alone establish attribution. Distinguish validating admission rejecting creation from mutating admission changing settings.
+Only new fields disappearing while known fields remain is consistent with old-type processing, but is not direct evidence against a particular component.
 
-Webhook 注册本身不会追溯修改已有 Pod；后续匹配的请求或替代 Pod 的创建仍可能受影响。
-更新已有 Pod 不会自动转成重建；修改 DaemonSet 的 Pod 模板后，是否自动替换由实际更新策略
-决定（通常为 RollingUpdate，OnDelete 不自动替换已有 Pod）。结合修订、UID 与时间确认传播过程。
+Registering a webhook does not retroactively modify existing Pods. Later matching requests or replacement Pod creation may still be affected.
+Updating an existing Pod does not automatically recreate it. Whether DaemonSet template changes replace Pods depends on the actual update strategy
+(usually RollingUpdate; OnDelete does not replace existing Pods automatically). Correlate revision, UID, and time to establish propagation.
 
-### 用请求与结果区分“遗漏”与“已修改”
+### Distinguish omitted request fields from applied changes
 
-已有审计记录可用时，按对象身份与故障时间限定范围，沿
-[节点检查](../../playbooks/node.md#21-apparmor-加载失败时的配置与运行约束) 获取相关证据。
-`requestObject` 记录客户端提交的内容，位于版本转换、默认处理、准入和合并之前；
-它不是最终持久化对象，也不是更新前对象。
+When existing audit records are available, narrow them by object identity and failure time and obtain relevant evidence through
+[node inspection](../../playbooks/node.md#21-configuration-and-runtime-constraints-for-apparmor-load-failures).
+`requestObject` records client-submitted content before version conversion, defaulting, admission, and merging;
+it is neither the final persisted object nor the object before the update.
 
-| 观察 | 可以判断与仍需验证的内容 |
+| Observation | Supported interpretation and remaining checks |
 |---|---|
-| CREATE 请求只有旧注解，创建响应多出新字段 | 可能是正常兼容转换，不能判定第三方丢字段 |
-| 更新前对象有字段，完整 UPDATE 请求缺字段 | 支持更新方输出遗漏；仍需核对响应及最终对象，不能直接写“已删除” |
-| PATCH 请求未涉及字段 | 不能按完整对象理解；根据补丁类型、具体删除/替换内容和适用语义判断 |
-| 请求带字段，响应或最终对象不同 | 沿服务端转换、准入及后续请求调查，不把差异直接归给请求发起方 |
-| 已确认匹配 Webhook，机制能解释字段丢失，但没有该次补丁 | 保留为有依据的假设，列明缺少直接修改证据，不报告为已确认删除来源 |
-| 同次请求的 Webhook 补丁删除字段或替换其父对象 | 支持定位修改来源；仍核对后续准入和最终成功响应，确认是否实际生效 |
-| 请求被拒绝或冲突 | 这次请求不能证明线上配置已改变；继续查已有对象与其他成功请求 |
+| CREATE contains only a legacy annotation, response gains a structured field | May be normal compatibility conversion, not proof that a third party lost a field. |
+| Previous object has a field, full UPDATE request omits it | Supports updater output omission; still verify response/final object before claiming deletion. |
+| PATCH does not mention a field | Do not interpret it as a full object. Use patch type, actual deletion/replacement, and applicable semantics. |
+| Request includes a field but response/final object differs | Investigate server conversion, admission, and later requests; do not directly blame the initiator. |
+| Matching webhook and plausible loss mechanism, but no patch for that request | Keep an evidence-based hypothesis, state missing direct evidence, and do not report confirmed deletion origin. |
+| Same-request webhook patch deletes the field or replaces its parent | Supports mutation attribution; still verify later admission and the final successful response to establish actual effect. |
+| Request rejected or conflicted | Does not prove live configuration changed; investigate the existing object and other successful requests. |
 
-结合 `responseStatus`、可用的 `responseObject` 与修改前后快照确认结果，按 UID 区分同名重建，
-按时间和 resourceVersion 关联版本；当前 Pod 不能单独代表历史请求完成时的状态。
-上游普通 Pod 更新通常不允许改变此类安全字段，若发现“成功删除”，应再核对资源/子资源、
-集群版本与实现，是否实际修改的是工作负载模板并重建 Pod；不能跳过更新校验推断。
-成功写入配置也不证明已有进程的 AppArmor 约束已改变，仍需关联容器生命周期和实际进程状态。
-审计级别不足或历史记录缺失时注明未确认项，不以猜测补齐修改来源。
+Use `responseStatus`, available `responseObject`, and before/after snapshots to confirm outcomes. Distinguish same-name recreation by UID,
+and correlate versions using time and resourceVersion. The current Pod alone cannot represent its state when a historical request completed.
+Ordinary upstream Pod updates generally cannot change these security fields. For an apparent successful deletion, recheck resource/subresource,
+cluster version/implementation, and whether the actual change was to a workload template followed by Pod recreation. Do not skip update validation in the causal account.
+Successfully written settings do not prove an existing process's AppArmor confinement changed; correlate container lifecycle and actual process state.
+State unconfirmed points when audit level or history is insufficient. Do not fill attribution gaps by guessing.
 
-## 5. 结论与处理建议
+## 5. Conclusions and recommendations
 
-分别报告已经证明的失败阶段、配置差异、实际运行约束和修改来源；缺哪一项就说明缺口，
-不要把“更新请求遗漏字段”写成“线上配置已删除”，也不要把“疑似配置丢失”写成“某个旧组件已删除字段”。
-分别确认配置变化、agent 实际受限及该约束与本次加载失败的关系。影响按节点与 enforcer 界定：加载更新失败
-不等于已有内核 Profile 已消失，也不代表其他 enforcer 全部失效。
+Report the proven failure stage, configuration differences, actual runtime constraints, and mutation origin separately, and identify missing evidence.
+Do not turn request-field omission into proven live deletion, or suspected configuration loss into confirmed deletion by an old component.
+Establish configuration change, actual agent confinement, and its causal relationship to this load failure separately. Scope impact by node/enforcer: failed updates
+do not imply existing kernel Profiles disappeared or every other enforcer failed.
 
-建议随原因收敛：恢复正确的部署/挂载/能力配置，修正错误准入规则或字段丢失实现，必要时升级
-不兼容组件；规则语法或 parser/内核兼容问题沿对应分支处理。涉及安全例外时限定 agent 范围，
-说明影响、回滚和验证点，不把禁用整个 Webhook、全局关闭 AppArmor 或启用特权模式作为通用修复。
+Match recommendations to the cause: restore intended deployment/mount/capability settings, repair admission rules or field-loss implementations, and upgrade
+incompatible components if needed. Follow the appropriate rule-syntax or parser/kernel compatibility branch. Scope security exceptions to the agent,
+explain impact, rollback, and verification, and do not prescribe disabling all webhooks, globally disabling AppArmor, or enabling privileged mode as generic fixes.
 
-配置修正可能需要替换 agent Pod 才能改变进程启动约束；只提供建议，不代用户重建或重试加载。
-验证点包括新 Pod 的最终配置、正确进程的运行约束、相关 AP 节点加载结果与日志。
-已有修复记录可用于加强因果判断，不为验证经验而主动创建或修改策略。
+Corrected settings may require agent Pod replacement to change process startup constraints. Provide recommendations only; do not recreate Pods or retry loading for the user.
+Verify the new Pod's final configuration, the correct process's confinement, relevant AP node-load results, and logs.
+Existing repair evidence can strengthen causality; do not actively create/change policies just to validate an assumption.
 
-## 参考依据
+## References
 
-- [Kubernetes AppArmor 配置与运行状态](https://kubernetes.io/docs/tutorials/security/apparmor/)
-- [Kubernetes 1.31 AppArmor 稳定状态说明](https://kubernetes.io/blog/2024/08/13/kubernetes-v1-31-release/)
-- [Webhook 只修改必要字段及版本兼容考虑](https://kubernetes.io/docs/concepts/cluster-administration/admission-webhooks-good-practices/)
-- [准入修改审计](https://kubernetes.io/docs/reference/access-authn-authz/extensible-admission-controllers/#monitoring-admission-webhooks)
-- [审计请求与响应字段定义](https://github.com/kubernetes/apiserver/blob/master/pkg/apis/audit/types.go)
-- [Pod 更新与替换的限制](https://kubernetes.io/docs/concepts/workloads/pods/#pod-update-and-replacement)
-- [DaemonSet 模板更新策略](https://kubernetes.io/docs/tasks/manage-daemon/update-daemon-set/#daemonset-update-strategy)
+- [Kubernetes AppArmor configuration and runtime state](https://kubernetes.io/docs/tutorials/security/apparmor/)
+- [Kubernetes 1.31 AppArmor stability announcement](https://kubernetes.io/blog/2024/08/13/kubernetes-v1-31-release/)
+- [Minimal webhook mutation and version compatibility](https://kubernetes.io/docs/concepts/cluster-administration/admission-webhooks-good-practices/)
+- [Admission mutation auditing](https://kubernetes.io/docs/reference/access-authn-authz/extensible-admission-controllers/#monitoring-admission-webhooks)
+- [Audit request/response field definitions](https://github.com/kubernetes/apiserver/blob/master/pkg/apis/audit/types.go)
+- [Pod update and replacement restrictions](https://kubernetes.io/docs/concepts/workloads/pods/#pod-update-and-replacement)
+- [DaemonSet template update strategies](https://kubernetes.io/docs/tasks/manage-daemon/update-daemon-set/#daemonset-update-strategy)
 
-仓库维护时对照 `manifests/varmor/templates/daemonsets/agent.yaml`、
-`internal/agent/agent.go`、`pkg/lsm/apparmor/apparmor.go`；分发后的诊断以现场版本和证据为准。
+For repository maintenance, compare `manifests/varmor/templates/daemonsets/agent.yaml`,
+`internal/agent/agent.go`, and `pkg/lsm/apparmor/apparmor.go`. Distributed diagnostics must use deployed versions and evidence.

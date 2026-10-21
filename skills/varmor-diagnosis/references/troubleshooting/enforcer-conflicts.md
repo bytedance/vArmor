@@ -1,79 +1,79 @@
-# Enforcer 匹配与规则冲突
+# Enforcer matching and rule conflicts
 
-## 诊断目标
+## Diagnostic objective
 
-不要只判断策略是否 Ready，而要闭合“声明了什么、匹配了什么、生成了什么、节点加载了什么、Pod 使用什么、最终由谁处置”。最早可证明的断点优先；后续异常可能只是连带现象。
+Do not stop at policy Ready. Establish what was declared, matched, generated, loaded on the node, used by the Pod, and ultimately responsible for disposition. Prioritize the earliest provable break; later abnormalities may be consequences.
 
-## 六层匹配链
+## Six-layer matching chain
 
-1. **策略声明**：确认 mode、enforcer、规则、target、container 范围及 `unconfined` 等选项。
-2. **目标匹配**：确认 VP/VCP 的 namespace、kind、名称/selector、标签和优先级实际命中目标。
-3. **策略编译**：确认规则和 enforcer 能力被转换为有效 AP；不支持的内核、模式专属字段或非法规则可能在此处失败。
-4. **Admission 注入**：确认 Webhook 命中请求，并将所需 annotation、SecurityContext、sidecar 或引用写入最终 Pod/PodTemplate。
-5. **节点加载**：确认目标节点的 agent 已加载对应 Profile，并满足 LSM、BPF、runtime、证书和资源等前提。
-6. **运行时执行**：将实际行为与 Profile、enforcer、Pod UID、节点、时间和 action 对齐，判断放行、审计或拒绝。
+1. **Policy declaration**: Confirm mode, enforcer, rules, target, and container scope; inspect target Workload/Pod bypass settings such as `unconfined` separately.
+2. **Target matching**: Confirm actual matches from VP/VCP namespace, kind, name/selector, and labels, plus policy precedence.
+3. **Compilation**: Confirm rules/enforcer capabilities become a valid AP. Unsupported kernels, mode-specific fields, or invalid rules can fail here.
+4. **Admission injection**: Confirm webhook matching and required annotations, SecurityContext, sidecar, or references in final Pod/PodTemplate.
+5. **Node loading**: Confirm the target node agent loaded the Profile and meets LSM, BPF, runtime, certificate, and resource prerequisites.
+6. **Runtime enforcement**: Correlate actual behavior with Profile, enforcer, Pod UID, node, time, and action to identify allow, audit, or deny.
 
-任一层不成立，都不能用下一层的健康状态替代。例如 AP 存在不能证明 Pod 已注入，Pod 已注入也不能证明节点已加载。
+Health at a later layer cannot substitute for an unproven earlier layer. AP existence does not prove Pod injection; Pod injection does not prove node loading.
 
-## VP/VCP 重叠与最终归属
+## VP/VCP overlap and final ownership
 
-VP 与 VCP 可能同时命中同一 Workload。诊断时不要只按创建时间或对象名称推断优先级，应确认：
+VP and VCP may both match a workload. Do not infer priority solely from creation time or object name. Verify:
 
-- 两类策略的 target、namespace 范围、selector 和优先级是否重叠；
-- manager 最终选择或合并的策略归属，以及对应 AP/profileName；
-- PodTemplate 和实际 Pod 中的最终 Profile、enforcer、模式和容器范围；
-- 策略 generation、AP 版本、Pod 创建时间是否处于同一生效链路。
+- Overlap in targets, namespace scope, and selectors. The current injector checks VCPs before VPs; within the same policy kind, multiple matches have no guaranteed stable selection order;
+- The policy selected by the injector and its corresponding AP/profileName; do not assume rules from matching policies are merged;
+- Final Profile, enforcer, mode, and container scope in PodTemplate and actual Pod;
+- Whether policy generation, AP version, and Pod creation time belong to the same activation chain.
 
-若声明层显示多个候选策略，而 AP 或 Pod 只体现一个最终结果，应以最终 AP 归属和 Pod 实际配置诊断；若不同观察点互相矛盾，结论应标为“规则冲突”或“证据不足”，而不是直接判定未生效。
+When declaration shows multiple candidate policies but AP/Pod shows one final result, diagnose from final AP ownership and actual Pod configuration. Contradictory observation points warrant "rule conflict" or "insufficient evidence", not an immediate ineffective-policy conclusion.
 
-## 多 enforcer 叠加
+## Combining enforcers
 
-多个 enforcer 可以同时影响一个业务动作，但它们的控制层不同：
+Multiple enforcers may affect one application action at different control layers:
 
-- AppArmor 与 BPF 可能同时约束文件、执行、能力、挂载或网络；
-- Seccomp 约束 syscall，业务层的文件或网络错误可能只是底层 syscall 被拒绝后的表现；
-- NetworkProxy 只处理已重定向到 sidecar 的流量，可能与 CNI NetworkPolicy、DNS、内核网络规则及应用自身校验叠加。
+- AppArmor and BPF may both constrain files, execution, capabilities, mounts, or networking;
+- Seccomp constrains syscalls; application file/network errors may be symptoms of a denied underlying syscall;
+- NetworkProxy handles only redirected sidecar traffic and may combine with CNI NetworkPolicy, DNS, kernel network rules, and application validation.
 
-`EACCES`、`EPERM`、`Permission denied` 不能单独确定 enforcer；`SIGSYS`/`Bad system call` 更指向 Seccomp，但仍需结合 Profile、Pod、节点和时间证据。应先寻找最早、最具体且能解释现象的拒绝事件，再排除其他叠加层；不要因为同时存在多个 Profile 就把所有异常归因于 vArmor。
+`EACCES`, `EPERM`, and `Permission denied` cannot identify an enforcer alone. `SIGSYS`/`Bad system call` suggests Seccomp more strongly but still needs Profile, Pod, node, and time evidence. Find the earliest, most specific denial explaining the symptom, then assess other layers. Multiple Profiles alone do not attribute every failure to vArmor.
 
-## Allow、Audit、Deny 语义
+## Allow, Audit, and Deny semantics
 
-`allowViolations` 与 `auditViolations` 是正交配置，不能仅从“有无日志”推断是否放行：
+For AppArmor/BPF EnhanceProtect built-in rules and the implicit baseline, `allowViolations` and `auditViolations` independently control disposition and logging:
 
-- 不允许且不审计：可能阻断但没有对应审计记录；
-- 不允许且审计：阻断并记录拒绝事件；
-- 允许且审计：放行并记录允许/审计事件；
-- 允许且不审计：放行且无对应审计事件。
+- Disallow without audit: may block without a corresponding audit record;
+- Disallow with audit: block and log a denial;
+- Allow with audit: allow and log an allowed/audit event;
+- Allow without audit: allow without a corresponding audit event.
 
-Seccomp 的观察和事件语义不能简单套用 AppArmor/BPF 的 `DENIED`；应结合 syscall、信号、action 和 Profile 语义判断。NetworkProxy 自定义规则主要由 qualifier、优先级和 `defaultAction` 决定，不应直接套用 `allowViolations`。
+Seccomp observation/events cannot simply reuse AppArmor/BPF `DENIED` interpretation; use syscall, signal, action, and Profile semantics. NetworkProxy custom rules depend primarily on qualifiers, precedence, and `defaultAction`, not `allowViolations`.
 
-## NetworkProxy 规则层次
+## NetworkProxy rule layers
 
-按以下顺序定位，避免把规则未命中误判为代理故障：
+Use this order to avoid mistaking an unmatched rule for a proxy failure:
 
-1. **注入**：Pod 是否包含 proxy annotation、initContainer、sidecar、配置/证书 volume 及必要环境配置。
-2. **启动**：initContainer 是否完成，sidecar 是否 ready，Secret、证书、配置和端口是否有效。
-3. **转发**：目标流量是否经过重定向；端口、ProxyUID、管理端口和回环流量是否造成绕过或误转发。
-4. **协议与匹配**：先区分 L4 IP/CIDR/端口，再判断 SNI/域名和 L7 HTTP host/path/method；不同层的规则不能互相替代。
-5. **优先级与默认动作**：确认 qualifier、规则优先级、allow/deny 关系和 `defaultAction`；不要只凭规则文本顺序推断结果。
-6. **HTTPS 可见性**：没有 TLS MITM 时通常只能依据连接、SNI 或 host 判断，不能期待按加密流量的 HTTP path/method 匹配。
-7. **绕过与外部层**：核对允许绕过的身份、管理端口、Pod CIDR，以及 CNI NetworkPolicy、DNS、服务网格或应用代理的叠加影响。
+1. **Injection**: Pod proxy annotations, initContainer, sidecar, configuration/certificate volumes, and required environment.
+2. **Startup**: init completion, sidecar readiness, and valid Secret, certificates, configuration, and ports.
+3. **Forwarding**: Actual redirection of target traffic; bypass/misrouting from ports, ProxyUID, admin port, or loopback.
+4. **Protocol and matching**: Distinguish L4 IP/CIDR/ports before SNI/domains and L7 HTTP host/path/method. Rules at different layers do not replace each other.
+5. **Precedence and default action**: Verify qualifiers, rule precedence, allow/deny relationships, and `defaultAction`; do not infer behavior from textual rule order alone.
+6. **HTTPS visibility**: Without TLS MITM, connection metadata and TLS SNI may be visible, but encrypted HTTP Host/:authority, path, and method are not.
+7. **Bypass and external layers**: Inspect permitted bypass identities, admin ports, Pod CIDR, and additional CNI NetworkPolicy, DNS, service-mesh, or application-proxy effects.
 
-sidecar Ready 只说明代理进程达到就绪条件，不代表所有流量都经过代理；L4 允许也不代表 L7 一定允许，反之亦然。
+Sidecar Ready establishes only proxy readiness, not that all traffic traverses it. In the current implementation, L4 and HTTP allow rules are alternative authorizations where both apply: a broad L4 allow can permit a request that misses an HTTP allow rule. Matching deny rules still take precedence. Check the deployed version before generalizing this behavior.
 
-## 统一结论分类
+## Shared conclusion categories
 
-报告应明确归入最贴近证据的一类：
+Choose the category closest to the evidence:
 
-- 未匹配
-- 能力不支持
-- 未编译
-- 未注入
-- 模板已注入但 Pod 未更新
-- 未加载
-- 已加载未触发
-- 已触发且放行
-- 已触发且拒绝
-- 规则冲突
-- 业务问题
-- 证据不足
+- Unmatched
+- Unsupported capability
+- Not compiled
+- Not injected
+- Template injected but Pod not updated
+- Not loaded
+- Loaded but not triggered
+- Triggered and allowed
+- Triggered and denied
+- Rule conflict
+- Application issue
+- Insufficient evidence

@@ -1,136 +1,136 @@
 <!--
-使用规则：
-1. 正式或复杂诊断参考此模板；按问题删减章节，输出自包含报告。普通问答不要求使用。
-   替换保留章节中的 {{占位符}}；不为填表额外采集。
-2. 未采集或无法证明的内容写“未采集”或“未确认”，不得按经验补造。
-3. 每个关键结论至少引用一个证据编号（E1、E2……）。
-4. 时间使用绝对时间并标明时区；故障窗口与采集时间分开记录。
-5. 只保留诊断所需摘要；不得写入 Secret、私钥、Token、敏感 Annotation 值、
-   完整 HostPath、APM 完整文件路径、完整资源 JSON 或无关业务日志。
-6. 没有闭合根因时，报告当前最早断点、已排除项、未排除项和下一探针，
-   不得为了完整性强行给出根因。
+Usage rules:
+1. Use this template for formal or complex investigations; remove irrelevant sections and produce a self-contained report. It is optional for ordinary questions.
+   Replace {{placeholders}} in retained sections; do not collect extra evidence solely to fill the template.
+2. Mark uncollected or unproven information as "not collected" or "unconfirmed"; never invent it from experience.
+3. Cite at least one evidence ID (E1, E2, ...) for every key conclusion.
+4. Use absolute timestamps with time zones; distinguish the failure window from collection times.
+5. Retain only diagnostic summaries; never include Secrets, private keys, tokens, sensitive Annotation values,
+   full HostPaths, full APM file paths, complete resource JSON, or unrelated application logs.
+6. If the root cause is unresolved, report the earliest established breakpoint, ruled-out and remaining explanations, and the next probe.
+   Do not force a root-cause conclusion for completeness.
 -->
 
-# vArmor 诊断报告：{{简短问题标题}}
+# vArmor Diagnosis Report: {{brief issue title}}
 
-## 1. 基本信息
+## 1. Basic information
 
-| 项目 | 内容 |
+| Item | Details |
 |---|---|
-| 报告生成时间 | {{YYYY-MM-DD HH:mm:ss TZ}} |
-| 故障时间窗口 | {{开始时间至结束时间；未知则写未确认}} |
-| 诊断范围 | {{集群/namespace/Workload/Pod/container/节点}} |
-| 用户现象 | {{一句话描述可观察症状}} |
-| vArmor 版本 | {{版本或未采集}} |
-| Kubernetes 版本 | {{版本或未采集}} |
-| 策略 | {{VP/VCP namespace/name；无则写未确认}} |
-| Profile | {{ArmorProfile/profileName；无则写未确认}} |
-| Enforcer / Mode | {{AppArmor/BPF/Seccomp/NetworkProxy；模式}} |
+| Report generated | {{YYYY-MM-DD HH:mm:ss TZ}} |
+| Failure window | {{start to end; unconfirmed if unknown}} |
+| Diagnostic scope | {{cluster/namespace/Workload/Pod/container/node}} |
+| User symptom | {{one-sentence observable symptom}} |
+| vArmor version | {{version or not collected}} |
+| Kubernetes version | {{version or not collected}} |
+| Policy | {{VP/VCP namespace/name; unconfirmed if unavailable}} |
+| Profile | {{ArmorProfile/profileName; unconfirmed if unavailable}} |
+| Enforcer / Mode | {{AppArmor/BPF/Seccomp/NetworkProxy; mode}} |
 
-## 2. 执行摘要
+## 2. Executive summary
 
-- **诊断状态**：{{已定位 / 部分定位 / 证据不足 / 未发现 vArmor 异常}}
-- **当前断点**：{{未匹配 / 能力不支持 / 未编译 / 未注入 / 模板已注入但 Pod 未更新 / 未加载 / 已加载未触发 / 已触发且放行 / 已触发且拒绝 / 规则冲突 / 业务问题 / 证据不足}}
-- **影响范围**：{{单容器/单 Pod/单 Workload/单节点/多节点/集群级；附数量或未确认}}
-- **主要结论**：{{证据直接支持的最窄结论，引用 E 编号}}
-- **根因置信度**：{{高 / 中 / 低}}，因为 {{证据闭合程度}}
-- **建议优先级**：{{P0 / P1 / P2}}，首要动作是 {{低风险修复或下一探针}}
+- **Diagnostic status**: {{localized / partially localized / insufficient evidence / no vArmor abnormality found}}
+- **Current breakpoint**: {{unmatched / unsupported capability / not compiled / not injected / template injected but Pod outdated / not loaded / loaded but not triggered / triggered and allowed / triggered and denied / rule conflict / application issue / insufficient evidence}}
+- **Impact scope**: {{one container/Pod/Workload/node, multiple nodes, or cluster-wide; include counts or unconfirmed}}
+- **Main conclusion**: {{narrowest directly supported conclusion, citing E IDs}}
+- **Root-cause confidence**: {{high / medium / low}}, because {{degree of evidence closure}}
+- **Recommended priority**: {{P0 / P1 / P2}}; first action: {{low-risk remediation or next probe}}
 
-## 3. 关键结论
+## 3. Key conclusions
 
-| 严重度 | 分类 | 结论 | 影响 | 置信度 | 证据 |
+| Severity | Category | Conclusion | Impact | Confidence | Evidence |
 |---|---|---|---|---|---|
-| {{P0/P1/P2/信息}} | {{断点分类}} | {{结论}} | {{范围}} | {{高/中/低}} | {{E1, E2}} |
+| {{P0/P1/P2/info}} | {{breakpoint category}} | {{conclusion}} | {{scope}} | {{high/medium/low}} | {{E1, E2}} |
 
-> 严重度表示处置优先级，不等同于证据置信度。没有证据支持的推测不得列为结论。
+> Severity indicates response priority, not evidentiary confidence. Do not list unsupported speculation as a conclusion.
 
-## 4. 状态与范围快照
+## 4. Status and scope snapshot
 
-| 观察对象 | 期望状态 | 实际状态 | 判定 | 观察时间 | 证据 |
+| Object observed | Expected state | Actual state | Assessment | Observation time | Evidence |
 |---|---|---|---|---|---|
-| {{manager/agent/classifier/VP/VCP/AP/Workload/Pod/Node}} | {{期望}} | {{实际}} | {{正常/异常/未确认}} | {{绝对时间 TZ}} | {{E 编号}} |
+| {{manager/agent/classifier/VP/VCP/AP/Workload/Pod/Node}} | {{expected}} | {{actual}} | {{normal/abnormal/unconfirmed}} | {{absolute time TZ}} | {{E IDs}} |
 
-## 5. 防护链路
+## 5. Protection chain
 
-| 环节 | 检查对象 | 关键观察 | 状态 | 证据 |
+| Stage | Objects checked | Key observation | Status | Evidence |
 |---|---|---|---|---|
-| 目标发现 | VP/VCP target、目标对象、container | {{name/selector 是否命中；是否 unconfined}} | {{通过/失败/未确认}} | {{E 编号}} |
-| 策略编译 | VP/VCP status、profileName、AP | {{phase/conditions/AP 生成情况}} | {{通过/失败/未确认}} | {{E 编号}} |
-| Admission 注入 | Webhook、PodTemplate、实际 Pod | {{Profile/sidecar/initContainer/volume 注入事实}} | {{通过/失败/未确认}} | {{E 编号}} |
-| 节点落地 | Node、agent、LSM/runtime、AP node condition | {{期望与实际加载、能力待证明项}} | {{通过/失败/未确认}} | {{E 编号}} |
-| 运行时执行 | 实际 Profile、事件、action、业务现象 | {{已加载未触发/放行/拒绝/无关联事件}} | {{通过/失败/未确认}} | {{E 编号}} |
+| Target discovery | VP/VCP target, target object, container | {{name/selector matching; unconfined state}} | {{pass/fail/unconfirmed}} | {{E IDs}} |
+| Policy compilation | VP/VCP status, profileName, AP | {{phase/conditions/AP generation}} | {{pass/fail/unconfirmed}} | {{E IDs}} |
+| Admission injection | Webhook, PodTemplate, actual Pod | {{Profile/sidecar/initContainer/volume injection facts}} | {{pass/fail/unconfirmed}} | {{E IDs}} |
+| Node installation | Node, agent, LSM/runtime, AP node condition | {{expected/actual loading; unproven capabilities}} | {{pass/fail/unconfirmed}} | {{E IDs}} |
+| Runtime enforcement | Actual Profile, events, action, application symptoms | {{loaded but not triggered/allowed/denied/no associated events}} | {{pass/fail/unconfirmed}} | {{E IDs}} |
 
-**最早可证明断点**：{{环节和具体对象}}。
+**Earliest established breakpoint**: {{stage and specific object}}.
 
-**后续健康状态不能覆盖该断点的原因**：{{简述；不适用则删除本行}}。
+**Why downstream healthy states do not invalidate this breakpoint**: {{brief explanation; remove if inapplicable}}.
 
-## 6. 原因分析
+## 6. Cause analysis
 
-### 6.1 已确认事实
+### 6.1 Confirmed facts
 
-1. {{事实，仅写直接观察，引用 E1}}
-2. {{事实，引用 E2}}
+1. {{directly observed fact, citing E1}}
+2. {{fact, citing E2}}
 
-### 6.2 推理链
+### 6.2 Reasoning chain
 
-1. {{由哪条证据排除或确认哪一环}}
-2. {{如何关联对象身份、Profile、节点和时间}}
-3. {{为何当前结论比其他解释更符合证据}}
+1. {{which evidence confirms or rules out which stage}}
+2. {{how object identity, Profile, node, and time are correlated}}
+3. {{why the current conclusion fits the evidence better than alternatives}}
 
-### 6.3 根因或当前断点
+### 6.3 Root cause or current breakpoint
 
-{{若证据闭合：写直接根因及作用机制。若未闭合：明确写“当前只能证明断点位于……，根因尚未确认”。}}
+{{If resolved, state the direct root cause and mechanism. Otherwise state explicitly: "Current evidence only establishes a breakpoint at ..., and the root cause remains unconfirmed."}}
 
-### 6.4 已排除与未排除
+### 6.4 Ruled-out and remaining explanations
 
-| 类型 | 项目 | 依据 |
+| Type | Item | Basis |
 |---|---|---|
-| 已排除 | {{其他 enforcer/runtime/CNI/DNS/服务网格/业务逻辑等}} | {{E 编号或检查结果}} |
-| 未排除 | {{仍可能解释现象的因素}} | {{缺少什么证据}} |
+| Ruled out | {{other enforcer/runtime/CNI/DNS/service mesh/application logic, etc.}} | {{E IDs or check results}} |
+| Not ruled out | {{factors that could still explain the symptoms}} | {{missing evidence}} |
 
-## 7. 关键证据
+## 7. Key evidence
 
-### E1 - {{证据标题}}
+### E1 - {{evidence title}}
 
-- **对象**：{{kind namespace/name、UID、generation/resourceVersion（适用时）}}
-- **采集时间**：{{YYYY-MM-DD HH:mm:ss TZ}}
-- **来源**：{{命令、脚本或对象字段}}
-- **观察**：{{最小必要原始字段或日志摘要}}
-- **支持结论**：{{该证据能直接证明什么，不能证明什么}}
+- **Object**: {{kind namespace/name, UID, generation/resourceVersion where applicable}}
+- **Collection time**: {{YYYY-MM-DD HH:mm:ss TZ}}
+- **Source**: {{command, script, or object field}}
+- **Observation**: {{minimum necessary raw fields or log summary}}
+- **Supported conclusion**: {{what this evidence directly proves and cannot prove}}
 
 ```text
-{{仅保留必要片段；删除或脱敏敏感值}}
+{{retain necessary excerpts only; remove or redact sensitive values}}
 ```
 
-### E2 - {{证据标题}}
+### E2 - {{evidence title}}
 
-- **对象**：{{对象身份}}
-- **采集时间**：{{YYYY-MM-DD HH:mm:ss TZ}}
-- **来源**：{{来源}}
-- **观察**：{{观察}}
-- **支持结论**：{{边界明确的结论}}
+- **Object**: {{object identity}}
+- **Collection time**: {{YYYY-MM-DD HH:mm:ss TZ}}
+- **Source**: {{source}}
+- **Observation**: {{observation}}
+- **Supported conclusion**: {{conclusion with explicit limits}}
 
-## 8. 处置建议
+## 8. Remediation recommendations
 
-| 优先级 | 建议 | 风险等级 | 影响与前置条件 | 回滚方式 | 成功判据 |
+| Priority | Recommendation | Risk level | Impact and prerequisites | Rollback | Success criteria |
 |---|---|---|---|---|---|
-| {{P0/P1/P2}} | {{建议动作；不直接执行写操作}} | {{L0-L4}} | {{影响范围、授权和依赖}} | {{明确回滚}} | {{可观测验证结果}} |
+| {{P0/P1/P2}} | {{recommended action; do not directly execute writes}} | {{L0-L4}} | {{scope, authorization, and dependencies}} | {{explicit rollback}} | {{observable verification results}} |
 
-建议顺序：
+Recommended order:
 
-1. {{优先选择低风险、可回滚、能验证假设的动作}}
-2. {{涉及放宽策略、重建 Workload、切换 enforcer 或升级内核时，明确安全影响}}
+1. {{prefer low-risk, reversible actions that test a hypothesis}}
+2. {{explain security impacts of relaxing policies, recreating Workloads, switching enforcers, or upgrading kernels}}
 
-## 9. 下一步验证
+## 9. Next verification
 
-> 根因已闭合且没有遗留验证时，可删除本节。
+> Remove this section if the root cause is resolved and no verification remains.
 
-| 优先级 | 待确认问题 | 最小探针 | 风险等级 | 预期结果与分支 |
+| Priority | Open question | Minimal probe | Risk level | Expected outcomes and branches |
 |---|---|---|---|---|
-| {{1}} | {{问题}} | {{单对象、单节点或有限时间窗口的检查}} | {{L0-L4}} | {{结果 A 说明什么；结果 B 转向哪里}} |
+| {{1}} | {{question}} | {{single-object, single-node, or bounded-window check}} | {{L0-L4}} | {{meaning of outcome A; next direction for outcome B}} |
 
-## 10. 限制与备注
+## 10. Limitations and notes
 
-- {{数据缺口、Event 保留时间、日志窗口、RBAC 或授权限制}}
-- {{APM 是有限行为样本；REVIEW_REQUIRED 表示规则层尚未排除，NO_CONFLICT_OBSERVED 也不代表不存在冲突（适用时）}}
-- {{本报告未执行任何集群写操作；若执行过经授权的 L3/L4 验证，应在此列明}}
+- {{data gaps, Event retention, log windows, RBAC, or authorization limits}}
+- {{APM is a bounded behavior sample; REVIEW_REQUIRED means the rule layer is not ruled out, and NO_CONFLICT_OBSERVED does not establish absence of conflicts, where applicable}}
+- {{no cluster writes were performed; list any authorized L3/L4 verification performed here}}

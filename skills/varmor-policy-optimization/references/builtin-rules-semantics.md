@@ -1,112 +1,114 @@
-# 内置规则语义参考
+# Built-in Rule Semantics Reference
 
-用于理解和校验用户策略中已有内置规则。每条给出**用途**与**误伤风险**；不得仅凭规则名称猜测，
-不得因为读到本参考就扩充策略规则，任何规则取舍都以用户提供和确认为准。
+Use this reference to understand and validate built-in rules already present in user policies. Each entry lists **purpose** and **disruption risk**; do not infer semantics from names alone
+or expand a policy merely because this reference was read. All rule choices must follow user input and confirmation.
 
-规则分三类。标注的 enforcer 为其实际生效层（部分规则虽出现在某清单，但实际由其他 enforcer
-执行）。
+Rules fall into three categories. Listed enforcers are the actual enforcement layers (some rules appear in one list but are executed by another
+enforcer).
 
-## 版本边界
+Disruption examples refer to containers actually covered by the policy. `target.containers` selects application containers, excluding initContainers and ephemeralContainers; do not assume those are protected by the same rules.
 
-- catalog 的 `catalogProvenance` 只记录取材来源，不要求集群版本精确相等。
-- 官方 `v0.10.1`～`v0.10.5` 的 AppArmor/BPF/Seccomp 内置规则实现文件完全一致，均视为已验证
-  兼容；比对日期、上游路径和各版本组 SHA-256 见 catalog 的
-  `builtInRuleCompatibility.verificationEvidence`。
-- `v0.10.0` 仅缺少 `copy-fail-mitigation`；策略不使用该规则时，不因此阻断其他内置规则。
-- 其他或无法识别的版本标记为 `unknown`，只对实际使用的内置规则提示核验，不泛化为整份策略
-  不兼容。NetworkProxy 的功能和日志版本另见
-  [violation-log.md](violation-log.md)。
+## Version boundaries
 
-## 一、hardeningRules（系统加固）
+- Catalog `catalogProvenance` records the source material; it does not require an exactly matching cluster version.
+- Official `v0.10.1` through `v0.10.5` AppArmor/BPF/Seccomp built-in rule implementation files are identical and considered verified
+  compatible. Comparison dates, upstream paths, and per-version-group SHA-256 values are recorded in catalog
+  `builtInRuleCompatibility.verificationEvidence`.
+- `v0.10.0` lacks only `copy-fail-mitigation`; do not block other built-in rules when the policy does not use it.
+- Mark other or unrecognized versions `unknown`; request verification only for built-in rules actually used rather than declaring the entire policy
+  incompatible. For NetworkProxy feature and log versions, see
+  [violation-log.md](violation-log.md).
 
-| 规则 | 用途 | 误伤风险 | enforcer |
+## 1. hardeningRules (system hardening)
+
+| Rule | Purpose | Disruption risk | enforcer |
 |---|---|---|---|
-| disallow-write-core-pattern | 禁止改 `/proc/sys/kernel/core_pattern`（常见逃逸路径） | 正常业务几乎不用，低 | AppArmor/BPF |
-| disallow-mount-securityfs | 禁止挂载 securityfs | 正常业务几乎不用，低 | AppArmor/BPF |
-| disallow-mount-procfs | 禁止新挂载/重挂 procfs | 依赖挂载的初始化/边车可能受影响 | AppArmor/BPF |
-| disallow-write-release-agent | 禁止写 cgroup release_agent | 正常业务不用，低 | AppArmor/BPF |
-| disallow-mount-cgroupfs | 禁止新挂载/重挂 cgroupfs | 依赖 cgroup 手动挂载的组件受影响 | AppArmor/BPF |
-| disallow-debug-disk-device | 禁止读写动态识别的宿主磁盘设备 | 存储/磁盘类插件可能受影响 | AppArmor/BPF |
-| disallow-mount-disk-device | 禁止挂载宿主磁盘设备 | 存储类组件受影响 | AppArmor/BPF |
-| disallow-mount | 禁止 mount 系统调用 | 需要挂载的初始化容器会被拦；默认基线在 privileged=false 时已含类似限制 | AppArmor/BPF |
-| disallow-umount | 禁止 umount | 需卸载的组件受影响 | AppArmor/BPF |
-| disallow-insmod | 禁用 CAP_SYS_MODULE | 需加载内核模块的组件（某些网络/存储插件）被拦 | AppArmor/BPF |
-| disallow-load-bpf-prog | 禁止加载高权限 eBPF（保留 socket/cgroup 类型） | 依赖 eBPF 的网络/可观测组件受影响 | AppArmor/BPF |
-| disallow-access-procfs-root | 禁止 ptrace read（用于访问 `/proc/<pid>/root`） | 调试/跨容器诊断、共享 PID 的边车受影响 | AppArmor/BPF |
-| disallow-access-kallsyms | 禁止读 `/proc/kallsyms` | 性能/诊断、某些 tracer 读取符号会受影响 | AppArmor/BPF |
-| disallow-abuse-user-ns | 禁用借 user namespace 获得的 CAP_SYS_ADMIN | 需 user namespace 的 rootless/沙箱组件受影响 | AppArmor/BPF |
-| disallow-create-user-ns | 禁止创建 user namespace | rootless/隔离类组件受影响 | **Seccomp** |
-| disallow-load-all-bpf-prog | 禁止任意 eBPF 加载 | 任何依赖 eBPF 的组件都受影响 | **Seccomp** |
-| disallow-load-bpf-via-setsockopt | 禁止 setsockopt 加载 cBPF | 依赖老式 socket filter 的组件受影响 | **Seccomp** |
-| disallow-userfaultfd-creation | 禁止 userfaultfd | 极低，通常仅漏洞利用使用 | **Seccomp** |
+| disallow-write-core-pattern | Prevent writes to `/proc/sys/kernel/core_pattern` (a common escape path) | Low; rarely needed by ordinary applications | AppArmor/BPF |
+| disallow-mount-securityfs | Prevent securityfs mounts | Low; rarely needed by ordinary applications | AppArmor/BPF |
+| disallow-mount-procfs | Prevent new procfs mounts/remounts | May affect startup logic or targeted sidecar containers that require mounts | AppArmor/BPF |
+| disallow-write-release-agent | Prevent writes to cgroup release_agent | Low; not used by ordinary applications | AppArmor/BPF |
+| disallow-mount-cgroupfs | Prevent new cgroupfs mounts/remounts | Affects components that manually mount cgroups | AppArmor/BPF |
+| disallow-debug-disk-device | Prevent reads/writes to dynamically identified host disk devices | May affect storage/disk plugins | AppArmor/BPF |
+| disallow-mount-disk-device | Prevent host disk-device mounts | Affects storage components | AppArmor/BPF |
+| disallow-mount | Prevent mount operations | Affects mount operations in targeted containers; the AppArmor/BPF default baseline already includes mount restrictions when privileged=false | AppArmor/BPF |
+| disallow-umount | Prevent umount | Affects components requiring unmounts | AppArmor/BPF |
+| disallow-insmod | Disable CAP_SYS_MODULE | Blocks components loading kernel modules, including some network/storage plugins | AppArmor/BPF |
+| disallow-load-bpf-prog | Prevent privileged eBPF loading (preserving socket/cgroup types) | Affects eBPF-dependent networking/observability components | AppArmor/BPF |
+| disallow-access-procfs-root | Prevent ptrace read (used to access `/proc/<pid>/root`) | Affects debugging, cross-container diagnosis, and sidecars sharing PID namespaces | AppArmor/BPF |
+| disallow-access-kallsyms | Prevent reads of `/proc/kallsyms` | Affects performance/diagnostic tools and tracers reading symbols | AppArmor/BPF |
+| disallow-abuse-user-ns | Disable CAP_SYS_ADMIN obtained through user namespaces | Affects rootless/sandbox components requiring user namespaces | AppArmor/BPF |
+| disallow-create-user-ns | Prevent user namespace creation | Affects rootless/isolation components | **Seccomp** |
+| disallow-load-all-bpf-prog | Prevent all eBPF loading | Affects any eBPF-dependent component | **Seccomp** |
+| disallow-load-bpf-via-setsockopt | Prevent cBPF loading through setsockopt | Affects components using legacy socket filters | **Seccomp** |
+| disallow-userfaultfd-creation | Prevent the userfaultfd syscall | May affect legitimate userspace paging, memory management, or VM migration; an event is not by itself evidence of exploitation | **Seccomp** |
 
-能力规则（同属 hardening 选择，AppArmor/BPF）：
+Capability rules (also selected under hardening, AppArmor/BPF):
 
-| 规则 | 用途 / 风险 |
+| Rule | Purpose / risk |
 |---|---|
-| disable-cap-all | 禁用全部能力 → 最严；任何需要非默认能力的操作都会触发日志 |
-| disable-cap-all-except-net-bind-service | 仅保留 NET_BIND_SERVICE（<1024 端口）；需其他能力的操作触发日志 |
-| disable-cap-privileged | 禁用特权能力集合，保留容器运行时默认能力 |
+| disable-cap-all | Disable all capabilities, including runtime-default capabilities; operations requiring any capability may be blocked or logged according to observation settings |
+| disable-cap-all-except-net-bind-service | Retain only NET_BIND_SERVICE (ports <1024); operations requiring other capabilities trigger logs |
+| disable-cap-privileged | Disable the privileged capability set while retaining container-runtime default capabilities |
 
-> 注：`disable-cap-[CAP]` 是**规则族占位符，不是可写入 CRD 的规则 ID**。要禁用单个能力时，
-> 从 catalog 的 capability 规则集合中选择具体 ID（如 `disable-cap-net-raw`），仅当该能力审计
-> 事件出现时才归因，不能从文件/挂载操作推断；不要把 `disable-cap-[CAP]` 字符串直接写入策略。
+> `disable-cap-[CAP]` is a **rule-family placeholder, not a rule ID accepted in CRDs**. To disable one capability,
+> choose a concrete ID from the catalog capability rule set (such as `disable-cap-net-raw`). Attribute only when that capability audit
+> event exists, not from file/mount operations; never write the literal `disable-cap-[CAP]` into a policy.
 
-## 二、attackProtectionRules（攻击防护）
+## 2. attackProtectionRules (attack protection)
 
-| 规则 | 用途 | 误伤风险 | enforcer |
+| Rule | Purpose | Disruption risk | enforcer |
 |---|---|---|---|
-| mitigate-sa-leak | 禁止读 ServiceAccount token/CA/namespace | **需访问 apiserver（如 operator、client-go、k8s 探针、leader 选举）的工作负载会被拦**，最常见误伤 | AppArmor/BPF |
-| mitigate-disk-device-number-leak | 禁止读 `/proc/partitions`、mountinfo | `mount`/`df` 及读取 mountinfo 的库受影响 | AppArmor/BPF |
-| mitigate-overlayfs-leak | 禁止读 mounts/mountinfo | 同上；mount 命令受影响 | AppArmor/BPF |
-| mitigate-host-ip-leak | 禁止读 ARP 表 | 网络诊断、读取 `/proc/net/arp` 的组件受影响 | AppArmor/BPF |
-| disable-write-etc | 禁止写 `/etc` | **运行时要写 `/etc` 的应用（写 resolv/hosts、配置、证书）会被拦**，常见误伤 | AppArmor/BPF |
-| disable-access-passwd | 禁止读写 `/etc/passwd` | 需读 passwd 的 NSS/用户管理受影响 | AppArmor/BPF |
-| disable-access-shadow | 禁止访问 `/etc/shadow` | 一般低 | AppArmor/BPF |
-| disable-access-ssh-dir | 禁止访问 `.ssh` | 需要 SSH/密钥的组件受影响 | AppArmor/BPF |
-| disable-write-skills | 禁止写 skills 目录 | 应用要写该目录时受影响 | **仅 AppArmor** |
-| disable-busybox | 禁执行 busybox | **alpine/busybox 基础镜像、运行时用 busybox 调试会被拦**，常见误伤 | AppArmor/BPF |
-| disable-shell | 禁 sh/bash/dash | 启动脚本用 shell、需要 exec shell 的会被拦；常有软链到 busybox | AppArmor/BPF |
-| disable-wget | 禁 wget | 启动时用 wget 拉配置/健康检查会被拦 | AppArmor/BPF |
-| disable-curl | 禁 curl | 启动时用 curl 拉配置/健康检查会被拦 | AppArmor/BPF |
-| disable-chmod | 禁执行 chmod 程序 | 启动脚本 chmod 会被拦 | AppArmor/BPF |
-| disable-chmod-x-bit | 禁止设置可执行位 | 需运行时 chmod +x（下载后执行）会被拦 | **Seccomp** |
-| disable-chmod-s-bit | 禁止设置 SUID/SGID | 一般低 | **Seccomp** |
-| disable-su-sudo | 禁 su/sudo | 提权脚本受影响 | AppArmor/BPF |
-| disable-network | 禁一切网络 | **任何联网服务都被拦**，最严，仅适合完全离线计算 | AppArmor/BPF |
-| disable-inet | 禁 IPv4 | 只影响 IPv4；纯 IPv6 不受影响 | AppArmor/BPF |
-| disable-ipv4 | 禁 IPv4 | 同上（别名语义，以 catalog ID 为准） | AppArmor/BPF |
-| disable-inet6 | 禁 IPv6 | 只影响 IPv6 | AppArmor/BPF |
-| disable-ipv6 | 禁 IPv6 | 同上 | AppArmor/BPF |
-| disable-unix-domain-socket | 禁 UDS | **进程间大量使用 UDS（本地通信）的应用受影响** | AppArmor/BPF |
-| disable-icmp | 禁 ICMP | ping/健康检查用 ICMP 受影响 | AppArmor/BPF |
-| disable-tcp | 禁 TCP | TCP 服务被拦 | AppArmor/BPF |
-| disable-udp | 禁 UDP | UDP 服务被拦 | AppArmor/BPF |
-| block-access-to-kube-apiserver | 禁连 kube-apiserver | **需访问 apiserver 的工作负载被拦** | **仅 BPF** |
-| block-access-to-container-runtime | 禁访问 docker/containerd/crio.sock | 需容器运行时 socket 的组件（CI/守护进程）受影响 | AppArmor/BPF |
-| block-access-to-metadata-service | 禁常见云 metadata IP | 需要访问 metadata（取凭据/地域）的应用受影响 | **仅 BPF** |
-| block-access-to-aws-metadata-service | 禁 AWS metadata IP | 需读 AWS metadata 的应用受影响 | **仅 BPF** |
-| block-access-to-volc-metadata-service | 禁火山 metadata IP | 需读火山 metadata 的应用受影响 | **仅 BPF** |
-| block-access-to-alibaba-metadata-service | 禁阿里 metadata IP | 需读阿里 metadata 的应用受影响 | **仅 BPF** |
-| block-access-to-oci-metadata-service | 禁 OCI metadata IP | 需读 OCI metadata 的应用受影响 | **仅 BPF** |
+| mitigate-sa-leak | Prevent reads of ServiceAccount token/CA/namespace | **Blocks workloads requiring apiserver access, such as operators, client-go, Kubernetes probes, and leader election**; a common disruption | AppArmor/BPF |
+| mitigate-disk-device-number-leak | Prevent reads of `/proc/partitions` and mountinfo | Affects `mount`/`df` and libraries reading mountinfo | AppArmor/BPF |
+| mitigate-overlayfs-leak | Prevent reads of mounts/mountinfo | Same as above; affects mount commands | AppArmor/BPF |
+| mitigate-host-ip-leak | Prevent ARP-table reads | Affects network diagnostics and components reading `/proc/net/arp` | AppArmor/BPF |
+| disable-write-etc | Prevent writes to `/etc` | **Blocks applications writing resolv/hosts, configuration, or certificates under `/etc` at runtime**; a common disruption | AppArmor/BPF |
+| disable-access-passwd | Prevent reads/writes of `/etc/passwd` | Affects NSS/user management requiring passwd reads | AppArmor/BPF |
+| disable-access-shadow | Prevent access to `/etc/shadow` | Generally low | AppArmor/BPF |
+| disable-access-ssh-dir | Prevent access to `.ssh` | Affects components requiring SSH/keys | AppArmor/BPF |
+| disable-write-skills | Prevent writes to skills directories | Affects applications writing those directories | **AppArmor only** |
+| disable-busybox | Prevent busybox execution | **Blocks alpine/busybox images and runtime busybox debugging**; a common disruption | AppArmor/BPF |
+| disable-shell | Prevent sh/bash/dash execution | Blocks shell startup scripts and exec shells; symlinks often point to busybox | AppArmor/BPF |
+| disable-wget | Prevent wget execution | Blocks startup configuration downloads/health checks using wget | AppArmor/BPF |
+| disable-curl | Prevent curl execution | Blocks startup configuration downloads/health checks using curl | AppArmor/BPF |
+| disable-chmod | Prevent chmod program execution | Blocks chmod in startup scripts | AppArmor/BPF |
+| disable-chmod-x-bit | Prevent setting executable bits | Blocks runtime chmod +x, such as download-and-execute flows | **Seccomp** |
+| disable-chmod-s-bit | Prevent setting SUID/SGID | Generally low | **Seccomp** |
+| disable-su-sudo | Prevent su/sudo execution | Affects privilege-escalation scripts | AppArmor/BPF |
+| disable-network | Prevent all networking | **Blocks every networked service**; most restrictive, suitable only for fully offline computation | AppArmor/BPF |
+| disable-inet | Prevent IPv4 | Affects only IPv4; pure IPv6 is unaffected | AppArmor/BPF |
+| disable-ipv4 | Prevent IPv4 | Same as above (alias semantics; use catalog IDs) | AppArmor/BPF |
+| disable-inet6 | Prevent IPv6 | Affects only IPv6 | AppArmor/BPF |
+| disable-ipv6 | Prevent IPv6 | Same as above | AppArmor/BPF |
+| disable-unix-domain-socket | Prevent UDS | **Affects applications using UDS extensively for local interprocess communication** | AppArmor/BPF |
+| disable-icmp | Prevent ICMP | Affects ping/ICMP health checks | AppArmor/BPF |
+| disable-tcp | Prevent TCP | Blocks TCP services | AppArmor/BPF |
+| disable-udp | Prevent UDP | Blocks UDP services | AppArmor/BPF |
+| block-access-to-kube-apiserver | Prevent kube-apiserver connections | **Blocks workloads requiring apiserver access** | **BPF only** |
+| block-access-to-container-runtime | Prevent access to docker/containerd/crio.sock | Affects CI/daemon components requiring container-runtime sockets | AppArmor/BPF |
+| block-access-to-metadata-service | Block common cloud metadata IPs | Affects applications retrieving credentials/regions from metadata | **BPF only** |
+| block-access-to-aws-metadata-service | Block AWS metadata IP | Affects applications reading AWS metadata | **BPF only** |
+| block-access-to-volc-metadata-service | Block Volcengine metadata IP | Affects applications reading Volcengine metadata | **BPF only** |
+| block-access-to-alibaba-metadata-service | Block Alibaba Cloud metadata IP | Affects applications reading Alibaba Cloud metadata | **BPF only** |
+| block-access-to-oci-metadata-service | Block OCI metadata IP | Affects applications reading OCI metadata | **BPF only** |
 
-归因边界：`disallow-access-procfs-root` 只匹配 ptrace read；`disable-shell/busybox/curl/wget/chmod`
-只匹配对应可执行文件的 exec 行为，单纯 `getattr/open/read` 不成立。不要把这类少量明确边界扩展
-成不完整的全量事件签名表；无法从官方规则实现确定表达的部分继续交给模型并保持 unmatched。
+Attribution boundaries: `disallow-access-procfs-root` matches only ptrace read; `disable-shell/busybox/curl/wget/chmod`
+matches only execution of the corresponding executable, not mere `getattr/open/read`. Do not expand these few explicit boundaries
+into an incomplete universal event-signature table; leave cases not determinable from official implementations to the model and retain unmatched results.
 
-## 三、vulMitigationRules（漏洞缓解，临时补丁性质）
+## 3. vulMitigationRules (vulnerability mitigation; temporary patches)
 
-| 规则 | 用途 | 误伤风险 | enforcer |
+| Rule | Purpose | Disruption risk | enforcer |
 |---|---|---|---|
-| cgroups-lxcfs-escape-mitigation | 禁写 release_agent/devices.allow 等 cgroup 文件 | 手动管理 cgroup 的组件受影响 | AppArmor/BPF |
-| runc-override-mitigation | 禁写 `/**/runc` | 一般低 | AppArmor/BPF |
-| dirty-pipe-mitigation | 禁 splice | 大量使用 splice 的零拷贝/转发程序受影响 | **Seccomp** |
-| ingress-nightmare-mitigation | 禁访问 ingress-nginx admission service | 一般低 | **仅 BPF** |
-| copy-fail-mitigation | 禁 AF_ALG socket | 一般低 | AppArmor/BPF |
+| cgroups-lxcfs-escape-mitigation | Prevent writes to cgroup files such as release_agent/devices.allow | Affects components managing cgroups manually | AppArmor/BPF |
+| runc-override-mitigation | Prevent writes to `/**/runc` | Generally low | AppArmor/BPF |
+| dirty-pipe-mitigation | Prevent splice | Affects zero-copy/forwarding programs using splice extensively | **Seccomp** |
+| ingress-nightmare-mitigation | Prevent access to ingress-nginx admission service | Generally low | **BPF only** |
+| copy-fail-mitigation | Prevent AF_ALG sockets | Generally low | AppArmor/BPF |
 
-## 使用纪律
+## Usage discipline
 
-- 协助选规则 = 在用户同意的范围内，根据**目标行为是否会用到**该规则保护的对象来取舍；
-  不确定业务是否会触发时，倾向先保留观察、用违规日志验证，而不是直接删规则。
-- 能力类规则只能由 capability 审计事件证明，不从文件/网络操作推断。
-- 本表解释“规则做什么、可能误伤谁”，不替代规则 ID 的确定性校验。
+- Helping select rules means choosing within user-approved scope based on **whether target behavior needs the protected object**.
+  If application impact is uncertain, prefer retaining the rule for observation and checking violation logs rather than deleting immediately.
+- Capability rules require capability audit events; do not infer them from file/network operations.
+- This table explains rule behavior and possible disruption; it does not replace deterministic rule-ID validation.

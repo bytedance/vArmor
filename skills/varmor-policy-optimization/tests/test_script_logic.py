@@ -128,7 +128,7 @@ class CommonTests(unittest.TestCase):
 
 class ValidatePolicyTests(unittest.TestCase):
     def test_empty_oversize_invalid_yaml(self):
-        self.assertIn("空", validate_policy.normalize("   ", CATALOG)["errors"][0])
+        self.assertIn("empty", validate_policy.normalize("   ", CATALOG)["errors"][0])
         huge = "x: " + ("a" * (256 * 1024))
         self.assertTrue(validate_policy.normalize(huge, CATALOG)["errors"])
         bad = validate_policy.normalize("a: [1, 2", CATALOG)
@@ -546,7 +546,7 @@ class EmptySelectorTests(unittest.TestCase):
         result = validate_policy.normalize(
             common.dump_yaml(self._doc()), CATALOG, allow_empty_selector=True
         )
-        self.assertTrue(any("全量匹配" in n for n in result["notices"]))
+        self.assertTrue(any("matches all" in n for n in result["notices"]))
 
     def test_equivalent_empty_forms_rejected(self):
         for sel in (
@@ -1450,7 +1450,7 @@ class CollectionGateTests(unittest.TestCase):
                 require_atomic_capabilities=True,
             )
             self.assertFalse(result["valid"])
-            self.assertIn("原子化", result["errors"][0])
+            self.assertIn("atomized", result["errors"][0])
 
     def test_stage_two_requires_explicit_observation_switches(self):
         for enhance in (
@@ -1466,7 +1466,7 @@ class CollectionGateTests(unittest.TestCase):
             )
             self.assertFalse(result["valid"])
             self.assertTrue(
-                any("阶段二要求" in error for error in result["errors"])
+                any("Phase two requires" in error for error in result["errors"])
             )
 
         doc = policy(
@@ -1491,10 +1491,10 @@ class CollectionGateTests(unittest.TestCase):
         result = validate_policy.normalize(yaml_of(doc), CATALOG)
         self.assertTrue(result["valid"])
         self.assertTrue(
-            any("Pod" in n and "重建" in n for n in result["notices"])
+            any("Pod" in n and "recreate" in n for n in result["notices"])
         )
         self.assertTrue(
-            any("阻断型 Seccomp" in n for n in result["notices"])
+            any("blocking Seccomp" in n for n in result["notices"])
         )
 
     def test_unchanged_policy_has_no_adjustments(self):
