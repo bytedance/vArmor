@@ -60,6 +60,10 @@ func ValidateAddPolicy(policy interface{}, behaviorModelingEnabled bool) (bool, 
 		return false, "The policy type is not supported."
 	}
 
+	if enforcers == varmortypes.Unknown {
+		return false, "The enforcer field contains an unsupported or malformed value."
+	}
+
 	// Validate target workload kind - only supported Kubernetes resource types are allowed
 	if spec.Target.Kind != "Deployment" && spec.Target.Kind != "StatefulSet" && spec.Target.Kind != "DaemonSet" && spec.Target.Kind != "Pod" {
 		return false, "The target kind is not supported. You should specify the target kind as a Deployment, StatefulSet, DaemonSet, or Pod."
@@ -174,6 +178,10 @@ func ValidateUpdatePolicy(policy interface{}, oldEnforcer string, oldTarget varm
 		newStatus = p.Status
 	default:
 		return false, "The policy type is not supported."
+	}
+
+	if newEnforcers == varmortypes.Unknown {
+		return false, "The enforcer field contains an unsupported or malformed value."
 	}
 
 	oldEnforcers := varmortypes.GetEnforcerType(oldEnforcer)

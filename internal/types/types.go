@@ -84,28 +84,39 @@ type ModelingStatus struct {
 	NodeMessages    map[string]string // Use NodeName as its key
 }
 
+// GetEnforcerType parses a case-insensitive concatenation of enforcer names.
+// It returns Unknown for unsupported or duplicate components.
 func GetEnforcerType(enforcer string) Enforcer {
-	t := Enforcer(0)
+	remaining := strings.ToLower(enforcer)
+	parsed := Enforcer(0)
 
-	enforcer = strings.ToLower(enforcer)
-	if strings.Contains(enforcer, "apparmor") {
-		t |= AppArmor
-	}
-	if strings.Contains(enforcer, "bpf") {
-		t |= BPF
-	}
-	if strings.Contains(enforcer, "seccomp") {
-		t |= Seccomp
-	}
-	if strings.Contains(enforcer, "networkproxy") {
-		t |= NetworkProxy
+	for remaining != "" {
+		var token string
+		var component Enforcer
+		switch {
+		case strings.HasPrefix(remaining, "apparmor"):
+			token, component = "apparmor", AppArmor
+		case strings.HasPrefix(remaining, "networkproxy"):
+			token, component = "networkproxy", NetworkProxy
+		case strings.HasPrefix(remaining, "seccomp"):
+			token, component = "seccomp", Seccomp
+		case strings.HasPrefix(remaining, "bpf"):
+			token, component = "bpf", BPF
+		default:
+			return Unknown
+		}
+
+		if parsed&component != 0 {
+			return Unknown
+		}
+		parsed |= component
+		remaining = strings.TrimPrefix(remaining, token)
 	}
 
-	if t == 0 {
+	if parsed == 0 {
 		return Unknown
-	} else {
-		return t
 	}
+	return parsed
 }
 
 // Pod saves the rule for matching the traffic of pods
