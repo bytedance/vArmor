@@ -1,49 +1,53 @@
-# varmor-agent 节点数据面
+# varmor-agent node data plane
 
-## 职责
+## Responsibilities
 
-`varmor-agent` 以 DaemonSet 方式覆盖节点，监听 AP 并在本节点准备/加载 Profile，向 AP status 回报结果，同时参与违规审计和行为数据采集。它是判断“节点是否真正具备执行能力”的主要证据来源。
+`varmor-agent` runs as a DaemonSet across nodes, watches APs, prepares/loads Profiles locally, reports results to the manager's status service, and participates in violation auditing and behavior collection. The manager updates AP status from those reports. The agent is a primary evidence source for actual node enforcement capability.
 
-## DaemonSet 运行态设计
+## DaemonSet runtime design
 
-agent 的 DaemonSet 配置直接决定节点覆盖和内核可见性。重点关联 nodeSelector/affinity、tolerations、hostPath 或安全挂载、ServiceAccount/RBAC、资源限制、升级策略与目标节点状态：
+The agent DaemonSet configuration directly determines node coverage and kernel visibility. Correlate nodeSelector/affinity, tolerations, hostPath/security mounts, ServiceAccount/RBAC, resource limits, update strategy, and target node status:
 
-- DaemonSet desired/current/ready 数量只能说明调度覆盖；具体节点仍需与 AP 的 node condition 和 Profile 加载结果对应。
-- 未容忍系统节点污点、无法满足资源或亲和性条件，会形成“集群整体看似健康、单节点无法加固”的局部故障。
-- hostPath、权限和内核接口挂载缺失，可能使 agent Pod Ready 但无法加载 Profile；这属于功能假活。
-- agent 更新期间应区分旧 Pod 尚能执行的 Profile 与新节点尚未完成初始化的窗口，不能仅按 DaemonSet rollout 完成判断所有 AP 已恢复。
+- DaemonSet desired/current/ready counts show scheduling coverage only; correlate each node with AP node conditions and Profile load results.
+- Untolerated system-node taints, insufficient resources, or unsatisfied affinity can leave one node unprotected while the cluster appears healthy.
+- Missing hostPath, permissions, or kernel-interface mounts may leave an agent Pod Ready but unable to load Profiles: functional failure despite readiness.
+- During agent updates, distinguish Profiles still enforced for old Pods from initialization gaps on new nodes. Completed DaemonSet rollout alone does not prove all APs recovered.
 
-## 健康判定
+## Health assessment
 
-按症状关联 agent 节点覆盖、Ready/重启/lastState、AP 加载计数与 node condition 和日志；涉及兼容或加载错误时再补充相关内核、LSM、BTF、runtime 能力，不要求每次完整体检。
+Correlate node coverage, Ready/restarts/lastState, AP load counts and node conditions, and logs according to the symptom. Inspect kernel, LSM, BTF, and runtime capabilities when compatibility or loading errors warrant it; a full health check is not required every time.
 
-Running 不是功能健康；“Pod Ready 但 AP 该节点未 Ready”应按假活处理。
+Running does not mean functional health. Treat "Pod Ready but AP not Ready on that node" as a functional-health discrepancy.
 
-## 典型故障
+## Typical failures
 
-### 未覆盖节点
+### Node not covered
 
-常见于 taint/toleration、nodeSelector、affinity、资源不足或 DaemonSet 更新未收敛。影响限于未覆盖节点，但该节点上的目标 Pod 可能成为唯一异常样本。
+Common causes include taint/toleration, nodeSelector, affinity, insufficient resources, or an unconverged DaemonSet update. The impact is node-local, although that node's target Pod may be the only visible failure.
 
-### 启动失败或反复重启
+### Startup failure or repeated restarts
 
-按证据区分 RBAC/watch 权限、镜像/配置、hostPath/安全挂载、内核/LSM 自检和资源不足。不要看到 CrashLoop 就直接归因 Profile 规则。
+Use evidence to distinguish RBAC/watch permissions, image/configuration, hostPath/security mounts, kernel/LSM self-checks, and resource shortages. Do not attribute a CrashLoop directly to Profile rules.
 
-### Profile 加载失败
+### Profile load failure
 
-- AppArmor：语法、LSM、securityfs、加载器或 Profile 冲突；
-- Seccomp：文件写入/路径、kubelet/runtime 可见性和 Profile 内容；
-- BPF：内核/架构/BTF/BPF LSM、map/program 资源、load/attach；
-- NetworkProxy：代理 Secret/配置由 manager 传播，节点侧关注挂载、运行时和 AP 状态。
+- AppArmor: syntax, LSM, securityfs, constraints on the agent itself, loader, or Profile conflicts;
+- Seccomp: file writing/path, kubelet/runtime visibility, and Profile content;
+- BPF: kernel/architecture/BTF/BPF LSM, map/program resources, and load/attach;
+- NetworkProxy: the manager propagates proxy Secrets/configuration; node-side checks focus on mounts, runtime, and AP status.
 
-### 节点级异常
+For inaccessible AppArmor interfaces, loader permission errors, or agent security settings inconsistent with the template, use
+[AppArmor load failure](../troubleshooting/agent-apparmor-load-failure.md) to distinguish deployment, admission, later updates, runtime, and
+kernel-interface failures. The agent's own `Unconfined` setting is runtime configuration; assess it separately from application containers explicitly bypassing protection.
 
-如果节点 NotReady、重启或 kernel panic 同时影响多个 Pod，应把节点故障置于业务容器 Crash 之前诊断。BPF Profile 加载与内核错误在时间上相关时，先确认影响范围和证据，再提出隔离节点、升级内核或切换 enforcer 的建议。
+### Node-level failures
 
-## 诊断证据
+If a node becomes NotReady, reboots, or has a kernel panic affecting multiple Pods, investigate the node before application container crashes. If BPF Profile loading correlates with kernel errors, establish scope and evidence before recommending node isolation, kernel upgrades, or another enforcer.
 
-关键关联键是节点名、AP 名、Profile 名、策略名、agent Pod、容器 ID、时间窗口和 AP node condition。节点侧 Profile 存在只能证明资源存在，不能单独证明 Pod 已使用；仍需核对 Pod SecurityContext/annotation 和运行时事件。
+## Diagnostic evidence
 
-## 建议方向（仅建议）
+Key correlation fields are node name, AP name, Profile name, policy name, agent Pod, container ID, time window, and AP node conditions. A Profile on the node proves resource presence only, not that a Pod uses it; verify Pod SecurityContext/annotations and runtime events.
 
-优先确认覆盖、权限、资源、配置和节点兼容性，再处理 Profile 内容。涉及重启 agent、重建 Workload、切换 enforcer、放宽规则或升级内核时，说明影响、回滚和验证点，不直接执行。
+## Recommendations only
+
+Check coverage, permissions, resources, configuration, and node compatibility before Profile content. For agent restarts, workload recreation, enforcer changes, weaker rules, or kernel upgrades, explain impact, rollback, and verification points; do not execute them.

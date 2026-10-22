@@ -1,4 +1,4 @@
-# vArmor 诊断助手
+# 自动诊断
 
 [English](README.md) | 简体中文
 
@@ -70,7 +70,7 @@ cp -R /ABS/varmor-diagnosis ~/.agents/skills/
 
 策略 Ready 不单独证明防护生效，权限错误也不单独证明由 vArmor 引起。证据不足时，助手会给出下一项有效检查，不会强行判定根因。
 
-需要创建或收敛 EnhanceProtect 策略时，使用 [vArmor 策略优化助手](../varmor-policy-optimization/README.zh_CN.md)。
+需要创建或收敛 EnhanceProtect 策略时，使用 [策略自动优化](../varmor-policy-optimization/README.zh_CN.md)。
 
 ## 进一步了解
 

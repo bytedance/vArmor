@@ -22,16 +22,16 @@ def parse_timestamp(value):
     """Accept unix epoch seconds or an ISO 8601 timestamp; return epoch seconds."""
     text = str(value).strip()
     if text == "":
-        raise common.ValidationError("时间戳不能为空")
+        raise common.ValidationError("Timestamp must not be empty")
     if text.lstrip("-").isdigit():
         return int(text)
     normalized = text.replace("Z", "+00:00")
     try:
         parsed = datetime.datetime.fromisoformat(normalized)
     except ValueError:
-        raise common.ValidationError("无法解析时间戳 %r" % value)
+        raise common.ValidationError("Cannot parse timestamp %r" % value)
     if parsed.tzinfo is None:
-        raise common.ValidationError("时间戳 %r 必须带时区" % value)
+        raise common.ValidationError("Timestamp %r must include a time zone" % value)
     return int(parsed.timestamp())
 
 
@@ -101,9 +101,9 @@ def collect(
 ):
     """Filter raw violations log lines. Returns a result dict."""
     if end is None:
-        raise common.ValidationError("必须提供结束时间，窗口是固定闭区间，不得用 now 补齐")
+        raise common.ValidationError("An end time is required; the window is a fixed closed interval and must not default to now")
     if start > end:
-        raise common.ValidationError("起始时间不能晚于结束时间")
+        raise common.ValidationError("Start time must not be later than end time")
 
     matched = []
     parse_errors = 0

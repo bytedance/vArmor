@@ -1,12 +1,12 @@
 ---
 slug: /guides/skills/diagnosis
-sidebar_position: 3
+sidebar_position: 1
 description: Automatically diagnose vArmor policy and component issues and get recommendations for resolving them.
 ---
 
-# vArmor Diagnosis
+# Automated Diagnosis
 
-The vArmor Diagnosis skill (`varmor-diagnosis`) automates the investigation of policy and component issues. Describe symptoms such as an ineffective policy, unexpected permission errors, or an unhealthy component. The assistant selects relevant checks, correlates configuration, status, events, and logs, and explains the findings and recommended next steps.
+The Automated Diagnosis skill (`varmor-diagnosis`) automates the investigation of policy and component issues. Describe symptoms such as an ineffective policy, unexpected permission errors, or an unhealthy component. The assistant selects relevant checks, correlates configuration, status, events, and logs, and explains the findings and recommended next steps.
 
 ## What it helps you do
 
@@ -42,4 +42,4 @@ Analyze existing material:
 
 You receive a distinction between confirmed facts, possible causes, and missing evidence, with a formal diagnosis report when needed. A Ready policy alone does not prove that a workload is protected, and a permission error alone does not prove that vArmor caused the failure.
 
-To refine an EnhanceProtect policy after diagnosis, use [vArmor Policy Optimization](policy-optimization.md). For installation and detailed usage, see the [English guide](https://github.com/bytedance/vArmor/blob/main/skills/varmor-diagnosis/README.md) or [Chinese guide](https://github.com/bytedance/vArmor/blob/main/skills/varmor-diagnosis/README.zh_CN.md).
+To refine an EnhanceProtect policy after diagnosis, use [Automated Policy Optimization](policy-optimization.md). For installation and detailed usage, see the [English guide](https://github.com/bytedance/vArmor/blob/main/skills/varmor-diagnosis/README.md) or [Chinese guide](https://github.com/bytedance/vArmor/blob/main/skills/varmor-diagnosis/README.zh_CN.md).

@@ -1,4 +1,4 @@
-# vArmor 策略优化助手
+# 策略自动优化
 
 [English](README.md) | 简体中文
 
@@ -95,7 +95,7 @@ cp -R /ABS/varmor-policy-optimization ~/.agents/skills/
 - 中断后，只有原身份和文件检查点能证明连续时才恢复；无法恢复的缺口或策略漂移阻断删除。
 - NetworkProxy 规则删除要求 vArmor v0.10.3+、runc 及合格的节点日志；版本未知、旧版本或 micro-VM 证据不具备本流程的 NetworkProxy 删除资格。
 
-需要排查已有异常时，使用 [vArmor 诊断助手](../varmor-diagnosis/README.zh_CN.md)。
+需要排查已有异常时，使用 [自动诊断](../varmor-diagnosis/README.zh_CN.md)。
 
 ## 进一步了解
 

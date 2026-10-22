@@ -36,6 +36,7 @@ RUNTIME_FILES = (
     'references/modules/policy-mode-profiles.md',
     'references/modules/violation-log.md',
     'references/modules/webhook.md',
+    'references/troubleshooting/agent-apparmor-load-failure.md',
     'references/troubleshooting/component-unhealthy.md',
     'references/troubleshooting/container-crash.md',
     'references/troubleshooting/enforcer-conflicts.md',

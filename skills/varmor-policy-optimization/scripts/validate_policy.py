@@ -58,12 +58,12 @@ def _match_labels_error(match_labels):
     if match_labels is None:
         return None
     if not isinstance(match_labels, dict):
-        return "spec.target.selector.matchLabels 必须是对象"
+        return "spec.target.selector.matchLabels must be an object"
     for key, value in match_labels.items():
         if not isinstance(key, str) or not key.strip():
-            return "matchLabels 的 key 必须是非空字符串"
+            return "matchLabels keys must be nonempty strings"
         if not isinstance(value, str):
-            return "matchLabels 的 value 必须是字符串（key=%r）" % key
+            return "matchLabels values must be strings (key=%r)" % key
     return None
 
 
@@ -101,26 +101,26 @@ def _match_expressions_error(match_expressions):
     if match_expressions is None:
         return None
     if not isinstance(match_expressions, list):
-        return "spec.target.selector.matchExpressions 必须是数组"
+        return "spec.target.selector.matchExpressions must be an array"
     for expr in match_expressions:
         if not isinstance(expr, dict):
-            return "matchExpressions 每项必须是对象"
+            return "Each matchExpressions entry must be an object"
         key = expr.get("key")
         operator = expr.get("operator")
         values = expr.get("values")
         if not (isinstance(key, str) and key.strip()):
-            return "matchExpressions 每项需要非空 key"
+            return "Each matchExpressions entry requires a nonempty key"
         if operator not in _LABEL_OPERATORS:
-            return "matchExpressions operator 必须是 %s 之一" % "/".join(_LABEL_OPERATORS)
+            return "matchExpressions operator must be one of %s" % "/".join(_LABEL_OPERATORS)
         # values may be omitted (== empty) for Exists/DoesNotExist.
         if values is None:
             values = []
         if not isinstance(values, list) or not all(isinstance(v, str) for v in values):
-            return "matchExpressions values 必须是字符串数组（key=%r）" % key
+            return "matchExpressions values must be an array of strings (key=%r)" % key
         if operator in ("In", "NotIn") and not values:
-            return "operator %s 要求非空 values（key=%r）" % (operator, key)
+            return "operator %s requires nonempty values (key=%r)" % (operator, key)
         if operator in ("Exists", "DoesNotExist") and values:
-            return "operator %s 的 values 必须为空（key=%r）" % (operator, key)
+            return "operator %s requires empty values (key=%r)" % (operator, key)
     return None
 
 
@@ -137,16 +137,16 @@ def structural_errors(document, allow_empty_selector=False):
     api_version = str(document.get("apiVersion") or "").strip()
     if api_version not in EXPECTED_API_VERSIONS:
         errors.append(
-            "apiVersion %r 无效，应为 %s"
-            % (api_version, " 或 ".join(EXPECTED_API_VERSIONS))
+            "Invalid apiVersion %r; expected %s"
+            % (api_version, " or ".join(EXPECTED_API_VERSIONS))
         )
 
     metadata = document.get("metadata")
     if not isinstance(metadata, dict):
-        errors.append("metadata 必须是对象")
+        errors.append("metadata must be an object")
     else:
         if not isinstance(metadata.get("name"), str) or not metadata["name"].strip():
-            errors.append("metadata.name 必须是非空字符串")
+            errors.append("metadata.name must be a nonempty string")
 
         # Namespace rules differ by policy type (#1 / round4 #5):
         # VarmorPolicy must state a non-empty string namespace.
@@ -157,38 +157,38 @@ def structural_errors(document, allow_empty_selector=False):
             ns = metadata.get("namespace")
             if not (isinstance(ns, str) and ns.strip()):
                 errors.append(
-                    "VarmorPolicy 必须在 metadata.namespace 显式提供非空 namespace"
+                    "VarmorPolicy requires an explicit nonempty metadata.namespace"
                 )
         if kind == "VarmorClusterPolicy" and "namespace" in metadata:
             errors.append(
-                "VarmorClusterPolicy 是集群作用域，metadata 中不得出现 namespace 字段"
+                "VarmorClusterPolicy is cluster-scoped; metadata must not contain a namespace field"
             )
 
     spec = document.get("spec")
     if not isinstance(spec, dict):
         # Cannot continue structural checks without a spec.
-        return errors + ["spec 必须是对象"]
+        return errors + ["spec must be an object"]
 
     target = spec.get("target")
     if not isinstance(target, dict):
-        errors.append("spec.target 必须是对象")
+        errors.append("spec.target must be an object")
     else:
         # name, when present, must be a non-empty string.
         name = target.get("name")
         if name is not None and not (isinstance(name, str) and name.strip()):
-            errors.append("spec.target.name 必须是非空字符串")
+            errors.append("spec.target.name must be a nonempty string")
 
         selector = target.get("selector")
         if selector is not None:
             if not isinstance(selector, dict):
-                errors.append("spec.target.selector 必须是 LabelSelector 对象，不能是字符串")
+                errors.append("spec.target.selector must be a LabelSelector object, not a string")
             else:
                 unknown = [k for k in selector if k not in ("matchLabels", "matchExpressions")]
                 if unknown:
                     # Unknown fields are always rejected; they could be pruned
                     # by the API server and silently collapse to match-all.
                     errors.append(
-                        "spec.target.selector 含未知字段 %r，只允许 matchLabels/matchExpressions"
+                        "spec.target.selector contains unknown field %r; only matchLabels/matchExpressions are allowed"
                         % unknown[0]
                     )
                 else:
@@ -204,7 +204,7 @@ def structural_errors(document, allow_empty_selector=False):
                         # No effective constraint -> match-all.
                         if not allow_empty_selector:
                             errors.append(
-                                "spec.target.selector 无有效约束（等于全量匹配，高风险需单独确认）"
+                                "spec.target.selector has no effective constraints (match-all; high risk requires separate confirmation)"
                             )
 
         containers = target.get("containers")
@@ -212,21 +212,21 @@ def structural_errors(document, allow_empty_selector=False):
             if not isinstance(containers, list) or any(
                 not (isinstance(item, str) and item.strip()) for item in containers
             ):
-                errors.append("spec.target.containers 必须是非空字符串的数组")
+                errors.append("spec.target.containers must be an array of nonempty strings")
             elif len(containers) != len(set(containers)):
-                errors.append("spec.target.containers 不能有重复容器名")
+                errors.append("spec.target.containers must not contain duplicate container names")
 
     update_existing = spec.get("updateExistingWorkloads")
     if not isinstance(update_existing, bool):
         # Required, explicit field: do not rely on the default (false) or
         # accept truthy strings.
         errors.append(
-            "spec.updateExistingWorkloads 必须显式设置为布尔值 true/false"
+            "spec.updateExistingWorkloads must be explicitly set to boolean true/false"
         )
 
     policy_spec = spec.get("policy")
     if not isinstance(policy_spec, dict):
-        errors.append("spec.policy 必须是对象")
+        errors.append("spec.policy must be an object")
         return errors
 
     # enhanceProtect is required and must be an object; do not silently
@@ -234,7 +234,7 @@ def structural_errors(document, allow_empty_selector=False):
     enhance = policy_spec.get("enhanceProtect")
     if not isinstance(enhance, dict):
         errors.append(
-            "spec.policy.enhanceProtect 必须是对象（并显式设置 privileged）"
+            "spec.policy.enhanceProtect must be an object with privileged explicitly set"
         )
     else:
         errors.extend(_enhance_structural_errors(enhance))
@@ -249,12 +249,12 @@ def _enhance_structural_errors(enhance):
     for field in ("auditViolations", "allowViolations"):
         value = enhance.get(field)
         if value is not None and not isinstance(value, bool):
-            errors.append("%s 必须是布尔值，不能是字符串 %r" % (field, value))
+            errors.append("%s must be a boolean, not string %r" % (field, value))
 
-    # privileged is a required, explicit field (controls baseline & Seccomp).
+    # privileged must be explicit because it selects the AppArmor/BPF baseline.
     if not isinstance(enhance.get("privileged"), bool):
         errors.append(
-            "enhanceProtect.privileged 必须显式设置为布尔值 true/false"
+            "enhanceProtect.privileged must be explicitly set to boolean true/false"
         )
 
     # Built-in string-list rule fields: when present must be lists of strings.
@@ -262,86 +262,86 @@ def _enhance_structural_errors(enhance):
     if enhance.get("hardeningRules") is not None and not _is_string_list(
         enhance["hardeningRules"]
     ):
-        errors.append("hardeningRules 必须是字符串数组")
+        errors.append("hardeningRules must be an array of strings")
     if enhance.get("vulMitigationRules") is not None and not _is_string_list(
         enhance["vulMitigationRules"]
     ):
-        errors.append("vulMitigationRules 必须是字符串数组")
+        errors.append("vulMitigationRules must be an array of strings")
 
     # attackProtectionRules: elements must be objects with a string list rules.
     attack = enhance.get("attackProtectionRules")
     if attack is not None:
         if not isinstance(attack, list):
-            errors.append("attackProtectionRules 必须是数组")
+            errors.append("attackProtectionRules must be an array")
         else:
             for index, group in enumerate(attack):
                 if not isinstance(group, dict):
                     errors.append(
-                        "attackProtectionRules[%d] 必须是对象" % index
+                        "attackProtectionRules[%d] must be an object" % index
                     )
                     continue
                 if not _is_string_list(group.get("rules")):
                     errors.append(
-                        "attackProtectionRules[%d].rules 必须是字符串数组" % index
+                        "attackProtectionRules[%d].rules must be an array of strings" % index
                     )
                 if group.get("targets") is not None and not _is_string_list(
                     group["targets"]
                 ):
                     errors.append(
-                        "attackProtectionRules[%d].targets 必须是字符串数组" % index
+                        "attackProtectionRules[%d].targets must be an array of strings" % index
                     )
 
     # appArmorRawRules: objects with a string rules field.
     apparmor = enhance.get("appArmorRawRules")
     if apparmor is not None:
         if not isinstance(apparmor, list):
-            errors.append("appArmorRawRules 必须是数组")
+            errors.append("appArmorRawRules must be an array")
         else:
             for index, group in enumerate(apparmor):
                 if not isinstance(group, dict):
-                    errors.append("appArmorRawRules[%d] 必须是对象" % index)
+                    errors.append("appArmorRawRules[%d] must be an object" % index)
                     continue
                 if not isinstance(group.get("rules"), str):
                     errors.append(
-                        "appArmorRawRules[%d].rules 必须是字符串" % index
+                        "appArmorRawRules[%d].rules must be a string" % index
                     )
                 if group.get("targets") is not None and not _is_string_list(
                     group["targets"]
                 ):
                     errors.append(
-                        "appArmorRawRules[%d].targets 必须是字符串数组" % index
+                        "appArmorRawRules[%d].targets must be an array of strings" % index
                     )
 
     # bpfRawRules must be an object (its deep shape is left to dry-run/model).
     bpf = enhance.get("bpfRawRules")
     if bpf is not None and not isinstance(bpf, dict):
-        errors.append("bpfRawRules 必须是对象")
+        errors.append("bpfRawRules must be an object")
 
     # syscallRawRules: objects with string-list names and a valid OCI action.
     syscalls = enhance.get("syscallRawRules")
     if syscalls is not None:
         if not isinstance(syscalls, list):
-            errors.append("syscallRawRules 必须是数组")
+            errors.append("syscallRawRules must be an array")
         else:
             for index, rule in enumerate(syscalls):
                 if not isinstance(rule, dict):
-                    errors.append("syscallRawRules[%d] 必须是对象" % index)
+                    errors.append("syscallRawRules[%d] must be an object" % index)
                     continue
                 if not _is_string_list(rule.get("names")):
                     errors.append(
-                        "syscallRawRules[%d].names 必须是字符串数组" % index
+                        "syscallRawRules[%d].names must be an array of strings" % index
                     )
                 action = str(rule.get("action") or "").strip()
                 if action not in SECCOMP_ACTIONS:
                     errors.append(
-                        "syscallRawRules[%d].action %r 不是合法 OCI Seccomp action"
+                        "syscallRawRules[%d].action %r is not a valid OCI Seccomp action"
                         % (index, action)
                     )
 
     # networkProxyRawRules must be an object.
     network_proxy = enhance.get("networkProxyRawRules")
     if network_proxy is not None and not isinstance(network_proxy, dict):
-        errors.append("networkProxyRawRules 必须是对象")
+        errors.append("networkProxyRawRules must be an object")
 
     return errors
 
@@ -349,9 +349,9 @@ def _enhance_structural_errors(enhance):
 def validate_basic(content):
     text = (content or "").strip()
     if not text:
-        return ["策略 YAML 不能为空"]
+        return ["Policy YAML must not be empty"]
     if len(text.encode("utf-8")) > MAX_POLICY_BYTES:
-        return ["策略 YAML 超过 %d KiB 上限" % (MAX_POLICY_BYTES // 1024)]
+        return ["Policy YAML exceeds the %d KiB limit" % (MAX_POLICY_BYTES // 1024)]
     try:
         common.load_yaml_doc(text)
     except common.ValidationError as error:
@@ -362,13 +362,13 @@ def validate_basic(content):
 def _built_in_rule_error(rule, field, catalog, enforcers, targeted):
     supported = common.rule_enforcers(rule, catalog)
     if not supported:
-        return "内置规则 ID %r 无效" % rule
+        return "Invalid built-in rule ID %r" % rule
     if not common.rule_allowed_in_field(rule, field, catalog):
-        return "内置规则 %r 不属于 %s" % (rule, field)
+        return "Built-in rule %r does not belong to %s" % (rule, field)
     if targeted and common.ENFORCER_APPARMOR not in supported:
-        return "内置规则 %r 不支持 attackProtectionRules.targets" % rule
+        return "Built-in rule %r does not support attackProtectionRules.targets" % rule
     if not any(name in enforcers for name in supported):
-        return "内置规则 %r 与 enforcer 不兼容，支持 %s" % (
+        return "Built-in rule %r is incompatible with the enforcer; supports %s" % (
             rule,
             "/".join(supported),
         )
@@ -396,7 +396,7 @@ def validate_built_in_rules(spec, catalog, enforcers):
         targets = group.get("targets")
         targeted = bool(targets)
         if targeted and common.ENFORCER_APPARMOR not in enforcers:
-            add("attackProtectionRules 指定 targets 时需要 AppArmor enforcer")
+            add("attackProtectionRules with targets requires the AppArmor enforcer")
         for rule in group.get("rules") or []:
             add(
                 _built_in_rule_error(
@@ -416,7 +416,7 @@ def expand_aggregate_capability_rules(enhance, catalog):
     raw_rules = enhance["hardeningRules"]
     if not isinstance(raw_rules, list) or not all(isinstance(item, str) for item in raw_rules):
         raise common.ValidationError(
-            "spec.policy.enhanceProtect.hardeningRules 必须是字符串数组"
+            "spec.policy.enhanceProtect.hardeningRules must be an array of strings"
         )
 
     expansions = catalog["aggregateCapabilityExpansions"]
@@ -457,24 +457,24 @@ def expand_aggregate_capability_rules(enhance, catalog):
         rule = aggregate_found[0]
         if rule == "disable-cap-all-except-net-bind-service":
             exemption = (
-                "策略中已有对 NET_BIND_SERVICE 的单独限制，转换未改变该限制"
+                "the policy already separately restricts NET_BIND_SERVICE; expansion preserved that restriction"
                 if net_bind_disabled
-                else "保留 NET_BIND_SERVICE 的原有豁免"
+                else "the existing NET_BIND_SERVICE exemption is preserved"
             )
             return (
-                "已将聚合能力规则 %s 转换为 %d 条具体的 disable-cap-[CAP] 规则，%s，"
-                "使后续优化能按实际使用的能力细粒度调整。转换基于当前 vArmor 官方实现的 capability 集合。"
+                "Expanded aggregate capability rule %s into %d concrete disable-cap-[CAP] rules; %s. "
+                "This enables fine-grained optimization by actual capability usage, using the capability set in the current official vArmor implementation."
                 % (rule, count, exemption)
             )
         return (
-            "已将聚合能力规则 %s 转换为 %d 条具体的 disable-cap-[CAP] 规则，"
-            "使后续优化能按实际使用的能力细粒度调整。转换基于当前 vArmor 官方实现的 capability 集合。"
+            "Expanded aggregate capability rule %s into %d concrete disable-cap-[CAP] rules. "
+            "This enables fine-grained optimization by actual capability usage, using the capability set in the current official vArmor implementation."
             % (rule, count)
         )
     return (
-        "已将聚合能力规则 %s 转换为 %d 条去重后的具体 disable-cap-[CAP] 规则，"
-        "使后续优化能按实际使用的能力细粒度调整。转换基于当前 vArmor 官方实现的 capability 集合。"
-        % (" 和 ".join(aggregate_found), count)
+        "Expanded aggregate capability rules %s into %d deduplicated concrete disable-cap-[CAP] rules. "
+        "This enables fine-grained optimization by actual capability usage, using the capability set in the current official vArmor implementation."
+        % (" and ".join(aggregate_found), count)
     )
 
 
@@ -496,21 +496,21 @@ def collect_action_notices(value, notices):
             if key_lower == "qualifiers":
                 qualifiers = _string_set(child)
                 if "deny" in qualifiers:
-                    notices["自定义规则包含 deny：会实际拦截业务"] = True
+                    notices["Custom rules contain deny: application operations will actually be blocked"] = True
                 if "allow" in qualifiers and "audit" not in qualifiers:
-                    notices["自定义规则仅 allow 而未 audit：可能不会产生可用于优化的违规日志"] = True
+                    notices["Custom rules allow without audit: violation logs needed for optimization may not be generated"] = True
             elif key_lower == "action":
                 action = str(child).strip().upper()
                 # Anything other than ALLOW/LOG can block: ERRNO, KILL*,
                 # TRAP, TRACE, NOTIFY (TRACE/NOTIFY divert the syscall).
                 if action not in ("SCMP_ACT_ALLOW", "SCMP_ACT_LOG"):
-                    notices["自定义规则包含阻断型 Seccomp action：会实际拦截业务"] = True
+                    notices["Custom rules contain a blocking Seccomp action: application operations will actually be blocked"] = True
             elif key_lower == "defaultaction":
                 if str(child).strip().lower() == "deny":
-                    notices["NetworkProxy defaultAction=deny：会阻断未匹配流量"] = True
+                    notices["NetworkProxy defaultAction=deny: unmatched traffic will be blocked"] = True
             elif key_lower == "rules" and isinstance(child, str):
                 if _has_standalone_word(child, "deny"):
-                    notices["自定义规则包含 deny：会实际拦截业务"] = True
+                    notices["Custom rules contain deny: application operations will actually be blocked"] = True
             collect_action_notices(child, notices)
     elif isinstance(value, list):
         for child in value:
@@ -522,33 +522,33 @@ def runtime_notices(spec, document):
     enforcer = str(common.get_path(spec, "policy", "enforcer") or "").lower()
     reasons = []
     if common.get_path(spec, "target", "kind") == "Pod":
-        reasons.append("目标为 Pod，vArmor 不会对其执行滚动更新")
+        reasons.append("The target is a Pod; vArmor will not roll it out")
     if "seccomp" in enforcer:
-        reasons.append("策略启用了 Seccomp")
+        reasons.append("The policy enables Seccomp")
     if not spec.get("updateExistingWorkloads"):
-        reasons.append("updateExistingWorkloads 未开启，系统不会滚动更新现有工作负载")
+        reasons.append("updateExistingWorkloads is disabled; existing workloads will not be rolled out")
     if reasons:
         if common.get_path(spec, "target", "kind") == "Pod":
-            action = "建议您在创建成功后删除并重建目标 Pod，使策略生效。"
+            action = "After successful creation, delete and recreate the target Pod to activate the policy."
         else:
-            action = "建议您在创建成功后对目标工作负载执行滚动重启，使策略生效。"
-        notices.append("；".join(reasons) + "。" + action)
+            action = "After successful creation, roll out the target workload to activate the policy."
+        notices.append("; ".join(reasons) + ". " + action)
 
-    # privileged=true: vArmor does not generate a Seccomp Profile, so any
-    # Seccomp-oriented rules (incl. syscallRawRules) will not take effect.
+    # The policy flag and actual container privileges are distinct. Verify
+    # Seccomp generation/injection rather than inferring it from this flag.
     enhance = common.get_path(spec, "policy", "enhanceProtect")
     if isinstance(enhance, dict) and enhance.get("privileged") and "seccomp" in enforcer:
         notices.append(
-            "privileged=true 时 vArmor 不会生成 Seccomp Profile，Seccomp 相关规则不会生效"
+            "Policy privileged=true changes the AppArmor/BPF baseline, not container privileges; verify generated Seccomp content and actual Pod settings. Seccomp injection is skipped for actually privileged or explicitly Seccomp-Unconfined containers"
         )
 
     found = {}
     collect_action_notices(document, found)
     for message in [
-        "自定义规则包含 deny：会实际拦截业务",
-        "自定义规则包含阻断型 Seccomp action：会实际拦截业务",
-        "NetworkProxy defaultAction=deny：会阻断未匹配流量",
-        "自定义规则仅 allow 而未 audit：可能不会产生可用于优化的违规日志",
+        "Custom rules contain deny: application operations will actually be blocked",
+        "Custom rules contain a blocking Seccomp action: application operations will actually be blocked",
+        "NetworkProxy defaultAction=deny: unmatched traffic will be blocked",
+        "Custom rules allow without audit: violation logs needed for optimization may not be generated",
     ]:
         if found.get(message):
             notices.append(message)
@@ -593,7 +593,7 @@ def normalize(
     document = common.load_yaml_doc(content)
     kind = document.get("kind")
     if kind not in ("VarmorPolicy", "VarmorClusterPolicy"):
-        return _invalid("策略必须是完整的 VarmorPolicy 或 VarmorClusterPolicy")
+        return _invalid("The policy must be a complete VarmorPolicy or VarmorClusterPolicy")
 
     # Structural type validation (collected in one pass).
     structure_errors = structural_errors(document, allow_empty_selector)
@@ -610,21 +610,21 @@ def normalize(
     target = spec["target"]
     if target.get("kind") not in TARGET_KINDS:
         return _invalid(
-            "spec.target.kind 只支持 Deployment、StatefulSet、DaemonSet 或 Pod"
+            "spec.target.kind supports only Deployment, StatefulSet, DaemonSet, or Pod"
         )
     has_name = not common.is_blank(target.get("name"))
     has_selector = target.get("selector") is not None
     if has_name == has_selector:
-        return _invalid("spec.target.name 与 spec.target.selector 必须且只能设置一个")
+        return _invalid("Exactly one of spec.target.name and spec.target.selector must be set")
 
     policy_spec = spec["policy"]
     if common.is_blank(policy_spec.get("enforcer")):
-        return _invalid("spec.policy.enforcer 不能为空")
+        return _invalid("spec.policy.enforcer must not be empty")
     enforcers, ok = common.parse_enforcers(policy_spec.get("enforcer"), catalog)
     if not ok:
-        return _invalid("spec.policy.enforcer %r 无效" % policy_spec.get("enforcer"))
+        return _invalid("Invalid spec.policy.enforcer %r" % policy_spec.get("enforcer"))
     if policy_spec.get("mode") != "EnhanceProtect":
-        return _invalid("仅支持 EnhanceProtect 模式的策略优化")
+        return _invalid("Policy optimization supports only EnhanceProtect mode")
 
     rule_errors = validate_built_in_rules(spec, catalog, enforcers)
     if rule_errors:
@@ -639,10 +639,10 @@ def normalize(
     )
     if require_atomic_capabilities and aggregate_rules:
         return _invalid(
-            "阶段二要求 capability 规则已原子化；发现聚合规则 %s。"
-            "请先在阶段一使用 validate_policy.py 生成并下发 normalized YAML，"
-            "再从新的观察起点收集日志"
-            % "、".join(aggregate_rules)
+            "Phase two requires atomized capability rules; found aggregate rules %s. "
+            "First generate and submit normalized YAML using validate_policy.py in phase one, "
+            "then collect logs from a new observation start"
+            % ", ".join(aggregate_rules)
         )
 
     if require_observation:
@@ -650,11 +650,11 @@ def normalize(
         observation_errors = []
         if enhance_current.get("auditViolations") is not True:
             observation_errors.append(
-                "阶段二要求 auditViolations 显式为 true"
+                "Phase two requires auditViolations explicitly set to true"
             )
         if enhance_current.get("allowViolations") is not True:
             observation_errors.append(
-                "阶段二要求 allowViolations 显式为 true"
+                "Phase two requires allowViolations explicitly set to true"
             )
         if observation_errors:
             return {
@@ -692,16 +692,16 @@ def normalize(
     ):
         notices.insert(
             0,
-            "高风险：selector 为全量匹配（已显式确认），将影响所有命中对象，下发前须复核命中清单",
+            "High risk: selector matches all (explicitly confirmed), affecting every matched object; review the match list before submission",
         )
 
     if not enhance.get("auditViolations"):
         enhance["auditViolations"] = True
-        adjustments.append("已为您修正策略中的 auditViolations: true，用于采集违规日志")
+        adjustments.append("Set auditViolations: true to collect violation logs")
     if not enhance.get("allowViolations"):
         enhance["allowViolations"] = True
         adjustments.append(
-            "已为您修正策略中的 allowViolations: true，使内置规则在观察期放行违规行为"
+            "Set allowViolations: true so built-in rules allow violations during observation"
         )
 
     normalized = common.dump_yaml(root)
@@ -765,18 +765,18 @@ def _run():
         sys.exit(0 if result["valid"] else 1)
 
     if not result["valid"]:
-        print("策略校验未通过：", file=sys.stderr)
+        print("Policy validation failed:", file=sys.stderr)
         for error in result["errors"]:
             print("- %s" % error, file=sys.stderr)
         sys.exit(1)
     # Informational messages go to stderr so a stdout redirect always yields a
     # pure YAML document. They remain visible when run interactively.
     if result["adjustments"]:
-        print("已自动规范化：", file=sys.stderr)
+        print("Automatic normalization:", file=sys.stderr)
         for item in result["adjustments"]:
             print("- %s" % item, file=sys.stderr)
     if result["notices"] and not args.quiet_notices:
-        print("风险提示：", file=sys.stderr)
+        print("Risk notices:", file=sys.stderr)
         for item in result["notices"]:
             print("- %s" % item, file=sys.stderr)
     print(result["normalized"])

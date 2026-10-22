@@ -1,101 +1,101 @@
 <!--
-优化分析报告模板。一次优化只依赖"用户给的时间戳闭区间 + 起点策略快照 + 当前策略"，
-不依赖隐藏轮次状态。
-括号占位符按实际情况替换；没有内容的小节明确写"无"，不要删除小节。
+Optimization analysis report template. Each optimization depends only on the user-provided closed timestamp interval, start policy snapshot, and current policy,
+not on hidden round state.
+Replace placeholders with actual information. Write "none" for empty sections rather than deleting them.
 -->
 
-# vArmor 策略优化分析
+# vArmor Policy Optimization Analysis
 
-## 1. 范围
+## 1. Scope
 
-- 目标策略：<VarmorPolicy|VarmorClusterPolicy> <namespace>/<name>（VCP 的 namespace 为空）
-- 时间窗口：start=<原始时间戳>，end=<原始时间戳>（固定闭区间）
-- 采集完成：collectionStartedAt=<最早节点采集起点>，manifestBuiltAt=<epoch>，
+- Target policy: <VarmorPolicy|VarmorClusterPolicy> <namespace>/<name> (namespace is empty for VCP)
+- Time window: start=<original timestamp>, end=<original timestamp> (fixed closed interval)
+- Collection completion: collectionStartedAt=<earliest node collection start>, manifestBuiltAt=<epoch>,
   windowComplete=<true|false>
-- 采集模式：<incremental|snapshot>；增量节点 coveredFrom / lastReadStartedAt / lastDrainedAt、
-  backlogBytes 与 collectionIssues：<摘要；快照 N/A>
-- 增量末次确认：<逐节点 firstCleanCompletedAt / confirmationReadStartedAt / 扫描间隔；快照 N/A>；
-  疑点恢复：<resolvedAt / recoveryBasis 或仍阻断的原因>
-- 采集预算：<audit exec stdout 滚动限额与实际账本摘要；不含 API 元数据/协议开销；快照 N/A>
-- 目标集群 / context：<cluster / context>
-- 起点策略快照：capturedAt=<epoch>，uid=<uid>，generation=<n>，resourceVersion=<rv>，specSha256=<hash>
-- 起止一致性：<一致|漂移；resourceVersion-only 变化单列>
-- 规则表来源：catalogProvenance=<version@commit>
-- 实际使用规则兼容性：<verified|unknown|incompatible>；依据：<已验证版本范围或具体缺失规则>
+- Collection mode: <incremental|snapshot>; incremental coveredFrom / lastReadStartedAt / lastDrainedAt,
+  backlogBytes and collectionIssues per node: <summary; N/A for snapshots>
+- Final incremental confirmation: <per-node firstCleanCompletedAt / confirmationReadStartedAt / scan interval; N/A for snapshots>;
+  issue recovery: <resolvedAt / recoveryBasis or remaining blocking reason>
+- Collection budget: <rolling audit-exec stdout limit and actual ledger summary; excludes API metadata/protocol overhead; N/A for snapshots>
+- Target cluster / context: <cluster / context>
+- Start policy snapshot: capturedAt=<epoch>, uid=<uid>, generation=<n>, resourceVersion=<rv>, specSha256=<hash>
+- Start/end consistency: <consistent|drifted; report resourceVersion-only changes separately>
+- Rule catalog source: catalogProvenance=<version@commit>
+- Compatibility of rules actually used: <verified|unknown|incompatible>; basis: <verified version range or specific missing rules>
 
-## 2. 日志概况
+## 2. Log overview
 
-- 原始日志：<n>；窗口内匹配：<n>；窗口外：<n>；属其他策略：<n>；解析失败：<n>
-- 起止 Agent inventory：<capturedAt 与 desired/current/ready>；拓扑变化：<节点增删/Pod UID/DS 或无>
-- 起止节点并集/实际采集节点：<集合摘要>；节点覆盖：<完整|不完整>
-- NetworkProxy 证据：status=<not-applicable|eligible|ineligible>；模式=<node-central-runc|其他>
-- 逐节点 retention 证据：<node：earliest/latest/basis>；日志保留覆盖：<完整|未知>
-- 无效日志（Envelope / event）：<n>
-- 非 Seccomp 聚合事件：<n>；Seccomp syscall：<去重列表>
+- Raw logs: <n>; matching in-window: <n>; outside window: <n>; other policies: <n>; parse failures: <n>
+- Start/end Agent inventory: <capturedAt and desired/current/ready>; topology changes: <node additions/removals/Pod UID/DS, or none>
+- Start/end node union / actually collected nodes: <set summary>; node coverage: <complete|incomplete>
+- NetworkProxy evidence: status=<not-applicable|eligible|ineligible>; mode=<node-central-runc|other>
+- Per-node retention evidence: <node: earliest/latest/basis>; log retention coverage: <complete|unknown>
+- Invalid logs (Envelope / event): <n>
+- Aggregated non-Seccomp events: <n>; Seccomp syscalls: <deduplicated list>
 
-## 3. 归因结论
+## 3. Attribution conclusions
 
-对每个聚合事件列出：eventId、业务行为摘要、matches（source + rule + context.targets）及证据
-（事件字段与规则限制如何对应；enforcer 兼容性）。
+For each aggregated event, list eventId, an application-behavior summary, matches (source + rule + context.targets), and evidence
+(how event fields correspond to rule restrictions; enforcer compatibility).
 
-- 已确定关联：
-  - <eventId>：<rule>（<evidence>）
-- 一个事件多匹配：<eventId>：<rule A>、<rule B>
-- 无法归因 / 证据不足（matches 为空）：<eventId：缺什么>
+- Established associations:
+  - <eventId>: <rule> (<evidence>)
+- Multiple matches for one event: <eventId>: <rule A>, <rule B>
+- Unattributed / insufficient evidence (empty matches): <eventId: missing evidence>
 
-## 4. 本次移除的规则
+## 4. Rules removed in this update
 
-用户确认记录：<2.1.5-attribution.json 路径；每个 match 的 decision；对应用户确认消息/时间>。
-最终审核哈希：<candidate SHA256；恢复 shell 时从本记录读取，不重新生成审核值>。由 guard 计算的结构化
-diff（只含删除）：
+User confirmation record: <2.1.5-attribution.json path; decision for every match; corresponding user confirmation message/time>.
+Final reviewed hash: <candidate SHA256; read this record when restoring shell state rather than regenerating the review value>. Guard-computed structured
+diff (deletions only):
 
-- <source>：<rule>（enforcer=<…>，关联事件=<eventId>）
-- 合计：<n> 条
+- <source>: <rule> (enforcer=<...>, associated event=<eventId>)
+- Total: <n> rules
 
-## 5. Seccomp 歧义与扩大允许范围风险
+## 5. Seccomp ambiguity and broader-allowance risks
 
-- 多规则命中的 syscall：<syscall：原始命中哪些规则>；处理结果：<全部保留|用户已确认部分或全部删除及歧义>。
-- 内置规则决定：<builtinRemovals / keptBuiltinRules；无候选时写无>。
-- 自定义 syscall 组决定：<customRemovals / keptSyscalls / keptCustomRules>。
-- 重建参数：<remove/keep-seccomp-rule、remove/keep-seccomp-syscall、allow-ambiguous 的确认值>。
-- 忽略的非限制型 RawRule：<SCMP_ACT_ALLOW/LOG 完整规则；不进入删除候选>。
-- 未匹配 syscall：<列表>
+- Syscalls matching multiple rules: <syscall: original matching rules>; outcome: <all retained|user confirmed some/all deletions and ambiguity>.
+- Built-in rule decisions: <builtinRemovals / keptBuiltinRules; none if no candidates>.
+- Custom syscall-group decisions: <customRemovals / keptSyscalls / keptCustomRules>.
+- Rebuild parameters: <confirmed remove/keep-seccomp-rule, remove/keep-seccomp-syscall, allow-ambiguous values>.
+- Ignored nonrestrictive RawRules: <complete SCMP_ACT_ALLOW/LOG rules; excluded from deletion candidates>.
+- Unmatched syscalls: <list>
 
-## 6. 基线来源（删规则无效）
+## 6. Baseline-originated events (rule deletion ineffective)
 
-归因到隐式 RuntimeDefault 基线、不属于任何策略原子规则的事件：
-- <事件>：删规则无法消除；需用户决策（接受 / `privileged=true`，注意后者同时移除基线与 Seccomp）。
+Events attributed to the implicit RuntimeDefault baseline rather than any atomic policy rule:
+- <event>: Rule deletion cannot remove the cause; user decision required (accept / consider policy `privileged=true` to remove the AppArmor/BPF baseline). Assess Seccomp separately from generated AP content and actual container security context; this policy flag alone does not prove Seccomp is disabled.
 
-## 7. 待进一步观察
+## 7. Further observation needed
 
-低频、偶发、覆盖不足或业务语义不明确、本轮未移除的规则/行为：
-- <描述：为何留观>
+Rules/behaviors retained this round due to low frequency, intermittency, insufficient coverage, or unclear application semantics:
+- <description: reason for continued observation>
 
-## 8. 风险提示
+## 8. Risks
 
-观察窗口是否覆盖启动/发布/扩缩容/定时任务；规则移除后影响面可能大于单条事件；多 enforcer
-关联；版本差异等：
-- <风险点>
+Whether the window covers startup/release/scaling/scheduled tasks; rule-removal impacts potentially broader than a single event; correlations across enforcers;
+version differences, etc.:
+- <risk>
 
-## 9. 验证与回滚
+## 9. Verification and rollback
 
-- 变更对象与方式：<apply 单个 VP/VCP CRD>
-- 生效边界：AppArmor/BPF 检查实际 Profile 加载；Seccomp/注入变化需新容器，
-  `updateExistingWorkloads=true` 不保证规则更新触发滚动。
-- 验证：更新后观察 <策略状态 / 新 Pod / 业务表现>；下一窗口建议起始时间戳：<timestamp>。
-- 回滚：保留变更前 YAML 作为规则恢复依据。其 resourceVersion 已过期，不能原样 apply；
-  重新读取当前对象，按独立确认的回滚流程恢复规则、server dry-run、审核 diff 后执行。
+- Changed object and method: <apply one VP/VCP CRD>
+- Activation boundary: Verify actual AppArmor/BPF Profile loading; Seccomp/injection changes require new containers.
+  `updateExistingWorkloads=true` does not guarantee rollout for rule updates.
+- Verification: Observe <policy status / new Pods / application behavior> after update; suggested next-window start: <timestamp>.
+- Rollback: Retain pre-change YAML as the basis for rule restoration. Its resourceVersion is stale; do not apply it unchanged.
+  Reread the current object, restore rules through a separately confirmed rollback workflow, run server dry-run, review the diff, then execute.
 
-## 10. 下一观察任务
+## 10. Next observation task
 
-- 任务记录：<下一轮任务记录绝对路径>
-- 建议窗口：start=<timestamp>，end=<timestamp>；选择依据：<业务周期 / 日志速率 / 保留能力>。
-- 触发方式：<一次性定时任务 | 提醒 | 用户手动继续 | 本轮结束不再观察>
-- 自动化边界：自动任务最多采集日志并完成归因汇总；先等待用户决定删除范围，再生成候选策略；
-  更新 CRD 仍需最终确认。
+- Task record: <absolute path to the next task record>
+- Suggested window: start=<timestamp>, end=<timestamp>; basis: <application cycle / log rate / retention capability>.
+- Trigger: <one-shot scheduled task | reminder | manual user continuation | stop observation after this round>
+- Automation boundary: Automated tasks may at most collect logs and summarize attribution. Wait for the user to decide the deletion scope before generating a candidate policy;
+  CRD updates still require final confirmation.
 
-## 11. 数据处置
+## 11. Data handling
 
-- 运行目录：<本地目录；权限 0700>
-- 脱敏说明：<报告中省略或泛化的业务路径、进程和网络目标>
-- 留存与清理：<保留期限或用户确认后的清理安排>
+- Run directory: <local directory; permissions 0700>
+- Redaction: <application paths, processes, and network destinations omitted or generalized in the report>
+- Retention and cleanup: <retention period or cleanup arrangement after user confirmation>

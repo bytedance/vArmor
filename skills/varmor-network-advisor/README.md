@@ -1,4 +1,4 @@
-# vArmor Network Allowlist Advisor
+# Network Allowlist Advisor
 
 English | [Chinese](README.zh_CN.md)
 

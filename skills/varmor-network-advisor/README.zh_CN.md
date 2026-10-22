@@ -1,4 +1,4 @@
-# vArmor 网络白名单助手
+# 网络白名单助手
 
 [English](README.md) | 简体中文
 

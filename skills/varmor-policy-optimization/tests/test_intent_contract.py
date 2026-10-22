@@ -32,46 +32,46 @@ class IntentContractTests(unittest.TestCase):
         )
 
     def test_workflow_is_introduced_before_execution_details(self):
-        self.assertIn("## 两个异步阶段", self.skill)
-        self.assertIn("不要求在一次调用中线性完成", self.skill)
-        self.assertIn("进入阶段后再展开该阶段细节", self.skill)
-        self.assertIn("命令、产物和失败关闭条件留到相应执行步骤说明", self.skill)
+        self.assertIn("## Two asynchronous phases", self.skill)
+        self.assertIn("they do not need to run linearly in one invocation", self.skill)
+        self.assertIn("Expand phase-specific details only after entering that phase", self.skill)
+        self.assertIn("Defer commands, artifacts, and fail-closed conditions until the relevant execution step", self.skill)
 
     def test_preflight_is_suggested_but_requires_user_selection(self):
-        self.assertIn("下发前预检", self.author)
-        self.assertIn("全部、指定项目或跳过", self.author)
-        self.assertIn("按用户选择运行相应查询", self.author)
+        self.assertIn("Pre-submission preflight", self.author)
+        self.assertIn("all checks, selected items, or skip", self.author)
+        self.assertIn("run the corresponding queries according to that choice", self.author)
         self.assertIn("cluster-verified / user-provided / not-checked", self.author)
-        self.assertIn("用户跳过预检时", self.author)
-        self.assertIn("读取并确认目标 context", self.author)
+        self.assertIn("If the user skipped preflight", self.author)
+        self.assertIn("read and confirm the target context", self.author)
 
     def test_policy_is_user_supplied_and_not_proactively_designed(self):
-        self.assertIn("策略内容优先来自用户", self.author)
-        self.assertIn("不延伸为设计一整套规则", self.author)
-        self.assertIn("不替用户扩充规则", self.author)
-        self.assertIn("不改写用户原文件", self.author)
+        self.assertIn("Policy content should come primarily from the user", self.author)
+        self.assertIn("does not extend into designing a complete rule set", self.author)
+        self.assertIn("Do not query the cluster or expand rules on the user's behalf", self.author)
+        self.assertIn("without rewriting the user's original file", self.author)
         self.assertIn(
             'install -m 600 -- "$SOURCE_POLICY" "$RUN_DIR/1.1.3-draft.yaml"',
             self.author,
         )
-        self.assertNotIn("可选规则建议", self.author)
-        self.assertNotIn("推荐规则", self.skill)
+        self.assertNotIn("Optional rule suggestions", self.author)
+        self.assertNotIn("Recommended rules", self.skill)
 
     def test_optimization_stops_after_attribution(self):
         self.assertIn(
-            "可以在新的调用或会话中独立进入",
+            "entered independently in a new invocation or session",
             self.optimize,
         )
         self.assertIn(
-            "采集 → 归因汇报 → 用户决定 → 候选 → 确认更新",
+            "collection -> attribution report -> user decision -> candidate -> confirmed update",
             self.optimize,
         )
-        self.assertIn("#### 归因汇报", self.optimize)
-        self.assertIn("汇报后询问用户希望删除、保留还是继续", self.optimize)
-        self.assertIn("在用户给出", self.optimize)
-        self.assertIn("删除范围前停留在本节", self.optimize)
+        self.assertIn("#### Attribution report", self.optimize)
+        self.assertIn("After reporting, ask whether the user wants deletion, retention, or continued", self.optimize)
+        self.assertIn("Stay in this section until the user provides", self.optimize)
+        self.assertIn("the deletion scope; do not generate post-Seccomp, candidate, or guard diff beforehand", self.optimize)
         self.assertIn(
-            "取得删除范围决定后，再生成候选策略",
+            "obtain the user's deletion-scope decision before generating a candidate policy",
             self.author,
         )
 
@@ -81,32 +81,32 @@ class IntentContractTests(unittest.TestCase):
             1,
         )
         self.assertIn(
-            "整批节点采集只记录一次 `COLLECTION_STARTED_AT` 并复用",
+            "record `COLLECTION_STARTED_AT` only once for the entire node batch and reuse it",
             self.contract,
         )
         self.assertIn(
-            "后续节点复用该值，不重复",
+            "Subsequent nodes reuse that value without repeated",
             self.optimize,
         )
         self.assertIn(
-            "本分支复用 2.1.3 在节点遍历前确定的",
+            "This branch reuses `WINDOW_END` and `COLLECTION_STARTED_AT` established before node traversal in 2.1.3",
             self.optimize,
         )
 
     def test_shell_safeguards_are_selected_not_mechanical_prefixes(self):
-        self.assertIn("根据命令结构选择 shell 保护", self.contract)
-        self.assertIn("不为每条简单查询机械添加这些前缀", self.contract)
-        self.assertIn("显式权限收敛", self.contract)
+        self.assertIn("Choose shell safeguards according to command structure", self.contract)
+        self.assertIn("Do not mechanically prefix every simple query", self.contract)
+        self.assertIn("explicit permission restriction", self.contract)
         examples = self.author + self.optimize
         self.assertLessEqual(examples.count("set -euo pipefail"), 2)
         self.assertLessEqual(examples.count("umask 077"), 2)
 
     def test_task_record_is_the_entry_point_regardless_of_scheduler(self):
-        self.assertIn("任务记录成功落盘即表示本轮优化任务", self.author)
-        self.assertIn("定时任务、提醒或用户手动触发", self.skill)
-        self.assertIn("输入是一份或多份任务记录的绝对路径", self.optimize)
-        self.assertIn("所有触发方式的", self.contract)
-        self.assertIn("统一入口", self.contract)
+        self.assertIn("Successfully persisting the task record establishes this optimization task", self.author)
+        self.assertIn("Scheduled tasks, reminders, or manual continuation", self.skill)
+        self.assertIn("Input is the absolute path to one or more task records", self.optimize)
+        self.assertIn("every\ntrigger", self.contract)
+        self.assertIn("common entry point", self.contract)
         self.assertEqual(self.task["status"], "observing")
         self.assertIn("taskId", self.task)
         self.assertEqual(self.task["window"]["plannedEnd"], self.task["window"]["end"])
@@ -116,11 +116,11 @@ class IntentContractTests(unittest.TestCase):
         self.assertIn("outputs", self.task)
 
     def test_async_batch_tasks_have_stable_external_names(self):
-        self.assertIn("一次调用可以处理多份策略或多个任务记录", self.skill)
-        self.assertIn("每份策略使用独立运行目录和任务记录", self.author)
-        self.assertIn("一次调用可处理多个任务", self.optimize)
-        self.assertIn("任务记录位于持久任务目录，不属于阶段产物", self.contract)
-        self.assertIn("模型也可选择其他持久位置和等价命名", self.contract)
+        self.assertIn("One invocation can process multiple policies or task records", self.skill)
+        self.assertIn("independent run directory and task record for each policy", self.author)
+        self.assertIn("One invocation may process multiple tasks", self.optimize)
+        self.assertIn("Task records belong in a persistent task directory, outside phase artifacts", self.contract)
+        self.assertIn("The model may choose another persistent location and equivalent naming", self.contract)
         self.assertIn(
             "vpol-<namespace>-<name>--<start>--<plannedEnd>.json",
             self.contract,
@@ -132,17 +132,17 @@ class IntentContractTests(unittest.TestCase):
         self.assertNotIn("1.7-observation-task.json", self.skill + self.author + self.optimize)
 
     def test_window_can_close_early_before_collection(self):
-        self.assertIn("明确表示业务操作已完成并要求提前进行", self.optimize)
-        self.assertIn("保持 `plannedEnd` 不变", self.optimize)
-        self.assertIn("不要另行建议一个未来的短窗口", self.optimize)
-        self.assertIn("一旦正式采集开始", self.optimize)
-        self.assertIn("采集开始后范围固定", self.loop)
+        self.assertIn("explicitly states application operations are complete and requests early analysis", self.optimize)
+        self.assertIn("keep `plannedEnd` unchanged", self.optimize)
+        self.assertIn("Do not suggest a separate future short window", self.optimize)
+        self.assertIn("Once formal collection starts", self.optimize)
+        self.assertIn("Once collection starts, scope is fixed", self.loop)
 
     def test_candidate_replace_is_verified_against_live_spec(self):
         self.assertIn('kubectl --context "$CTX" replace', self.optimize)
         self.assertIn("--verify-live", self.optimize)
         self.assertIn("2.1.8-post-replace.yaml", self.optimize)
-        self.assertIn("线上 spec 与 candidate 不一致", self.contract)
+        self.assertIn("live spec differing from candidate", self.contract)
 
 
 if __name__ == "__main__":

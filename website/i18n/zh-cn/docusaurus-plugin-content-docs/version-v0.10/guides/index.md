@@ -13,6 +13,7 @@ sidebar_position: 3
 | 编写并验证工作负载策略 | [编写策略](policies_and_rules/writing_policies.md) |
 | 理解模式和规则 | [策略与规则](policies_and_rules/index.md) |
 | 生成起始模板 | [策略工具](policy_tools/index.md) |
+| 借助智能体推荐策略、优化防护或诊断问题 | [Skills](../skills/index.md) |
 | 了解性能测量 | [性能](performance/index.md) |
 
 安装和公共操作从[快速入门](../getting_started/index.md)开始。

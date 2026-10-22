@@ -1,41 +1,43 @@
-# 策略模式与默认 Profile
+# Policy modes and default Profiles
 
-本指南说明 vArmor v0.9.2 各策略模式在未额外添加规则时生成的默认 Profile 语义。它用于解释“策略没有内置/自定义规则，为什么仍有或没有防护”。实际结论仍须以 VP/VCP、AP、Pod 引用和节点已加载 Profile 为准。
+This guide distinguishes generated Profiles from injected Pod settings in the current implementation. Use it to explain why protection exists or is absent when a policy has no built-in/custom rules. Verify behavior against the deployed version, VP/VCP, AP, Pod references, and loaded node Profiles.
 
 ## 1. AlwaysAllow
 
-AlwaysAllow 是 vArmor 的无额外强制访问控制对照模式：AppArmor 使用 Allow 模板，BPF Profile 为空，Seccomp 默认动作为 `ALLOW`。它不关闭 Kubernetes、容器运行时、Linux 内核或其他独立安全机制，因此业务仍可能被其他机制拒绝。
+AlwaysAllow is vArmor's control mode without additional mandatory access controls: AppArmor uses an Allow template, the BPF Profile is empty, and Seccomp defaults to `ALLOW`. It does not disable Kubernetes, the runtime, the Linux kernel, or other independent security mechanisms, which may still deny application operations.
 
 ## 2. RuntimeDefault
 
-RuntimeDefault 为 AppArmor/BPF 生成 vArmor 的运行时默认基线：
+RuntimeDefault generates vArmor runtime baselines for AppArmor/BPF:
 
-- AppArmor：限制部分 `/proc` 写入、`/proc/sysrq-trigger`、`/proc/*/mem`、`/proc/kmem`、`/proc/kcore` 和敏感 `/sys` 路径，限制 mount，并限制跨 Profile 的 ptrace。
-- BPF：限制 `/proc/sysrq-trigger`、`/proc/*/mem`、`/proc/kmem`、`/proc/kcore`、敏感 `/sys` 路径，限制卸载，并限制 ptrace read/trace。
-- Seccomp：v0.9.2 在此模式生成 `ALLOW` Profile，以避免既有 Pod 因不能更新 Seccomp 设置而无法正常重启；不要把 RuntimeDefault 视为 vArmor 的 Seccomp syscall 拦截基线。
+- AppArmor: restricts some `/proc` writes, `/proc/sysrq-trigger`, `/proc/*/mem`, `/proc/kmem`, `/proc/kcore`, and sensitive `/sys` paths; restricts mount and cross-Profile ptrace.
+- BPF: restricts `/proc/sysrq-trigger`, `/proc/*/mem`, `/proc/kmem`, `/proc/kcore`, and sensitive `/sys` paths; adds mount restrictions and restricts ptrace read/trace.
+- Seccomp: the injector sets `seccompProfile.type: RuntimeDefault`, selecting the container runtime's default filter. Separately, the AP generator creates an `ALLOW` Profile for compatibility with existing Pods that still reference the previous Localhost path after a mode switch. That generated file does not prove the actual Pod uses an allow-all filter; inspect its final `seccompProfile` and lifecycle.
 
 ## 3. EnhanceProtect
 
-EnhanceProtect 为 Allow-by-Default，并叠加用户选择的内置规则和自定义规则。未声明任何规则时：
+EnhanceProtect is Allow-by-Default with user-selected built-in and custom rules. With no explicit rules:
 
-- `privileged=false`：AppArmor/BPF 仍叠加第 2 节的 RuntimeDefault 基线。
-- `privileged=true`：AppArmor/BPF 以 AlwaysAllow 模板/空 Profile 为基础，不叠加该基线。
-- Seccomp：生成的 Profile 默认动作为 `ALLOW`；只有实际存在 Seccomp 内置或自定义 syscall 规则时才增加限制。
+- `privileged=false`: AppArmor/BPF still include the RuntimeDefault baseline from section 2.
+- `privileged=true`: AppArmor/BPF use an AlwaysAllow template/empty Profile without that baseline.
+- Seccomp: generated Profiles default to `ALLOW`; restrictions are added only when actual Seccomp built-in or custom syscall rules exist.
 
-`allowViolations`、`auditViolations` 改变 EnhanceProtect 规则和基线的阻断/审计方式，但不改变 AppArmor/BPF 是否叠加基线。Seccomp 观察模式只有两者均为 true 时对命中的规则使用 `LOG`，其他组合通常使用 `ERRNO`。
+The policy's `enhanceProtect.privileged` flag selects the AppArmor/BPF baseline; it does not set container `securityContext.privileged`. Do not infer Seccomp absence from this flag alone. The current generator still builds Seccomp content when that enforcer is selected, while injection skips containers that are actually privileged or explicitly Seccomp-Unconfined.
+
+`allowViolations` and `auditViolations` change how EnhanceProtect rules/baselines block and audit; they do not determine whether AppArmor/BPF include a baseline. Seccomp observation uses `LOG` for matched rules only when both flags are true; other combinations usually use `ERRNO`.
 
 ## 4. BehaviorModeling
 
-建模未完成时，AppArmor/BPF/Seccomp 处于 `Complain` 语义以采集行为；Seccomp 默认动作是 `LOG`，并保留基本文件 syscall 的显式允许。建模完成后，该模式自身回到 AlwaysAllow/空 Profile，不自动变成 Deny-by-Default。
+Before modeling completes, AppArmor/BPF/Seccomp use `Complain` semantics to collect behavior. Seccomp defaults to `LOG` and explicitly allows basic file syscalls. After completion, this mode returns to AlwaysAllow/empty Profiles; it does not automatically become Deny-by-Default.
 
-其产物是 ArmorProfileModel（APM）。要获得 allowlist 防护，应确认 APM 已生成并被后续 DefenseInDepth 策略引用。
+Its output is ArmorProfileModel (APM). For allowlist protection, verify that the APM was generated and referenced by a subsequent DefenseInDepth policy.
 
 ## 5. DefenseInDepth
 
-DefenseInDepth 是 Deny-by-Default 模式，不存在通用固定基线。它使用行为模型或用户提供的 AppArmor/Seccomp Profile 作为 allowlist，再叠加对应自定义规则：
+DefenseInDepth is Deny-by-Default and has no universal fixed baseline. It uses a behavior model or user-provided AppArmor/Seccomp Profile as an allowlist, then adds corresponding custom rules:
 
-- AppArmor：加载 APM 或自定义 AppArmor Profile，并可追加 AppArmor Raw Rules。
-- Seccomp：加载 APM 或自定义 Seccomp Profile；默认动作在阻断模式为 `ERRNO`，`allowViolations=true` 时为 `LOG`，并可追加 syscall Raw Rules。
-- BPF：v0.9.2 尚不支持 DefenseInDepth。
+- AppArmor: loads an APM or custom AppArmor Profile and can append AppArmor Raw Rules.
+- Seccomp: loads an APM or custom Seccomp Profile, defaults to `ERRNO` in enforcement and `LOG` with `allowViolations=true`, and can append syscall Raw Rules.
+- BPF: DefenseInDepth is rejected during policy validation/admission, with an additional guard in Profile generation.
 
-BehaviorModeling 与 DefenseInDepth 在 v0.9.2 中属于实验能力，仅支持 AppArmor 与 Seccomp。诊断此模式时，应优先核对 APM/Profile 来源、模式完成状态和最终默认动作，不能套用 EnhanceProtect 的内置规则或 RuntimeDefault 基线解释。
+BehaviorModeling and DefenseInDepth are experimental. The current implementation includes BPF behavior collection, but BPF DefenseInDepth remains unsupported; NetworkProxy supports DefenseInDepth with its own rules and does not support BehaviorModeling. Prioritize APM/Profile source, mode completion state, and final action when diagnosing these modes. For NetworkProxy, use its dedicated rule semantics rather than an AppArmor/Seccomp baseline.

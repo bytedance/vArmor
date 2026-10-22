@@ -167,12 +167,12 @@ def load_yaml_doc(content):
     try:
         document = yaml.load(content, Loader=_UniqueKeyLoader)
     except yaml.YAMLError as error:
-        raise ValidationError("内容不是有效的 YAML: %s" % error)
+        raise ValidationError("Content is not valid YAML: %s" % error)
     except (TypeError, KeyError, ValueError) as error:
         # e.g. unhashable composite mapping keys during construction
-        raise ValidationError("内容不是有效的 YAML: %s" % error)
+        raise ValidationError("Content is not valid YAML: %s" % error)
     if not isinstance(document, dict):
-        raise ValidationError("内容必须是一个 YAML/JSON 对象")
+        raise ValidationError("Content must be a YAML/JSON object")
     return document
 
 

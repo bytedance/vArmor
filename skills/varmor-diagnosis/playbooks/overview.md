@@ -1,32 +1,32 @@
-# 概览查询（Overview）
+# Overview Queries (Overview)
 
-执行与授权遵循 [统一约定](README.md)。以下是按需选用的检查点与命令示例；
-复用已有事实，按当前问题选择字段与分支，不需要完整执行或填齐输出清单。
+Follow the [shared conventions](README.md) for execution and authorization. The checkpoints and example commands below are optional;
+reuse known facts and select fields and branches for the current issue. Do not run every step or fill every output item.
 
-## 检查目标
-快速判断故障影响范围：全局、单节点、单策略、单工作负载还是单容器。建立诊断优先级，避免无目标收集全量数据。
+## Objective
+Quickly determine the impact scope: global, one node, one policy, one workload, or one container. Set diagnostic priorities and avoid indiscriminate full-data collection.
 
-## 适用场景
-诊断初期，尚未明确故障范围时使用。症状入口不明确时，先跑此 playbook 缩小范围。
+## When to use
+Use early in an investigation when the failure scope is unclear. If the symptom does not suggest an entry point, run this playbook to narrow the scope.
 
-## 前置依赖
-- 已知目标 namespace（可选，若跨 namespace 问题可省略）
-- 已知 vArmor 安装 namespace（<varmor-namespace>，必须先根据实际部署对象、Webhook Service 引用或相关控制器对象发现，不使用固定默认值）
+## Prerequisites
+- Known target namespace (optional; omit for cross-namespace issues)
+- Known vArmor installation namespace (<varmor-namespace>; discover it from actual deployment objects, Webhook Service references, or related controller objects; do not assume a fixed default)
 
 ---
 
-## 1. vArmor 组件总览
+## 1. vArmor component overview
 
-判断控制面和数据面是否整体可用。
+Determine whether the control plane and data plane are broadly available.
 
 ```bash
-# 查看已确认组件范围；共享 namespace 时补充组件 selector，不列无关业务 Pod
+# Inspect the confirmed component scope; add component selectors in a shared namespace to avoid unrelated application Pods
 kubectl -n <varmor-namespace> get pods -l <varmor-component-selector> -o wide
 
-# 查看各组件期望/就绪数量
-kubectl -n <varmor-namespace> get deploy <manager-deploy-name> -o jsonpath='{.status.replicas}/{.status.readyReplicas}/{.status.availableReplicas}' && echo
+# Inspect desired/ready counts for each component
+kubectl -n <varmor-namespace> get deploy <manager-deploy-name> -o jsonpath='{.spec.replicas}/{.status.readyReplicas}/{.status.availableReplicas}' && echo
 kubectl -n <varmor-namespace> get ds <agent-daemonset-name> -o jsonpath='{.status.desiredNumberScheduled}/{.status.numberReady}/{.status.numberAvailable}' && echo
-CLASSIFIER_STATUS=$(kubectl -n <varmor-namespace> get ds <classifier-daemonset-name> -o jsonpath='{.status.desiredNumberScheduled}/{.status.numberReady}/{.status.numberAvailable}' 2>&1)
+CLASSIFIER_STATUS=$(kubectl -n <varmor-namespace> get deploy <classifier-deployment-name> -o jsonpath='{.spec.replicas}/{.status.readyReplicas}/{.status.availableReplicas}' 2>&1)
 if [ $? -eq 0 ]; then
   echo "$CLASSIFIER_STATUS"
 else
@@ -35,100 +35,100 @@ else
 fi
 ```
 
-**重点关注字段：**
-| 字段 | 含义 |
+**Key fields:**
+| Field | Meaning |
 |---|---|
-| `STATUS` | Pod 阶段（Running/Pending/CrashLoopBackOff/ImagePullBackOff） |
-| `RESTARTS` | 重启次数，>0 需结合 lastState 判断 |
-| `AGE` | 存活时间，过短可能是刚启动或反复重启 |
-| `NODE` | 所在节点，用于判断单节点故障 |
-| `replicas/readyReplicas` | manager 期望/就绪副本数 |
-| `desiredNumberScheduled/numberReady` | agent/classifier 期望/就绪节点数 |
+| `STATUS` | Pod status (Running/Pending/CrashLoopBackOff/ImagePullBackOff) |
+| `RESTARTS` | Restart count; correlate values >0 with lastState |
+| `AGE` | Age; a short age may indicate a recent start or repeated restarts |
+| `NODE` | Hosting node, useful for identifying node-specific failures |
+| `spec.replicas/status.readyReplicas` | Desired/ready manager or classifier replicas |
+| `desiredNumberScheduled/numberReady` | Desired/ready agent nodes |
 
-**判读规则：**
-- manager 0 Ready → 控制面全局故障，先查 [component.md](component.md) manager 部分
-- agent numberReady < desiredNumberScheduled → 存在未覆盖节点，故障可能局限于未就绪节点
-- classifier 未部署 → 仅当使用 BehaviorModeling 时才异常
-- 所有组件 Ready ≠ 功能健康，仍需继续下游检查
+**Interpretation:**
+- manager 0 Ready -> global control-plane failure; start with the manager section of [component.md](component.md)
+- agent numberReady < desiredNumberScheduled -> coverage gaps; the failure may be limited to unready nodes
+- classifier absent -> abnormal only when BehaviorModeling is in use
+- All components Ready does not establish functional health; continue downstream checks
 
 ---
 
-## 2. 策略总览
+## 2. Policy overview
 
-目标 namespace 已知时优先该范围；仅在范围不明或有全局异常证据时使用下方跨 namespace 摘要，发现异常后转向具体策略。
+Prefer the target namespace when known. Use the cross-namespace summaries below only when scope is unclear or evidence indicates a global problem; focus on specific policies once abnormalities are found.
 
 ```bash
-# 查看所有 VarmorPolicy 摘要（非全量 yaml，仅关键状态字段）
+# Summarize all VarmorPolicy objects (key status fields, not full YAML)
 kubectl get varmorpolicies.crd.varmor.org --all-namespaces -o custom-columns='NAMESPACE:.metadata.namespace,NAME:.metadata.name,READY:.status.ready,PHASE:.status.phase,PROFILE:.status.profileName,AGE:.metadata.creationTimestamp'
 
-# 查看所有 VarmorClusterPolicy 摘要
+# Summarize all VarmorClusterPolicy objects
 kubectl get varmorclusterpolicies.crd.varmor.org -o custom-columns='NAME:.metadata.name,READY:.status.ready,PHASE:.status.phase,PROFILE:.status.profileName,AGE:.metadata.creationTimestamp'
 
-# 查看所有 ArmorProfile 加载状态
-kubectl get armorprofiles.crd.varmor.org --all-namespaces -o custom-columns='NAMESPACE:.metadata.namespace,NAME:.metadata.name,DESIRED:.status.desiredNumberLoaded,CURRENT:.status.currentNumberLoaded,READY:.status.ready,AGE:.metadata.creationTimestamp'
+# Inspect loading status for all ArmorProfile objects
+kubectl get armorprofiles.crd.varmor.org --all-namespaces -o custom-columns='NAMESPACE:.metadata.namespace,NAME:.metadata.name,DESIRED:.status.desiredNumberLoaded,CURRENT:.status.currentNumberLoaded,AGE:.metadata.creationTimestamp'
 ```
 
-**重点关注字段：**
-| 字段 | 含义 |
+**Key fields:**
+| Field | Meaning |
 |---|---|
-| `READY` | 策略/Profile 是否就绪（bool） |
-| `PHASE` | 阶段（Pending/Protecting/Modeling/Completed/Error/Failed） |
-| `DESIRED/CURRENT` | AP 期望/当前加载节点数，不一致说明部分节点未加载 |
+| `READY` | VP/VCP readiness (bool); AP has no `status.ready` field |
+| `PHASE` | Phase (Pending/Protecting/Modeling/Completed/Error/Failed) |
+| `DESIRED/CURRENT` | Desired/current AP node-loading counts; a difference indicates nodes without the Profile loaded |
 
-**判读规则：**
-- 所有策略 Pending/Error → 全局控制面问题，回到组件检查
-- 单策略 READY=False → 该策略链路问题，进 [policy.md](policy.md)
-- AP CURRENT < DESIRED → 部分节点未加载，记录差异节点名，进 [node.md](node.md)
-- 所有策略 Ready，但目标 Pod 异常 → 问题在注入或运行时环节，继续下游
+**Interpretation:**
+- All policies Pending/Error -> global control-plane issue; return to component checks
+- One policy READY=False -> policy-specific chain issue; open [policy.md](policy.md)
+- AP CURRENT < DESIRED -> some nodes have not loaded it; record affected node names and open [node.md](node.md)
+- All policies Ready but target Pod unhealthy -> injection or runtime issue; continue downstream
 
 ---
 
-## 3. Webhook 总览
+## 3. Webhook overview
 
-判断 Webhook 配置是否存在且端点可用。
+Determine whether Webhook configurations exist and endpoints are available.
 
 ```bash
-# 查看 Mutating/Validating Webhook 配置是否存在
+# Check for Mutating/Validating Webhook configurations
 kubectl get mutatingwebhookconfigurations | grep varmor
 kubectl get validatingwebhookconfigurations | grep varmor
 
-# 查看 Webhook Service 是否存在且有 Endpoint
+# Check whether the Webhook Service exists and has Endpoints
 kubectl -n <varmor-namespace> get svc | grep webhook
 kubectl -n <varmor-namespace> get endpoints | grep webhook
 ```
 
-关键词未命中只是未发现候选；再按 Service 引用和实际部署确认，不能直接认定不存在。
+A keyword miss only means no candidate was found. Confirm through Service references and the actual deployment before concluding absence.
 
-**判读规则：**
-- 已确认相关 Webhook 配置不存在 → 可能是安装问题或升级残留
-- Service 存在但 Endpoints 为空 → manager Pod 未就绪或 Service selector 不匹配
-- Webhook 配置和端点均正常 → 不能排除匹配标签/规则问题，需进 [webhook.md](webhook.md) 细查
+**Interpretation:**
+- Relevant Webhook configuration confirmed absent -> possible installation issue or upgrade residue
+- Service exists but Endpoints are empty -> manager Pods unready or Service selector mismatch
+- Webhook configuration and endpoints healthy -> label/rule matching issues remain possible; inspect [webhook.md](webhook.md)
 
 ---
 
-## 4. 范围判断决策树
+## 4. Scope decision tree
 
-根据以上结果快速定位下一步：
+Use these results to select the next step:
 
-| 观察到的现象 | 影响范围 | 下一步 |
+| Observation | Impact scope | Next step |
 |---|---|---|
-| manager CrashLoop/0 Ready | 全局 | → [component.md](component.md) manager 部分 |
-| 单/多节点 agent 未 Ready | 节点级 | → [node.md](node.md) |
-| 所有策略 Pending/Error | 全局 | → [component.md](component.md) → [policy.md](policy.md) |
-| 单策略 READY=False | 策略级 | → [policy.md](policy.md) |
-| 策略 Ready，AP 完整，但目标 Pod Pending | Pod 级 | → [workload.md](workload.md) → [webhook.md](webhook.md) |
-| 策略 Ready，Pod Running 但行为异常 | 运行时 | → [workload.md](workload.md) → [audit.md](audit.md) |
-| 涉及出口网络/代理 | NetworkProxy | → [networkproxy.md](networkproxy.md) |
-| 涉及行为建模无数据 | Modeling | → [behavior-modeling.md](behavior-modeling.md) |
+| manager CrashLoop/0 Ready | Global | -> manager section of [component.md](component.md) |
+| agent unready on one or more nodes | Node | -> [node.md](node.md) |
+| All policies Pending/Error | Global | -> [component.md](component.md) -> [policy.md](policy.md) |
+| One policy READY=False | Policy | -> [policy.md](policy.md) |
+| Policy Ready, AP fully loaded, target Pod Pending | Pod | -> [workload.md](workload.md) -> [webhook.md](webhook.md) |
+| Policy Ready, Pod Running with abnormal behavior | Runtime | -> [workload.md](workload.md) -> [audit.md](audit.md) |
+| Egress networking/proxy involved | NetworkProxy | -> [networkproxy.md](networkproxy.md) |
+| Missing behavior-modeling data | Modeling | -> [behavior-modeling.md](behavior-modeling.md) |
 
 ---
 
-## 可选汇总要点
-按实际采集结果选择相关项：
-1. 哪些组件 Ready、哪些不 Ready
-2. 多少策略 Ready、多少异常
-3. 异常 AP 的节点差异
-4. Webhook 是否存在且有端点
-5. 初步判定的影响范围和下一步方向
+## Optional summary points
+Select relevant items from the evidence actually collected:
+1. Which components are Ready and which are not
+2. Counts of ready and unhealthy policies
+3. Node coverage gaps for unhealthy APs
+4. Whether Webhook configurations and endpoints exist
+5. Initial impact scope and next direction
 
-不要在概览阶段收集全量日志、全量事件或逐个 Pod 描述。
+Do not collect complete logs, complete events, or describe every Pod during the overview.

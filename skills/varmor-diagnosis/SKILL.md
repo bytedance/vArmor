@@ -4,139 +4,142 @@ license: Apache-2.0
 description: Diagnose vArmor and Kubernetes security issues involving components, policies, Profiles, webhooks, node enforcers, BehaviorModeling, and NetworkProxy. Use when Pods are Pending, containers exit unexpectedly, policies fail to inject or take effect, policy status is abnormal, node Profiles fail to load, audit events need investigation, or vArmor components are unhealthy. Provide domain context, targeted read-only checks, and evidence interpretation.
 ---
 
-# vArmor 诊断 Skill
+# Automated Diagnosis
 
-模型基于 Kubernetes 诊断能力自主选择查询与排查路径，本 Skill 补充 vArmor 的对象关系、
-生效语义和容易误判的证据边界。优先用小范围、低影响的动作回答当前问题。
+Respond in the language of the user's current message unless they request otherwise. English instructions and examples do not set the response language.
 
-- **references/**：知识层，解释架构、组件、CRD、规则语义与故障模式，按需读取。
-- **playbooks/**：检查点、查询示例和判读建议；不是固定流程或命令白名单。
-- **scripts/**：可选的复杂结构处理工具，不代替模型综合判读。
-- **templates/**：正式诊断报告的组织参考。
+Use your Kubernetes troubleshooting capabilities to choose queries and investigation paths autonomously. This Skill adds vArmor object relationships,
+enforcement semantics, and evidence boundaries that are easy to misinterpret. Prefer narrowly scoped, low-impact actions that answer the current question.
 
-统一命令成本、授权与证据约定见 `playbooks/README.md`。工具返回的事实是证据，知识库用于
-解释；不凭经验补造状态、版本或日志。
+- **references/**: Background on architecture, components, CRDs, rule semantics, and failure modes; read on demand.
+- **playbooks/**: Checkpoints, example queries, and interpretation guidance; not a fixed workflow or command allowlist.
+- **scripts/**: Optional tools for complex structured data; they do not replace your overall interpretation.
+- **templates/**: Organizational guidance for formal diagnosis reports.
 
-## 适用范围
+See `playbooks/README.md` for shared command-cost, authorization, and evidence conventions. Facts returned by tools are evidence; the knowledge base helps
+interpret them. Never invent states, versions, or logs from experience.
 
-覆盖 vArmor 组件、VP/VCP/AP/APM、Admission Webhook、AppArmor/BPF/Seccomp/NetworkProxy、五种策略模式，以及 Pod Pending、Container Crash、策略未生效、审计事件和节点兼容性问题。
+## Scope
 
-不负责生成策略、不负责策略管理、不负责替代通用 Kubernetes 故障处理，也不把 vArmor 当作虚拟机级隔离方案。即使工具具备写操作能力，本 Skill 也只输出建议、风险和验证点，不代用户修改策略、重启/删除资源、改变 Webhook、调整节点或切换防护模式。
+Covers vArmor components, VP/VCP/AP/APM, admission webhooks, AppArmor/BPF/Seccomp/NetworkProxy, all five policy modes, and issues involving Pending Pods, container crashes, ineffective policies, audit events, and node compatibility.
 
-## 核心心智模型
+This Skill does not generate or manage policies, replace general Kubernetes troubleshooting, or treat vArmor as VM-level isolation. Even when tools support writes, provide recommendations, impacts, and verification points only. Do not modify policies, restart/delete resources, change webhooks, alter nodes, or switch protection modes for the user.
 
-把一次防护拆成五个连续环节：
+## Core mental model
 
-1. **目标发现**：VP/VCP 的 `spec.target` 是否匹配正确的 namespace、kind、name/label selector 和 container；目标是否满足 Webhook 匹配条件；是否被显式 `unconfined` 绕过。
-2. **策略编译**：manager 是否接受策略、生成 Profile 和必要的 NetworkProxy 配置；VP/VCP status 是否反映正确阶段和原因。
-3. **Admission 注入**：Webhook 是否在正确请求上注入 Profile 引用、NetworkProxy sidecar/initContainer、SecurityContext 或兼容 annotation。
-4. **节点落地**：目标节点 agent 是否收到 AP，并按 enforcer 准备资源；AP 期望和实际加载数是否一致。
-5. **运行时执行**：容器实际使用的 Profile 是否与策略一致，违规事件的 `enforcer`、`action`、身份和时间是否能与业务现象对应。
+Separate protection into five connected stages:
 
-诊断时先判断故障位于哪一环，再沿前后相邻环节验证。`Policy Ready` 只说明 vArmor 观察到所需 Agents 已处理 Profile，不等同于每个业务 Pod 都被匹配、注入且按预期运行。
+1. **Target discovery**: Does VP/VCP `spec.target` match the intended namespace, kind, name/label selector, and container? Does the target meet webhook matching conditions? Is protection explicitly bypassed with `unconfined`?
+2. **Policy compilation**: Does the manager accept the policy and generate the Profile and required NetworkProxy configuration? Do VP/VCP statuses show the correct phase and reason?
+3. **Admission injection**: Does the webhook inject Profile references, the NetworkProxy sidecar/initContainer, SecurityContext, or compatibility annotations into the correct requests?
+4. **Node preparation**: Does the target node agent receive the AP and prepare resources for each enforcer? Do the desired and actual AP load counts match?
+5. **Runtime enforcement**: Does the container actually use the intended Profile? Can the violation event's `enforcer`, `action`, identity, and time be correlated with the application symptom?
 
-## 推荐诊断流程
+First identify the failing stage, then verify adjacent stages. `Policy Ready` only means vArmor observed that the required agents processed the Profile; it does not prove every application Pod was matched, injected, and running as intended.
 
-1. 明确集群、namespace、Workload/Pod、container、节点、策略、开始时间和影响范围。
-2. 范围不明时看概览，判断是全局、单节点、单策略还是单容器。
-3. 建立对象链：`策略 → status.profileName → 同名 ArmorProfile → 目标 Workload/Pod → 目标节点 → agent/enforcer`。
-4. 按证据补齐缺口：状态、事件、日志、节点内核/LSM/运行时和审计事件；避免无目标收集全量数据。
-5. 区分“未匹配/能力不支持/未编译/未注入/模板已注入但Pod未更新/未加载/已加载但未触发/已触发且放行/已触发且拒绝/规则冲突/业务本身异常/证据不足”。
-6. 输出问题、证据、根因、置信度、影响范围、建议和未排除项。
+## Suggested investigation flow
 
-## 自主执行建议
+1. Establish the cluster, namespace, Workload/Pod, container, node, policy, start time, and affected scope.
+2. If the scope is unclear, start with an overview to distinguish cluster-wide, single-node, single-policy, and single-container issues.
+3. Build the object chain: `policy -> status.profileName -> ArmorProfile with the same name -> target Workload/Pod -> target node -> agent/enforcer`.
+4. Fill evidence gaps with status, events, logs, node kernel/LSM/runtime details, and audit events. Avoid untargeted full-data collection.
+5. Distinguish: unmatched / unsupported capability / not compiled / not injected / template injected but Pod not updated / not loaded / loaded but not triggered / triggered and allowed / triggered and denied / rule conflict / application failure / insufficient evidence.
+6. Report the issue, evidence, root cause, confidence, affected scope, recommendations, and remaining possibilities.
 
-- 已知 Pod、Workload、策略或节点时直接从该对象开始；目标模糊时先做有限摘要发现。
-- 每步选择能验证当前假设的最小动作，复用已采集事实；先 API 状态/事件和有限日志，再按需
-  做容器或节点视图的定向检查。不要为了完成手册、脚本或报告而增加采集。
-- 集群操作前核实目标 context 并尽量显式绑定；已有明确集群与授权时不重复询问。只介绍流程
-  或分析本地材料时不要求连接集群。不主动切换 context、安装依赖或扩大节点权限。
-- 对象名、selector、container、profileName、路径和时间窗口由模型发现并向后传递；不让用户
-  手动替换可发现参数，不执行未解析占位符。Python 只在选用脚本时需要，缺失时可用等价查询。
-- 关键词搜索可用于发现候选，再由模型交叉确认归属。字段清单是提示，必要时可读取其他相关
-  非敏感字段。脚本与原生命令按复杂度选择，不要求已有事实重新经过脚本。
-- 找到可解释现象的断点后，补齐其原因或提出最小验证建议即可；查询失败、未匹配和未知分开
-  表达。风险按具体命令、访问范围、开销和外部影响评估，已有授权范围内不逐命令询问。
+## Autonomous execution guidance
 
-## 参考文件路由
+- Start directly from a known Pod, workload, policy, or node. If the target is vague, use limited summary discovery first.
+- Choose the smallest action that tests the current hypothesis and reuse collected facts. Start with API status/events and bounded logs, then
+  inspect the container or node view as needed. Do not collect extra data merely to complete a playbook, script, or report.
+- Verify the target context before cluster operations and bind it explicitly where possible. Do not ask again when the cluster and authorization are already clear. Explaining the workflow
+  or analyzing local material does not require cluster access. Do not proactively switch contexts, install dependencies, or broaden node privileges.
+- Discover object names, selectors, containers, profileName, paths, and time windows and pass them to subsequent steps. Do not ask users
+  to replace discoverable parameters manually or execute unresolved placeholders. Python is needed only for selected scripts; equivalent queries are acceptable if unavailable.
+- Use keyword searches to discover candidates, then cross-check ownership. Field lists are guidance; read other relevant
+  non-sensitive fields when needed. Choose scripts or native commands according to complexity; already established facts need not be processed through a script again.
+- Once a break explains the symptom, establish its cause or propose the smallest useful verification. Distinguish query failure, no match, and unknown results.
+  Assess commands by their scope, cost, and external effects. Do not ask for authorization per command within an already authorized scope.
 
-### 知识层（references/）：理解原理与故障模式
+## Reference routing
 
-- 全局架构 → `references/architecture.md`
-- VP/VCP/AP/APM 与状态 → `references/modules/policy-crd.md`
+### Knowledge layer (references/): principles and failure modes
+
+- Overall architecture -> `references/architecture.md`
+- VP/VCP/AP/APM and status -> `references/modules/policy-crd.md`
 - manager → `references/modules/manager.md`
 - agent → `references/modules/agent.md`
-- 运行时违规来源、轮转与身份关联 → `references/modules/violation-log.md`
-- classifier/建模 → `references/modules/classifier.md`
+- Runtime violation sources, rotation, and identity correlation -> `references/modules/violation-log.md`
+- Classifier/modeling -> `references/modules/classifier.md`
 - enforcer → `references/modules/enforcers.md`
-- Webhook/注入 → `references/modules/webhook.md`
-- 各模式默认 Profile/基线（无自定义规则时是否仍有防护）→ `references/modules/policy-mode-profiles.md`
-- EnhanceProtect 内置规则的实际实施范围（按 enforcer）→ `references/modules/built-in-rules-apparmor.md`、`references/modules/built-in-rules-bpf.md`、`references/modules/built-in-rules-seccomp.md`
-- 症状路标 → `references/troubleshooting/` 下对应文件
-- 跨 enforcer 冲突、VP/VCP 重叠、统一结论分类 → `references/troubleshooting/enforcer-conflicts.md`
+- Webhooks/injection -> `references/modules/webhook.md`
+- Default Profiles/baselines for each mode, including protection without custom rules -> `references/modules/policy-mode-profiles.md`
+- Actual implementation scope of EnhanceProtect built-in rules by enforcer -> `references/modules/built-in-rules-apparmor.md`, `references/modules/built-in-rules-bpf.md`, and `references/modules/built-in-rules-seccomp.md`
+- Symptom guides -> the corresponding files under `references/troubleshooting/`
+- Agent AppArmor load failure, inaccessible kernel interfaces, or security settings inconsistent with the template -> `references/troubleshooting/agent-apparmor-load-failure.md` (also applies when the agent is Running/Ready)
+- Cross-enforcer conflicts, VP/VCP overlap, and shared conclusion categories -> `references/troubleshooting/enforcer-conflicts.md`
 
-知识按需读取，不一次加载全部：解释“某模式默认会保护什么”时读 `policy-mode-profiles.md`；分析某条 EnhanceProtect 内置规则是否可能导致异常时，先确认实际 enforcer，再读对应的规则实施文档。
+Read knowledge on demand, not all at once. To explain a mode's default protection, read `policy-mode-profiles.md`. Before analyzing whether an EnhanceProtect built-in rule could cause a symptom, establish the actual enforcer and read its implementation reference.
 
-本地参考不足时，按实际部署版本从 [官方文档索引](https://www.varmor.org/zh-cn/llms.txt) 查阅相关页面作为补充；不默认全量阅读，也不混用稳定版与 main 的语义。
+When local references are insufficient, use the [official documentation index (main)](https://www.varmor.org/docs/main/llms.txt) to select supplemental pages. Prefer the corresponding version's documentation for released deployments. Do not read everything by default or mix stable and main semantics.
 
-### 操作层（playbooks/）：执行诊断查询
+### Operations layer (playbooks/): investigation queries
 
-按症状选择；不要求按编号执行，最早可证明断点优先：
+Choose by symptom. Numbering is not an execution order; prioritize the earliest provable break:
 
-1. **概览** → `playbooks/overview.md`（诊断入口，快速判断影响范围）
-2. **组件检查** → `playbooks/component.md`（manager/agent/classifier 健康）
-3. **策略链路** → `playbooks/policy.md`（VP/VCP → AP → 节点条件）
-4. **Webhook 验证** → `playbooks/webhook.md`（配置/端点/证书/匹配规则）
-5. **Workload 验证** → `playbooks/workload.md`（PodTemplate vs 实际 Pod 注入对比）
-6. **节点检查** → `playbooks/node.md`（内核/LSM/BTF/Profile 加载）
-7. **审计事件** → `playbooks/audit.md`（运行时违规/审计事件关联）
+1. **Overview** -> `playbooks/overview.md` (entry point for quickly identifying affected scope)
+2. **Components** -> `playbooks/component.md` (manager/agent/classifier health)
+3. **Policy chain** -> `playbooks/policy.md` (VP/VCP -> AP -> node conditions)
+4. **Webhook verification** -> `playbooks/webhook.md` (configuration/endpoints/certificates/matching rules)
+5. **Workload verification** -> `playbooks/workload.md` (PodTemplate versus actual Pod injection)
+6. **Node inspection** -> `playbooks/node.md` (kernel/LSM/BTF/Profile loading)
+7. **Audit events** -> `playbooks/audit.md` (runtime violation/audit correlation)
 
-统一操作契约、L0-L4 风险等级和证据记录格式 → `playbooks/README.md`
+Shared execution contract, L0-L4 impact levels, and evidence format -> `playbooks/README.md`
 
-专项检查：
-- NetworkProxy → `playbooks/networkproxy.md`（六层排查）
-- 行为建模 → `playbooks/behavior-modeling.md`（三段链路）
+Specialized investigations:
+- NetworkProxy -> `playbooks/networkproxy.md` (six-layer investigation)
+- BehaviorModeling -> `playbooks/behavior-modeling.md` (three-stage chain)
 
-### 脚本层（scripts/）：可选辅助结构处理
+### Script layer (scripts/): optional structured-data helpers
 
-以下脚本可辅助处理复杂结构，按接口限定单个节点、策略或对象；简单查询与已有证据可直接由模型分析：
+Use these helpers for complex structures within their single-node, single-policy, or single-object interfaces. Interpret simple queries and existing evidence directly when sufficient:
 
-- enforcer 前置条件 → `scripts/check-enforcer-compatibility.py`（区分已证明、不满足和待证明条件）
-- 策略 target 匹配 → `scripts/match-policy-target.py`（完整计算 name 或 LabelSelector 的实际命中对象）
-- 已配置内置规则冲突 → `scripts/analyze-built-in-rules.py`（只分析现有 VP/VCP；可结合显式上下文和 APM 样本，不生成策略）
-- 注入事实提取 → `scripts/inspect-injection.py`（提取单个 Pod/Workload 的字段白名单，不判断注入来源）
+- Enforcer prerequisites -> `scripts/check-enforcer-compatibility.py` (distinguishes proven, unmet, and unverified conditions)
+- Policy target matching -> `scripts/match-policy-target.py` (fully evaluates objects matched by name or LabelSelector)
+- Configured built-in rule conflicts -> `scripts/analyze-built-in-rules.py` (analyzes existing VP/VCP only; can use explicit context and APM samples; does not generate policies)
+- Injection facts -> `scripts/inspect-injection.py` (extracts an allowlisted field set from one Pod/Workload; does not determine injection origin)
 
-### 报告层（templates/）：组织最终输出
+### Report layer (templates/): organizing results
 
-- 完整诊断报告 → `templates/diagnosis-report.md`
+- Complete diagnosis report -> `templates/diagnosis-report.md`
 
-用户要求正式报告或问题较复杂时，参考该模板组织自包含的 Markdown；可按问题删减章节。
-普通诊断用简洁的结论、关键证据、未确认项和下一步即可。根因未闭合时给出当前断点、未排除项
-和下一探针，不为填表追加无关采集。
+For formal reports or complex issues, use this template to organize self-contained Markdown and omit irrelevant sections.
+For ordinary investigations, concise findings, key evidence, unconfirmed points, and next steps are enough. If the root cause is unresolved, report the current break, remaining possibilities,
+and next probe. Do not collect unrelated data merely to fill a report.
 
-## 操作安全与证据解释规则
+## Operational safety and evidence interpretation
 
-- `ready=false`、`Ready=False`、`CurrentNumberLoaded < DesiredNumberLoaded` 是异常信号，但要结合对象范围和时间判断是否仍在收敛。
-- `restart_count>0` 不是根因，必须结合 lastState、事件和日志。
-- `Policy Ready=True` 不代表 selector 有目标，也不代表 Pod 已完成注入。
-- `AUDIT`、`ALLOWED`、`DENIED`、`AUDIT|ALLOWED` 表示最终处置，不要把审计事件一律解释为拦截。
-- `EPERM/EACCES` 不能单独证明是 vArmor；`SIGSYS` 也要结合 Profile、时间和审计证据。
-- 规则分析的 `REVIEW_REQUIRED`、`APM_DATA_UNAVAILABLE`、`UNASSESSED` 或 `APPLICABILITY_NOT_ESTABLISHED` 表示规则层尚未排除，不能据此写“问题不在规则层”。
-- 短生命周期进程可能缺少 container/Pod 身份；NetworkProxy 事件通常是 Pod 粒度。
-- 版本和字段可能变化；集群实际 CRD、状态和对应版本文档优先。
+- `ready=false`, `Ready=False`, and `CurrentNumberLoaded < DesiredNumberLoaded` are abnormal signals, but consider object scope and time to determine whether reconciliation is still converging.
+- `restart_count>0` is not a root cause; correlate lastState, events, and logs.
+- `Policy Ready=True` does not prove the selector has targets or Pods have completed injection.
+- `AUDIT`, `ALLOWED`, `DENIED`, and `AUDIT|ALLOWED` describe the final action. Do not interpret every audit event as a blocked operation.
+- `EPERM/EACCES` alone does not prove vArmor caused a failure. Correlate `SIGSYS` with the Profile, time, and audit evidence as well.
+- `REVIEW_REQUIRED`, `APM_DATA_UNAVAILABLE`, `UNASSESSED`, or `APPLICABILITY_NOT_ESTABLISHED` in rule analysis means the rule layer has not been ruled out; do not conclude that rules are unrelated.
+- Short-lived processes may lack container/Pod identity; NetworkProxy events are usually Pod-level.
+- Versions and fields can change. Prefer actual cluster CRDs, status, and documentation for the deployed version.
 
-## 输出要求
+## Output requirements
 
-输出范围与时间、结论及关键证据、置信度和必要的下一步。复杂问题解释相关防护环节的因果链；
-正式报告引用证据编号，未知值写“未采集/未确认”。涉及放宽策略、重建工作负载、切换 enforcer
-或升级内核时说明影响、前置条件、回滚与验证点，只提供建议。
+Report scope and time, conclusions and key evidence, confidence, and necessary next steps. Explain the causal chain across relevant protection stages for complex issues.
+Formal reports should cite evidence IDs; mark unknown values as "not collected/not confirmed". When recommending weaker policies, workload recreation, a different enforcer,
+or a kernel upgrade, explain impact, prerequisites, rollback, and verification points. Provide recommendations only.
 
-## 边界提醒
+## Boundary reminders
 
-- vArmor 不等价于 Kata 等硬件虚拟化隔离。
-- NetworkPolicy 仍承担基础网络隔离；NetworkProxy 补充 L4/L7、SNI、TLS MITM、HTTP header mutation 和审计。
-- NetworkProxy 场景重点关注 NET_ADMIN、ProxyUID、proxyAdminPort、Pod CIDR 管理端口和绕过路径。
-- 当前诊断范围内的小范围只读查询由模型自主编排；定向读取已有 agent 的内核状态不因其
-  privileged 身份自动变成高影响操作。主动请求、范围扩大或高成本取证按实际影响与授权处理。
-  当前 Skill 不代用户执行集群/节点状态变更。
-- 具体操作契约和统一证据格式以 `playbooks/README.md` 为准；不要依赖固定 namespace、Service、sidecar、annotation、端口或节点路径。
+- vArmor does not provide hardware-virtualization isolation equivalent to Kata.
+- NetworkPolicy remains responsible for basic network isolation. NetworkProxy adds L4/L7, SNI, TLS MITM, HTTP header mutation, and auditing.
+- For NetworkProxy, pay particular attention to NET_ADMIN, ProxyUID, proxyAdminPort, admin-port exposure to the Pod CIDR, and bypass paths.
+- Autonomously orchestrate small read-only queries within the current investigation scope. Targeted reads of kernel state through an existing agent do not become
+  high-impact merely because that agent is privileged. Assess active requests, scope expansion, or expensive evidence collection by actual effects and authorization.
+  This Skill does not execute cluster/node state changes for the user.
+- `playbooks/README.md` defines the execution contract and shared evidence format. Do not assume fixed namespaces, Services, sidecars, annotations, ports, or node paths.

@@ -1,12 +1,12 @@
 ---
 slug: /guides/skills/network-advisor
-sidebar_position: 1
+sidebar_position: 3
 description: 为应用推荐网络访问策略，并引导审核、验证与上线。
 ---
 
-# vArmor Network Allowlist Advisor
+# 网络白名单助手
 
-vArmor Network Allowlist Advisor（`varmor-network-advisor`）帮助你确定应用需要哪些对外访问，并推荐合适的网络访问策略。描述应用与业务需求后，助手会协助准备 NetworkProxy 白名单策略，引导你完成审核、测试与上线。
+网络白名单助手（`varmor-network-advisor`）帮助你确定应用需要哪些对外访问，并推荐合适的网络访问策略。描述应用与业务需求后，助手会协助准备 NetworkProxy 白名单策略，引导你完成审核、测试与上线。
 
 ## 可以帮你做什么
 
@@ -41,7 +41,7 @@ vArmor Network Allowlist Advisor（`varmor-network-advisor`）帮助你确定应
 
 ## 结果与使用边界
 
-复用已有策略时，本 Skill 保留系统防护模式与规则，聚焦 NetworkProxy 网络访问控制。需要收敛 EnhanceProtect 策略中的系统防护规则时，请使用 [vArmor Policy Optimization](policy-optimization.md)；遇到策略未生效或组件异常时，请使用 [vArmor Diagnosis](diagnosis.md)。
+复用已有策略时，本 Skill 保留系统防护模式与规则，聚焦 NetworkProxy 网络访问控制。需要收敛 EnhanceProtect 策略中的系统防护规则时，请使用 [策略自动优化](policy-optimization.md)；遇到策略未生效或组件异常时，请使用 [自动诊断](diagnosis.md)。
 
 你会得到策略草稿、权限范围说明、审核记录与验证结果。推荐效果取决于覆盖的业务场景，出现过的访问仍需由你判断是否必要。HTTPS 的可见范围会影响访问控制的精细程度，助手会在策略审核前说明可实现的范围。
 
