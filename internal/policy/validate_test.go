@@ -1312,3 +1312,80 @@ func TestValidateNetworkProxyEgress_DefaultActionEmpty(t *testing.T) {
 	assert.False(t, valid, "empty defaultAction should be rejected")
 	assert.Contains(t, msg, "defaultAction")
 }
+
+func policyForEnforcerValidation(enforcer string, clusterScope bool) interface{} {
+	spec := varmor.VarmorPolicySpec{
+		Target: varmor.Target{Kind: "Deployment", Name: "test-deployment"},
+		Policy: varmor.Policy{Enforcer: enforcer, Mode: varmor.RuntimeDefaultMode},
+	}
+	if clusterScope {
+		return &varmor.VarmorClusterPolicy{
+			ObjectMeta: metav1.ObjectMeta{Name: "test-cluster-policy"},
+			Spec:       spec,
+		}
+	}
+	return &varmor.VarmorPolicy{
+		ObjectMeta: metav1.ObjectMeta{Name: "test-policy", Namespace: "default"},
+		Spec:       spec,
+	}
+}
+
+func TestValidatePolicy_RejectsMalformedEnforcer(t *testing.T) {
+	resources := []struct {
+		name         string
+		clusterScope bool
+	}{
+		{name: "VarmorPolicy"},
+		{name: "VarmorClusterPolicy", clusterScope: true},
+	}
+	invalidEnforcers := []string{"", "unsupported", "BPFunsupported", "BPFBPF"}
+	target := varmor.Target{Kind: "Deployment", Name: "test-deployment"}
+
+	for _, resource := range resources {
+		for _, enforcer := range invalidEnforcers {
+			t.Run(resource.name+"/create/"+enforcer, func(t *testing.T) {
+				policy := policyForEnforcerValidation(enforcer, resource.clusterScope)
+				valid, message := ValidateAddPolicy(policy, true)
+				assert.False(t, valid, "malformed enforcer %q should be rejected", enforcer)
+				assert.Contains(t, message, "enforcer")
+			})
+
+			t.Run(resource.name+"/update/"+enforcer, func(t *testing.T) {
+				policy := policyForEnforcerValidation(enforcer, resource.clusterScope)
+				valid, message := ValidateUpdatePolicy(policy, "BPF", target, nil)
+				assert.False(t, valid, "malformed enforcer %q should be rejected", enforcer)
+				assert.Contains(t, message, "enforcer")
+			})
+		}
+	}
+}
+
+func TestValidatePolicy_AcceptsSupportedEnforcerCombinations(t *testing.T) {
+	resources := []struct {
+		name         string
+		clusterScope bool
+	}{
+		{name: "VarmorPolicy"},
+		{name: "VarmorClusterPolicy", clusterScope: true},
+	}
+	validEnforcers := []string{
+		"AppArmor", "BPF", "Seccomp", "NetworkProxy",
+		"AppArmorBPF", "AppArmorSeccomp", "AppArmorNetworkProxy", "BPFSeccomp", "BPFNetworkProxy", "SeccompNetworkProxy",
+		"AppArmorBPFSeccomp", "AppArmorBPFNetworkProxy", "AppArmorSeccompNetworkProxy", "BPFSeccompNetworkProxy",
+		"AppArmorBPFSeccompNetworkProxy", "NetworkProxyBPFSeccomp", "SeccompAppArmorBPF", "bpfNetworkProxy",
+	}
+	target := varmor.Target{Kind: "Deployment", Name: "test-deployment"}
+
+	for _, resource := range resources {
+		for _, enforcer := range validEnforcers {
+			t.Run(resource.name+"/"+enforcer, func(t *testing.T) {
+				policy := policyForEnforcerValidation(enforcer, resource.clusterScope)
+				valid, message := ValidateAddPolicy(policy, true)
+				assert.True(t, valid, "supported enforcer %q should be accepted on create: %s", enforcer, message)
+
+				valid, message = ValidateUpdatePolicy(policy, enforcer, target, nil)
+				assert.True(t, valid, "supported enforcer %q should be accepted on update: %s", enforcer, message)
+			})
+		}
+	}
+}
