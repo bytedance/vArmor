@@ -6,15 +6,15 @@ sidebar_label: 快速开始
 # 快速开始：允许与拒绝 HTTP 请求 {#quick-start-allow-and-deny-http-requests}
 
 import CodeBlock from '@theme/CodeBlock';
-import backend from '@site/static/examples/networkproxy/v0.10.5/backend.yaml?raw';
-import policy from '@site/static/examples/networkproxy/v0.10.5/policy.yaml?raw';
-import client from '@site/static/examples/networkproxy/v0.10.5/client.yaml?raw';
+import backend from '@site/static/examples/networkproxy/v0.10.6/backend.yaml?raw';
+import policy from '@site/static/examples/networkproxy/v0.10.6/policy.yaml?raw';
+import client from '@site/static/examples/networkproxy/v0.10.6/client.yaml?raw';
 
 本教程在 `varmor-networkproxy-demo` 中创建自有 HTTP 后端和注入代理的客户端，仅允许向该后端发送 `GET /allow/…`。后端本身对所有 GET 路径返回 200，因此访问日志可区分代理拒绝和后端错误。
 
 ## 前提 {#prerequisites}
 
-- 安装 vArmor v0.10.5 和配套自定义 Envoy/proxyinit 镜像，见[安装](../../../getting_started/installation.md)。
+- 安装 vArmor v0.10.6 和配套自定义 Envoy/proxyinit 镜像，见[安装](../../../getting_started/installation.md)。
 - 使用独立网络命名空间的 Linux Pod，集群准入策略允许注入 root 容器及 NET_ADMIN，见[安全与兼容性](security-and-compatibility.md)。
 - 示例假定 DNS 后缀为 cluster.local，如不同，需要同时修改策略和请求 URL。
 - 确认 namespace 名称尚未使用，清理会删除整个专属 namespace，不要复用业务 namespace。

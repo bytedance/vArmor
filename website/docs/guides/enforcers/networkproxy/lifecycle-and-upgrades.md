@@ -17,6 +17,7 @@ Rule changes can take effect in an existing proxy. Changes to container images, 
 | Replace a CA or its trust bundle | Reload or restart applications that cache the CA bundle, then verify TLS connections |
 | Change proxy image or resource settings | Update the workload template and roll out replacement Pods |
 | Change proxy UID or listening ports | Create a replacement policy: these fields cannot be changed on an existing policy |
+| Remove NetworkProxy from `spec.policy.enforcer` | From v0.10.6, this update is rejected; recreate the policy and check proxy configuration in workloads and Pods |
 
 Dynamic configuration updates take time to reach each Pod. During an update, new requests may briefly fail while the proxy loads the required configuration. Existing connections are not necessarily closed when rules change. If you need to end existing sessions, include connection draining or Pod replacement in your rollout plan.
 

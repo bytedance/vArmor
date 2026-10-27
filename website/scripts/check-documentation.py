@@ -104,7 +104,7 @@ def main():
                 errors.append(f'Code example mismatch: {root / relative / name}')
         quick_start = (root / relative / 'quick-start.mdx').read_text()
         for name in ['backend', 'policy', 'client']:
-            source = f'static/examples/networkproxy/v0.10.5/{name}.yaml'
+            source = f'static/examples/networkproxy/v0.10.6/{name}.yaml'
             if f"@site/{source}?raw" not in quick_start or not (site / source).is_file():
                 errors.append(f'Missing canonical YAML import: {root}, {name}')
 

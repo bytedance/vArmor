@@ -7,7 +7,7 @@ sidebar_label: NetworkProxy
 
 NetworkProxy controls redirected outbound TCP traffic through a vArmor-managed Envoy sidecar. Use it to restrict HTTP requests, filter TLS destinations using SNI, inspect HTTPS with TLS interception (MITM), or inject upstream authentication headers.
 
-This guide describes the **v0.10.5** behavior and matching vArmor proxy images. For older installations, read [Lifecycle and Upgrades](lifecycle-and-upgrades.md) before applying these examples.
+This guide describes the **v0.10.6** behavior and matching vArmor proxy images. For older installations, read [Lifecycle and Upgrades](lifecycle-and-upgrades.md) before applying these examples.
 
 **HTTP header injection:** for HTTPS requests intercepted by MITM, NetworkProxy can add or replace request headers by domain, such as `Authorization`. Values can be configured directly or referenced from a Kubernetes Secret, so the application does not need to supply the credential itself. See [TLS and Credentials](tls-and-credentials.md#inject-a-credential-header).
 

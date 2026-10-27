@@ -57,4 +57,4 @@ kubectl get pod -n YOUR_NAMESPACE YOUR_POD -o yaml
 
 ## 更多示例与工具 {#more-examples-and-tools}
 
-[Policy Advisor](../policy_tools/policy_advisor.md)可生成起始模板，仍需按当前 API 和业务验证。仓库还有[示例](https://github.com/bytedance/vArmor/tree/v0.10.5/test/examples)和[演示](https://github.com/bytedance/vArmor/tree/v0.10.5/test/demos)，应选择匹配安装版本的内容。
+[Policy Advisor](../policy_tools/policy_advisor.md)可生成起始模板，仍需按当前 API 和业务验证。仓库还有[示例](https://github.com/bytedance/vArmor/tree/v0.10.6/test/examples)和[演示](https://github.com/bytedance/vArmor/tree/v0.10.6/test/demos)，应选择匹配安装版本的内容。

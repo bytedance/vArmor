@@ -52,7 +52,7 @@ for (const prefix of prefixes) {
   }
   const tutorial = fs.readFileSync(path.join(build, prefix, 'guides/enforcers/networkproxy/quick-start.md'), 'utf8');
   for (const example of ['backend', 'policy', 'client']) {
-    const yaml = fs.readFileSync(path.join(site, 'static/examples/networkproxy/v0.10.5', example + '.yaml'), 'utf8').trimEnd();
+    const yaml = fs.readFileSync(path.join(site, 'static/examples/networkproxy/v0.10.6', example + '.yaml'), 'utf8').trimEnd();
     assert.ok(tutorial.includes('```yaml\n' + yaml + '\n```'), `${prefix}: ${example}.yaml differs from canonical example`);
   }
 }

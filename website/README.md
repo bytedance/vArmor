@@ -102,7 +102,7 @@ and checks NetworkProxy guide/example parity. It requires a full build of both
 locales. Legacy documentation warnings and external URLs need separate review.
 
 The NetworkProxy Quick Start renders the canonical files under
-`static/examples/networkproxy/v0.10.5/` through Webpack's `asset/source` support.
+`static/examples/networkproxy/v0.10.6/` through Webpack's `asset/source` support.
 Edit those files instead of keeping independent YAML copies in translations.
 Policy schema/admission checks and cluster requests are separate from a website
 build; record actual execution and any environment blockers.

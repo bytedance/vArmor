@@ -14,6 +14,8 @@ Disruption examples refer to containers actually covered by the policy. `target.
 - Official `v0.10.1` through `v0.10.5` AppArmor/BPF/Seccomp built-in rule implementation files are identical and considered verified
   compatible. Comparison dates, upstream paths, and per-version-group SHA-256 values are recorded in catalog
   `builtInRuleCompatibility.verificationEvidence`.
+- The `v0.10.6` release candidate is also verified identical at the revision recorded in catalog
+  `builtInRuleCompatibility.releaseCandidateVerification`. This is candidate verification; recheck the final release tag before claiming tag verification.
 - `v0.10.0` lacks only `copy-fail-mitigation`; do not block other built-in rules when the policy does not use it.
 - Mark other or unrecognized versions `unknown`; request verification only for built-in rules actually used rather than declaring the entire policy
   incompatible. For NetworkProxy feature and log versions, see

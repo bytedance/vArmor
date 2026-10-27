@@ -6,15 +6,15 @@ sidebar_label: Quick Start
 # Quick Start: allow and deny HTTP requests
 
 import CodeBlock from '@theme/CodeBlock';
-import backend from '@site/static/examples/networkproxy/v0.10.5/backend.yaml?raw';
-import policy from '@site/static/examples/networkproxy/v0.10.5/policy.yaml?raw';
-import client from '@site/static/examples/networkproxy/v0.10.5/client.yaml?raw';
+import backend from '@site/static/examples/networkproxy/v0.10.6/backend.yaml?raw';
+import policy from '@site/static/examples/networkproxy/v0.10.6/policy.yaml?raw';
+import client from '@site/static/examples/networkproxy/v0.10.6/client.yaml?raw';
 
 This tutorial creates an owned HTTP backend and an injected client in `varmor-networkproxy-demo`. Only `GET /allow/…` to the backend is allowed. The backend itself returns 200 for any GET path, so its access log can distinguish proxy denial from a backend error.
 
 ## Prerequisites
 
-- Install vArmor v0.10.5 with its matching custom Envoy/proxyinit images; see [Installation](../../../getting_started/installation.md).
+- Install vArmor v0.10.6 with its matching custom Envoy/proxyinit images; see [Installation](../../../getting_started/installation.md).
 - Use Linux Pods with their own network namespaces and admission settings that permit the injected root containers and `NET_ADMIN`. Check [Security and Compatibility](security-and-compatibility.md).
 - The example assumes the cluster DNS suffix `cluster.local`; replace it consistently in the policy and request URLs if yours differs.
 - Use a namespace name that is not already in use. The cleanup deletes this entire dedicated namespace. Do not reuse a business namespace.

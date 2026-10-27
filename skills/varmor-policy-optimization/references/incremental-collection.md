@@ -53,6 +53,9 @@ creates the directory and logger without precreating violations.log;
 creates the file on the first Write. Missing directories, denied enumeration, and incomplete transfers are not empty logs. If a previously observed active
 file identity disappears and cannot be found in retained backups, record a gap.
 
+The auditor initialization code is unchanged in the `v0.10.6` release candidate revision recorded in the catalog;
+the source link above retains the original verification basis.
+
 Read local status once after startup:
 
 ```bash
