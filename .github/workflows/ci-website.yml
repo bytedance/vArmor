@@ -1,0 +1,44 @@
+name: ci-website
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "website/**"
+      - ".github/workflows/ci-website.yml"
+  push:
+    branches: [main]
+    paths:
+      - "website/**"
+      - ".github/workflows/ci-website.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  website:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: website
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: website/.node-version
+          cache: npm
+          cache-dependency-path: website/package-lock.json
+      - name: Use the declared npm version
+        run: npm install --global npm@11.12.0
+      - name: Install locked dependencies
+        run: npm ci --include=dev
+      - name: Audit dependencies
+        run: npm audit --audit-level=low
+      - name: Test website plugins
+        run: npm test
+      - name: Build both locales
+        run: npm run build
+      - name: Validate generated documentation
+        run: npm run check:docs
