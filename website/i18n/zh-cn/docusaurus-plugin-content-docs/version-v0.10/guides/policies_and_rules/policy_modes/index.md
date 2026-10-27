@@ -14,7 +14,7 @@ sidebar_position: 1
 |AlwaysAllow|✔️|✔️|✔️|✔️|容器上不施加任何强制访问控制规则。|
 |RuntimeDefault|✔️|✔️|✔️|✔️|通过使用 containerd 的默认配置文件来提供基础防护。详见 [cri-containerd.apparmor.d](https://github.com/containerd/containerd/blob/main/contrib/apparmor/template.go) 和 [seccomp_default](https://github.com/containerd/containerd/blob/main/contrib/seccomp/seccomp_default.go)。|
 |EnhanceProtect|✔️|✔️|✔️|✔️|- 预定义的[内置规则](../built_in_rules/index.md)开箱即用。<br />- 可通过可定制的接口根据特定需求定制保护策略。<br />- 支持仅审计和拦截并审计模式，用于监控和审计。<br />- 基于 RuntimeDefault 或 AlwaysAllow 模式生成 AppArmor/BPF 配置文件。|
-|BehaviorModeling|✔️|✔️|✔️|🏗️|- 利用 BPF & Audit 技术对工作负载进行行为建模<br />- 行为模型保存在对应的 [ArmorProfileModel](https://github.com/bytedance/vArmor/blob/v0.10.5/apis/varmor/v1beta1/armorprofilemodel_types.go) 对象中<br />- 详情请参阅 [BehaviorModeling 模式](behavior_modeling.md)|
+|BehaviorModeling|✔️|✔️|✔️|🏗️|- 利用 BPF & Audit 技术对工作负载进行行为建模<br />- 行为模型保存在对应的 [ArmorProfileModel](https://github.com/bytedance/vArmor/blob/v0.10.6/apis/varmor/v1beta1/armorprofilemodel_types.go) 对象中<br />- 详情请参阅 [BehaviorModeling 模式](behavior_modeling.md)|
 |DefenseInDepth|✔️|🏗️|✔️|✔️|- 通过行为模型或自定义配置文件提供默认拒绝保护。<br />- 提供自定义规则接口和仅审计模式，方便开发和管理配置文件。<br />- 详情请参阅 [DefenseInDepth 模式](defense_in_depth.md)|
 
 <br />

@@ -16,7 +16,8 @@
       "v0.10.2",
       "v0.10.3",
       "v0.10.4",
-      "v0.10.5"
+      "v0.10.5",
+      "v0.10.6"
     ],
     "verificationEvidence": {
       "verifiedAt": "2026-10-08",
@@ -68,6 +69,28 @@
         }
       ],
       "v0.10.0Delta": "The AppArmor and BPF files differ from v0.10.1 only by the addition of copy-fail-mitigation; the Seccomp file is identical."
+    },
+    "releaseCandidateVerification": {
+      "version": "v0.10.6",
+      "revision": "68e2dbb4c74ca7d7cc86d8587ba236214c2d78ce",
+      "verifiedAt": "2026-10-27",
+      "method": "SHA-256 byte-for-byte comparison of the release candidate revision with v0.10.5 and verificationEvidence.files",
+      "tagVerified": false,
+      "releaseCheck": "Recheck these hashes against the final v0.10.6 tag before claiming tag verification.",
+      "files": [
+        {
+          "path": "internal/profile/apparmor/rules.go",
+          "sha256": "e70c06899496882142b0634dde23998318f9d955a6aefee041aa12dfef34ab47"
+        },
+        {
+          "path": "internal/profile/bpf/bpf.go",
+          "sha256": "dae2136194f76dc995a8de22aa14bc3cda8daf4b88d1eeaceb2a8299b7d3137d"
+        },
+        {
+          "path": "internal/profile/seccomp/seccomp.go",
+          "sha256": "917a8330cd0062aca58fa6f916f106307a46250b679c95a77ba1ba005673440d"
+        }
+      ]
     },
     "knownVersionExceptions": {
       "v0.10.0": {

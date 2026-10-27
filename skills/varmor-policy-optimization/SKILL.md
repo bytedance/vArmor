@@ -90,7 +90,8 @@ and fingerprint binding; Phase 2 requires log processing and removal guards.
 scripts/data/builtin-rules-catalog.json maintains valid rules and compatibility metadata.
 `catalogProvenance` records source provenance, not an exact version gate. Built-in rule implementations in official `v0.10.1` through `v0.10.5`
 have been verified identical; comparison dates, paths, and SHA-256 values are recorded in the catalog's
-`builtInRuleCompatibility.verificationEvidence`. `v0.10.0` lacks only `copy-fail-mitigation`.
+`builtInRuleCompatibility.verificationEvidence`. The `v0.10.6` release candidate has also been verified identical at the revision recorded in
+`builtInRuleCompatibility.releaseCandidateVerification`; the final release tag still needs verification. `v0.10.0` lacks only `copy-fail-mitigation`.
 For other/unknown versions, mark compatibility unknown only for built-in rules actually used by the policy; do not declare the entire policy incompatible.
 NetworkProxy has separate feature and log-version gates; see
 [references/violation-log.md](references/violation-log.md).

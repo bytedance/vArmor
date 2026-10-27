@@ -7,7 +7,7 @@ sidebar_label: NetworkProxy
 
 NetworkProxy 通过 vArmor 管理的 Envoy sidecar 控制被重定向的出站 TCP 流量，可限制 HTTP 请求、按 SNI 过滤 TLS 目标、通过 TLS 拦截（MITM）检查 HTTPS，或注入上游认证头。
 
-本指南描述 **v0.10.5** 及配套 vArmor 代理镜像的行为。旧版本请先阅读[生命周期与升级](lifecycle-and-upgrades.md)。
+本指南描述 **v0.10.6** 及配套 vArmor 代理镜像的行为。旧版本请先阅读[生命周期与升级](lifecycle-and-upgrades.md)。
 
 **HTTP Header 注入**：在 MITM 拦截的 HTTPS 请求中，NetworkProxy 可以按域名添加或覆盖请求头，例如 `Authorization`。请求头的值支持直接配置或引用 Kubernetes Secret，业务应用无需自行携带该凭据。配置方法见[TLS 与凭据](tls-and-credentials.md#inject-a-credential-header)。
 

@@ -1,0 +1,50 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: varmor-networkproxy-demo
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: varmor-networkproxy-demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: np-guide-backend}
+  template:
+    metadata:
+      labels: {app: np-guide-backend}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsUser: 1000
+        runAsNonRoot: true
+      containers:
+      - name: backend
+        image: python:3.12-alpine
+        command: [python3, -u, -c]
+        args:
+        - |
+          from http.server import BaseHTTPRequestHandler, HTTPServer
+          class Handler(BaseHTTPRequestHandler):
+              def do_GET(self):
+                  self.send_response(200)
+                  self.end_headers()
+                  self.wfile.write(b"backend reached\n")
+          HTTPServer(("0.0.0.0", 8000), Handler).serve_forever()
+        ports:
+        - containerPort: 8000
+        readinessProbe:
+          tcpSocket: {port: 8000}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  namespace: varmor-networkproxy-demo
+spec:
+  selector: {app: np-guide-backend}
+  ports:
+  - port: 8000
+    targetPort: 8000

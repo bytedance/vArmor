@@ -54,6 +54,7 @@ Verification basis: upstream `v0.10.5`
 [policy_controller.go](https://github.com/bytedance/vArmor/blob/v0.10.5/internal/policy/policy_controller.go)
 and [clusterpolicy_controller.go](https://github.com/bytedance/vArmor/blob/v0.10.5/internal/policy/clusterpolicy_controller.go)
 invoke workload updates on add/delete paths, while ordinary rule-update paths update ArmorProfile.
+Both controller files are unchanged in the `v0.10.6` release candidate revision recorded in the catalog; the links above retain the original verification basis.
 
 After successful submission or update, explain that control-plane object updates do not establish activation of new Profiles in existing Pods;
 Seccomp and injection changes usually require new Pods.

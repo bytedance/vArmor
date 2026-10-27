@@ -241,7 +241,7 @@ vArmor 支持将策略对象配置为仅审计不拦截（观察模式）、拦�
 ### VarmorPolicy
 * 命名空间类型资源，与防护对象的命名空间一致
 * 接口描述详见 [Interface Specification](interface_specification.md)
-* 接口定义详见 [VarmorPolicy CRD](https://github.com/bytedance/vArmor/tree/v0.10.5/config/crds/crd.varmor.org_varmorpolicies.yaml)
+* 接口定义详见 [VarmorPolicy CRD](https://github.com/bytedance/vArmor/tree/v0.10.6/config/crds/crd.varmor.org_varmorpolicies.yaml)
 * `VarmorPolicy/Status` 说明
 
   |字段|值|含义|
@@ -262,13 +262,13 @@ vArmor 支持将策略对象配置为仅审计不拦截（观察模式）、拦�
 ### VarmorClusterPolicy
 * 集群范围资源
 * 接口描述详见 [Interface Specification](interface_specification.md)
-* 接口定义详见 [VarmorClusterPolicy CRD](https://github.com/bytedance/vArmor/tree/v0.10.5/config/crds/crd.varmor.org_varmorclusterpolicies.yaml)
+* 接口定义详见 [VarmorClusterPolicy CRD](https://github.com/bytedance/vArmor/tree/v0.10.6/config/crds/crd.varmor.org_varmorclusterpolicies.yaml)
 * `VarmorClusterPolicy/Status` 与 `VarmorPolicy/Status` 一致
 
 ### ArmorProfile
 * 命名空间类型资源，与防护对象或 vArmor 组件的命名空间一致
 * 内部接口，仅由 vArmor 内部使用
-* 接口定义详见 [ArmorProfile CRD](https://github.com/bytedance/vArmor/tree/v0.10.5/config/crds/crd.varmor.org_armorprofiles.yaml)
+* 接口定义详见 [ArmorProfile CRD](https://github.com/bytedance/vArmor/tree/v0.10.6/config/crds/crd.varmor.org_armorprofiles.yaml)
 * `ArmorProfile/Status` 说明
 
     |字段|值|含义|
@@ -329,4 +329,4 @@ spec:
 
 ## 案例
 
-这里有一些[案例](https://github.com/bytedance/vArmor/tree/v0.10.5/test/demos)演示了如何使用 vArmor 缓解漏洞、加固具有特权能力的容器。
+这里有一些[案例](https://github.com/bytedance/vArmor/tree/v0.10.6/test/demos)演示了如何使用 vArmor 缓解漏洞、加固具有特权能力的容器。

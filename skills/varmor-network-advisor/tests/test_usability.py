@@ -37,7 +37,7 @@ class UsabilityTests(unittest.TestCase):
         return code, json.loads(output.getvalue())
 
     def test_doctor_accepts_later_releases_with_compatible_api(self):
-        for release in ('v0.10.5', 'v0.11.0', 'v1.0.0'):
+        for release in ('v0.10.5', 'v0.10.6', 'v0.11.0', 'v1.0.0'):
             with self.subTest(release=release):
                 crd = self.compatible_crd()
                 crd['metadata'] = {'labels': {'app.kubernetes.io/version': release}}

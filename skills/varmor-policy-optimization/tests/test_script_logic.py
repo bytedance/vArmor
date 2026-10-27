@@ -103,6 +103,7 @@ class CommonTests(unittest.TestCase):
         compatibility = CATALOG["builtInRuleCompatibility"]
         self.assertIn("v0.10.1", compatibility["verifiedIdenticalVersions"])
         self.assertIn("v0.10.5", compatibility["verifiedIdenticalVersions"])
+        self.assertIn("v0.10.6", compatibility["verifiedIdenticalVersions"])
         self.assertEqual(
             compatibility["knownVersionExceptions"]["v0.10.0"]["missingRules"],
             ["copy-fail-mitigation"],
@@ -124,6 +125,23 @@ class CommonTests(unittest.TestCase):
             },
         )
         self.assertIn("provenance", CATALOG["notice"])
+
+    def test_release_candidate_verification_preserves_tag_evidence(self):
+        compatibility = CATALOG["builtInRuleCompatibility"]
+        historical = compatibility["verificationEvidence"]
+        candidate = compatibility["releaseCandidateVerification"]
+        self.assertIn("v0.10.5", historical["versionsCompared"])
+        self.assertNotIn(candidate["version"], historical["versionsCompared"])
+        self.assertEqual(candidate["version"], "v0.10.6")
+        self.assertIn(candidate["version"], compatibility["verifiedIdenticalVersions"])
+        self.assertRegex(candidate["revision"], r"^[0-9a-f]{40}$")
+        self.assertEqual(candidate["verifiedAt"], "2026-10-27")
+        self.assertFalse(candidate["tagVerified"])
+        self.assertIn("final v0.10.6 tag", candidate["releaseCheck"])
+        self.assertEqual(
+            {item["path"]: item["sha256"] for item in candidate["files"]},
+            {item["path"]: item["sha256"] for item in historical["files"]},
+        )
 
 
 class ValidatePolicyTests(unittest.TestCase):

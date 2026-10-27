@@ -414,6 +414,7 @@ Usually suggest 3-5 cycles, but judge by application coverage and violation conv
 | Empty selector | Pass `--allow-empty-selector` only for policies separately confirmed in phase one |
 | v0.10.0 | Incompatible only if `copy-fail-mitigation` is actually used |
 | v0.10.1-v0.10.5 | Catalog `verificationEvidence` verifies identical implementations; do not reject patch-version mismatches |
+| v0.10.6 release candidate | Catalog `releaseCandidateVerification` records identical implementations at the pinned revision; verify the final tag before claiming tag verification |
 | Other/unknown versions | Mark only actually used built-in rules compatibility unknown; manual verification required |
 | No NetworkProxy | Pass `--network-proxy-evidence not-applicable`; skip its version branches |
 | NetworkProxy `<v0.10.3` or unknown version | Pass `ineligible`; prohibit deletion only from this source |

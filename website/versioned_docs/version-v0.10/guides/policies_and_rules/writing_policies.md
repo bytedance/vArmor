@@ -60,4 +60,4 @@ Deleting a policy and removing protection from existing containers are not inter
 
 ## More examples and tools
 
-Use [Policy Advisor](../policy_tools/policy_advisor.md) for a starting template, then validate the result against the current API and your workload. The repository contains additional [examples](https://github.com/bytedance/vArmor/tree/v0.10.5/test/examples) and [demos](https://github.com/bytedance/vArmor/tree/v0.10.5/test/demos); select examples matching the installed release.
+Use [Policy Advisor](../policy_tools/policy_advisor.md) for a starting template, then validate the result against the current API and your workload. The repository contains additional [examples](https://github.com/bytedance/vArmor/tree/v0.10.6/test/examples) and [demos](https://github.com/bytedance/vArmor/tree/v0.10.6/test/demos); select examples matching the installed release.
