@@ -139,27 +139,6 @@ func setWebhookMatchLabel(webhookMatchLabel string, logger logr.Logger) {
 	}
 }
 
-func updateAPIServerVersion(kubeClient *kubernetes.Clientset) {
-	serverVersion, err := kubeClient.ServerVersion()
-	if err != nil {
-		logger.WithName("SETUP").Error(err, "Failed to get APIServer version")
-		return
-	}
-
-	// Only update if version string has changed
-	if config.ServerVersion == nil || serverVersion.String() != config.ServerVersion.String() {
-		appArmorGA, err := varmorutils.IsAppArmorGA(serverVersion)
-		if err != nil {
-			logger.WithName("SETUP").Error(err, "Failed to check AppArmor GA status")
-			return
-		}
-
-		config.ServerVersion = serverVersion
-		config.AppArmorGA = appArmorGA
-		logger.WithName("SETUP").Info("APIServer version updated", "version", serverVersion.String(), "AppArmorGA", appArmorGA)
-	}
-}
-
 func main() {
 	flag.BoolVar(&agent, "agent", false, "Set this flag to run vArmor agent.")
 	flag.BoolVar(&preDelete, "preDelete", false, "Set this flag to run pre-delete hook before uninstalling vArmor.")
@@ -210,6 +189,15 @@ func main() {
 
 	// Set up signal handler
 	stopCh := signal.SetupSignalHandler()
+	versionCtx, cancelVersionRequests := context.WithCancel(context.Background())
+	defer cancelVersionRequests()
+	go func() {
+		select {
+		case <-stopCh:
+			cancelVersionRequests()
+		case <-versionCtx.Done():
+		}
+	}()
 
 	// Create a k8s client
 	clientConfig, err := config.CreateClientConfig(kubeconfig, clientRateLimitQPS, clientRateLimitBurst, logger)
@@ -237,7 +225,18 @@ func main() {
 	// Gather APIServer version initially and periodically every 10 minutes
 	// The cluster may experience changes in the APIServer version due to upgrades,
 	// so regular collection is required.
-	updateAPIServerVersion(kubeClient)
+	versionClient := kubeClient.Discovery().RESTClient()
+	setupLogger := logger.WithName("SETUP")
+	if agent && !preDelete {
+		// Capability detection must not interpret an unknown version as unsupported.
+		// Wait before NewAgent starts its readiness server or initializes enforcers.
+		if err := waitForAPIServerVersion(versionCtx, versionClient, setupLogger); err != nil {
+			setupLogger.Info("Agent startup cancelled while waiting for APIServer version")
+			return
+		}
+	} else if err := updateAPIServerVersion(versionCtx, versionClient, setupLogger); err != nil {
+		setupLogger.Error(err, "Failed to get APIServer version")
+	}
 	go func() {
 		ticker := time.NewTicker(10 * time.Minute)
 		defer ticker.Stop()
@@ -247,7 +246,9 @@ func main() {
 			case <-stopCh:
 				return
 			case <-ticker.C:
-				updateAPIServerVersion(kubeClient)
+				if err := updateAPIServerVersion(versionCtx, versionClient, setupLogger); err != nil {
+					setupLogger.Error(err, "Failed to get APIServer version")
+				}
 			}
 		}
 	}()
