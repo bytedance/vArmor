@@ -24,6 +24,8 @@ BPF 出站规则还支持按 Kubernetes 资源描述目标：`toServices` 匹配
 
 已有 BPF 保护的工作负载可以动态更新规则。添加强制访问控制器与改变目标有各自的生命周期要求，参见[使用说明](../../getting_started/usage_instructions.md)。更新策略后，验证受影响的操作。
 
+更新失败后，即使重试显示成功，也应验证实际规则是否恢复。诊断步骤、恢复验证和特定版本的限制见[故障排查](../troubleshooting.md#bpf-application-failure)。
+
 ## 限制与性能 {#limits-and-performance}
 
 每节点最多同时为 **256 个容器**启用 BPF 防护。每份生成配置的文件、程序执行和网络规则分别最多 **64 条**；挂载规则最多 **50 或 64 条**，取决于节点能力。网络额度由 socket 与出站规则共用，内置规则和自定义规则共同计数。详见[规则数量与节点容量](../policies_and_rules/custom_rules.md#bpf-rule-and-container-limits)。

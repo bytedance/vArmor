@@ -4,3 +4,4 @@
 * [性能说明](performance/README.zh_CN.md)
 * [策略顾问](policy_advisor.zh_CN.md)
 * [本地开发](development.zh_CN.md)
+* [故障排查](../../website/i18n/zh-cn/docusaurus-plugin-content-docs/current/guides/troubleshooting.md)

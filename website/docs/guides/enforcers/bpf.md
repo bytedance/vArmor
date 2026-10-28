@@ -24,6 +24,8 @@ Use [Writing Policies](../policies_and_rules/writing_policies.md) to select the 
 
 Rules for a workload already protected by BPF can be updated dynamically. Adding the enforcer to an existing workload and changing its target are separate lifecycle operations; follow [Usage Instructions](../../getting_started/usage_instructions.md). Verify the affected operations after updating a policy.
 
+After an update failure, verify actual rule recovery even if a retry reports success. See [Troubleshooting](../troubleshooting.md#bpf-application-failure) for diagnosis, recovery checks and version-specific limitations.
+
 ## Limits and performance
 
 Each node supports BPF protection for up to **256 containers** at the same time. Each generated configuration supports up to **64 rules each** for files, program execution and networking, and **50 or 64 mount rules**, depending on node capabilities. Socket and egress rules share the network limit; built-in and custom rules count together. See [Rule counts and node capacity](../policies_and_rules/custom_rules.md#bpf-rule-and-container-limits).
