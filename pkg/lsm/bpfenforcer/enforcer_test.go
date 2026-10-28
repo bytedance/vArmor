@@ -392,3 +392,46 @@ func TestTaskDeleteSync_ReusedPID(t *testing.T) {
 	assert.Empty(t, e.bpfProfileCache["p"].containerCache)
 	assert.Empty(t, ops.installed)
 }
+
+func TestSaveAndApplyBpfProfile_PendingNamespaceGroups(t *testing.T) {
+	for _, fail := range []bool{false, true} {
+		t.Run(fmt.Sprintf("failure=%t", fail), func(t *testing.T) {
+			e, ops := newTestEnforcer()
+			content := testContent("/a")
+			require.NoError(t, e.SaveAndApplyBpfProfile("p", varmor.ProfileModeEnforce, content))
+			registerTestContainer(e, "p", "pending", enforceID{mntNsID: 1, ips: []string{"10.0.0.1"}})
+			registerTestContainer(e, "p", "alias", enforceID{mntNsID: 1, ips: []string{"10.0.0.2"}})
+			registerTestContainer(e, "p", "other-pending", enforceID{mntNsID: 2})
+			registerTestContainer(e, "p", "untouched", enforceID{mntNsID: 3})
+			require.NoError(t, e.SaveAndApplyBpfProfile("p", varmor.ProfileModeEnforce, content))
+			pending := e.bpfProfileCache["p"].pendingContainers
+			pending["pending"] = struct{}{}
+			pending["other-pending"] = struct{}{}
+			ops.beforeApply = func() {
+				assert.Contains(t, pending, "alias", "all aliases must be pending before replacement")
+				assert.NotContains(t, pending, "untouched")
+				ops.beforeApply = nil
+			}
+			if fail {
+				ops.failures[1] = errors.New("map write failed")
+			}
+			err := e.SaveAndApplyBpfProfile("p", varmor.ProfileModeEnforce, content)
+			if fail {
+				require.ErrorIs(t, err, ops.failures[1])
+				assert.Equal(t, map[string]struct{}{"pending": {}, "alias": {}}, pending)
+			} else {
+				require.NoError(t, err)
+				assert.Empty(t, pending)
+			}
+			assert.Equal(t, []string{"10.0.0.1"}, ops.ips[1], "use the pending identity, not an arbitrary clean alias")
+			assert.Equal(t, map[uint32]int{1: 2, 2: 2, 3: 1}, ops.calls)
+			assert.Equal(t, content, ops.installed[2])
+			assert.Equal(t, content, ops.installed[3])
+			delete(ops.failures, 1)
+			require.NoError(t, e.SaveAndApplyBpfProfile("p", varmor.ProfileModeEnforce, content))
+			assert.Empty(t, pending)
+			assert.Equal(t, content, ops.installed[1])
+			assert.Equal(t, 2, ops.calls[2], "completed namespaces must not be applied again")
+		})
+	}
+}

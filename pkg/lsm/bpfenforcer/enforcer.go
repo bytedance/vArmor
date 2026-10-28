@@ -612,20 +612,41 @@ func (enforcer *BpfEnforcer) SaveAndApplyBpfProfile(profileName string, mode var
 		enforcer.bpfProfileCache[profileName] = profile
 	}
 
-	var applyErrors []error
-	attempted := make(map[uint32]bool)
+	if len(profile.pendingContainers) == 0 {
+		return nil
+	}
+
+	// Build only groups that need work, keeping a pending container first
+	// so its enforcement identity (including Pod IPs) drives the retry.
+	groups := make(map[uint32][]string)
 	for containerID := range profile.pendingContainers {
+		nsID := profile.containerCache[containerID].mntNsID
+		groups[nsID] = append(groups[nsID], containerID)
+	}
+	// Include all aliases of each pending namespace before touching the
+	// kernel. This one scan replaces the per-application full-cache scans.
+	for containerID, id := range profile.containerCache {
+		if _, needed := groups[id.mntNsID]; !needed {
+			continue
+		}
+		if _, pending := profile.pendingContainers[containerID]; !pending {
+			groups[id.mntNsID] = append(groups[id.mntNsID], containerID)
+			profile.pendingContainers[containerID] = struct{}{}
+		}
+	}
+
+	var applyErrors []error
+	for nsID, containerIDs := range groups {
+		containerID := containerIDs[0]
 		id := profile.containerCache[containerID]
-		if attempted[id.mntNsID] {
-			continue
-		}
-		attempted[id.mntNsID] = true
-		if err := enforcer.applyTrackedContainerProfile(id, profile); err != nil {
+		if err := enforcer.applyContainerProfile(id, profile); err != nil {
 			applyErrors = append(applyErrors, fmt.Errorf("profile %s, container %s, mount namespace %d: %w",
-				profileName, containerID, id.mntNsID, err))
+				profileName, containerID, nsID, err))
 			continue
 		}
-		delete(profile.pendingContainers, containerID)
+		for _, containerID := range containerIDs {
+			delete(profile.pendingContainers, containerID)
+		}
 	}
 	return errors.Join(applyErrors...)
 }
