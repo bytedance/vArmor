@@ -311,6 +311,7 @@ func (auditor *Auditor) AddBehaviorEventNotifyChs(subscriber string, auditEventC
 	defer auditor.rateLimitMu.Unlock()
 
 	auditor.chsMu.Lock()
+	previousAuditEventChCount := len(auditor.auditEventChs)
 	if bpfEventCh != nil {
 		auditor.bpfEventChs[subscriber] = *bpfEventCh
 	}
@@ -320,7 +321,8 @@ func (auditor *Auditor) AddBehaviorEventNotifyChs(subscriber string, auditEventC
 	auditEventChCount := len(auditor.auditEventChs)
 	auditor.chsMu.Unlock()
 
-	if auditEventChCount == 1 {
+	// BPF-only and repeated registrations must not overwrite the saved value.
+	if previousAuditEventChCount == 0 && auditEventChCount > 0 {
 		err := auditor.setRateLimit()
 		if err != nil {
 			auditor.log.Error(err, "auditor.setRateLimit()")
@@ -338,12 +340,14 @@ func (auditor *Auditor) DeleteBehaviorEventNotifyCh(subscriber string) {
 	defer auditor.rateLimitMu.Unlock()
 
 	auditor.chsMu.Lock()
+	previousAuditEventChCount := len(auditor.auditEventChs)
 	delete(auditor.bpfEventChs, subscriber)
 	delete(auditor.auditEventChs, subscriber)
 	auditEventChCount := len(auditor.auditEventChs)
 	auditor.chsMu.Unlock()
 
-	if auditEventChCount == 0 {
+	// Repeated removals must not restore a completed subscription cycle again.
+	if previousAuditEventChCount > 0 && auditEventChCount == 0 {
 		err := auditor.restoreRateLimit()
 		if err != nil {
 			auditor.log.Error(err, "auditor.restoreRateLimit()")
