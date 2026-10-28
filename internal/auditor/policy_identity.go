@@ -41,6 +41,9 @@ type PolicyIdentity struct {
 func (auditor *Auditor) UpsertPolicyIdentity(profileName string, id PolicyIdentity) {
 	auditor.policyIdentityMu.Lock()
 	defer auditor.policyIdentityMu.Unlock()
+	if auditor.policyIdentityCache == nil {
+		auditor.policyIdentityCache = make(map[string]PolicyIdentity)
+	}
 	auditor.policyIdentityCache[profileName] = id
 }
 

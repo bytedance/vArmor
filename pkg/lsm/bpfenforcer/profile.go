@@ -35,7 +35,7 @@ func (enforcer *BpfEnforcer) newEnforceID(pid uint32, ips []string) (enforceID, 
 	id := enforceID{
 		pid:     pid,
 		mntNsID: mntNsID,
-		ips:     ips,
+		ips:     append([]string(nil), ips...),
 	}
 	return id, nil
 }
@@ -334,7 +334,30 @@ func (enforcer *BpfEnforcer) applyMountRules(nsID uint32, mounts []varmor.MountC
 	return nil
 }
 
+// validateRuleCapacity checks the node's actual limits after template expansion.
+// Keep the per-map checks as a defensive guard for individual rule writers.
+func (enforcer *BpfEnforcer) validateRuleCapacity(content varmor.BpfContent) error {
+	for _, rules := range []struct {
+		name  string
+		count int
+		limit int
+	}{
+		{"file", len(content.Files), MaxBpfFileRuleCount},
+		{"process", len(content.Processes), MaxBpfBprmRuleCount},
+		{"network", len(content.Networks), MaxBpfNetworkRuleCount},
+		{"mount", len(content.Mounts), int(enforcer.maxMountRuleCount)},
+	} {
+		if rules.count > rules.limit {
+			return fmt.Errorf("%s rules count %d exceeds inner map capacity %d", rules.name, rules.count, rules.limit)
+		}
+	}
+	return nil
+}
+
 func (enforcer *BpfEnforcer) applyProfile(nsID uint32, mode varmor.ProfileMode, bpfContent varmor.BpfContent) (err error) {
+	if err := enforcer.validateRuleCapacity(bpfContent); err != nil {
+		return err
+	}
 
 	// Defensive pre-cleanup: remove any stale entries for this nsID to prevent
 	// map entry leaks from previous partial writes (idempotent operation).

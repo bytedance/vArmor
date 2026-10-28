@@ -26,6 +26,11 @@ import (
 // any active process, preventing leaked entries from accumulating after
 // agent crashes or abnormal restarts.
 func (enforcer *BpfEnforcer) startupGC() {
+	enforcer.mu.Lock()
+	defer enforcer.mu.Unlock()
+	if enforcer.closed {
+		return
+	}
 	logger := enforcer.log.WithName("startupGC")
 
 	activeNsIDs, err := getActiveMntNsIDs()

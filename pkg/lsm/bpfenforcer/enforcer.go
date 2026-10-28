@@ -16,10 +16,13 @@
 package bpfenforcer
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"os"
 	"reflect"
+	"strings"
+	"sync"
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/asm"
@@ -41,12 +44,26 @@ type enforceID struct {
 }
 
 type bpfProfile struct {
-	mode           varmor.ProfileMode
-	bpfContent     varmor.BpfContent
-	containerCache map[string]enforceID // local cache <containerID: enforceID>
+	mode              varmor.ProfileMode
+	bpfContent        varmor.BpfContent
+	containerCache    map[string]enforceID // local cache <containerID: enforceID>
+	pendingContainers map[string]struct{}  // tracked containers awaiting the desired profile
+}
+
+// profileOperations isolates kernel operations from reconciliation bookkeeping.
+// Production uses the enforcer itself; tests can inject application failures.
+type profileOperations interface {
+	applyProfile(uint32, varmor.ProfileMode, varmor.BpfContent) error
+	deleteProfile(uint32)
+	setPodIps(uint32, []string) error
+	removePodIps(uint32) error
 }
 
 type BpfEnforcer struct {
+	// mu serializes cache transitions with their associated kernel operations.
+	mu                sync.RWMutex
+	closed            bool
+	profileOps        profileOperations
 	TaskStartCh       chan varmortypes.ContainerInfo
 	TaskDeleteCh      chan varmortypes.ContainerInfo
 	TaskDeleteSyncCh  chan bool
@@ -81,6 +98,7 @@ func NewBpfEnforcer(log logr.Logger) (*BpfEnforcer, error) {
 		log:              log,
 	}
 
+	enforcer.profileOps = &enforcer
 	err := enforcer.initBPF()
 	if err != nil {
 		return nil, err
@@ -300,6 +318,12 @@ func (enforcer *BpfEnforcer) initBPF() error {
 
 // Close close the BPF resources
 func (enforcer *BpfEnforcer) Close() {
+	enforcer.mu.Lock()
+	defer enforcer.mu.Unlock()
+	if enforcer.closed {
+		return
+	}
+	enforcer.closed = true
 	enforcer.log.Info("unload the bpf resources")
 	enforcer.capableLink.Close()
 	enforcer.openFileLink.Close()
@@ -347,123 +371,153 @@ func (enforcer *BpfEnforcer) removePodIps(mntNsID uint32) error {
 func (enforcer *BpfEnforcer) eventHandler(stopCh <-chan struct{}) {
 	logger := enforcer.log.WithName("eventHandler()")
 	logger.Info("start handling the containerd events")
-
 	for {
 		select {
 		case info := <-enforcer.TaskStartCh:
-			// Handle the creation event of target container
-			key := fmt.Sprintf("container.bpf.security.beta.varmor.org/%s", info.ContainerName)
-			value, ok := info.PodAnnotations[key]
-			if !ok {
-				break
-			}
-
-			profileName := value[len("localhost/"):]
-			if profile, ok := enforcer.bpfProfileCache[profileName]; ok {
-				logger.Info("target container was created",
-					"profile name", profileName,
-					"pod namespace", info.PodNamespace,
-					"pod name", info.PodName,
-					"container name", info.ContainerName,
-					"container id", info.ContainerID,
-					"pid", info.PID, "mnt ns id", info.MntNsID, "ips", info.PodIPs)
-
-				// create an enforceID
-				enforceID, err := enforcer.newEnforceID(info.PID, info.PodIPs)
-				if err != nil {
-					logger.Error(err, "newEnforceID() failed")
-					break
-				}
-
-				// nothing needs to change if the container has already been protected
-				if oldEnforceID, ok := enforcer.containerCache[info.ContainerID]; ok {
-					if reflect.DeepEqual(oldEnforceID, enforceID) {
-						break
-					}
-				}
-
-				// add the Pod IPs to the map for the target container
-				if len(enforceID.ips) > 0 {
-					err = enforcer.setPodIps(enforceID.mntNsID, enforceID.ips)
-					if err != nil {
-						logger.Error(err, "setPodIps() failed")
-					}
-				}
-
-				// apply the BPF profile for the target container
-				err = enforcer.applyProfile(enforceID.mntNsID, profile.mode, profile.bpfContent)
-				if err != nil {
-					logger.Error(err, "applyProfile() failed, cleaning up partial writes")
-					// applyProfile's defer already rolled back its own writes.
-					// Clean up setPodIps entry that was written before applyProfile.
-					if len(enforceID.ips) > 0 {
-						enforcer.removePodIps(enforceID.mntNsID)
-					}
-					break
-				}
-
-				// cache the enforceID
-				enforcer.containerCache[info.ContainerID] = enforceID
-				profile.containerCache[info.ContainerID] = enforceID
-				enforcer.bpfProfileCache[profileName] = profile
-			}
-
+			enforcer.handleTaskStart(info)
 		case info := <-enforcer.TaskDeleteCh:
-			// Handle the deletion event of target container
-			if enforceID, ok := enforcer.containerCache[info.ContainerID]; ok {
-				logger.Info("target container was deleted",
-					"container id", info.ContainerID,
-					"pid", info.PID)
-
-				// remove the Pod IPs from the map for the container
-				enforcer.removePodIps(enforceID.mntNsID)
-
-				// delete the BPF profile of the container
-				enforcer.deleteProfile(enforceID.mntNsID)
-
-				// delete the container from the global cache
-				delete(enforcer.containerCache, info.ContainerID)
-
-				// delete the container from the local cache
-				for profileName, profile := range enforcer.bpfProfileCache {
-					if _, ok := profile.containerCache[info.ContainerID]; ok {
-						delete(profile.containerCache, info.ContainerID)
-						enforcer.bpfProfileCache[profileName] = profile
-						break
-					}
-				}
-			}
-
+			enforcer.handleTaskDelete(info)
 		case <-enforcer.TaskDeleteSyncCh:
-			// Handle those containers that exit while the monitor was offline
-			for profileName, profile := range enforcer.bpfProfileCache {
-				for containerID, enforceID := range profile.containerCache {
-					_, err := enforcer.newEnforceID(enforceID.pid, []string{})
-					if err != nil {
-						// maybe the container had already exited
-						logger.Info("the target container exited while the monitor was offline",
-							"container id", containerID,
-							"pid", enforceID.pid)
-
-						// remove the Pod IPs from the map for the container
-						enforcer.removePodIps(enforceID.mntNsID)
-
-						// delete the BPF profile of the container
-						enforcer.deleteProfile(enforceID.mntNsID)
-
-						// delete the container from the global cache
-						delete(enforcer.containerCache, containerID)
-
-						// delete the container from the local cache
-						delete(profile.containerCache, containerID)
-						enforcer.bpfProfileCache[profileName] = profile
-					}
-				}
-			}
-
+			enforcer.handleTaskDeleteSync()
 		case <-stopCh:
 			logger.Info("stop handling the containerd events")
 			return
+		}
+	}
+}
+
+func (enforcer *BpfEnforcer) handleTaskStart(info varmortypes.ContainerInfo) {
+	enforcer.mu.Lock()
+	defer enforcer.mu.Unlock()
+	if enforcer.closed {
+		return
+	}
+	logger := enforcer.log.WithName("handleTaskStart()")
+	key := fmt.Sprintf("container.bpf.security.beta.varmor.org/%s", info.ContainerName)
+	value := info.PodAnnotations[key]
+	if !strings.HasPrefix(value, "localhost/") {
+		return
+	}
+	profileName := strings.TrimPrefix(value, "localhost/")
+	profile, ok := enforcer.bpfProfileCache[profileName]
+	if !ok {
+		return
+	}
+	id, err := enforcer.newEnforceID(info.PID, info.PodIPs)
+	if err != nil {
+		logger.Error(err, "newEnforceID() failed")
+		return
+	}
+	oldID, tracked := profile.containerCache[info.ContainerID]
+	_, pending := profile.pendingContainers[info.ContainerID]
+	if tracked && reflect.DeepEqual(oldID, id) && !pending {
+		return
+	}
+
+	logger.Info("applying profile to target container", "profile name", profileName,
+		"container id", info.ContainerID, "pod namespace", info.PodNamespace,
+		"pod name", info.PodName, "pid", id.pid, "mnt ns id", id.mntNsID)
+
+	// Keep an already tracked container recoverable, including an identity
+	// change. Never let a failed event replay leave it marked as applied.
+	if previous, exists := enforcer.containerCache[info.ContainerID]; exists &&
+		(!tracked || previous.mntNsID != id.mntNsID) {
+		enforcer.removeContainerLocked(info.ContainerID)
+	}
+	if tracked {
+		profile.containerCache[info.ContainerID] = id
+		enforcer.containerCache[info.ContainerID] = id
+		profile.pendingContainers[info.ContainerID] = struct{}{}
+	}
+	if err := enforcer.applyTrackedContainerProfile(id, profile); err != nil {
+		logger.Error(err, "apply container profile failed", "profile name", profileName,
+			"container id", info.ContainerID, "mnt ns id", id.mntNsID)
+		// First-time TaskStart failures retain the existing reporting behavior.
+		// They are not registered as successfully protected containers.
+		if !tracked && len(id.ips) > 0 {
+			if cleanupErr := enforcer.profileOps.removePodIps(id.mntNsID); cleanupErr != nil && !errors.Is(cleanupErr, ebpf.ErrKeyNotExist) {
+				logger.Error(cleanupErr, "removePodIps() failed")
+			}
+		}
+		return
+	}
+	enforcer.containerCache[info.ContainerID] = id
+	profile.containerCache[info.ContainerID] = id
+	delete(profile.pendingContainers, info.ContainerID)
+	enforcer.bpfProfileCache[profileName] = profile
+}
+
+// All aliases of a mount namespace share the same kernel entries. A failed
+// replacement invalidates each alias, even when triggered by a TaskStart.
+func (enforcer *BpfEnforcer) applyTrackedContainerProfile(id enforceID, profile bpfProfile) error {
+	for containerID, other := range profile.containerCache {
+		if other.mntNsID == id.mntNsID {
+			profile.pendingContainers[containerID] = struct{}{}
+		}
+	}
+	if err := enforcer.applyContainerProfile(id, profile); err != nil {
+		return err
+	}
+	for containerID, other := range profile.containerCache {
+		if other.mntNsID == id.mntNsID {
+			delete(profile.pendingContainers, containerID)
+		}
+	}
+	return nil
+}
+
+// applyContainerProfile also restores Pod IPs when retrying an event failure.
+func (enforcer *BpfEnforcer) applyContainerProfile(id enforceID, profile bpfProfile) error {
+	if len(id.ips) > 0 {
+		if err := enforcer.profileOps.setPodIps(id.mntNsID, id.ips); err != nil {
+			return fmt.Errorf("setPodIps: %w", err)
+		}
+	}
+	return enforcer.profileOps.applyProfile(id.mntNsID, profile.mode, profile.bpfContent)
+}
+
+// removeContainerLocked is shared by explicit deletion and offline cleanup.
+func (enforcer *BpfEnforcer) removeContainerLocked(containerID string) {
+	if id, ok := enforcer.containerCache[containerID]; ok {
+		delete(enforcer.containerCache, containerID)
+		shared := false
+		for _, other := range enforcer.containerCache {
+			shared = shared || other.mntNsID == id.mntNsID
+		}
+		if !shared {
+			if err := enforcer.profileOps.removePodIps(id.mntNsID); err != nil && !errors.Is(err, ebpf.ErrKeyNotExist) {
+				enforcer.log.Error(err, "removePodIps() failed", "container id", containerID)
+			}
+			enforcer.profileOps.deleteProfile(id.mntNsID)
+		}
+	}
+	for _, profile := range enforcer.bpfProfileCache {
+		delete(profile.containerCache, containerID)
+		delete(profile.pendingContainers, containerID)
+	}
+}
+
+func (enforcer *BpfEnforcer) handleTaskDelete(info varmortypes.ContainerInfo) {
+	enforcer.mu.Lock()
+	defer enforcer.mu.Unlock()
+	if !enforcer.closed {
+		enforcer.removeContainerLocked(info.ContainerID)
+	}
+}
+
+func (enforcer *BpfEnforcer) handleTaskDeleteSync() {
+	enforcer.mu.Lock()
+	defer enforcer.mu.Unlock()
+	if enforcer.closed {
+		return
+	}
+	for containerID, id := range enforcer.containerCache {
+		current, err := enforcer.newEnforceID(id.pid, nil)
+		if err != nil || current.mntNsID != id.mntNsID {
+			enforcer.log.Info("removing exited container", "container id", containerID,
+				"pid", id.pid, "mnt ns id", id.mntNsID)
+			// A reused PID does not keep an exited container alive in the cache.
+			enforcer.removeContainerLocked(containerID)
 		}
 	}
 }
@@ -473,116 +527,128 @@ func (enforcer *BpfEnforcer) Run(stopCh <-chan struct{}) {
 	enforcer.eventHandler(stopCh)
 }
 
-func (enforcer *BpfEnforcer) pretreatment(bpfContent *varmor.BpfContent) {
-	// Disk Device
-	for index, file := range bpfContent.Files {
-		if file.Pattern.Prefix == "{{.DiskDevices}}" {
-			bpfContent.Files = append(bpfContent.Files[:index], bpfContent.Files[index+1:]...)
-
-			devices, err := lsmutils.RetrieveDiskDeviceList()
-			if err != nil {
-				enforcer.log.Error(err, "lsmutils.RetrieveDiskDeviceList()")
-				break
-			}
-
-			for _, device := range devices {
-				content := varmor.FileContent{
-					Permissions: file.Permissions,
-					Pattern: varmor.PathPattern{
-						Flags:  file.Pattern.Flags,
-						Prefix: "/dev/" + device,
-					},
-				}
-				bpfContent.Files = append(bpfContent.Files, content)
-			}
-		}
+func (enforcer *BpfEnforcer) pretreatment(bpfContent *varmor.BpfContent) error {
+	needsDevices := false
+	for _, file := range bpfContent.Files {
+		needsDevices = needsDevices || file.Pattern.Prefix == "{{.DiskDevices}}"
 	}
-
-	for index, mount := range bpfContent.Mounts {
-		if mount.Pattern.Prefix == "{{.DiskDevices}}" {
-			bpfContent.Mounts = append(bpfContent.Mounts[:index], bpfContent.Mounts[index+1:]...)
-
-			devices, err := lsmutils.RetrieveDiskDeviceList()
-			if err != nil {
-				enforcer.log.Error(err, "lsmutils.RetrieveDiskDeviceList()")
-				break
-			}
-
-			for _, device := range devices {
-				content := varmor.MountContent{
-					MountFlags:        mount.MountFlags,
-					ReverseMountflags: mount.ReverseMountflags,
-					Fstype:            mount.Fstype,
-					Pattern: varmor.PathPattern{
-						Flags:  mount.Pattern.Flags,
-						Prefix: "/dev/" + device,
-					},
-				}
-				bpfContent.Mounts = append(bpfContent.Mounts, content)
-			}
-			break
-		}
+	for _, mount := range bpfContent.Mounts {
+		needsDevices = needsDevices || mount.Pattern.Prefix == "{{.DiskDevices}}"
 	}
-}
-
-// SaveAndApplyBpfProfile save the BPF profile to the cache, and update it to the kernel for the existing BPF profile
-func (enforcer *BpfEnforcer) SaveAndApplyBpfProfile(profileName string, mode varmor.ProfileMode, bpfContent varmor.BpfContent) error {
-	enforcer.pretreatment(&bpfContent)
-
-	// save/update the BPF profile to the cache
-	if profile, ok := enforcer.bpfProfileCache[profileName]; ok {
-		if mode == profile.mode && reflect.DeepEqual(bpfContent, profile.bpfContent) {
-			// nothing need to update
-			enforcer.log.V(2).Info("the BPF profile is not changed, nothing need to update",
-				"profile name", profileName, "mode", mode, "profile", profile.bpfContent)
-			return nil
-		}
-		enforcer.log.V(2).Info("update the BPF profile", "profile name", profileName, "mode", mode, "profile", bpfContent)
-		profile.mode = mode
-		profile.bpfContent = bpfContent
-		enforcer.bpfProfileCache[profileName] = profile
-	} else {
-		enforcer.log.V(2).Info("save the BPF profile", "profile name", profileName, "mode", mode, "profile", bpfContent)
-		profile := bpfProfile{
-			mode:           mode,
-			bpfContent:     bpfContent,
-			containerCache: make(map[string]enforceID),
-		}
-		enforcer.bpfProfileCache[profileName] = profile
+	if !needsDevices {
+		return nil
 	}
-
-	// apply the BPF profile to the kernel for the existing containers
-	profile := enforcer.bpfProfileCache[profileName]
-	for _, enforceID := range profile.containerCache {
-		enforcer.log.V(2).Info("apply the BPF profile", "profile name", profileName, "profile", profile.bpfContent)
-		err := enforcer.applyProfile(enforceID.mntNsID, profile.mode, profile.bpfContent)
-		if err != nil {
-			return err
-		}
+	devices, err := lsmutils.RetrieveDiskDeviceList()
+	if err != nil {
+		return fmt.Errorf("retrieve disk devices: %w", err)
 	}
+	expandDiskDevices(bpfContent, devices)
 	return nil
 }
 
-// DeleteBpfProfile unload the BPF profile from kernel, then delete it from the cache
-func (enforcer *BpfEnforcer) DeleteBpfProfile(profileName string) error {
-	if profile, ok := enforcer.bpfProfileCache[profileName]; ok {
-		for containerID, enforceID := range profile.containerCache {
-			// remove the Pod IPs from the map for the container
-			enforcer.removePodIps(enforceID.mntNsID)
-
-			// unload the BPF profile from the kernel
-			enforcer.deleteProfile(enforceID.mntNsID)
-
-			// delete the container from the global cache
-			delete(enforcer.containerCache, containerID)
+func expandDiskDevices(content *varmor.BpfContent, devices []string) {
+	var files []varmor.FileContent
+	for _, file := range content.Files {
+		if file.Pattern.Prefix != "{{.DiskDevices}}" {
+			files = append(files, file)
+			continue
 		}
-		// delete the profile from the bpfProfileCache
+		for _, device := range devices {
+			expanded := file
+			expanded.Pattern.Prefix = "/dev/" + device
+			files = append(files, expanded)
+		}
+	}
+	var mounts []varmor.MountContent
+	for _, mount := range content.Mounts {
+		if mount.Pattern.Prefix != "{{.DiskDevices}}" {
+			mounts = append(mounts, mount)
+			continue
+		}
+		for _, device := range devices {
+			expanded := mount
+			expanded.Pattern.Prefix = "/dev/" + device
+			mounts = append(mounts, expanded)
+		}
+	}
+	content.Files = files
+	content.Mounts = mounts
+}
+
+// SaveAndApplyBpfProfile caches the desired profile and applies it to tracked
+// containers. Content equality alone does not establish successful application.
+func (enforcer *BpfEnforcer) SaveAndApplyBpfProfile(profileName string, mode varmor.ProfileMode, bpfContent varmor.BpfContent) error {
+	// Preprocessing must not mutate the caller or alias the cached snapshot.
+	content := bpfContent.DeepCopy()
+	if err := enforcer.pretreatment(content); err != nil {
+		return err
+	}
+
+	enforcer.mu.Lock()
+	defer enforcer.mu.Unlock()
+	if enforcer.closed {
+		return fmt.Errorf("BPF enforcer is closed")
+	}
+	// Reject deterministic capacity errors before replacing either the cached
+	// desired state or any existing kernel rules. Preserve pending work too.
+	if err := enforcer.validateRuleCapacity(*content); err != nil {
+		return err
+	}
+	profile, exists := enforcer.bpfProfileCache[profileName]
+	if !exists {
+		profile = bpfProfile{
+			containerCache:    make(map[string]enforceID),
+			pendingContainers: make(map[string]struct{}),
+		}
+	}
+	if !exists || mode != profile.mode || !reflect.DeepEqual(*content, profile.bpfContent) {
+		profile.mode = mode
+		profile.bpfContent = *content
+		// Include every container on changes and reverts: some may have
+		// applied the previous desired version before another one failed.
+		for containerID := range profile.containerCache {
+			profile.pendingContainers[containerID] = struct{}{}
+		}
+		enforcer.bpfProfileCache[profileName] = profile
+	}
+
+	var applyErrors []error
+	attempted := make(map[uint32]bool)
+	for containerID := range profile.pendingContainers {
+		id := profile.containerCache[containerID]
+		if attempted[id.mntNsID] {
+			continue
+		}
+		attempted[id.mntNsID] = true
+		if err := enforcer.applyTrackedContainerProfile(id, profile); err != nil {
+			applyErrors = append(applyErrors, fmt.Errorf("profile %s, container %s, mount namespace %d: %w",
+				profileName, containerID, id.mntNsID, err))
+			continue
+		}
+		delete(profile.pendingContainers, containerID)
+	}
+	return errors.Join(applyErrors...)
+}
+
+// DeleteBpfProfile unloads a profile and discards its pending applications.
+func (enforcer *BpfEnforcer) DeleteBpfProfile(profileName string) error {
+	enforcer.mu.Lock()
+	defer enforcer.mu.Unlock()
+	if enforcer.closed {
+		return fmt.Errorf("BPF enforcer is closed")
+	}
+	if profile, ok := enforcer.bpfProfileCache[profileName]; ok {
+		for containerID := range profile.containerCache {
+			enforcer.removeContainerLocked(containerID)
+		}
 		delete(enforcer.bpfProfileCache, profileName)
 	}
 	return nil
 }
 
 func (enforcer *BpfEnforcer) IsBpfProfileExist(profileName string) bool {
+	enforcer.mu.RLock()
+	defer enforcer.mu.RUnlock()
 	_, ok := enforcer.bpfProfileCache[profileName]
-	return ok
+	return !enforcer.closed && ok
 }
