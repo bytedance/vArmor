@@ -30,13 +30,12 @@ import (
 )
 
 type fakeProfileOperations struct {
-	calls       map[uint32]int
-	installed   map[uint32]varmor.BpfContent
-	modes       map[uint32]varmor.ProfileMode
-	failures    map[uint32]error
-	ipFailures  map[uint32]error
-	ips         map[uint32][]string
-	beforeApply func()
+	calls      map[uint32]int
+	installed  map[uint32]varmor.BpfContent
+	modes      map[uint32]varmor.ProfileMode
+	failures   map[uint32]error
+	ipFailures map[uint32]error
+	ips        map[uint32][]string
 }
 
 func newTestEnforcer() (*BpfEnforcer, *fakeProfileOperations) {
@@ -52,9 +51,6 @@ func newTestEnforcer() (*BpfEnforcer, *fakeProfileOperations) {
 }
 
 func (ops *fakeProfileOperations) applyProfile(ns uint32, mode varmor.ProfileMode, content varmor.BpfContent) error {
-	if ops.beforeApply != nil {
-		ops.beforeApply()
-	}
 	ops.calls[ns]++
 	// Model the destructive replacement in applyProfile, not a safe rollback.
 	delete(ops.installed, ns)
@@ -259,6 +255,8 @@ func TestTaskStart_RetryPendingContainer(t *testing.T) {
 	info := varmortypes.ContainerInfo{ContainerID: "c", ContainerName: "app", PID: uint32(os.Getpid()), PodIPs: []string{"10.0.0.1"}, PodAnnotations: map[string]string{"container.bpf.security.beta.varmor.org/app": "localhost/p"}}
 	id, err := e.newEnforceID(info.PID, info.PodIPs)
 	require.NoError(t, err)
+	registerTestContainer(e, "p", "other", enforceID{mntNsID: 1})
+	require.NoError(t, e.SaveAndApplyBpfProfile("p", varmor.ProfileModeEnforce, a))
 	e.handleTaskStart(info)
 	assert.Equal(t, 1, ops.calls[id.mntNsID])
 	ops.failures[id.mntNsID] = errors.New("failed")
@@ -281,6 +279,8 @@ func TestTaskStart_RetryPendingContainer(t *testing.T) {
 	delete(ops.ipFailures, id.mntNsID)
 	require.NoError(t, e.SaveAndApplyBpfProfile("p", varmor.ProfileModeEnforce, b))
 	assert.Equal(t, info.PodIPs, ops.ips[id.mntNsID])
+	assert.Equal(t, 2, ops.calls[1], "event retries must not rewrite another container")
+	assert.Equal(t, b, ops.installed[1])
 }
 
 func TestBpfEnforcer_ConcurrentLifecycle(t *testing.T) {
@@ -307,27 +307,6 @@ func TestBpfEnforcer_ConcurrentLifecycle(t *testing.T) {
 	e.handleTaskStart(info)
 	assert.Empty(t, e.bpfProfileCache["p"].pendingContainers)
 	assert.Len(t, e.bpfProfileCache["p"].containerCache, 1)
-}
-
-func TestPendingContainers_SharedMountNamespace(t *testing.T) {
-	e, ops := newTestEnforcer()
-	a, b := testContent("/a"), testContent("/b")
-	require.NoError(t, e.SaveAndApplyBpfProfile("p", varmor.ProfileModeEnforce, a))
-	registerTestContainer(e, "p", "c1", enforceID{mntNsID: 1})
-	registerTestContainer(e, "p", "c2", enforceID{mntNsID: 1})
-	require.NoError(t, e.SaveAndApplyBpfProfile("p", varmor.ProfileModeEnforce, a))
-	assert.Equal(t, 1, ops.calls[1])
-	ops.failures[1] = errors.New("failed")
-	require.Error(t, e.SaveAndApplyBpfProfile("p", varmor.ProfileModeEnforce, b))
-	assert.Len(t, e.bpfProfileCache["p"].pendingContainers, 2)
-	assert.Equal(t, 2, ops.calls[1], "each namespace is attempted once per reconciliation")
-	delete(ops.failures, 1)
-	require.NoError(t, e.SaveAndApplyBpfProfile("p", varmor.ProfileModeEnforce, b))
-	assert.Empty(t, e.bpfProfileCache["p"].pendingContainers)
-	e.handleTaskDelete(varmortypes.ContainerInfo{ContainerID: "c1"})
-	assert.Equal(t, b, ops.installed[1], "a live alias must keep its rules")
-	e.handleTaskDelete(varmortypes.ContainerInfo{ContainerID: "c2"})
-	assert.NotContains(t, ops.installed, uint32(1))
 }
 
 func TestTaskStart_ChangedIdentityFailure(t *testing.T) {
@@ -393,45 +372,58 @@ func TestTaskDeleteSync_ReusedPID(t *testing.T) {
 	assert.Empty(t, ops.installed)
 }
 
-func TestSaveAndApplyBpfProfile_PendingNamespaceGroups(t *testing.T) {
-	for _, fail := range []bool{false, true} {
-		t.Run(fmt.Sprintf("failure=%t", fail), func(t *testing.T) {
+func TestPendingContainers_IndependentNamespaceCleanup(t *testing.T) {
+	for _, kind := range []string{"delete", "offline", "profile"} {
+		t.Run(kind, func(t *testing.T) {
 			e, ops := newTestEnforcer()
 			content := testContent("/a")
 			require.NoError(t, e.SaveAndApplyBpfProfile("p", varmor.ProfileModeEnforce, content))
-			registerTestContainer(e, "p", "pending", enforceID{mntNsID: 1, ips: []string{"10.0.0.1"}})
-			registerTestContainer(e, "p", "alias", enforceID{mntNsID: 1, ips: []string{"10.0.0.2"}})
-			registerTestContainer(e, "p", "other-pending", enforceID{mntNsID: 2})
-			registerTestContainer(e, "p", "untouched", enforceID{mntNsID: 3})
+			require.NoError(t, e.SaveAndApplyBpfProfile("q", varmor.ProfileModeEnforce, content))
+			live, err := e.newEnforceID(uint32(os.Getpid()), []string{"10.0.0.2"})
+			require.NoError(t, err)
+			registerTestContainer(e, "p", "removed", enforceID{pid: 0xffffffff, mntNsID: 1, ips: []string{"10.0.0.1"}})
+			registerTestContainer(e, "q", "live", live)
 			require.NoError(t, e.SaveAndApplyBpfProfile("p", varmor.ProfileModeEnforce, content))
-			pending := e.bpfProfileCache["p"].pendingContainers
-			pending["pending"] = struct{}{}
-			pending["other-pending"] = struct{}{}
-			ops.beforeApply = func() {
-				assert.Contains(t, pending, "alias", "all aliases must be pending before replacement")
-				assert.NotContains(t, pending, "untouched")
-				ops.beforeApply = nil
+			require.NoError(t, e.SaveAndApplyBpfProfile("q", varmor.ProfileModeEnforce, content))
+			ops.failures[1] = errors.New("failed")
+			require.Error(t, e.SaveAndApplyBpfProfile("p", varmor.ProfileModeComplain, content))
+			switch kind {
+			case "delete":
+				e.handleTaskDelete(varmortypes.ContainerInfo{ContainerID: "removed"})
+			case "offline":
+				e.handleTaskDeleteSync()
+			case "profile":
+				require.NoError(t, e.DeleteBpfProfile("p"))
 			}
-			if fail {
-				ops.failures[1] = errors.New("map write failed")
-			}
-			err := e.SaveAndApplyBpfProfile("p", varmor.ProfileModeEnforce, content)
-			if fail {
-				require.ErrorIs(t, err, ops.failures[1])
-				assert.Equal(t, map[string]struct{}{"pending": {}, "alias": {}}, pending)
-			} else {
-				require.NoError(t, err)
-				assert.Empty(t, pending)
-			}
-			assert.Equal(t, []string{"10.0.0.1"}, ops.ips[1], "use the pending identity, not an arbitrary clean alias")
-			assert.Equal(t, map[uint32]int{1: 2, 2: 2, 3: 1}, ops.calls)
-			assert.Equal(t, content, ops.installed[2])
-			assert.Equal(t, content, ops.installed[3])
-			delete(ops.failures, 1)
-			require.NoError(t, e.SaveAndApplyBpfProfile("p", varmor.ProfileModeEnforce, content))
-			assert.Empty(t, pending)
-			assert.Equal(t, content, ops.installed[1])
-			assert.Equal(t, 2, ops.calls[2], "completed namespaces must not be applied again")
+			assert.NotContains(t, e.containerCache, "removed")
+			assert.Empty(t, e.bpfProfileCache["p"].pendingContainers)
+			assert.NotContains(t, ops.installed, uint32(1))
+			assert.NotContains(t, ops.ips, uint32(1))
+			assert.Equal(t, live, e.containerCache["live"])
+			assert.Equal(t, live, e.bpfProfileCache["q"].containerCache["live"])
+			assert.Equal(t, content, ops.installed[live.mntNsID])
+			assert.Equal(t, live.ips, ops.ips[live.mntNsID])
+			require.NoError(t, e.SaveAndApplyBpfProfile("p", varmor.ProfileModeComplain, content))
+			assert.Equal(t, 2, ops.calls[1], "deleted pending work must not be retried")
 		})
 	}
+}
+
+func TestDeleteBpfProfile_IndependentContainers(t *testing.T) {
+	e, ops := newTestEnforcer()
+	content := testContent("/a")
+	require.NoError(t, e.SaveAndApplyBpfProfile("p", varmor.ProfileModeEnforce, content))
+	for i := uint32(1); i <= 3; i++ {
+		registerTestContainer(e, "p", fmt.Sprint(i), enforceID{mntNsID: i, ips: []string{fmt.Sprintf("10.0.0.%d", i)}})
+	}
+	require.NoError(t, e.SaveAndApplyBpfProfile("p", varmor.ProfileModeEnforce, content))
+	require.Len(t, ops.installed, 3)
+	require.NoError(t, e.DeleteBpfProfile("p"))
+	assert.Empty(t, e.containerCache)
+	assert.NotContains(t, e.bpfProfileCache, "p")
+	assert.Empty(t, ops.installed)
+	assert.Empty(t, ops.ips)
+	// Late delete events and repeated profile deletion remain harmless.
+	e.handleTaskDelete(varmortypes.ContainerInfo{ContainerID: "1"})
+	require.NoError(t, e.DeleteBpfProfile("p"))
 }

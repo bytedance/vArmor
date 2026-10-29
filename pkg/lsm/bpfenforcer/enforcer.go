@@ -59,6 +59,8 @@ type profileOperations interface {
 	removePodIps(uint32) error
 }
 
+// BpfEnforcer requires each supported container to have its own mount
+// namespace. Kernel entries keyed by mntNsID belong to that container alone.
 type BpfEnforcer struct {
 	// mu serializes cache transitions with their associated kernel operations.
 	mu                sync.RWMutex
@@ -429,7 +431,7 @@ func (enforcer *BpfEnforcer) handleTaskStart(info varmortypes.ContainerInfo) {
 		enforcer.containerCache[info.ContainerID] = id
 		profile.pendingContainers[info.ContainerID] = struct{}{}
 	}
-	if err := enforcer.applyTrackedContainerProfile(id, profile); err != nil {
+	if err := enforcer.applyContainerProfile(id, profile); err != nil {
 		logger.Error(err, "apply container profile failed", "profile name", profileName,
 			"container id", info.ContainerID, "mnt ns id", id.mntNsID)
 		// First-time TaskStart failures retain the existing reporting behavior.
@@ -447,25 +449,6 @@ func (enforcer *BpfEnforcer) handleTaskStart(info varmortypes.ContainerInfo) {
 	enforcer.bpfProfileCache[profileName] = profile
 }
 
-// All aliases of a mount namespace share the same kernel entries. A failed
-// replacement invalidates each alias, even when triggered by a TaskStart.
-func (enforcer *BpfEnforcer) applyTrackedContainerProfile(id enforceID, profile bpfProfile) error {
-	for containerID, other := range profile.containerCache {
-		if other.mntNsID == id.mntNsID {
-			profile.pendingContainers[containerID] = struct{}{}
-		}
-	}
-	if err := enforcer.applyContainerProfile(id, profile); err != nil {
-		return err
-	}
-	for containerID, other := range profile.containerCache {
-		if other.mntNsID == id.mntNsID {
-			delete(profile.pendingContainers, containerID)
-		}
-	}
-	return nil
-}
-
 // applyContainerProfile also restores Pod IPs when retrying an event failure.
 func (enforcer *BpfEnforcer) applyContainerProfile(id enforceID, profile bpfProfile) error {
 	if len(id.ips) > 0 {
@@ -480,16 +463,10 @@ func (enforcer *BpfEnforcer) applyContainerProfile(id enforceID, profile bpfProf
 func (enforcer *BpfEnforcer) removeContainerLocked(containerID string) {
 	if id, ok := enforcer.containerCache[containerID]; ok {
 		delete(enforcer.containerCache, containerID)
-		shared := false
-		for _, other := range enforcer.containerCache {
-			shared = shared || other.mntNsID == id.mntNsID
+		if err := enforcer.profileOps.removePodIps(id.mntNsID); err != nil && !errors.Is(err, ebpf.ErrKeyNotExist) {
+			enforcer.log.Error(err, "removePodIps() failed", "container id", containerID)
 		}
-		if !shared {
-			if err := enforcer.profileOps.removePodIps(id.mntNsID); err != nil && !errors.Is(err, ebpf.ErrKeyNotExist) {
-				enforcer.log.Error(err, "removePodIps() failed", "container id", containerID)
-			}
-			enforcer.profileOps.deleteProfile(id.mntNsID)
-		}
+		enforcer.profileOps.deleteProfile(id.mntNsID)
 	}
 	for _, profile := range enforcer.bpfProfileCache {
 		delete(profile.containerCache, containerID)
@@ -612,41 +589,17 @@ func (enforcer *BpfEnforcer) SaveAndApplyBpfProfile(profileName string, mode var
 		enforcer.bpfProfileCache[profileName] = profile
 	}
 
-	if len(profile.pendingContainers) == 0 {
-		return nil
-	}
-
-	// Build only groups that need work, keeping a pending container first
-	// so its enforcement identity (including Pod IPs) drives the retry.
-	groups := make(map[uint32][]string)
-	for containerID := range profile.pendingContainers {
-		nsID := profile.containerCache[containerID].mntNsID
-		groups[nsID] = append(groups[nsID], containerID)
-	}
-	// Include all aliases of each pending namespace before touching the
-	// kernel. This one scan replaces the per-application full-cache scans.
-	for containerID, id := range profile.containerCache {
-		if _, needed := groups[id.mntNsID]; !needed {
-			continue
-		}
-		if _, pending := profile.pendingContainers[containerID]; !pending {
-			groups[id.mntNsID] = append(groups[id.mntNsID], containerID)
-			profile.pendingContainers[containerID] = struct{}{}
-		}
-	}
-
+	// Independent mount namespaces let us retry each pending container
+	// directly, without grouping or scanning already applied containers.
 	var applyErrors []error
-	for nsID, containerIDs := range groups {
-		containerID := containerIDs[0]
+	for containerID := range profile.pendingContainers {
 		id := profile.containerCache[containerID]
 		if err := enforcer.applyContainerProfile(id, profile); err != nil {
 			applyErrors = append(applyErrors, fmt.Errorf("profile %s, container %s, mount namespace %d: %w",
-				profileName, containerID, nsID, err))
+				profileName, containerID, id.mntNsID, err))
 			continue
 		}
-		for _, containerID := range containerIDs {
-			delete(profile.pendingContainers, containerID)
-		}
+		delete(profile.pendingContainers, containerID)
 	}
 	return errors.Join(applyErrors...)
 }
