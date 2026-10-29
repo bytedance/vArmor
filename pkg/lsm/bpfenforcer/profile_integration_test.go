@@ -121,7 +121,7 @@ func TestBpfProfile_KernelFailureRecovery(t *testing.T) {
 	collection, err := ebpf.NewCollection(spec)
 	require.NoError(t, err)
 	t.Cleanup(collection.Close)
-	e := &BpfEnforcer{bpfProfileCache: make(map[string]bpfProfile), containerCache: make(map[string]enforceID), maxMountRuleCount: MaxBpfMountRuleCountUnrolled, log: logr.Discard()}
+	e := &BpfEnforcer{bpfProfileCache: make(map[string]bpfProfile), containerCache: make(map[string]enforceID), namespaceOwners: make(map[uint32]string), maxMountRuleCount: MaxBpfMountRuleCountUnrolled, log: logr.Discard()}
 	require.NoError(t, collection.Assign(&e.objs.bpfMaps))
 	t.Cleanup(func() { assert.NoError(t, e.objs.bpfMaps.Close()) })
 	ops := &failingMountOperations{BpfEnforcer: e}

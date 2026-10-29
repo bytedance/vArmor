@@ -46,6 +46,7 @@ func newTestEnforcer() (*BpfEnforcer, *fakeProfileOperations) {
 	}
 	return &BpfEnforcer{
 		bpfProfileCache: make(map[string]bpfProfile), containerCache: make(map[string]enforceID),
+		namespaceOwners:   make(map[uint32]string),
 		maxMountRuleCount: MaxBpfMountRuleCountUnrolled, profileOps: ops, log: logr.Discard(),
 	}, ops
 }
@@ -83,6 +84,7 @@ func registerTestContainer(e *BpfEnforcer, profileName, containerID string, id e
 	p.containerCache[containerID] = id
 	p.pendingContainers[containerID] = struct{}{}
 	e.containerCache[containerID] = id
+	e.namespaceOwners[id.mntNsID] = containerID
 }
 
 func TestSaveAndApplyBpfProfile_RetryPartialFailure(t *testing.T) {
@@ -426,4 +428,96 @@ func TestDeleteBpfProfile_IndependentContainers(t *testing.T) {
 	// Late delete events and repeated profile deletion remain harmless.
 	e.handleTaskDelete(varmortypes.ContainerInfo{ContainerID: "1"})
 	require.NoError(t, e.DeleteBpfProfile("p"))
+}
+
+func TestTaskStart_ReusedNamespaceOwnership(t *testing.T) {
+	for _, failure := range []string{"none", "rules", "pod-ips", "no-pod-ips"} {
+		t.Run(failure, func(t *testing.T) {
+			e, ops := newTestEnforcer()
+			oldContent, newContent := testContent("/old"), testContent("/new")
+			require.NoError(t, e.SaveAndApplyBpfProfile("old-profile", varmor.ProfileModeEnforce, oldContent))
+			require.NoError(t, e.SaveAndApplyBpfProfile("new-profile", varmor.ProfileModeEnforce, newContent))
+			info := varmortypes.ContainerInfo{ContainerID: "new", ContainerName: "app", PID: uint32(os.Getpid()), PodIPs: []string{"10.0.0.2"}, PodAnnotations: map[string]string{"container.bpf.security.beta.varmor.org/app": "localhost/new-profile"}}
+			if failure == "no-pod-ips" {
+				info.PodIPs = nil
+			}
+			id, err := e.newEnforceID(info.PID, info.PodIPs)
+			require.NoError(t, err)
+			// Model an exited container whose namespace ID has been reused.
+			registerTestContainer(e, "old-profile", "old", enforceID{pid: 0xffffffff, mntNsID: id.mntNsID, ips: []string{"10.0.0.1"}})
+			require.NoError(t, e.SaveAndApplyBpfProfile("old-profile", varmor.ProfileModeEnforce, oldContent))
+			e.bpfProfileCache["old-profile"].pendingContainers["old"] = struct{}{}
+			switch failure {
+			case "rules":
+				ops.failures[id.mntNsID] = errors.New("rule write failed")
+			case "pod-ips":
+				ops.ipFailures[id.mntNsID] = errors.New("Pod IP write failed")
+			}
+			e.handleTaskStart(info)
+			assert.NotContains(t, e.containerCache, "old")
+			assert.Empty(t, e.bpfProfileCache["old-profile"].containerCache)
+			assert.Empty(t, e.bpfProfileCache["old-profile"].pendingContainers)
+			if failure == "rules" || failure == "pod-ips" {
+				assert.Empty(t, e.namespaceOwners, "failed first applications must not retain an owner")
+				assert.NotContains(t, e.containerCache, "new")
+				assert.Empty(t, ops.installed)
+				assert.Empty(t, ops.ips)
+				// A failed takeover must not revive the old pending policy.
+				require.NoError(t, e.SaveAndApplyBpfProfile("old-profile", varmor.ProfileModeEnforce, oldContent))
+				assert.Empty(t, ops.installed)
+				delete(ops.failures, id.mntNsID)
+				delete(ops.ipFailures, id.mntNsID)
+				e.handleTaskStart(info)
+			}
+			require.Equal(t, "new", e.namespaceOwners[id.mntNsID])
+			require.Equal(t, newContent, ops.installed[id.mntNsID])
+			if len(info.PodIPs) == 0 {
+				assert.NotContains(t, ops.ips, id.mntNsID, "old Pod IPs must not survive takeover")
+			} else {
+				assert.Equal(t, info.PodIPs, ops.ips[id.mntNsID])
+			}
+			calls := ops.calls[id.mntNsID]
+			e.handleTaskDelete(varmortypes.ContainerInfo{ContainerID: "old"})
+			e.handleTaskDeleteSync()
+			require.NoError(t, e.SaveAndApplyBpfProfile("old-profile", varmor.ProfileModeComplain, oldContent))
+			require.NoError(t, e.DeleteBpfProfile("old-profile"))
+			require.NoError(t, e.SaveAndApplyBpfProfile("new-profile", varmor.ProfileModeEnforce, newContent))
+			assert.Equal(t, calls, ops.calls[id.mntNsID])
+			assert.Equal(t, newContent, ops.installed[id.mntNsID])
+			assert.Equal(t, "new", e.namespaceOwners[id.mntNsID])
+			e.handleTaskDelete(info)
+			assert.Empty(t, e.namespaceOwners)
+			assert.Empty(t, ops.installed)
+			assert.Empty(t, ops.ips)
+		})
+	}
+}
+
+func TestNamespaceOwnership_StaleCacheCannotChangeCurrentRules(t *testing.T) {
+	for _, action := range []string{"delete", "retry", "profile-delete"} {
+		t.Run(action, func(t *testing.T) {
+			e, ops := newTestEnforcer()
+			oldContent, newContent := testContent("/old"), testContent("/new")
+			require.NoError(t, e.SaveAndApplyBpfProfile("old-profile", varmor.ProfileModeEnforce, oldContent))
+			require.NoError(t, e.SaveAndApplyBpfProfile("new-profile", varmor.ProfileModeEnforce, newContent))
+			registerTestContainer(e, "old-profile", "old", enforceID{mntNsID: 1})
+			// Deliberately leave stale metadata behind while transferring ownership.
+			registerTestContainer(e, "new-profile", "new", enforceID{mntNsID: 1, ips: []string{"10.0.0.2"}})
+			require.NoError(t, e.SaveAndApplyBpfProfile("new-profile", varmor.ProfileModeEnforce, newContent))
+			switch action {
+			case "delete":
+				e.handleTaskDelete(varmortypes.ContainerInfo{ContainerID: "old"})
+			case "retry":
+				require.NoError(t, e.SaveAndApplyBpfProfile("old-profile", varmor.ProfileModeEnforce, oldContent))
+			case "profile-delete":
+				require.NoError(t, e.DeleteBpfProfile("old-profile"))
+			}
+			assert.NotContains(t, e.containerCache, "old")
+			assert.Empty(t, e.bpfProfileCache["old-profile"].pendingContainers)
+			assert.Equal(t, "new", e.namespaceOwners[1])
+			assert.Equal(t, newContent, ops.installed[1])
+			assert.Equal(t, []string{"10.0.0.2"}, ops.ips[1])
+			assert.Equal(t, 1, ops.calls[1])
+		})
+	}
 }

@@ -60,7 +60,8 @@ type profileOperations interface {
 }
 
 // BpfEnforcer requires each supported container to have its own mount
-// namespace. Kernel entries keyed by mntNsID belong to that container alone.
+// namespace. Namespace IDs can be reused after a container exits, so kernel
+// entries must only be changed by the currently recorded owner.
 type BpfEnforcer struct {
 	// mu serializes cache transitions with their associated kernel operations.
 	mu                sync.RWMutex
@@ -85,6 +86,7 @@ type BpfEnforcer struct {
 	maxMountRuleCount uint32
 	bpfProfileCache   map[string]bpfProfile // <profileName: bpfProfile>
 	containerCache    map[string]enforceID  // global cache <containerID: enforceID>
+	namespaceOwners   map[uint32]string     // mount namespace ID -> current container ID
 	log               logr.Logger
 }
 
@@ -97,6 +99,7 @@ func NewBpfEnforcer(log logr.Logger) (*BpfEnforcer, error) {
 		objs:             bpfObjects{},
 		bpfProfileCache:  make(map[string]bpfProfile),
 		containerCache:   make(map[string]enforceID),
+		namespaceOwners:  make(map[uint32]string),
 		log:              log,
 	}
 
@@ -412,7 +415,8 @@ func (enforcer *BpfEnforcer) handleTaskStart(info varmortypes.ContainerInfo) {
 	}
 	oldID, tracked := profile.containerCache[info.ContainerID]
 	_, pending := profile.pendingContainers[info.ContainerID]
-	if tracked && reflect.DeepEqual(oldID, id) && !pending {
+	if tracked && reflect.DeepEqual(oldID, id) && !pending &&
+		enforcer.namespaceOwners[id.mntNsID] == info.ContainerID {
 		return
 	}
 
@@ -431,15 +435,19 @@ func (enforcer *BpfEnforcer) handleTaskStart(info varmortypes.ContainerInfo) {
 		enforcer.containerCache[info.ContainerID] = id
 		profile.pendingContainers[info.ContainerID] = struct{}{}
 	}
+	enforcer.claimNamespaceLocked(info.ContainerID, id.mntNsID)
 	if err := enforcer.applyContainerProfile(id, profile); err != nil {
 		logger.Error(err, "apply container profile failed", "profile name", profileName,
 			"container id", info.ContainerID, "mnt ns id", id.mntNsID)
 		// First-time TaskStart failures retain the existing reporting behavior.
 		// They are not registered as successfully protected containers.
-		if !tracked && len(id.ips) > 0 {
-			if cleanupErr := enforcer.profileOps.removePodIps(id.mntNsID); cleanupErr != nil && !errors.Is(cleanupErr, ebpf.ErrKeyNotExist) {
-				logger.Error(cleanupErr, "removePodIps() failed")
+		if !tracked {
+			if len(id.ips) > 0 {
+				if cleanupErr := enforcer.profileOps.removePodIps(id.mntNsID); cleanupErr != nil && !errors.Is(cleanupErr, ebpf.ErrKeyNotExist) {
+					logger.Error(cleanupErr, "removePodIps() failed")
+				}
 			}
+			delete(enforcer.namespaceOwners, id.mntNsID)
 		}
 		return
 	}
@@ -459,14 +467,27 @@ func (enforcer *BpfEnforcer) applyContainerProfile(id enforceID, profile bpfProf
 	return enforcer.profileOps.applyProfile(id.mntNsID, profile.mode, profile.bpfContent)
 }
 
+// claimNamespaceLocked retires the previous container before any writes for
+// a new owner, including failed first-time applications. Otherwise a late
+// deletion or an old pending retry could change the new container's rules.
+func (enforcer *BpfEnforcer) claimNamespaceLocked(containerID string, nsID uint32) {
+	if previous, exists := enforcer.namespaceOwners[nsID]; exists && previous != containerID {
+		enforcer.removeContainerLocked(previous)
+	}
+	enforcer.namespaceOwners[nsID] = containerID
+}
+
 // removeContainerLocked is shared by explicit deletion and offline cleanup.
 func (enforcer *BpfEnforcer) removeContainerLocked(containerID string) {
 	if id, ok := enforcer.containerCache[containerID]; ok {
 		delete(enforcer.containerCache, containerID)
-		if err := enforcer.profileOps.removePodIps(id.mntNsID); err != nil && !errors.Is(err, ebpf.ErrKeyNotExist) {
-			enforcer.log.Error(err, "removePodIps() failed", "container id", containerID)
+		if enforcer.namespaceOwners[id.mntNsID] == containerID {
+			delete(enforcer.namespaceOwners, id.mntNsID)
+			if err := enforcer.profileOps.removePodIps(id.mntNsID); err != nil && !errors.Is(err, ebpf.ErrKeyNotExist) {
+				enforcer.log.Error(err, "removePodIps() failed", "container id", containerID)
+			}
+			enforcer.profileOps.deleteProfile(id.mntNsID)
 		}
-		enforcer.profileOps.deleteProfile(id.mntNsID)
 	}
 	for _, profile := range enforcer.bpfProfileCache {
 		delete(profile.containerCache, containerID)
@@ -594,6 +615,10 @@ func (enforcer *BpfEnforcer) SaveAndApplyBpfProfile(profileName string, mode var
 	var applyErrors []error
 	for containerID := range profile.pendingContainers {
 		id := profile.containerCache[containerID]
+		if enforcer.namespaceOwners[id.mntNsID] != containerID {
+			enforcer.removeContainerLocked(containerID)
+			continue
+		}
 		if err := enforcer.applyContainerProfile(id, profile); err != nil {
 			applyErrors = append(applyErrors, fmt.Errorf("profile %s, container %s, mount namespace %d: %w",
 				profileName, containerID, id.mntNsID, err))
