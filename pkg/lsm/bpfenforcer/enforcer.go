@@ -84,10 +84,18 @@ type BpfEnforcer struct {
 	moveMountLink     link.Link
 	umountLink        link.Link
 	maxMountRuleCount uint32
-	bpfProfileCache   map[string]bpfProfile // <profileName: bpfProfile>
-	containerCache    map[string]enforceID  // global cache <containerID: enforceID>
-	namespaceOwners   map[uint32]string     // mount namespace ID -> current container ID
-	log               logr.Logger
+
+	// At lifecycle boundaries under mu, every tracked container belongs to
+	// exactly one profile, has the same identity in both container caches,
+	// and owns its namespace. Pending containers are a subset of that
+	// profile's tracked containers. A first application may temporarily claim
+	// a namespace before registration; failure must release that claim.
+	// Profiles are stored by value, but their maps are shared: membership
+	// changes do not require writing the profile back into bpfProfileCache.
+	bpfProfileCache map[string]bpfProfile // <profileName: bpfProfile>
+	containerCache  map[string]enforceID  // global cache <containerID: enforceID>
+	namespaceOwners map[uint32]string     // mount namespace ID -> current container ID
+	log             logr.Logger
 }
 
 // NewBpfEnforcer creates a BpfEnforcer, and initialize the BPF settings and resources
@@ -442,38 +450,50 @@ func (enforcer *BpfEnforcer) handleTaskStart(info varmortypes.ContainerInfo) {
 	logger.Info("applying profile to target container", "profile name", profileName,
 		"container id", info.ContainerID, "pod namespace", info.PodNamespace,
 		"pod name", info.PodName, "pid", id.pid, "mnt ns id", id.mntNsID)
-
-	// Keep an already tracked container recoverable, including an identity
-	// change. Never let a failed event replay leave it marked as applied.
-	if previous, exists := enforcer.containerCache[info.ContainerID]; exists &&
-		(!tracked || previous.mntNsID != id.mntNsID) {
-		enforcer.removeContainerLocked(info.ContainerID)
-	}
-	if tracked {
-		profile.containerCache[info.ContainerID] = id
-		enforcer.containerCache[info.ContainerID] = id
-		profile.pendingContainers[info.ContainerID] = struct{}{}
-	}
-	enforcer.claimNamespaceLocked(info.ContainerID, id.mntNsID)
-	if err := enforcer.applyContainerProfile(id, profile); err != nil {
+	if err := enforcer.applyContainerStartLocked(profile, info.ContainerID, id); err != nil {
 		logger.Error(err, "apply container profile failed", "profile name", profileName,
 			"container id", info.ContainerID, "mnt ns id", id.mntNsID)
-		// First-time TaskStart failures retain the existing reporting behavior.
-		// They are not registered as successfully protected containers.
+	}
+}
+
+// applyContainerStartLocked owns the start transition after identity validation.
+// Existing members remain pending on failure; first applications are registered
+// only on success, preserving their existing reporting and retry behavior.
+func (enforcer *BpfEnforcer) applyContainerStartLocked(profile bpfProfile, containerID string, id enforceID) error {
+	_, tracked := profile.containerCache[containerID]
+	// Keep an already tracked container recoverable, including an identity
+	// change. Never let a failed event replay leave it marked as applied.
+	if previous, exists := enforcer.containerCache[containerID]; exists &&
+		(!tracked || previous.mntNsID != id.mntNsID) {
+		enforcer.removeContainerLocked(containerID)
+	}
+	if tracked {
+		enforcer.trackContainerLocked(profile, containerID, id)
+		profile.pendingContainers[containerID] = struct{}{}
+	}
+	enforcer.claimNamespaceLocked(containerID, id.mntNsID)
+	if err := enforcer.applyContainerProfile(id, profile); err != nil {
 		if !tracked {
 			if len(id.ips) > 0 {
 				if cleanupErr := enforcer.profileOps.removePodIps(id.mntNsID); cleanupErr != nil && !errors.Is(cleanupErr, ebpf.ErrKeyNotExist) {
-					logger.Error(cleanupErr, "removePodIps() failed")
+					enforcer.log.Error(cleanupErr, "removePodIps() failed", "container id", containerID)
 				}
 			}
 			delete(enforcer.namespaceOwners, id.mntNsID)
 		}
-		return
+		return err
 	}
-	enforcer.containerCache[info.ContainerID] = id
-	profile.containerCache[info.ContainerID] = id
-	delete(profile.pendingContainers, info.ContainerID)
-	enforcer.bpfProfileCache[profileName] = profile
+	enforcer.trackContainerLocked(profile, containerID, id)
+	delete(profile.pendingContainers, containerID)
+	return nil
+}
+
+// trackContainerLocked keeps the global and per-profile identities in sync.
+// The start transition owns namespace claims and pending status; removal of
+// membership from all indexes is centralized in removeContainerLocked.
+func (enforcer *BpfEnforcer) trackContainerLocked(profile bpfProfile, containerID string, id enforceID) {
+	enforcer.containerCache[containerID] = id
+	profile.containerCache[containerID] = id
 }
 
 // applyContainerProfile also restores Pod IPs when retrying an event failure.
