@@ -62,6 +62,16 @@ const (
 	maxRetries = 5
 )
 
+// bpfProfileEnforcer is the BPF lifecycle used by the agent. Keeping the
+// boundary explicit allows status/retry tests without loading kernel programs.
+type bpfProfileEnforcer interface {
+	SaveAndApplyBpfProfile(string, varmor.ProfileMode, varmor.BpfContent) error
+	DeleteBpfProfile(string) error
+	IsBpfProfileExist(string) bool
+	Run(<-chan struct{})
+	Close()
+}
+
 type Agent struct {
 	varmorInterface          varmorinterface.CrdV1beta1Interface
 	apInformer               varmorinformer.ArmorProfileInformer
@@ -73,7 +83,7 @@ type Agent struct {
 	seccompSupported         bool
 	appArmorProfileDir       string
 	seccompProfileDir        string
-	bpfEnforcer              *varmorbpfenforcer.BpfEnforcer
+	bpfEnforcer              bpfProfileEnforcer
 	auditor                  *varmorauditor.Auditor
 	monitor                  *varmorruntime.RuntimeMonitor
 	waitExistingApSync       sync.WaitGroup
@@ -222,13 +232,15 @@ func NewAgent(
 	// BPF LSM initialization
 	if agent.bpfLsmSupported {
 		log.Info("initialize the BPF LSM")
-		agent.bpfEnforcer, err = varmorbpfenforcer.NewBpfEnforcer(log.WithName("BPF-ENFORCER"))
+		bpfEnforcer, err := varmorbpfenforcer.NewBpfEnforcer(log.WithName("BPF-ENFORCER"))
 		if err != nil {
 			return nil, err
 		}
 
+		agent.bpfEnforcer = bpfEnforcer
+
 		// Subscribe BPF enforcer to the monitor
-		agent.monitor.AddTaskNotifyChs("BPF-ENFORCER", &agent.bpfEnforcer.TaskStartCh, &agent.bpfEnforcer.TaskDeleteCh, &agent.bpfEnforcer.TaskDeleteSyncCh)
+		agent.monitor.AddTaskNotifyChs("BPF-ENFORCER", &bpfEnforcer.TaskStartCh, &bpfEnforcer.TaskDeleteCh, &bpfEnforcer.TaskDeleteSyncCh)
 
 		// Retrieve the count of existing ArmorProfile objects.
 		apList, err := agent.varmorInterface.ArmorProfiles(metav1.NamespaceAll).List(context.Background(), metav1.ListOptions{ResourceVersion: "0"})
