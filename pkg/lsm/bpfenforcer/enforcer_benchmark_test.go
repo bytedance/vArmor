@@ -101,7 +101,7 @@ func BenchmarkBpfContainerBookkeeping(b *testing.B) {
 				if err := e.SaveAndApplyBpfProfile("p", varmor.ProfileModeEnforce, content); err != nil {
 					b.Fatal(err)
 				}
-				info := varmortypes.ContainerInfo{ContainerID: "event", ContainerName: "app", PID: uint32(os.Getpid()),
+				info := varmortypes.ContainerInfo{ContainerID: "event", ContainerName: "app", PID: uint32(os.Getpid()), MntNsID: testMountNamespaceID(b, uint32(os.Getpid())),
 					PodAnnotations: map[string]string{"container.bpf.security.beta.varmor.org/app": "localhost/p"}}
 				addresses := [][]string{{"10.0.0.1"}, {"10.0.0.2"}}
 				if scenario == "start" {

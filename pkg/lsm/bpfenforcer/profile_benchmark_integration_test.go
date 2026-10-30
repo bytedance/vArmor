@@ -52,7 +52,8 @@ func BenchmarkBpfKernelEventOverlap(b *testing.B) {
 	for _, n := range []int{64, 192} {
 		for _, overlap := range []bool{false, true} {
 			b.Run(fmt.Sprintf("N=%d/overlap=%t", n, overlap), func(b *testing.B) {
-				spec, err := loadBpf()
+				e, _ := newTestEnforcer()
+				spec, err := e.loadBpfSpec()
 				if err != nil {
 					b.Fatal(err)
 				}
@@ -72,7 +73,7 @@ func BenchmarkBpfKernelEventOverlap(b *testing.B) {
 					{"v_file_outer", PathRuleSize, MaxBpfFileRuleCount},
 					{"v_bprm_outer", PathRuleSize, MaxBpfBprmRuleCount},
 					{"v_net_outer", NetRuleSize, MaxBpfNetworkRuleCount},
-					{"v_mount_outer", MountRuleSize, MaxBpfMountRuleCountUnrolled},
+					{"v_mount_outer", MountRuleSize, e.maxMountRuleCount},
 				} {
 					spec.Maps[m.name].InnerMap = &ebpf.MapSpec{Type: ebpf.Hash, KeySize: 4, ValueSize: m.size, MaxEntries: m.limit}
 				}
@@ -81,7 +82,6 @@ func BenchmarkBpfKernelEventOverlap(b *testing.B) {
 					b.Fatal(err)
 				}
 				b.Cleanup(collection.Close)
-				e, _ := newTestEnforcer()
 				if err := collection.Assign(&e.objs.bpfMaps); err != nil {
 					b.Fatal(err)
 				}
@@ -125,7 +125,7 @@ func benchmarkIndependentStarts(b *testing.B, count int) []varmortypes.Container
 		require.Greater(b, ns, uint32(192), "must not overlap synthetic bulk IDs")
 		require.False(b, seen[ns], "event containers must have independent mount namespaces")
 		seen[ns] = true
-		starts[i] = varmortypes.ContainerInfo{ContainerID: fmt.Sprintf("event-%d", i), ContainerName: "app", PID: pid,
+		starts[i] = varmortypes.ContainerInfo{ContainerID: fmt.Sprintf("event-%d", i), ContainerName: "app", PID: pid, MntNsID: ns,
 			PodAnnotations: map[string]string{"container.bpf.security.beta.varmor.org/app": "localhost/events"}}
 	}
 	return starts

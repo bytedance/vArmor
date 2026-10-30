@@ -63,7 +63,7 @@ func TestIndependentNamespaces_ReusedIDCleanup(t *testing.T) {
 				reader := bufio.NewScanner(output)
 				require.True(t, reader.Scan())
 				require.Equal(t, "ready", reader.Text())
-				return varmortypes.ContainerInfo{ContainerID: name, ContainerName: "app", PID: uint32(cmd.Process.Pid), PodIPs: []string{"10.0.0.1"}, PodAnnotations: map[string]string{"container.bpf.security.beta.varmor.org/app": "localhost/p"}}, stop
+				return varmortypes.ContainerInfo{ContainerID: name, ContainerName: "app", PID: uint32(cmd.Process.Pid), MntNsID: testMountNamespaceID(t, uint32(cmd.Process.Pid)), PodIPs: []string{"10.0.0.1"}, PodAnnotations: map[string]string{"container.bpf.security.beta.varmor.org/app": "localhost/p"}}, stop
 			}
 			old, stopOld := spawn("old")
 			oldID, err := e.newEnforceID(old.PID, old.PodIPs)

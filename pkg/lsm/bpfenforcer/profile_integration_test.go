@@ -91,8 +91,10 @@ func TestBpfProfile_KernelFailureRecovery(t *testing.T) {
 		t.Skip("requires root, BPF LSM and mount namespace privileges")
 	}
 	require.NoError(t, rlimit.RemoveMemlock())
-	spec, err := loadBpf()
+	e := &BpfEnforcer{bpfProfileCache: make(map[string]bpfProfile), containerCache: make(map[string]enforceID), namespaceOwners: make(map[uint32]string), maxMountRuleCount: MaxBpfMountRuleCountUnrolled, log: logr.Discard()}
+	spec, err := e.loadBpfSpec()
 	require.NoError(t, err)
+	t.Logf("production variant mount rule limit: %d", e.maxMountRuleCount)
 	// Create private, unpinned maps and attach only file_open. This must not
 	// reuse or remove the maps belonging to a running vArmor agent.
 	for _, m := range spec.Maps {
@@ -109,7 +111,7 @@ func TestBpfProfile_KernelFailureRecovery(t *testing.T) {
 		{"v_file_outer", PathRuleSize, MaxBpfFileRuleCount},
 		{"v_bprm_outer", PathRuleSize, MaxBpfBprmRuleCount},
 		{"v_net_outer", NetRuleSize, MaxBpfNetworkRuleCount},
-		{"v_mount_outer", MountRuleSize, MaxBpfMountRuleCountUnrolled},
+		{"v_mount_outer", MountRuleSize, e.maxMountRuleCount},
 	} {
 		spec.Maps[m.name].InnerMap = &ebpf.MapSpec{Type: ebpf.Hash, KeySize: 4, ValueSize: m.size, MaxEntries: m.limit}
 	}
@@ -121,7 +123,6 @@ func TestBpfProfile_KernelFailureRecovery(t *testing.T) {
 	collection, err := ebpf.NewCollection(spec)
 	require.NoError(t, err)
 	t.Cleanup(collection.Close)
-	e := &BpfEnforcer{bpfProfileCache: make(map[string]bpfProfile), containerCache: make(map[string]enforceID), namespaceOwners: make(map[uint32]string), maxMountRuleCount: MaxBpfMountRuleCountUnrolled, log: logr.Discard()}
 	require.NoError(t, collection.Assign(&e.objs.bpfMaps))
 	t.Cleanup(func() { assert.NoError(t, e.objs.bpfMaps.Close()) })
 	ops := &failingMountOperations{BpfEnforcer: e}
@@ -170,7 +171,7 @@ func TestBpfProfile_KernelFailureRecovery(t *testing.T) {
 	probe(pathA, "denied")
 	probe(pathB, "allowed")
 	invalid := b.DeepCopy()
-	invalid.Mounts = make([]varmor.MountContent, 51)
+	invalid.Mounts = make([]varmor.MountContent, e.maxMountRuleCount+1)
 	require.Error(t, e.SaveAndApplyBpfProfile("p", varmor.ProfileModeEnforce, *invalid))
 	probe(pathA, "denied") // Capacity preflight preserves previous rules.
 	ops.fail = true

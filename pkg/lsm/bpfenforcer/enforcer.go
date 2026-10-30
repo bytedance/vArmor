@@ -111,20 +111,14 @@ func NewBpfEnforcer(log logr.Logger) (*BpfEnforcer, error) {
 	return &enforcer, nil
 }
 
-// initBPF initializes the BPF settings and resources
-func (enforcer *BpfEnforcer) initBPF() error {
-	// Allow the current process to lock memory for eBPF resources
-	enforcer.log.Info("remove memory lock")
-	err := rlimit.RemoveMemlock()
-	if err != nil {
-		return fmt.Errorf("RemoveMemlock() failed: %v", err)
-	}
-
-	// Parse the ebpf program
+// loadBpfSpec selects the program variant and its matching mount rule limit.
+// Kernel integration tests use this same selection as production startup.
+func (enforcer *BpfEnforcer) loadBpfSpec() (*ebpf.CollectionSpec, error) {
 	enforcer.log.Info("parses the ebpf program into a CollectionSpec")
 	var (
 		collectionSpec *ebpf.CollectionSpec
 		variant        string
+		err            error
 	)
 	// Detect bpf_loop helper availability (kernel >= 5.17).
 	// NOTE: cilium/ebpf v0.20 HaveProgramHelper does not set AttachType for
@@ -138,7 +132,7 @@ func (enforcer *BpfEnforcer) initBPF() error {
 		variant = "unrolled"
 	}
 	if err != nil {
-		return err
+		return nil, err
 	}
 	enforcer.log.Info("selected bpf variant", "variant", variant)
 
@@ -147,6 +141,23 @@ func (enforcer *BpfEnforcer) initBPF() error {
 		enforcer.maxMountRuleCount = MaxBpfMountRuleCountBpfLoop
 	} else {
 		enforcer.maxMountRuleCount = MaxBpfMountRuleCountUnrolled
+	}
+
+	return collectionSpec, nil
+}
+
+// initBPF initializes the BPF settings and resources
+func (enforcer *BpfEnforcer) initBPF() error {
+	// Allow the current process to lock memory for eBPF resources
+	enforcer.log.Info("remove memory lock")
+	err := rlimit.RemoveMemlock()
+	if err != nil {
+		return fmt.Errorf("RemoveMemlock() failed: %v", err)
+	}
+
+	collectionSpec, err := enforcer.loadBpfSpec()
+	if err != nil {
+		return err
 	}
 
 	// Create a mock inner map for the file rules
@@ -411,6 +422,14 @@ func (enforcer *BpfEnforcer) handleTaskStart(info varmortypes.ContainerInfo) {
 	id, err := enforcer.newEnforceID(info.PID, info.PodIPs)
 	if err != nil {
 		logger.Error(err, "newEnforceID() failed")
+		return
+	}
+	// Both runtime notifications and startup collection carry a namespace
+	// snapshot. Reject stale or missing identities before any cache changes:
+	// the PID may now identify a different container.
+	if info.MntNsID != id.mntNsID {
+		logger.V(2).Info("ignoring stale container start event", "container id", info.ContainerID,
+			"pid", info.PID, "event mount namespace", info.MntNsID, "current mount namespace", id.mntNsID)
 		return
 	}
 	oldID, tracked := profile.containerCache[info.ContainerID]
