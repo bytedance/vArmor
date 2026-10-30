@@ -190,7 +190,7 @@ Remove tokens, credentials, private keys and unrelated workload data. The [diagn
 
 ## Known issues and version notes {#known-issues-and-version-notes}
 
-The following issues depend on the installed version. Version information was checked on **2026-10-28**. Affected releases listed here are confirmed examples, not an exhaustive range; for custom builds, check whether the linked fix is included.
+The following issues depend on the installed version. Version information was checked on **2026-10-30**. Affected releases listed here are confirmed examples, not an exhaustive range; for custom builds, check whether the linked fix is included.
 
 ### Incorrect Seccomp capability detection after a startup API failure {#known-seccomp-startup-issue}
 
@@ -212,12 +212,16 @@ The fix waits for a valid API version before normal Agent initialization, retrie
 | Item | Details |
 | --- | --- |
 | Symptom | A BPF profile update fails for existing containers; reconciling identical content later reports success without restoring the requested rules |
-| Confirmed affected release | v0.10.6; also confirmed in main at `15b2460`. The earliest affected release has not been established |
-| Fix availability | Fix pending; no fixed release identified |
-| Tracking | [Issue #426](https://github.com/bytedance/vArmor/issues/426) |
+| Confirmed affected release | v0.10.6; The earliest affected release has not been established |
+| Fix availability | Merged into main; a fixed release is pending |
+| Tracking | [PR #428](https://github.com/bytedance/vArmor/pull/428) |
 
-The changed profile enters the cache before kernel application completes. After a failure, identical content can hit the cache and skip application. Incrementing `profile-reconcile-counter` may therefore clear the failed node condition without restoring enforcement. A failed update can also remove previous rules on the failing container, while other containers retain old rules or have received the new ones.
+In affected builds, the changed profile enters the cache before kernel application completes. After a failure, identical content can hit the cache and skip application. Incrementing `profile-reconcile-counter` may therefore clear the failed node condition without restoring enforcement. A failed update can also remove previous rules on the failing container, while other containers retain old rules or have received the new ones.
 
 Rule-capacity errors and BPF map-operation failures can trigger this path. For example, an unrolled-variant node supports 50 mount rules while control-plane validation permits up to 64; disk-device expansion can also exceed node capacity.
 
-**Recovery:** preserve the original error and correct the underlying capacity/resource problem. Use a build containing the fix when available. Until then, restarting the affected Agent provides a recovery opportunity by rebuilding its in-memory state, but can interrupt node enforcement and does not guarantee recovery from persistent failures. Assess that impact before restarting, then verify loading and actual permitted/prohibited operations. Neither a successful annotation update nor Ready status proves that protection has recovered.
+**Fixed behavior:** builds containing PR #428 retain pending applications per container and retry them on subsequent reconciliation, even when the desired profile is unchanged. Expanded rule counts are checked against node capacity before replacing cached desired state or existing kernel rules.
+
+**Recovery:** preserve the original error and correct the underlying capacity/resource problem. With a build containing the fix, use [manual reconciliation](#manual-reconciliation) to retry pending applications, then verify loading and actual permitted/prohibited operations. The fix preserves the existing Agent/Manager retry policy; it does not add an autonomous retry loop or change first-time container-start failure reporting.
+
+If still using an affected build, upgrade to a build containing the fix. When upgrading is not yet possible, restarting the affected Agent provides a recovery opportunity by rebuilding its in-memory state, but can interrupt node enforcement and does not resolve persistent failures. Assess that impact before restarting. Even with the fix, multi-map replacement is not atomic: a runtime map-update failure can leave a container without its previous rules until a successful retry. Neither a successful annotation update nor Ready status proves that protection has recovered.
