@@ -13,6 +13,7 @@ sidebar_position: 3
 | Build and verify a policy for a workload | [Writing Policies](policies_and_rules/writing_policies.md) |
 | Understand modes and available rules | [Policies and Rules](policies_and_rules/index.md) |
 | Generate a starting policy | [Policy Tools](policy_tools/index.md) |
+| Diagnose policy, node loading and recovery failures | [Troubleshooting](troubleshooting.md) |
 | Use an AI agent for policy recommendation, optimization, and troubleshooting | [Skills](../skills/index.md) |
 | Understand performance measurements | [Performance](performance/index.md) |
 

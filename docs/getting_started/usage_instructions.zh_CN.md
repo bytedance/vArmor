@@ -248,8 +248,10 @@ vArmor 支持将策略对象配置为仅审计不拦截（观察模式）、拦�
   |          |Type=Created<br />Status=False<br />Reason=XXX<br />Message=YYY|VarmorPolicy 的创建事件已经被 controller 响应，但处理失败。包含失败的原因及错误信息
   |          |Type=Updated<br />Status=True|VarmorPolicy 的更新事件已经被 controller 响应，且处理成功
   |          |Type=Updated<br />Status=False<br />Reason=XXX<br />Message=YYY|VarmorPolicy 的更新事件已经被 controller 响应，但处理失败。包含失败的原因及错误信息
-  |Ready|True|Profile 已经被所有的 Agents 处理和加载
-  |     |False|Profile 还未被所有的 Agents 处理和加载
+  |Ready|True|汇总状态表示期望的 Agent 已报告处理成功
+  |     |False|汇总状态尚未满足期望的 Agent 成功数量
+
+状态异步更新，可能缺失或过时；Ready 不等于当前工作负载已验证防护生效。节点错误应结合 ArmorProfile Conditions 和 Agent/Manager 日志排查。恢复步骤与限制见[故障排查](../../website/i18n/zh-cn/docusaurus-plugin-content-docs/current/guides/troubleshooting.md#status-limits)。
 
 ### VarmorClusterPolicy
 * 集群范围资源
@@ -266,8 +268,8 @@ vArmor 支持将策略对象配置为仅审计不拦截（观察模式）、拦�
     |字段|值|含义|
     |---|--|---|
     |DesiredNumberLoaded|int|期望处理并响应的 Agent 数量
-    |CurrentNumberLoaded|int|已经处理并响应的 Agent 数量
-    |Conditions|type=Read<br />Status=False<br />NodeName=XXX<br />Message=YYY|处理失败的节点，以及错误信息
+    |CurrentNumberLoaded|int|报告处理成功的 Agent 数量
+    |Conditions|type=Ready<br />Status=False<br />NodeName=XXX<br />Message=YYY|处理失败的节点，以及错误信息
 
 ## 示例
 

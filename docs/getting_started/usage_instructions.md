@@ -247,8 +247,10 @@ Notes:
   |          |Type=Created<br />Status=False<br />Reason=XXX<br />Message=YYY|The creation event of VarmorPolicy has been responded to by the controller, but processing has failed. This includes the reason for the failure and error information.
   |          |Type=Updated<br />Status=True|The update event of VarmorPolicy has been responded to by the controller and processed successfully.
   |          |Type=Updated<br />Status=False<br />Reason=XXX<br />Message=YYY|The update event of VarmorPolicy has been responded to by the controller, but processing has failed. This includes the reason for the failure and error information.
-  |Ready|True|The profile has been processed and loaded by all agents.
-  |     |False|The profile has not yet been processed and loaded by all agents.
+  |Ready|True|The aggregate status records success for the expected agents.
+  |     |False|The aggregate status has not reached the expected agent success count.
+
+Status updates are asynchronous and can be missing or stale; Ready is not proof of verified enforcement for the current workload. Correlate ArmorProfile conditions with Agent/Manager logs for node errors. See [Troubleshooting](../../website/docs/guides/troubleshooting.md#status-limits) for recovery steps and limits.
 
 ### VarmorClusterPolicy
 * Cluster-scoped resource.
@@ -265,8 +267,8 @@ Notes:
   | Fields | Value | Interpretation |
   |--------|-------|----------------|
   |DesiredNumberLoaded|int|The desired number of agents for processing and responding
-  |CurrentNumberLoaded|int|The number of agents that have already been processed and responded.
-  |Conditions|type=Read<br />Status=False<br />NodeName=XXX<br />Message=YYY|The failed node and error information
+  |CurrentNumberLoaded|int|The number of agents reported as successfully processed.
+  |Conditions|type=Ready<br />Status=False<br />NodeName=XXX<br />Message=YYY|The failed node and error information
 
 ## Example
 

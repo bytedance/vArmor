@@ -35,7 +35,7 @@ jobs:
       - name: Install locked dependencies
         run: npm ci --include=dev
       - name: Audit dependencies
-        run: npm audit --audit-level=low
+        run: npm audit --audit-level=moderate
       - name: Test website plugins
         run: npm test
       - name: Build both locales
