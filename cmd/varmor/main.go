@@ -227,11 +227,11 @@ func main() {
 	// so regular collection is required.
 	versionClient := kubeClient.Discovery().RESTClient()
 	setupLogger := logger.WithName("SETUP")
-	if agent && !preDelete {
-		// Capability detection must not interpret an unknown version as unsupported.
-		// Wait before NewAgent starts its readiness server or initializes enforcers.
+	if !preDelete {
+		// Both manager mutation and agent capability detection need a known version.
+		// Wait before starting webhooks, controllers, or enforcers.
 		if err := waitForAPIServerVersion(versionCtx, versionClient, setupLogger); err != nil {
-			setupLogger.Info("Agent startup cancelled while waiting for APIServer version")
+			setupLogger.Info("Startup cancelled while waiting for APIServer version")
 			return
 		}
 	} else if err := updateAPIServerVersion(versionCtx, versionClient, setupLogger); err != nil {

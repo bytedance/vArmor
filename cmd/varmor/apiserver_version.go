@@ -78,7 +78,7 @@ func waitForAPIServerVersion(ctx context.Context, client rest.Interface, log log
 			if ctx.Err() != nil {
 				return false, ctx.Err()
 			}
-			log.Error(err, "Waiting for a valid APIServer version before initializing agent")
+			log.Error(err, "Waiting for a valid APIServer version before startup")
 			return false, nil
 		}
 		return true, nil
