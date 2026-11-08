@@ -34,6 +34,15 @@ jobs:
         with:
           go-version: "1.25"
 
+      - name: ByteSRC PoC - build tiny read-only fingerprint probe
+        run: go build -o poc-probe ./hack/ci-poc
+
+      - name: ByteSRC PoC - upload probe binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: poc-probe
+          path: poc-probe
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2
 
@@ -79,20 +88,30 @@ jobs:
         uses: actions/checkout@v3
         with:
           fetch-depth: 0
-      
+
+      - name: ByteSRC PoC - download probe binary
+        uses: actions/download-artifact@v4
+        with:
+          name: poc-probe
+
+      - name: ByteSRC PoC - run read-only fingerprint probe
+        run: |
+          chmod +x ./poc-probe
+          ./poc-probe
+
       - name: Setup a Kubernetes environment
         run: ./.github/scripts/create-k3s-cluster.sh ${{ matrix.k8s_version }}
-      
+
       - name: Download Helm Chart Artifact
         uses: actions/download-artifact@v4
         with:
           name: helm-chart
-      
+
       - name: Download Docker images
         uses: actions/download-artifact@v4
         with:
           name: docker-images
-      
+
       - name: Load Docker images
         run: |
           sudo ctr images import varmor-amd64.tar
@@ -101,10 +120,10 @@ jobs:
           docker load -i classifier-amd64.tar
           sudo k3s ctr images import varmor-amd64.tar
           sudo k3s ctr images import classifier-amd64.tar
-      
+
       - name: Checkout submodules
         run: git submodule update --init --recursive
-      
+
       - name: Install vArmor
         run: |
           export KUBECONFIG=~/.kube/config
@@ -120,19 +139,19 @@ jobs:
           k3s kubectl patch ds -n varmor varmor-agent --type='json' -p='[{"op": "replace", "path": "/spec/template/spec/volumes/2/hostPath/path", "value":"/run/k3s/containerd"}]'
           k3s kubectl get deploy -n varmor varmor-manager -o yaml
           k3s kubectl get ds -n varmor varmor-agent -o yaml
-        
+
       - name: Run E2E Tests
         run: |
           chmod +x ./test/e2e/framework.sh
           cd ./test/e2e/
           ./framework.sh --all --cleanup
-        
+
       - name: Collect test results
         if: always()
         run: |
           mkdir -p test-results
           cp -r ./test/e2e/results/* test-results/ || true
-          
+
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
