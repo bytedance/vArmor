@@ -104,6 +104,7 @@ class CommonTests(unittest.TestCase):
         self.assertIn("v0.10.1", compatibility["verifiedIdenticalVersions"])
         self.assertIn("v0.10.5", compatibility["verifiedIdenticalVersions"])
         self.assertIn("v0.10.6", compatibility["verifiedIdenticalVersions"])
+        self.assertIn("v0.10.7", compatibility["verifiedIdenticalVersions"])
         self.assertEqual(
             compatibility["knownVersionExceptions"]["v0.10.0"]["missingRules"],
             ["copy-fail-mitigation"],
@@ -112,7 +113,7 @@ class CommonTests(unittest.TestCase):
             CATALOG["catalogProvenance"]["version"], "v0.10.5"
         )
         evidence = compatibility["verificationEvidence"]
-        self.assertEqual(evidence["verifiedAt"], "2026-10-08")
+        self.assertEqual(evidence["verifiedAt"], "2026-11-10")
         self.assertEqual(
             {item["path"]: item["sha256"] for item in evidence["files"]},
             {
@@ -131,13 +132,14 @@ class CommonTests(unittest.TestCase):
         historical = compatibility["verificationEvidence"]
         candidate = compatibility["releaseCandidateVerification"]
         self.assertIn("v0.10.5", historical["versionsCompared"])
+        self.assertIn("v0.10.6", historical["versionsCompared"])
         self.assertNotIn(candidate["version"], historical["versionsCompared"])
-        self.assertEqual(candidate["version"], "v0.10.6")
+        self.assertEqual(candidate["version"], "v0.10.7")
         self.assertIn(candidate["version"], compatibility["verifiedIdenticalVersions"])
         self.assertRegex(candidate["revision"], r"^[0-9a-f]{40}$")
-        self.assertEqual(candidate["verifiedAt"], "2026-10-27")
+        self.assertEqual(candidate["verifiedAt"], "2026-11-10")
         self.assertFalse(candidate["tagVerified"])
-        self.assertIn("final v0.10.6 tag", candidate["releaseCheck"])
+        self.assertIn("final v0.10.7 tag", candidate["releaseCheck"])
         self.assertEqual(
             {item["path"]: item["sha256"] for item in candidate["files"]},
             {item["path"]: item["sha256"] for item in historical["files"]},
