@@ -14,7 +14,7 @@ This tutorial creates an owned HTTP backend and an injected client in `varmor-ne
 
 ## Prerequisites
 
-- Install vArmor v0.10.6 with its matching custom Envoy/proxyinit images; see [Installation](../../../getting_started/installation.md).
+- Install vArmor v0.10.7 with its matching custom Envoy/proxyinit images; see [Installation](../../../getting_started/installation.md).
 - Use Linux Pods with their own network namespaces and admission settings that permit the injected root containers and `NET_ADMIN`. Check [Security and Compatibility](security-and-compatibility.md).
 - The example assumes the cluster DNS suffix `cluster.local`; replace it consistently in the policy and request URLs if yours differs.
 - Use a namespace name that is not already in use. The cleanup deletes this entire dedicated namespace. Do not reuse a business namespace.

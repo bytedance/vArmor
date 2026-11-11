@@ -14,7 +14,7 @@ import client from '@site/static/examples/networkproxy/v0.10.6/client.yaml?raw';
 
 ## 前提 {#prerequisites}
 
-- 安装 vArmor v0.10.6 和配套自定义 Envoy/proxyinit 镜像，见[安装](../../../getting_started/installation.md)。
+- 安装 vArmor v0.10.7 和配套自定义 Envoy/proxyinit 镜像，见[安装](../../../getting_started/installation.md)。
 - 使用独立网络命名空间的 Linux Pod，集群准入策略允许注入 root 容器及 NET_ADMIN，见[安全与兼容性](security-and-compatibility.md)。
 - 示例假定 DNS 后缀为 cluster.local，如不同，需要同时修改策略和请求 URL。
 - 确认 namespace 名称尚未使用，清理会删除整个专属 namespace，不要复用业务 namespace。

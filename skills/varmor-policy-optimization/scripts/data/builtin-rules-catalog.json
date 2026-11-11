@@ -17,10 +17,11 @@
       "v0.10.3",
       "v0.10.4",
       "v0.10.5",
-      "v0.10.6"
+      "v0.10.6",
+      "v0.10.7"
     ],
     "verificationEvidence": {
-      "verifiedAt": "2026-10-08",
+      "verifiedAt": "2026-11-10",
       "method": "SHA-256 byte-for-byte comparison of raw files from upstream Git tags",
       "versionsCompared": [
         "v0.10.0",
@@ -28,7 +29,8 @@
         "v0.10.2",
         "v0.10.3",
         "v0.10.4",
-        "v0.10.5"
+        "v0.10.5",
+        "v0.10.6"
       ],
       "files": [
         {
@@ -38,7 +40,8 @@
             "v0.10.2",
             "v0.10.3",
             "v0.10.4",
-            "v0.10.5"
+            "v0.10.5",
+            "v0.10.6"
           ],
           "sha256": "e70c06899496882142b0634dde23998318f9d955a6aefee041aa12dfef34ab47",
           "v0.10.0Sha256": "3ebf52079e2abafc712bdc2fe3dec2874e0d49f2ec728da25c8543c98ed8bbec"
@@ -50,7 +53,8 @@
             "v0.10.2",
             "v0.10.3",
             "v0.10.4",
-            "v0.10.5"
+            "v0.10.5",
+            "v0.10.6"
           ],
           "sha256": "dae2136194f76dc995a8de22aa14bc3cda8daf4b88d1eeaceb2a8299b7d3137d",
           "v0.10.0Sha256": "c711dc427d8918b1027023a2885e6c99b8448f23b9633e99ef6452a6ce80a49a"
@@ -63,7 +67,8 @@
             "v0.10.2",
             "v0.10.3",
             "v0.10.4",
-            "v0.10.5"
+            "v0.10.5",
+            "v0.10.6"
           ],
           "sha256": "917a8330cd0062aca58fa6f916f106307a46250b679c95a77ba1ba005673440d"
         }
@@ -71,12 +76,12 @@
       "v0.10.0Delta": "The AppArmor and BPF files differ from v0.10.1 only by the addition of copy-fail-mitigation; the Seccomp file is identical."
     },
     "releaseCandidateVerification": {
-      "version": "v0.10.6",
-      "revision": "68e2dbb4c74ca7d7cc86d8587ba236214c2d78ce",
-      "verifiedAt": "2026-10-27",
+      "version": "v0.10.7",
+      "revision": "7ecc04475ba4a5b6449785c6bdd79f792012808b",
+      "verifiedAt": "2026-11-10",
       "method": "SHA-256 byte-for-byte comparison of the release candidate revision with v0.10.5 and verificationEvidence.files",
       "tagVerified": false,
-      "releaseCheck": "Recheck these hashes against the final v0.10.6 tag before claiming tag verification.",
+      "releaseCheck": "Recheck these hashes against the final v0.10.7 tag before claiming tag verification.",
       "files": [
         {
           "path": "internal/profile/apparmor/rules.go",
