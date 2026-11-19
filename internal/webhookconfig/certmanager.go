@@ -19,13 +19,14 @@
 package webhookconfig
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"reflect"
-	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
+	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	coreinformer "k8s.io/client-go/informers/core/v1"
@@ -38,6 +39,14 @@ import (
 	varmortls "github.com/bytedance/vArmor/internal/tls"
 )
 
+// rotation actions reported by rotateIfNeeded for logging and tests.
+const (
+	rotationActionNone    = ""
+	rotationActionLeaf    = "leaf"
+	rotationActionRoot    = "root"
+	rotationActionRetired = "retired-previous-ca"
+)
+
 type certManager struct {
 	clientConfig         *rest.Config
 	renewer              *varmortls.CertRenewer
@@ -47,7 +56,11 @@ type certManager struct {
 	secretInformerSynced cache.InformerSynced
 	secretQueue          chan bool
 	stopCh               <-chan struct{}
-	log                  logr.Logger
+	// webhookReconcile re-applies the webhook configurations after a CA
+	// rotation or previous-CA retirement so caBundle tracks the CA Secret.
+	// Leaf-only rotations do not need it because the trust anchor is unchanged.
+	webhookReconcile func(ctx context.Context) error
+	log              logr.Logger
 }
 
 func NewCertManager(
@@ -55,6 +68,7 @@ func NewCertManager(
 	certRenewer *varmortls.CertRenewer,
 	secretInterface corev1.SecretInterface,
 	secretInformer coreinformer.SecretInformer,
+	webhookReconcile func(ctx context.Context) error,
 	stopCh <-chan struct{},
 	log logr.Logger) *certManager {
 
@@ -67,6 +81,7 @@ func NewCertManager(
 		secretInformerSynced: secretInformer.Informer().HasSynced,
 		secretQueue:          make(chan bool, 1),
 		stopCh:               stopCh,
+		webhookReconcile:     webhookReconcile,
 		log:                  log,
 	}
 
@@ -147,15 +162,105 @@ func (m *certManager) updateSecretFunc(oldObj interface{}, newObj interface{}) {
 	m.secretQueue <- true
 }
 
+// reconcileWebhooks invokes the injected webhook reconciliation callback.
+// A nil callback (only expected in unit tests) is treated as a no-op.
+func (m *certManager) reconcileWebhooks(ctx context.Context) error {
+	if m.webhookReconcile == nil {
+		return nil
+	}
+	return m.webhookReconcile(ctx)
+}
+
+// rotateIfNeeded performs one certificate renewal pass:
+//  1. A retired root CA whose retention window elapsed is removed and the
+//     webhook caBundle is rewritten to the current CA only.
+//  2. An expiring root CA is replaced; the previous CA is retained and the
+//     webhook caBundle is rewritten to trust both CAs.
+//  3. An expiring leaf is re-issued by the current CA without touching the
+//     caBundle; replicas hot-reload it through their Secret informer.
+//
+// It returns the action taken (rotationActionNone when everything is valid)
+// so the event loop can log a concise audit line.
+func (m *certManager) rotateIfNeeded(ctx context.Context) (string, error) {
+	logger := m.log.WithName("rotateIfNeeded()")
+
+	certProps, err := varmortls.GetTLSCertProps(m.clientConfig)
+	if err != nil {
+		return rotationActionNone, err
+	}
+
+	// Step 1: retire a previous CA once the make-before-break window elapsed.
+	rotatedAt, hasPrevious, err := m.renewer.PreviousCARotatedAt(certProps)
+	if err != nil {
+		return rotationActionNone, fmt.Errorf("failed to inspect previous CA: %w", err)
+	}
+	if hasPrevious && time.Since(rotatedAt) >= config.PreviousCARetentionDuration {
+		if err := m.renewer.RetirePreviousCA(certProps); err != nil {
+			return rotationActionNone, fmt.Errorf("failed to retire previous CA: %w", err)
+		}
+		if err := m.reconcileWebhooks(ctx); err != nil {
+			return rotationActionRetired, fmt.Errorf("previous CA retired but webhook reconciliation failed: %w", err)
+		}
+		logger.Info("previous root CA retired, webhook caBundle rewritten to the current CA only")
+		return rotationActionRetired, nil
+	}
+
+	// Step 2: the trust anchor itself is expiring — full CA rotation with a
+	// dual-CA caBundle so admission keeps verifying either leaf meanwhile.
+	caExpiring, err := m.renewer.CANeedsRotation(certProps)
+	if err != nil {
+		return rotationActionNone, fmt.Errorf("failed to check root CA expiry: %w", err)
+	}
+	if caExpiring {
+		if _, err := m.renewer.RotateRootCA(certProps); err != nil {
+			return rotationActionNone, fmt.Errorf("failed to rotate root CA: %w", err)
+		}
+		if err := m.reconcileWebhooks(ctx); err != nil {
+			return rotationActionRoot, fmt.Errorf("root CA rotated but webhook reconciliation failed: %w", err)
+		}
+		logger.Info("root CA rotated; previous CA retained in the dual-CA caBundle")
+		return rotationActionRoot, nil
+	}
+
+	// Step 3: only the leaf certificate is expiring. Reuse the current CA so
+	// the caBundle stays unchanged and no webhook rewrite is required.
+	leafExpiring, err := m.renewer.LeafNeedsRotation(certProps)
+	if err != nil {
+		return rotationActionNone, fmt.Errorf("failed to check leaf certificate expiry: %w", err)
+	}
+	if !leafExpiring {
+		return rotationActionNone, nil
+	}
+
+	if _, err := m.renewer.RotateLeafCert(certProps); err != nil {
+		// Legacy CA Secrets predate private-key persistence: fall back to a
+		// full CA rotation, which also upgrades the Secret layout.
+		if errors.Is(err, varmortls.ErrCAPrivateKeyUnavailable) {
+			logger.Info("CA private key unavailable, falling back to a full CA rotation")
+			if _, rootErr := m.renewer.RotateRootCA(certProps); rootErr != nil {
+				return rotationActionNone, fmt.Errorf("fallback root CA rotation failed: %w", rootErr)
+			}
+			if reconcileErr := m.reconcileWebhooks(ctx); reconcileErr != nil {
+				return rotationActionRoot, fmt.Errorf("root CA rotated but webhook reconciliation failed: %w", reconcileErr)
+			}
+			return rotationActionRoot, nil
+		}
+		return rotationActionNone, fmt.Errorf("failed to rotate leaf certificate: %w", err)
+	}
+	logger.Info("webhook leaf certificate rotated; replicas will hot-reload it via the Secret informer")
+	return rotationActionLeaf, nil
+}
+
 // Run starts the certificate manager's main event loop.
 // This function runs continuously and handles three types of events:
 // 1. Periodic certificate renewal checks based on config.CertRenewalInterval
-// 2. Secret change events (add/update) that trigger certificate validation
+// 2. Secret change events (add/update) that trigger webhook reconciliation
 // 3. Stop signal to gracefully shutdown the manager
 //
-// The manager operates in two modes:
-// - Timer-driven: Regularly checks certificate validity and triggers rolling updates when needed
-// - Event-driven: Responds to secret changes and validates certificates accordingly
+// Renewals no longer restart the manager: leaf rotations hot-reload through
+// the Secret informer, while CA rotations rely on a dual-CA caBundle. A
+// failed pass is retried on the next ticker or Secret event instead of
+// terminating the process.
 func (m *certManager) Run(stopCh <-chan struct{}) {
 	logger := m.log
 	logger.Info("starting")
@@ -177,36 +282,26 @@ func (m *certManager) Run(stopCh <-chan struct{}) {
 	certsRenewalTicker := time.NewTicker(config.CertRenewalInterval)
 	defer certsRenewalTicker.Stop()
 
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go func() {
+		<-stopCh
+		cancel()
+	}()
+
 	// Main event loop - processes three types of events
 	for {
 		select {
 		// Case 1: Timer-driven certificate renewal check
 		case <-certsRenewalTicker.C:
-			certProps, err := varmortls.GetTLSCertProps(m.clientConfig)
+			action, err := m.rotateIfNeeded(ctx)
 			if err != nil {
-				logger.Error(err, "failed to get TLS Certificate Properties")
-				continue
-			}
-			valid, err := m.renewer.ValidCert(certProps)
-			if err != nil {
-				logger.Error(err, "failed to validate cert")
-
-				if !strings.Contains(err.Error(), varmortls.ErrorsNotFound) {
-					continue
-				}
+				logger.Error(err, "certificate renewal pass failed; it will be retried")
+			} else if action != rotationActionNone {
+				logger.Info("certificate renewal completed", "action", action)
 			}
 
-			if valid {
-				continue
-			}
-
-			logger.Info("rootCA is about to expire, trigger a rolling update to renew the cert")
-			if err := m.renewer.RollingUpdateVarmorManager(); err != nil {
-				logger.Error(err, "unable to trigger a rolling update to renew rootCA, force restarting")
-				os.Exit(1)
-			}
-
-		// Case 2: Event-driven certificate validation (secret changes)
+		// Case 2: Event-driven webhook reconciliation (secret changes)
 		case <-m.secretQueue:
 			certProps, err := varmortls.GetTLSCertProps(m.clientConfig)
 			if err != nil {
@@ -215,21 +310,22 @@ func (m *certManager) Run(stopCh <-chan struct{}) {
 			}
 			valid, err := m.renewer.ValidCert(certProps)
 			if err != nil {
-				logger.Error(err, "failed to validate cert")
-
-				if !strings.Contains(err.Error(), varmortls.ErrorsNotFound) {
-					continue
-				}
-			}
-
-			if valid {
+				logger.Error(err, "failed to validate cert after a Secret change")
 				continue
 			}
-
-			logger.Info("rootCA has changed, updating webhook configurations")
-			if err := m.renewer.RollingUpdateVarmorManager(); err != nil {
-				logger.Error(err, "unable to trigger a rolling update to re-register webhook server, force restarting")
-				os.Exit(1)
+			if !valid {
+				// The Secret may hold an externally repaired but not-yet-valid
+				// pair: run a full renewal pass to converge it.
+				if action, rotateErr := m.rotateIfNeeded(ctx); rotateErr != nil {
+					logger.Error(rotateErr, "certificate renewal pass failed; it will be retried")
+				} else if action != rotationActionNone {
+					logger.Info("certificate renewal completed", "action", action)
+				}
+				continue
+			}
+			// Valid material: make caBundle track dual-CA / retirement changes.
+			if err := m.reconcileWebhooks(ctx); err != nil {
+				logger.Error(err, "webhook reconciliation after a Secret change failed; it will be retried")
 			}
 
 		// Case 3: Stop signal received - gracefully shutdown

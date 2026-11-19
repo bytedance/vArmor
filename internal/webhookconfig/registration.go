@@ -124,9 +124,12 @@ func (wrc *Register) Register(ctx context.Context) error {
 		return fmt.Errorf("unable to extract CA data from %s secret: %w", secretName, err)
 	}
 
-	caData := secret.Data[varmortls.RootCAKey]
-	if len(caData) == 0 {
-		return fmt.Errorf("CA data is missing from %s secret", secretName)
+	// The bundle carries both the previous and current root CAs during a CA
+	// rotation, so the apiserver trusts either webhook leaf until the old CA
+	// is retired.
+	caData, err := varmortls.BuildCABundle(secret)
+	if err != nil {
+		return fmt.Errorf("unable to build CA bundle from %s secret: %w", secretName, err)
 	}
 	err = wrc.createResourceMutatingWebhookConfiguration(ctx, caData)
 	if err != nil {

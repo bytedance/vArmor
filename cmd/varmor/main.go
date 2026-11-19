@@ -361,11 +361,16 @@ func main() {
 		)
 
 		secretFactory := kubeinformers.NewSharedInformerFactoryWithOptions(kubeClient, secretResyncPeriod, kubeinformers.WithNamespace(config.Namespace))
+		// The closure is resolved lazily: webhookRegister is constructed below,
+		// while CA rotations need to re-apply webhook configurations to keep
+		// the caBundle in sync with the dual-CA Secret.
+		var webhookRegister *webhookconfig.Register
 		certManager := webhookconfig.NewCertManager(
 			clientConfig,
 			certRenewer,
 			kubeClient.CoreV1().Secrets(config.Namespace),
 			secretFactory.Core().V1().Secrets(),
+			func(ctx context.Context) error { return webhookRegister.Register(ctx) },
 			stopCh,
 			logger.WithName("CERT-MANAGER"),
 		)
@@ -403,7 +408,7 @@ func main() {
 		}
 
 		wcFactory := kubeinformers.NewSharedInformerFactoryWithOptions(kubeClient, secretResyncPeriod)
-		webhookRegister := webhookconfig.NewRegister(
+		webhookRegister = webhookconfig.NewRegister(
 			clientConfig,
 			kubeClient.AdmissionregistrationV1().MutatingWebhookConfigurations(),
 			kubeClient.AdmissionregistrationV1().ValidatingWebhookConfigurations(),

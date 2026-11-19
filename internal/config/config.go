@@ -96,6 +96,13 @@ var (
 	// CertValidityDuration is the valid duration for a new cert
 	CertValidityDuration time.Duration = 365 * 24 * time.Hour
 
+	// PreviousCARetentionDuration is how long a retired root CA is kept in
+	// the CA Secret and webhook caBundles after a CA rotation. It must stay
+	// well beyond any manager rollout plus informer propagation time, so the
+	// apiserver trusts both old and new webhook certificates throughout the
+	// make-before-break handover.
+	PreviousCARetentionDuration time.Duration = 7 * 24 * time.Hour
+
 	// CertCommonName is the Common Name of CA cert
 	CertCommonName = "*.varmor.svc"
 
