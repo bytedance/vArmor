@@ -127,6 +127,19 @@ rules:
   - mutatingwebhookconfigurations
   - validatingwebhookconfigurations
   verbs:
+  - get
+  - update
+  resourceNames:
+  - varmor-resource-mutating-webhook-cfg
+  - varmor-resource-mutating-webhook-cfg-debug
+  - varmor-policy-validating-webhook-cfg
+  - varmor-policy-validating-webhook-cfg-debug
+- apiGroups:
+  - admissionregistration.k8s.io
+  resources:
+  - mutatingwebhookconfigurations
+  - validatingwebhookconfigurations
+  verbs:
   - delete
   resourceNames:
   - varmor-resource-mutating-webhook-cfg

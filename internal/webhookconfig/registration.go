@@ -21,12 +21,15 @@ package webhookconfig
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/go-logr/logr"
 
 	admissionregistrationapi "k8s.io/api/admissionregistration/v1"
+	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	k8errors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/wait"
 	adminformers "k8s.io/client-go/informers/admissionregistration/v1"
 	admissionv1 "k8s.io/client-go/kubernetes/typed/admissionregistration/v1"
 	appsv1 "k8s.io/client-go/kubernetes/typed/apps/v1"
@@ -34,30 +37,33 @@ import (
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	admlisters "k8s.io/client-go/listers/admissionregistration/v1"
 	"k8s.io/client-go/rest"
+	"k8s.io/utils/ptr"
 
 	"github.com/bytedance/vArmor/internal/config"
 	varmortls "github.com/bytedance/vArmor/internal/tls"
 	varmorinterface "github.com/bytedance/vArmor/pkg/client/clientset/versioned/typed/varmor/v1beta1"
+	"github.com/bytedance/vArmor/pkg/workload"
 )
 
 // Register manages webhook registration.
 type Register struct {
-	clientConfig         *rest.Config
-	mutateInterface      admissionv1.MutatingWebhookConfigurationInterface
-	validateInterface    admissionv1.ValidatingWebhookConfigurationInterface
-	secretInterface      corev1.SecretInterface
-	deploymentInterface  appsv1.DeploymentInterface
-	leaseInterface       coordinationv1.LeaseInterface
-	mwcLister            admlisters.MutatingWebhookConfigurationLister
-	mwcListerSynced      func() bool
-	vwcLister            admlisters.ValidatingWebhookConfigurationLister
-	vwcListerSynced      func() bool
-	managerIP            string
-	timeoutSeconds       int32
-	inContainer          bool
-	stopCh               <-chan struct{}
-	createDefaultWebhook chan string
-	log                  logr.Logger
+	clientConfig        *rest.Config
+	mutateInterface     admissionv1.MutatingWebhookConfigurationInterface
+	validateInterface   admissionv1.ValidatingWebhookConfigurationInterface
+	secretInterface     corev1.SecretInterface
+	deploymentInterface appsv1.DeploymentInterface
+	leaseInterface      coordinationv1.LeaseInterface
+	mwcLister           admlisters.MutatingWebhookConfigurationLister
+	mwcListerSynced     func() bool
+	vwcLister           admlisters.ValidatingWebhookConfigurationLister
+	vwcListerSynced     func() bool
+	managerIP           string
+	timeoutSeconds      int32
+	inContainer         bool
+	stopCh              <-chan struct{}
+	log                 logr.Logger
+	registry            *workload.Registry
+	adapterDefaults     map[string]workload.WebhookOptions
 }
 
 // NewRegister creates new Register instance
@@ -75,50 +81,59 @@ func NewRegister(
 	webhookTimeout int32,
 	inContainer bool,
 	stopCh <-chan struct{},
+	workloadRegistry *workload.Registry,
 	log logr.Logger) *Register {
 
 	register := &Register{
-		clientConfig:         clientConfig,
-		mutateInterface:      mutateInterface,
-		validateInterface:    validateInterface,
-		secretInterface:      secretInterface,
-		deploymentInterface:  deploymentInterface,
-		leaseInterface:       leaseInterface,
-		managerIP:            managerIP,
-		timeoutSeconds:       webhookTimeout,
-		inContainer:          inContainer,
-		createDefaultWebhook: make(chan string),
-		mwcLister:            mwcInformer.Lister(),
-		mwcListerSynced:      mwcInformer.Informer().HasSynced,
-		vwcLister:            vwcInformer.Lister(),
-		vwcListerSynced:      vwcInformer.Informer().HasSynced,
-		stopCh:               stopCh,
-		log:                  log.WithName("Register"),
+		clientConfig:        clientConfig,
+		mutateInterface:     mutateInterface,
+		validateInterface:   validateInterface,
+		secretInterface:     secretInterface,
+		deploymentInterface: deploymentInterface,
+		leaseInterface:      leaseInterface,
+		managerIP:           managerIP,
+		timeoutSeconds:      webhookTimeout,
+		inContainer:         inContainer,
+		mwcLister:           mwcInformer.Lister(),
+		mwcListerSynced:     mwcInformer.Informer().HasSynced,
+		vwcLister:           vwcInformer.Lister(),
+		vwcListerSynced:     vwcInformer.Informer().HasSynced,
+		stopCh:              stopCh,
+		log:                 log.WithName("Register"),
+		registry:            workloadRegistry,
+		adapterDefaults:     newAdapterDefaults(workloadRegistry, log),
 	}
 
 	return register
 }
 
-// Register clean up the old webhooks and re-creates admission webhooks configs on cluster
-func (wrc *Register) Register() error {
-	wrc.removeWebhookConfigurations()
-
+// Register reconciles the admission webhook configurations to the desired
+// state without deleting them first, so there is no admission window in which
+// the configuration is absent. It is safe to call repeatedly (e.g. after a
+// leader transition or a hot-reload).
+func (wrc *Register) Register(ctx context.Context) error {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
 	certProps, err := varmortls.GetTLSCertProps(wrc.clientConfig)
 	if err != nil {
 		return err
 	}
 	secretName := varmortls.GenerateRootCASecretName(certProps)
-	caData, err := varmortls.ReadRootCASecret(wrc.secretInterface, secretName)
+	secret, err := wrc.secretInterface.Get(ctx, secretName, metav1.GetOptions{})
 	if err != nil {
-		return fmt.Errorf("unable to extract CA data from %s secret", secretName)
+		return fmt.Errorf("unable to extract CA data from %s secret: %w", secretName, err)
 	}
 
-	err = wrc.createResourceMutatingWebhookConfiguration(caData)
+	caData := secret.Data[varmortls.RootCAKey]
+	if len(caData) == 0 {
+		return fmt.Errorf("CA data is missing from %s secret", secretName)
+	}
+	err = wrc.createResourceMutatingWebhookConfiguration(ctx, caData)
 	if err != nil {
 		return err
 	}
 
-	err = wrc.createPolicyValidatingWebhookConfiguration(caData)
+	err = wrc.createPolicyValidatingWebhookConfiguration(ctx, caData)
 	if err != nil {
 		return err
 	}
@@ -126,7 +141,202 @@ func (wrc *Register) Register() error {
 	return nil
 }
 
-func (wrc *Register) createResourceMutatingWebhookConfiguration(caData []byte) error {
+// maxUpdateRetries bounds the optimistic-concurrency retries when reconciling
+// a webhook configuration that another actor changed between Get and Update.
+const maxUpdateRetries = 3
+
+// Reconciliation retries use a standard wait.Backoff.
+const (
+	initialReconcileBackoff = time.Second
+	maxReconcileBackoff     = 30 * time.Second
+	reconcileBackoffSteps   = 30
+)
+
+func newReconcileBackoff() wait.Backoff {
+	return wait.Backoff{
+		Duration: initialReconcileBackoff,
+		Factor:   2.0,
+		Cap:      maxReconcileBackoff,
+		Steps:    reconcileBackoffSteps,
+	}
+}
+
+// RunConfigReconciliation is owned by the elected leader. Failed writes retry
+// via wait.Backoff; any config change immediately schedules the latest state.
+func (wrc *Register) RunConfigReconciliation(ctx context.Context) {
+	changes := config.DynamicConfigChanges()
+	backoff := newReconcileBackoff()
+	timer := time.NewTimer(0)
+	defer timer.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-changes:
+		case <-timer.C:
+		}
+		if ctx.Err() != nil {
+			return
+		}
+		if err := wrc.Register(ctx); err != nil {
+			wrc.log.Info("WARNING: webhook reconciliation failed; will retry", "error", err)
+			timer.Reset(backoff.Step())
+		} else {
+			backoff = newReconcileBackoff()
+			timer.Stop()
+		}
+	}
+}
+
+// upsertMutatingWebhookConfiguration creates cfg when absent, otherwise
+// updates the live object's webhook entries in place. Conflicts are retried
+// with a freshly fetched resourceVersion.
+func (wrc *Register) upsertMutatingWebhookConfiguration(ctx context.Context, cfg *admissionregistrationapi.MutatingWebhookConfiguration) error {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	logger := wrc.log
+
+	existing, err := wrc.mutateInterface.Get(ctx, cfg.Name, metav1.GetOptions{})
+	if k8errors.IsNotFound(err) {
+		_, cerr := wrc.mutateInterface.Create(ctx, cfg, metav1.CreateOptions{})
+		if cerr == nil {
+			logger.Info("MutatingWebhookConfiguration created", "name", cfg.Name)
+			return nil
+		}
+		if !k8errors.IsAlreadyExists(cerr) {
+			return cerr
+		}
+		existing, err = wrc.mutateInterface.Get(ctx, cfg.Name, metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+	} else if err != nil {
+		return err
+	}
+
+	desiredWebhooks := normalizedMutatingWebhooks(cfg)
+	for attempt := 0; attempt < maxUpdateRetries; attempt++ {
+		if apiequality.Semantic.DeepEqual(normalizedMutatingWebhooks(existing), desiredWebhooks) &&
+			apiequality.Semantic.DeepEqual(existing.Labels, cfg.Labels) &&
+			apiequality.Semantic.DeepEqual(existing.Annotations, cfg.Annotations) {
+			return nil
+		}
+		existing.Webhooks = cfg.Webhooks
+		existing.Labels = cfg.Labels
+		existing.Annotations = cfg.Annotations
+		_, err = wrc.mutateInterface.Update(ctx, existing, metav1.UpdateOptions{})
+		if err == nil {
+			logger.Info("MutatingWebhookConfiguration updated", "name", cfg.Name)
+			return nil
+		}
+		if !k8errors.IsConflict(err) {
+			return err
+		}
+		if existing, err = wrc.mutateInterface.Get(ctx, cfg.Name, metav1.GetOptions{}); err != nil {
+			return err
+		}
+	}
+	return fmt.Errorf("failed to update MutatingWebhookConfiguration %q after %d retries", cfg.Name, maxUpdateRetries)
+}
+
+// upsertValidatingWebhookConfiguration is the create-or-update counterpart for
+// the ValidatingWebhookConfiguration.
+func (wrc *Register) upsertValidatingWebhookConfiguration(ctx context.Context, cfg *admissionregistrationapi.ValidatingWebhookConfiguration) error {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	logger := wrc.log
+
+	existing, err := wrc.validateInterface.Get(ctx, cfg.Name, metav1.GetOptions{})
+	if k8errors.IsNotFound(err) {
+		_, cerr := wrc.validateInterface.Create(ctx, cfg, metav1.CreateOptions{})
+		if cerr == nil {
+			logger.Info("ValidatingWebhookConfiguration created", "name", cfg.Name)
+			return nil
+		}
+		if !k8errors.IsAlreadyExists(cerr) {
+			return cerr
+		}
+		existing, err = wrc.validateInterface.Get(ctx, cfg.Name, metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+	} else if err != nil {
+		return err
+	}
+
+	desiredWebhooks := normalizedValidatingWebhooks(cfg)
+	for attempt := 0; attempt < maxUpdateRetries; attempt++ {
+		if apiequality.Semantic.DeepEqual(normalizedValidatingWebhooks(existing), desiredWebhooks) &&
+			apiequality.Semantic.DeepEqual(existing.Labels, cfg.Labels) &&
+			apiequality.Semantic.DeepEqual(existing.Annotations, cfg.Annotations) {
+			return nil
+		}
+		existing.Webhooks = cfg.Webhooks
+		existing.Labels = cfg.Labels
+		existing.Annotations = cfg.Annotations
+		_, err = wrc.validateInterface.Update(ctx, existing, metav1.UpdateOptions{})
+		if err == nil {
+			logger.Info("ValidatingWebhookConfiguration updated", "name", cfg.Name)
+			return nil
+		}
+		if !k8errors.IsConflict(err) {
+			return err
+		}
+		if existing, err = wrc.validateInterface.Get(ctx, cfg.Name, metav1.GetOptions{}); err != nil {
+			return err
+		}
+	}
+	return fmt.Errorf("failed to update ValidatingWebhookConfiguration %q after %d retries", cfg.Name, maxUpdateRetries)
+}
+
+// Compare copies with admissionregistration/v1 defaults applied so API-server
+// defaulting does not turn config resyncs into writes. The generated payload
+// and caller-owned configuration retain their original representation.
+func normalizedMutatingWebhooks(cfg *admissionregistrationapi.MutatingWebhookConfiguration) []admissionregistrationapi.MutatingWebhook {
+	webhooks := cfg.DeepCopy().Webhooks
+	for i := range webhooks {
+		entry := &webhooks[i]
+		entry.FailurePolicy = ptr.To(ptr.Deref(entry.FailurePolicy, admissionregistrationapi.Fail))
+		entry.TimeoutSeconds = ptr.To(ptr.Deref(entry.TimeoutSeconds, int32(config.WebhookTimeout)))
+		entry.ReinvocationPolicy = ptr.To(ptr.Deref(entry.ReinvocationPolicy, admissionregistrationapi.NeverReinvocationPolicy))
+		normalizeWebhookDefaults(&entry.ClientConfig, entry.Rules, &entry.MatchPolicy, &entry.NamespaceSelector, &entry.ObjectSelector)
+	}
+	return webhooks
+}
+
+func normalizedValidatingWebhooks(cfg *admissionregistrationapi.ValidatingWebhookConfiguration) []admissionregistrationapi.ValidatingWebhook {
+	webhooks := cfg.DeepCopy().Webhooks
+	for i := range webhooks {
+		entry := &webhooks[i]
+		entry.FailurePolicy = ptr.To(ptr.Deref(entry.FailurePolicy, admissionregistrationapi.Fail))
+		entry.TimeoutSeconds = ptr.To(ptr.Deref(entry.TimeoutSeconds, int32(config.WebhookTimeout)))
+		normalizeWebhookDefaults(&entry.ClientConfig, entry.Rules, &entry.MatchPolicy, &entry.NamespaceSelector, &entry.ObjectSelector)
+	}
+	return webhooks
+}
+
+func normalizeWebhookDefaults(
+	clientConfig *admissionregistrationapi.WebhookClientConfig,
+	rules []admissionregistrationapi.RuleWithOperations,
+	matchPolicy **admissionregistrationapi.MatchPolicyType,
+	namespaceSelector, objectSelector **metav1.LabelSelector,
+) {
+	*matchPolicy = ptr.To(ptr.Deref(*matchPolicy, admissionregistrationapi.Equivalent))
+	if *namespaceSelector == nil {
+		*namespaceSelector = &metav1.LabelSelector{}
+	}
+	if *objectSelector == nil {
+		*objectSelector = &metav1.LabelSelector{}
+	}
+	for i := range rules {
+		rules[i].Scope = ptr.To(ptr.Deref(rules[i].Scope, admissionregistrationapi.AllScopes))
+	}
+	if clientConfig.Service != nil {
+		clientConfig.Service.Port = ptr.To(ptr.Deref(clientConfig.Service.Port, int32(443)))
+	}
+}
+
+func (wrc *Register) createResourceMutatingWebhookConfiguration(ctx context.Context, caData []byte) error {
 	logger := wrc.log
 
 	var cfg *admissionregistrationapi.MutatingWebhookConfiguration
@@ -153,18 +363,9 @@ func (wrc *Register) createResourceMutatingWebhookConfiguration(caData []byte) e
 		logger.Info("MutatingWebhookConfiguration generated", "name", cfg.Name, "url", url)
 	}
 
-	_, err := wrc.mutateInterface.Create(context.Background(), cfg, metav1.CreateOptions{})
-	if err != nil {
-		if k8errors.IsAlreadyExists(err) {
-			logger.Info("MutatingWebhookConfiguration already exists", "name", cfg.Name)
-			return nil
-		}
-		logger.Error(err, "failed to create MutatingWebhookConfiguration", "name", cfg.Name)
-		return err
-	}
-
-	logger.Info("MutatingWebhookConfiguration created", "name", cfg.Name)
-	return nil
+	// Create-or-update keeps the desired entries in place without ever deleting
+	// the configuration, so there is no admission window in which it is absent.
+	return wrc.upsertMutatingWebhookConfiguration(ctx, cfg)
 }
 
 func (wrc *Register) generateMutatingWebhookConfig(
@@ -172,28 +373,49 @@ func (wrc *Register) generateMutatingWebhookConfig(
 	clientConfig admissionregistrationapi.WebhookClientConfig,
 	reinvocationPolicy admissionregistrationapi.ReinvocationPolicyType) *admissionregistrationapi.MutatingWebhookConfiguration {
 
+	snapshot := config.GetDynamicConfig()
+	var webhooks []admissionregistrationapi.MutatingWebhook
+	for _, builtin := range []struct {
+		kind       string
+		name       string
+		operations []admissionregistrationapi.OperationType
+		rule       admissionregistrationapi.Rule
+	}{
+		{"Deployment", config.MutatingWorkloadWebhookName, []admissionregistrationapi.OperationType{admissionregistrationapi.Create, admissionregistrationapi.Update}, workloadResourceWebhookRule()},
+		{"Pod", config.MutatingPodWebhookName, []admissionregistrationapi.OperationType{admissionregistrationapi.Create}, podResourceWebhookRule()},
+	} {
+		// The registry holds only enabled adapters; a missing entry means
+		// this built-in kind was disabled at startup.
+		a, ok := wrc.registry.LookupByKind(builtin.kind)
+		if !ok {
+			continue
+		}
+		opts := config.ResolveWorkloadAdapterOptions(snapshot, a, wrc.adapterDefaults[a.Name()], wrc.timeoutSeconds)
+		entry := generateMutatingWebhook(
+			builtin.name,
+			clientConfig,
+			builtin.operations,
+			builtin.rule,
+			opts.TimeoutSeconds,
+			reinvocationPolicy,
+		)
+		// Built-in webhooks retain their historical fail-open admission contract.
+		ignore := admissionregistrationapi.Ignore
+		entry.FailurePolicy = &ignore
+		entry.MatchConditions = opts.MatchConditions
+		webhooks = append(webhooks, entry)
+	}
+
+	// Enabled custom (non-builtin) adapters contribute their rules, coalesced
+	// into one entry per distinct webhook-option set. The list is empty in the
+	// upstream default build, preserving the historical two-entry output.
+	webhooks = append(webhooks, wrc.customAdapterWebhooks(snapshot, clientConfig, reinvocationPolicy)...)
+
 	return &admissionregistrationapi.MutatingWebhookConfiguration{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 		},
-		Webhooks: []admissionregistrationapi.MutatingWebhook{
-			generateMutatingWebhook(
-				config.MutatingWorkloadWebhookName,
-				clientConfig,
-				[]admissionregistrationapi.OperationType{admissionregistrationapi.Create, admissionregistrationapi.Update},
-				workloadResourceWebhookRule(),
-				wrc.timeoutSeconds,
-				reinvocationPolicy,
-			),
-			generateMutatingWebhook(
-				config.MutatingPodWebhookName,
-				clientConfig,
-				[]admissionregistrationapi.OperationType{admissionregistrationapi.Create},
-				podResourceWebhookRule(),
-				wrc.timeoutSeconds,
-				reinvocationPolicy,
-			),
-		},
+		Webhooks: webhooks,
 	}
 }
 
@@ -246,7 +468,7 @@ func podResourceWebhookRule() admissionregistrationapi.Rule {
 	}
 }
 
-func (wrc *Register) createPolicyValidatingWebhookConfiguration(caData []byte) error {
+func (wrc *Register) createPolicyValidatingWebhookConfiguration(ctx context.Context, caData []byte) error {
 	logger := wrc.log
 
 	var cfg *admissionregistrationapi.ValidatingWebhookConfiguration
@@ -273,18 +495,9 @@ func (wrc *Register) createPolicyValidatingWebhookConfiguration(caData []byte) e
 		logger.Info("ValidatingWebhookConfiguration generated", "name", cfg.Name, "url", url)
 	}
 
-	_, err := wrc.validateInterface.Create(context.Background(), cfg, metav1.CreateOptions{})
-	if err != nil {
-		if k8errors.IsAlreadyExists(err) {
-			logger.Info("ValidatingWebhookConfiguration already exists", "name", cfg.Name)
-			return nil
-		}
-		logger.Error(err, "failed to create ValidatingWebhookConfiguration", "name", cfg.Name)
-		return err
-	}
-
-	logger.Info("ValidatingWebhookConfiguration created", "name", cfg.Name)
-	return nil
+	// Create-or-update keeps the desired entries in place without ever deleting
+	// the configuration, so there is no admission window in which it is absent.
+	return wrc.upsertValidatingWebhookConfiguration(ctx, cfg)
 }
 
 func (wrc *Register) generateValidatingWebhookConfig(name string, clientConfig admissionregistrationapi.WebhookClientConfig) *admissionregistrationapi.ValidatingWebhookConfiguration {
