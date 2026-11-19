@@ -20,11 +20,14 @@ import (
 
 	"github.com/go-logr/logr"
 	"gopkg.in/yaml.v3"
+	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	coreinformer "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/tools/cache"
+
+	"github.com/bytedance/vArmor/pkg/workload"
 )
 
 const (
@@ -60,7 +63,42 @@ type DynamicConfig struct {
 	// layer of the sidecar resource merge chain (see ResolveProxyResources):
 	// per-policy override > this global config > built-in defaults.
 	NetworkProxy NetworkProxyDynamicConfig `yaml:"networkProxy"`
+
+	// WorkloadAdapters carries per-adapter runtime policy, keyed by adapter
+	// Name (plus the "builtin" rollup key that enables the three apps/v1
+	// workload adapters as a group). `enabled` is evaluated at manager startup
+	// and decides both the target.kind whitelist and webhook-rule generation;
+	// failurePolicy/timeoutSeconds/matchConditions are hot-reloaded. A missing
+	// key means "use the built-in default".
+	WorkloadAdapters map[string]WorkloadAdapterConfig `yaml:"workloadAdapters"`
 }
+
+// WorkloadAdapterConfig is the runtime policy for one workload adapter.
+// Pointer fields distinguish "unset" (fall back to the default) from an
+// explicit zero/false value.
+type WorkloadAdapterConfig struct {
+	// Enabled decides whether the adapter is active. It is startup-only.
+	Enabled *bool `yaml:"enabled,omitempty"`
+
+	// FailurePolicy overrides the adapter's default admission failure policy.
+	FailurePolicy *admissionregistrationv1.FailurePolicyType `yaml:"failurePolicy,omitempty"`
+
+	// TimeoutSeconds overrides the webhook timeout; zero means unset.
+	TimeoutSeconds *int32 `yaml:"timeoutSeconds,omitempty"`
+
+	// MatchConditions are optional CEL admission match conditions (1.30+).
+	MatchConditions []admissionregistrationv1.MatchCondition `yaml:"matchConditions,omitempty"`
+}
+
+const (
+	// WorkloadAdapterBuiltinRollup is the config key that enables/disables the
+	// three apps/v1 workload adapters (Deployment, StatefulSet, DaemonSet).
+	WorkloadAdapterBuiltinRollup = workload.BuiltinRollupName
+	// WorkloadAdapterPod is the config key for the Pod adapter.
+	WorkloadAdapterPod = workload.PodAdapterName
+)
+
+func boolPtr(b bool) *bool { return &b }
 
 // NetworkProxyDynamicConfig holds cluster-level, hot-reloadable settings for
 // the NetworkProxy enforcer.
@@ -157,6 +195,12 @@ func defaultDynamicConfig() DynamicConfig {
 				{Key: "alibabacloud.com/eci", Value: "true"},
 			},
 		},
+		// The four built-in kinds are enabled out of the box; custom adapters
+		// default to disabled until explicitly enabled.
+		WorkloadAdapters: map[string]WorkloadAdapterConfig{
+			WorkloadAdapterBuiltinRollup: {Enabled: boolPtr(true)},
+			WorkloadAdapterPod:           {Enabled: boolPtr(true)},
+		},
 	}
 }
 
@@ -174,6 +218,12 @@ type dynamicConfigStore struct {
 // synced (or when running without a ConfigMap, e.g. in unit tests).
 var currentDynamicConfig = &dynamicConfigStore{cfg: defaultDynamicConfig()}
 
+// One elected webhook reconciler consumes changes; pending updates coalesce.
+var dynamicConfigChanges = make(chan struct{}, 1)
+
+// DynamicConfigChanges notifies the leader to reconcile the latest snapshot.
+func DynamicConfigChanges() <-chan struct{} { return dynamicConfigChanges }
+
 func (s *dynamicConfigStore) get() DynamicConfig {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -184,12 +234,17 @@ func (s *dynamicConfigStore) set(cfg DynamicConfig) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.cfg = cfg
+	select {
+	case dynamicConfigChanges <- struct{}{}:
+	default:
+	}
 }
 
 // parseDynamicConfig decodes the embedded YAML document. On any parse error it
 // returns the built-in defaults so a malformed ConfigMap never wipes out the
-// detection rules.
-func parseDynamicConfig(raw string, log logr.Logger) DynamicConfig {
+// detection rules. adapters is the fixed set of adapters the manager process
+// was constructed with; it is only read, never modified here.
+func parseDynamicConfig(raw string, log logr.Logger, adapters []workload.Adapter) DynamicConfig {
 	if raw == "" {
 		return defaultDynamicConfig()
 	}
@@ -199,7 +254,66 @@ func parseDynamicConfig(raw string, log logr.Logger) DynamicConfig {
 		return defaultDynamicConfig()
 	}
 	warnInvalidProxyResourceValues(cfg.NetworkProxy.DefaultResources, log)
+	warnUnknownWorkloadAdapters(cfg.WorkloadAdapters, log, adapters)
+	for name, entry := range cfg.WorkloadAdapters {
+		cfg.WorkloadAdapters[name] = sanitizeAdapterConfig(entry, name, log)
+	}
 	return cfg
+}
+
+// warnUnknownWorkloadAdapters logs (but does not reject) any workloadAdapters
+// key that does not correspond to a constructed adapter or the rollup keys. An
+// unknown key may simply belong to a newer/older binary, so it is ignored
+// while the rest of the configuration still applies.
+func warnUnknownWorkloadAdapters(entries map[string]WorkloadAdapterConfig, log logr.Logger, adapters []workload.Adapter) {
+	if len(entries) == 0 {
+		return
+	}
+	known := map[string]struct{}{
+		WorkloadAdapterBuiltinRollup: {},
+		WorkloadAdapterPod:           {},
+	}
+	for _, a := range adapters {
+		known[configKeyFor(a)] = struct{}{}
+	}
+	for name := range entries {
+		if _, ok := known[name]; !ok {
+			log.Info("WARNING: ignoring unknown workload adapter in dynamic config; using defaults", "adapter", name)
+		}
+	}
+}
+
+// configKeyFor maps an adapter to its workloadAdapters config key: the apps/v1
+// workload kinds share the "builtin" rollup key, the Pod uses "pod", and any
+// custom adapter is keyed by its Name().
+func configKeyFor(a workload.Adapter) string {
+	gvk := a.GVK()
+	if workload.IsBuiltin(gvk.GroupKind()) {
+		if gvk.Group == "apps" {
+			return WorkloadAdapterBuiltinRollup
+		}
+		return WorkloadAdapterPod
+	}
+	return a.Name()
+}
+
+// enabledByDefault preserves the historical behaviour where the four built-in
+// kinds are always on; custom adapters default to disabled so deploying the
+// same image into a cluster without the custom CRD registers no extra webhook.
+func enabledByDefault(a workload.Adapter) bool {
+	return workload.IsBuiltin(a.GVK().GroupKind())
+}
+
+// IsAdapterEnabled reports whether a is enabled per the given config snapshot.
+// It is evaluated once at manager startup to decide which adapters enter the
+// process registry; after that the registry (which is immutable) is the source
+// of truth, so runtime edits to `enabled` are ignored. An explicit `enabled`
+// value wins, otherwise the built-in default applies.
+func IsAdapterEnabled(cfg DynamicConfig, a workload.Adapter) bool {
+	if entry, ok := cfg.WorkloadAdapters[configKeyFor(a)]; ok && entry.Enabled != nil {
+		return *entry.Enabled
+	}
+	return enabledByDefault(a)
 }
 
 // knownProxyResourceNames is the set of resource names the proxy sidecar
@@ -290,12 +404,12 @@ func warnInvalidProxyResourceValues(dr ProxyDefaultResources, log logr.Logger) {
 
 // applyConfigMap extracts the embedded document from a ConfigMap and swaps it
 // into the process-wide snapshot.
-func applyConfigMap(cm *corev1.ConfigMap, log logr.Logger) {
+func applyConfigMap(cm *corev1.ConfigMap, log logr.Logger, adapters []workload.Adapter) {
 	raw := ""
 	if cm.Data != nil {
 		raw = cm.Data[DynamicConfigMapKey]
 	}
-	currentDynamicConfig.set(parseDynamicConfig(raw, log))
+	currentDynamicConfig.set(parseDynamicConfig(raw, log, adapters))
 	log.Info("dynamic config reloaded", "configMap", cm.Name)
 }
 
@@ -309,17 +423,18 @@ func resetDynamicConfigToDefault() {
 // vArmor namespace by the caller's factory) so edits to varmor-config are
 // hot-reloaded into the process-wide snapshot without a manager restart. Only
 // the ConfigMap named DynamicConfigMapName is acted upon; other ConfigMaps in
-// the namespace are ignored.
-func StartDynamicConfigInformer(cmInformer coreinformer.ConfigMapInformer, log logr.Logger) {
-	_, err := cmInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+// the namespace are ignored. adapters is the fixed set of adapters the
+// manager was constructed with, used only to warn about unknown config keys.
+func StartDynamicConfigInformer(cmInformer coreinformer.ConfigMapInformer, log logr.Logger, adapters []workload.Adapter) func() bool {
+	registration, err := cmInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			if cm, ok := obj.(*corev1.ConfigMap); ok && cm.Name == DynamicConfigMapName {
-				applyConfigMap(cm, log)
+				applyConfigMap(cm, log, adapters)
 			}
 		},
 		UpdateFunc: func(_, newObj interface{}) {
 			if cm, ok := newObj.(*corev1.ConfigMap); ok && cm.Name == DynamicConfigMapName {
-				applyConfigMap(cm, log)
+				applyConfigMap(cm, log, adapters)
 			}
 		},
 		DeleteFunc: func(obj interface{}) {
@@ -343,7 +458,9 @@ func StartDynamicConfigInformer(cmInformer coreinformer.ConfigMapInformer, log l
 	})
 	if err != nil {
 		utilruntime.HandleError(err)
+		return func() bool { return false }
 	}
+	return registration.HasSynced
 }
 
 // GetDynamicConfig returns a copy of the current dynamic configuration
@@ -353,13 +470,20 @@ func GetDynamicConfig() DynamicConfig {
 }
 
 // SetDynamicConfigForTest overrides the process-wide dynamic config snapshot and
-// returns a function that restores the built-in defaults. It exists so tests in
+// returns a function that restores the previous snapshot. It exists so tests in
 // other packages (e.g. the injection chain) can exercise config-dependent
 // behaviour. Production code must never call it: the ConfigMap informer is the
 // sole writer of the snapshot at runtime.
 func SetDynamicConfigForTest(cfg DynamicConfig) (restore func()) {
+	previous := currentDynamicConfig.get()
+	// Exercise the same validated override boundary as ConfigMap loading.
+	entries := make(map[string]WorkloadAdapterConfig, len(cfg.WorkloadAdapters))
+	for name, entry := range cfg.WorkloadAdapters {
+		entries[name] = sanitizeAdapterConfig(entry, name, logr.Discard())
+	}
+	cfg.WorkloadAdapters = entries
 	currentDynamicConfig.set(cfg)
-	return resetDynamicConfigToDefault
+	return func() { currentDynamicConfig.set(previous) }
 }
 
 // GetNetworkProxyDefaultResources returns the cluster-global proxy sidecar

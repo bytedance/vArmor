@@ -50,7 +50,7 @@ networkProxy:
         cpu: 1200m
         memory: 640Mi
 `
-	cfg := parseDynamicConfig(raw, logr.Discard())
+	cfg := parseDynamicConfig(raw, logr.Discard(), nil)
 	dr := cfg.NetworkProxy.DefaultResources
 	assert.Equal(t, dr.NonMITM.Requests["cpu"], "60m")
 	assert.Equal(t, dr.NonMITM.Requests["memory"], "80Mi")
