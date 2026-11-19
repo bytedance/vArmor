@@ -55,6 +55,8 @@ import (
 	varmorinformer "github.com/bytedance/vArmor/pkg/client/informers/externalversions"
 	"github.com/bytedance/vArmor/pkg/metrics"
 	"github.com/bytedance/vArmor/pkg/signal"
+	"github.com/bytedance/vArmor/pkg/workload"
+	_ "github.com/bytedance/vArmor/pkg/workload/builtin"
 )
 
 const (
@@ -325,6 +327,12 @@ func main() {
 	} else {
 		logger.WithName("SETUP").Info("vArmor manager startup")
 
+		// The full set of adapters compiled into this binary, populated by
+		// adapter-package init functions via workload.Register. The registry
+		// is built from the enabled subset once the initial varmor-config has
+		// loaded, below.
+		allAdapters := workload.RegisteredAdapters()
+
 		// leader election context
 		leaderCtx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -368,10 +376,28 @@ func main() {
 		// RBAC surface minimal (configmaps get/list/watch in this namespace only).
 		configFactory := kubeinformers.NewSharedInformerFactoryWithOptions(kubeClient, secretResyncPeriod, kubeinformers.WithNamespace(config.Namespace))
 		configMapInformer := configFactory.Core().V1().ConfigMaps()
-		config.StartDynamicConfigInformer(configMapInformer, logger.WithName("DYNAMIC-CONFIG"))
+		configHandlerSynced := config.StartDynamicConfigInformer(configMapInformer, logger.WithName("DYNAMIC-CONFIG"), allAdapters)
 		configFactory.Start(stopCh)
-		if !cache.WaitForCacheSync(stopCh, configMapInformer.Informer().HasSynced) {
+		if !cache.WaitForCacheSync(stopCh, configMapInformer.Informer().HasSynced, configHandlerSynced) {
 			logger.WithName("SETUP").Error(fmt.Errorf("failed to sync dynamic config informer cache"), "cache.WaitForCacheSync()")
+			os.Exit(1)
+		}
+
+		// Build the registry from the enabled subset of adapters. The registry
+		// is immutable after construction, so `enabled` is effectively
+		// startup-only: runtime edits to varmor-config's `enabled` field are
+		// ignored. allAdapters is passed to the informer above so unknown
+		// config keys can still be warned about.
+		cfg := config.GetDynamicConfig()
+		enabledAdapters := make([]workload.Adapter, 0, len(allAdapters))
+		for _, a := range allAdapters {
+			if config.IsAdapterEnabled(cfg, a) {
+				enabledAdapters = append(enabledAdapters, a)
+			}
+		}
+		workloadRegistry, err := workload.NewRegistry(enabledAdapters...)
+		if err != nil {
+			logger.WithName("SETUP").Error(err, "workload.NewRegistry()")
 			os.Exit(1)
 		}
 
@@ -390,6 +416,7 @@ func main() {
 			int32(webhookTimeout),
 			inContainer,
 			stopCh,
+			workloadRegistry,
 			logger.WithName("WEBHOOK-CONFIG"),
 		)
 		wcFactory.Start(stopCh)
@@ -398,12 +425,8 @@ func main() {
 		registerWebhookConfigurations := func(ctx context.Context) {
 			// Only leader initializes the secrets of CA cert and TLS pair.
 			certManager.InitTLSPemPair()
-			// Only leader registers the MutatingWebhookConfiguration object.
-			err = webhookRegister.Register()
-			if err != nil {
-				logger.WithName("SETUP").Error(err, "webhookRegister.Register()")
-				os.Exit(1)
-			}
+			// Only the leader reconciles webhook options on config changes.
+			webhookRegister.RunConfigReconciliation(ctx)
 		}
 		webhookRegisterLeader, err := leaderelection.New(
 			kubeClient,
@@ -438,6 +461,7 @@ func main() {
 			enableBehaviorModeling,
 			bpfExclusiveMode,
 			metricsModule,
+			workloadRegistry,
 			logger.WithName("WEBHOOK-SERVER"))
 		if err != nil {
 			logger.WithName("SETUP").Error(err, "Failed to create webhook webhookServer")
@@ -520,6 +544,7 @@ func main() {
 			enableServiceEgressControl,
 			enablePodEgressControl,
 			bpfExclusiveMode,
+			workloadRegistry,
 			logger.WithName("CLUSTER-POLICY"),
 		)
 		if err != nil {
@@ -541,6 +566,7 @@ func main() {
 			enableServiceEgressControl,
 			enablePodEgressControl,
 			bpfExclusiveMode,
+			workloadRegistry,
 			logger.WithName("POLICY"),
 		)
 		if err != nil {

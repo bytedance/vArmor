@@ -175,6 +175,34 @@ dynamicConfig:
         requests: {}
         limits: {}
 
+  # workloadAdapters controls the pluggable workload types vArmor is allowed to
+  # mutate, keyed by adapter name. It is parsed into the same hot-reloaded
+  # varmor-config document as the blocks above.
+  #
+  # Keys:
+  #   - "builtin": rollup switch for the three apps/v1 workload kinds
+  #     (Deployment, StatefulSet, DaemonSet). They share one config key and
+  #     are covered together by the built-in workload webhook rule.
+  #   - "pod": the core/v1 Pod adapter, kept separate because Pods are admitted
+  #     on CREATE only.
+  #   - any custom adapter name compiled into the manager image. A key whose
+  #     adapter is absent from this binary is warned about and ignored at load
+  #     time, never fatal.
+  #
+  # Fields per adapter:
+  #   - enabled: read at manager STARTUP only; it drives both the target.kind
+  #     validation whitelist and webhook-rule registration, so flipping it
+  #     requires a manager restart. Defaults to true for the four built-in
+  #     kinds and false for custom adapters.
+  #   - failurePolicy / timeoutSeconds / matchConditions: hot-reloaded and
+  #     override the adapter's built-in webhook defaults. The built-in kinds
+  #     stay on Ignore; leave unset to keep each adapter's default.
+  workloadAdapters:
+    builtin:
+      enabled: true
+    pod:
+      enabled: true
+
 image:
   registry: ""
   namespace: varmor

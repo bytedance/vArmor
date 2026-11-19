@@ -38,6 +38,7 @@ import (
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
 	profile "github.com/bytedance/vArmor/internal/networkproxy/profile"
 	policy "github.com/bytedance/vArmor/internal/policy"
+	"github.com/bytedance/vArmor/pkg/workload/workloadtest"
 )
 
 // A rejected policy update must be explicit, with no invalid xDS to publish.
@@ -112,7 +113,7 @@ func TestMITMIdentityValidationReloadEnvoy(t *testing.T) {
 	for _, alias := range []string{"127.0.0.1/32", "API.EXAMPLE.COM"} {
 		candidate := next.DeepCopy()
 		candidate.Spec.Policy.NetworkProxyConfig.MITM.Domains = append(candidate.Spec.Policy.NetworkProxyConfig.MITM.Domains, alias)
-		valid, msg := policy.ValidateAddPolicy(candidate, true)
+		valid, msg := policy.ValidateAddPolicy(candidate, true, workloadtest.NewRegistry(t))
 		require.False(t, valid)
 		require.Contains(t, msg, "duplicates the identity")
 		valid, msg = policy.ValidateUpdatePolicy(candidate, "NetworkProxy", current.Spec.Target, current.Spec.Policy.NetworkProxyConfig)

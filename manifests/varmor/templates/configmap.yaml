@@ -82,3 +82,14 @@ data:
             {{- toYaml . | nindent 12 }}
           {{- end }}
         {{- end }}
+    # workloadAdapters switches the pluggable workload adapters and overrides
+    # their webhook behavior. "builtin" rolls up Deployment/StatefulSet/
+    # DaemonSet; "pod" is the core/v1 Pod adapter. `enabled` is startup-only
+    # (it drives the target.kind whitelist and webhook registration), while
+    # failurePolicy/timeoutSeconds/matchConditions hot-reload. A key for an
+    # adapter that is not compiled into this image is warned and ignored, so
+    # downstream-only adapters can be referenced safely.
+    {{- with .Values.dynamicConfig.workloadAdapters }}
+    workloadAdapters:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
