@@ -20,7 +20,6 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 
@@ -210,7 +209,7 @@ func health(c *gin.Context) {
 func NewStatusService(
 	addr string,
 	port int,
-	tlsPair *varmortls.PemPair,
+	certProvider *varmortls.CertProvider,
 	debug bool,
 	inContainer bool,
 	coreInterface corev1.CoreV1Interface,
@@ -254,13 +253,10 @@ func NewStatusService(
 			modelmanager.ImportArmorProfileModelHandler(varmorInterface, log))
 	}
 
-	cert, err := tls.X509KeyPair(tlsPair.Certificate, tlsPair.PrivateKey)
-	if err != nil {
-		log.Error(err, "load key pair failed")
-		os.Exit(1)
-	}
+	// Hot-reload through the shared provider: the TLS pair Secret rotation is
+	// picked up on the next handshake without restarting the process.
 	tlsConfig := &tls.Config{
-		Certificates: []tls.Certificate{cert},
+		GetCertificate: certProvider.GetCertificate,
 	}
 	s.srv = &http.Server{
 		Addr:              fmt.Sprintf("%s:%d", s.addr, s.port),

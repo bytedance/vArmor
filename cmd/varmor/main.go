@@ -29,6 +29,7 @@ import (
 	"github.com/rs/zerolog"
 	"go.uber.org/automaxprocs/maxprocs"
 	"golang.org/x/sys/unix"
+	v1 "k8s.io/api/core/v1"
 	kubeinformers "k8s.io/client-go/informers"
 	coreinformers "k8s.io/client-go/informers/core/v1"
 	discoveryinformers "k8s.io/client-go/informers/discovery/v1"
@@ -450,12 +451,39 @@ func main() {
 			os.Exit(1)
 		}
 
+		// The provider holds the served TLS certificate atomically and hot-reloads
+		// it when the TLS pair Secret rotates, on every manager replica (not only
+		// the leader), so admission keeps working during a certificate renewal.
+		certProvider, err := varmortls.NewCertProvider(tlsPair, logger.WithName("CERT-PROVIDER"))
+		if err != nil {
+			logger.WithName("SETUP").Error(err, "Failed to create the TLS certificate provider")
+			os.Exit(1)
+		}
+		certProps, err := varmortls.GetTLSCertProps(clientConfig)
+		if err != nil {
+			logger.WithName("SETUP").Error(err, "Failed to get TLS certificate properties")
+			os.Exit(1)
+		}
+		tlsPairSecretName := varmortls.GenerateTLSPairSecretName(certProps)
+		secretFactory.Core().V1().Secrets().Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+			AddFunc: func(obj interface{}) {
+				if secret, ok := obj.(*v1.Secret); ok {
+					certProvider.HandleSecret(secret, tlsPairSecretName)
+				}
+			},
+			UpdateFunc: func(_, newObj interface{}) {
+				if secret, ok := newObj.(*v1.Secret); ok {
+					certProvider.HandleSecret(secret, tlsPairSecretName)
+				}
+			},
+		})
+
 		// Create the webhook server.
 		// It runs across all instances.
 		webhookServer, err := webhooks.NewWebhookServer(
 			webhookRegister,
 			cacher,
-			tlsPair,
+			certProvider,
 			managerIP,
 			config.WebhookServicePort,
 			enableBehaviorModeling,
@@ -474,7 +502,7 @@ func main() {
 		statusSvc, err := status.NewStatusService(
 			managerIP,
 			config.StatusServicePort,
-			tlsPair,
+			certProvider,
 			debugFlag,
 			inContainer,
 			kubeClient.CoreV1(),

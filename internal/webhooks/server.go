@@ -86,7 +86,7 @@ const (
 func NewWebhookServer(
 	webhookRegister *webhookconfig.Register,
 	policyCacher *policycacher.PolicyCacher,
-	tlsPair *varmortls.PemPair,
+	certProvider *varmortls.CertProvider,
 	addr string,
 	port int,
 	enableBehaviorModeling bool,
@@ -143,12 +143,10 @@ func NewWebhookServer(
 		w.WriteHeader(http.StatusOK)
 	})
 
+	// GetCertificate re-reads the atomically swapped certificate on every
+	// handshake, so TLS pair Secret rotations hot-reload without a restart.
 	var tlsConfig tls.Config
-	pair, err := tls.X509KeyPair(tlsPair.Certificate, tlsPair.PrivateKey)
-	if err != nil {
-		return nil, err
-	}
-	tlsConfig.Certificates = []tls.Certificate{pair}
+	tlsConfig.GetCertificate = certProvider.GetCertificate
 
 	ws.server = &http.Server{
 		Addr:         fmt.Sprintf("%s:%d", addr, port),
