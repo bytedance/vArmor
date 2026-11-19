@@ -24,11 +24,13 @@ import (
 
 	"github.com/go-logr/logr"
 	admissionv1 "k8s.io/api/admission/v1"
-	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	labels "k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/tools/cache"
 
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
@@ -37,6 +39,7 @@ import (
 	varmorprofile "github.com/bytedance/vArmor/internal/profile"
 	varmortypes "github.com/bytedance/vArmor/internal/types"
 	varmorutils "github.com/bytedance/vArmor/internal/utils"
+	"github.com/bytedance/vArmor/pkg/workload"
 )
 
 func (ws *WebhookServer) matchAndPatch(request *admissionv1.AdmissionRequest, key string, target varmor.Target, logger logr.Logger) *admissionv1.AdmissionResponse {
@@ -65,6 +68,15 @@ func (ws *WebhookServer) matchAndPatch(request *admissionv1.AdmissionRequest, ke
 	if request.Kind.Kind != target.Kind {
 		return nil
 	}
+	// The registry holds only enabled adapters; a missing entry means this
+	// kind is unregistered or disabled, so the request passes through.
+	a, ok := ws.registry.Lookup(schema.GroupKind{Group: request.Kind.Group, Kind: request.Kind.Kind})
+	if !ok {
+		return nil
+	}
+	if target.Name != "" && target.Name != request.Name {
+		return nil
+	}
 
 	enforcer := ""
 	var mode varmor.VarmorPolicyMode
@@ -76,408 +88,144 @@ func (ws *WebhookServer) matchAndPatch(request *admissionv1.AdmissionRequest, ke
 		enforcer, mode, networkProxyConfig = ws.policyCacher.GetPolicyEntry(key)
 	}
 
-	obj, err := ws.deserializeWorkload(request)
+	obj, err := ws.deserializeWorkload(request, a)
 	if err != nil {
 		logger.Error(err, "ws.deserializeWorkload()")
-		return nil
+		ws.recordAdapterDispatch(a.Name(), dispatchResultDecodeError)
+		return workloadProcessingError(request, a, err, "failed to decode selected workload")
 	}
 
 	m, err := meta.Accessor(obj)
 	if err != nil {
 		logger.Error(err, "meta.Accessor()")
-		return nil
+		return workloadProcessingError(request, a, err, "failed to read workload metadata")
 	}
 
-	apName := varmorprofile.GenerateArmorProfileName(policyNamespace, policyName, clusterScope)
-	if target.Name != "" && target.Name == m.GetName() {
-		logger.Info("mutating resource", "resource kind", request.Kind.Kind, "resource namespace", request.Namespace, "resource name", request.Name, "profile", apName)
-		patch, err := buildPatch(obj, enforcer, mode, target, networkProxyConfig, apName, policyIdentity, ws.bpfExclusiveMode, varmorconfig.AppArmorGA)
-		if err != nil {
-			logger.Error(err, "ws.buildPatch()")
-			return nil
-		}
-		logger.V(2).Info("mutating resource", "json patch", patch)
-		return successResponse(request.UID, []byte(patch))
-	} else if target.Selector != nil {
+	matched := target.Name != "" && target.Name == m.GetName()
+	if target.Selector != nil {
 		selector, err := metav1.LabelSelectorAsSelector(target.Selector)
 		if err != nil {
 			return nil
 		}
-		if selector.Matches(labels.Set(m.GetLabels())) {
-			logger.Info("mutating resource", "resource kind", request.Kind.Kind, "resource namespace", request.Namespace, "resource name", request.Name, "profile", apName)
-			patch, err := buildPatch(obj, enforcer, mode, target, networkProxyConfig, apName, policyIdentity, ws.bpfExclusiveMode, varmorconfig.AppArmorGA)
-			if err != nil {
-				logger.Error(err, "ws.buildPatch()")
-				return nil
-			}
-			logger.V(2).Info("mutating resource", "json patch", patch)
-			return successResponse(request.UID, []byte(patch))
-		}
+		matched = selector.Matches(labels.Set(m.GetLabels()))
 	}
-
-	return nil
+	if !matched {
+		ws.recordAdapterDispatch(a.Name(), dispatchResultMatched)
+		return nil
+	}
+	apName := varmorprofile.GenerateArmorProfileName(policyNamespace, policyName, clusterScope)
+	logger.Info("mutating resource", "resource kind", request.Kind.Kind, "resource namespace", request.Namespace, "resource name", request.Name, "profile", apName)
+	patch, err := buildPatch(obj, enforcer, mode, target, networkProxyConfig, apName, policyIdentity, ws.bpfExclusiveMode, varmorconfig.AppArmorGA, ws.registry)
+	if err != nil {
+		logger.Error(err, "ws.buildPatch()")
+		ws.recordAdapterDispatch(a.Name(), dispatchResultTemplateExtractError)
+		return workloadProcessingError(request, a, err, "failed to extract selected workload templates")
+	}
+	ws.recordAdapterDispatch(a.Name(), classifyPatchResult(patch))
+	logger.V(2).Info("mutating resource", "json patch", patch)
+	return successResponse(request.UID, []byte(patch))
 }
 
-func (ws *WebhookServer) deserializeWorkload(request *admissionv1.AdmissionRequest) (interface{}, error) {
-	switch request.Kind.Kind {
-	case "Deployment":
-		deploy := appsv1.Deployment{}
-		_, _, err := ws.deserializer.Decode(request.Object.Raw, nil, &deploy)
-		return &deploy, err
-	case "StatefulSet":
-		statusful := appsv1.StatefulSet{}
-		_, _, err := ws.deserializer.Decode(request.Object.Raw, nil, &statusful)
-		return &statusful, err
-	case "DaemonSet":
-		daemon := appsv1.DaemonSet{}
-		_, _, err := ws.deserializer.Decode(request.Object.Raw, nil, &daemon)
-		return &daemon, err
-	case "Pod":
-		pod := corev1.Pod{}
-		_, _, err := ws.deserializer.Decode(request.Object.Raw, nil, &pod)
-		return &pod, err
+// Processing failures stop policy selection. Custom adapters return an HTTP
+// error so the API server applies the adapter's currently configured
+// Fail/Ignore policy, including a fail-closed switch made at runtime through
+// the varmor-config ConfigMap. Built-ins retain their historical fail-open
+// behavior.
+func workloadProcessingError(request *admissionv1.AdmissionRequest, a workload.Adapter, err error, message string) *admissionv1.AdmissionResponse {
+	if workload.IsBuiltin(a.GVK().GroupKind()) {
+		return successResponse(request.UID, nil)
 	}
-	return nil, fmt.Errorf("unsupported kind")
+	response := errorResponse(request.UID, err, message)
+	response.Result.Code = 500
+	return response
+}
+
+// classifyPatchResult maps a built patch string to the dispatch result label:
+// an empty patch means no injection operation was produced for the selected
+// object, a non-empty patch means the object was mutated.
+func classifyPatchResult(patch string) string {
+	if patch == "" {
+		return dispatchResultPatchSkippedUnconfined
+	}
+	return dispatchResultPatched
+}
+
+func (ws *WebhookServer) deserializeWorkload(request *admissionv1.AdmissionRequest, a workload.Adapter) (runtime.Object, error) {
+	// All workloads are decoded as unstructured so admission has a single
+	// decode path; each adapter converts the unstructured map to its own
+	// typed view inside PodTemplates.
+	obj := &unstructured.Unstructured{}
+	if err := json.Unmarshal(request.Object.Raw, obj); err != nil {
+		return nil, err
+	}
+	expected := schema.GroupVersionKind{Group: request.Kind.Group, Version: request.Kind.Version, Kind: request.Kind.Kind}
+	if obj.GetObjectKind().GroupVersionKind() != expected || expected != a.GVK() {
+		return nil, fmt.Errorf("object identity does not match admission request or adapter")
+	}
+	return obj, nil
 }
 
 func buildPatch(obj interface{}, enforcer string,
 	mode varmor.VarmorPolicyMode, target varmor.Target, networkProxyConfig *varmor.NetworkProxyConfig,
-	profileName string, id varmorpolicy.AuditPolicyIdentity, bpfExclusiveMode bool, appArmorGA bool) (patch string, err error) {
-	var jsonPatch string
-
+	profileName string, id varmorpolicy.AuditPolicyIdentity, bpfExclusiveMode bool, appArmorGA bool,
+	registry *workload.Registry) (patch string, err error) {
 	e := varmortypes.GetEnforcerType(enforcer)
 
-	switch target.Kind {
-	case "Deployment":
-		deploy := obj.(*appsv1.Deployment)
+	refs, err := extractTemplateRefs(obj, registry)
+	if err != nil {
+		return "", err
+	}
+	// Objects without templates need no injection or mutation metadata.
+	if len(refs) == 0 {
+		return "", nil
+	}
 
-		if deploy.Annotations == nil {
-			jsonPatch += `{"op": "add", "path": "/metadata/annotations", "value": {}},`
+	var jsonPatch string
+	raw, custom := obj.(*unstructured.Unstructured)
+	custom = custom && !workload.IsBuiltin(raw.GroupVersionKind().GroupKind())
+	if custom {
+		if _, ok := raw.Object["metadata"].(map[string]interface{}); !ok {
+			jsonPatch += `{"op": "add", "path": "/metadata", "value": {}},`
 		}
+	}
 
-		if deploy.Spec.Template.Annotations == nil {
-			jsonPatch += `{"op": "add", "path": "/spec/template/metadata/annotations", "value": {}},`
+	// The object-level (root) annotations map is always ensured first. nil-ness
+	// (rather than len) is checked to preserve the exact pre-refactor output.
+	acc, err := meta.Accessor(obj)
+	if err != nil {
+		return "", err
+	}
+	if acc.GetAnnotations() == nil {
+		jsonPatch += `{"op": "add", "path": "/metadata/annotations", "value": {}},`
+	}
+
+	// One patch set is emitted per pod template. The built-in kinds carry a
+	// single template; custom resources may carry several.
+	for index, ref := range refs {
+		if ref.Template == nil {
+			return "", fmt.Errorf("template at %q is nil", ref.Path)
 		}
-
-		// NetworkProxy
-		if (e & varmortypes.NetworkProxy) != 0 {
-			if _, ok := deploy.Spec.Template.Annotations["pod.networkproxy.security.beta.varmor.org"]; !ok {
-				if len(deploy.Spec.Template.Spec.InitContainers) == 0 {
-					jsonPatch += `{"op": "add", "path": "/spec/template/spec/initContainers", "value": []},`
-				}
-
-				if len(deploy.Spec.Template.Spec.Volumes) == 0 {
-					jsonPatch += `{"op": "add", "path": "/spec/template/spec/volumes", "value": []},`
-				}
-
-				microVM := varmorconfig.IsMicroVMPod(deploy.Spec.Template.Labels, deploy.Spec.Template.Annotations, deploy.Spec.Template.Spec.RuntimeClassName)
-				jsonPatch += buildNetworkProxyPatch(profileName, id, true, networkProxyConfig, microVM)
-			}
-		}
-
-		for index, container := range deploy.Spec.Template.Spec.Containers {
-			if len(target.Containers) != 0 && !varmorutils.InStringArray(container.Name, target.Containers) {
-				continue
-			}
-
-			// NetworkProxy MITM: inject CA bundle volumeMount + env vars
-			// into target containers when MITM is enabled on the policy.
-			if (e&varmortypes.NetworkProxy) != 0 && container.Name != "varmor-network-proxy" &&
-				networkProxyConfig != nil && networkProxyConfig.MITM != nil && len(networkProxyConfig.MITM.Domains) > 0 {
-				jsonPatch += buildNetworkProxyMITMTargetPatch(true, container, index)
-			}
-
-			// BPF
-			if (e & varmortypes.BPF) != 0 {
-				key := fmt.Sprintf("container.bpf.security.beta.varmor.org/%s", container.Name)
-				if value, ok := deploy.Spec.Template.Annotations[key]; !ok || value != "unconfined" {
-					jsonPatch += buildBpfPatch(appArmorGA, true, bpfExclusiveMode, profileName, container, index)
+		if custom {
+			for _, previous := range refs[:index] {
+				if previous.Path == ref.Path || strings.HasPrefix(ref.Path, previous.Path+"/") || strings.HasPrefix(previous.Path, ref.Path+"/") {
+					return "", fmt.Errorf("overlapping template paths %q and %q", previous.Path, ref.Path)
 				}
 			}
-			// AppArmor
-			if (e & varmortypes.AppArmor) != 0 {
-				key := fmt.Sprintf("container.apparmor.security.beta.varmor.org/%s", container.Name)
-				if value, ok := deploy.Spec.Template.Annotations[key]; !ok || value != "unconfined" {
-					if !appArmorGA {
-						// Below Kubernetes v1.30
-						key := fmt.Sprintf("container.apparmor.security.beta.kubernetes.io/%s", container.Name)
-						if value, ok := deploy.Spec.Template.Annotations[key]; !ok || value != "unconfined" {
-							jsonPatch += buildAppArmorPatch(appArmorGA, true, profileName, container, index)
-						}
-					} else {
-						// Kubernetes v1.30 and above
-						if (container.SecurityContext != nil && container.SecurityContext.AppArmorProfile != nil && container.SecurityContext.AppArmorProfile.Type == "Unconfined") ||
-							(deploy.Spec.Template.Spec.SecurityContext != nil && deploy.Spec.Template.Spec.SecurityContext.AppArmorProfile != nil && deploy.Spec.Template.Spec.SecurityContext.AppArmorProfile.Type == "Unconfined") {
-							// Do nothing
-						} else {
-							jsonPatch += buildAppArmorPatch(appArmorGA, true, profileName, container, index)
-							if container.SecurityContext == nil {
-								container.SecurityContext = &corev1.SecurityContext{}
-							}
-						}
+			template, err := templateAtPointer(raw.Object, ref.Path)
+			if err != nil {
+				return "", err
+			}
+			if ref.Path != "" {
+				if _, ok := template["metadata"].(map[string]interface{}); !ok {
+					path, err := json.Marshal(ref.Path + "/metadata")
+					if err != nil {
+						return "", err
 					}
+					jsonPatch += fmt.Sprintf(`{"op": "add", "path": %s, "value": {}},`, path)
 				}
-			}
-			// Seccomp
-			if (e & varmortypes.Seccomp) != 0 {
-				key := fmt.Sprintf("container.seccomp.security.beta.varmor.org/%s", container.Name)
-				if value, ok := deploy.Spec.Template.Annotations[key]; ok && value == "unconfined" {
-					continue
-				}
-				if (container.SecurityContext != nil && container.SecurityContext.Privileged != nil && *container.SecurityContext.Privileged) ||
-					(container.SecurityContext != nil && container.SecurityContext.SeccompProfile != nil && container.SecurityContext.SeccompProfile.Type == "Unconfined") ||
-					(deploy.Spec.Template.Spec.SecurityContext != nil && deploy.Spec.Template.Spec.SecurityContext.SeccompProfile != nil && deploy.Spec.Template.Spec.SecurityContext.SeccompProfile.Type == "Unconfined") {
-					continue
-				}
-				jsonPatch += buildSeccompPatch(true, profileName, container, index, mode)
 			}
 		}
-	case "StatefulSet":
-		statefulSet := obj.(*appsv1.StatefulSet)
-
-		if statefulSet.Annotations == nil {
-			jsonPatch += `{"op": "add", "path": "/metadata/annotations", "value": {}},`
-		}
-
-		if statefulSet.Spec.Template.Annotations == nil {
-			jsonPatch += `{"op": "add", "path": "/spec/template/metadata/annotations", "value": {}},`
-		}
-
-		// NetworkProxy
-		if (e & varmortypes.NetworkProxy) != 0 {
-			if _, ok := statefulSet.Spec.Template.Annotations["pod.networkproxy.security.beta.varmor.org"]; !ok {
-				if len(statefulSet.Spec.Template.Spec.InitContainers) == 0 {
-					jsonPatch += `{"op": "add", "path": "/spec/template/spec/initContainers", "value": []},`
-				}
-
-				if len(statefulSet.Spec.Template.Spec.Volumes) == 0 {
-					jsonPatch += `{"op": "add", "path": "/spec/template/spec/volumes", "value": []},`
-				}
-
-				microVM := varmorconfig.IsMicroVMPod(statefulSet.Spec.Template.Labels, statefulSet.Spec.Template.Annotations, statefulSet.Spec.Template.Spec.RuntimeClassName)
-				jsonPatch += buildNetworkProxyPatch(profileName, id, true, networkProxyConfig, microVM)
-			}
-		}
-
-		for index, container := range statefulSet.Spec.Template.Spec.Containers {
-			if len(target.Containers) != 0 && !varmorutils.InStringArray(container.Name, target.Containers) {
-				continue
-			}
-
-			// NetworkProxy MITM: inject CA bundle volumeMount + env vars
-			// into target containers when MITM is enabled on the policy.
-			if (e&varmortypes.NetworkProxy) != 0 && container.Name != "varmor-network-proxy" &&
-				networkProxyConfig != nil && networkProxyConfig.MITM != nil && len(networkProxyConfig.MITM.Domains) > 0 {
-				jsonPatch += buildNetworkProxyMITMTargetPatch(true, container, index)
-			}
-
-			// BPF
-			if (e & varmortypes.BPF) != 0 {
-				key := fmt.Sprintf("container.bpf.security.beta.varmor.org/%s", container.Name)
-				if value, ok := statefulSet.Spec.Template.Annotations[key]; !ok || value != "unconfined" {
-					jsonPatch += buildBpfPatch(appArmorGA, true, bpfExclusiveMode, profileName, container, index)
-				}
-			}
-			// AppArmor
-			if (e & varmortypes.AppArmor) != 0 {
-				key := fmt.Sprintf("container.apparmor.security.beta.varmor.org/%s", container.Name)
-				if value, ok := statefulSet.Spec.Template.Annotations[key]; !ok || value != "unconfined" {
-					if !appArmorGA {
-						// Below Kubernetes v1.30
-						key := fmt.Sprintf("container.apparmor.security.beta.kubernetes.io/%s", container.Name)
-						if value, ok := statefulSet.Spec.Template.Annotations[key]; !ok || value != "unconfined" {
-							jsonPatch += buildAppArmorPatch(appArmorGA, true, profileName, container, index)
-						}
-					} else {
-						// Kubernetes v1.30 and above
-						if (container.SecurityContext != nil && container.SecurityContext.AppArmorProfile != nil && container.SecurityContext.AppArmorProfile.Type == "Unconfined") ||
-							(statefulSet.Spec.Template.Spec.SecurityContext != nil && statefulSet.Spec.Template.Spec.SecurityContext.AppArmorProfile != nil && statefulSet.Spec.Template.Spec.SecurityContext.AppArmorProfile.Type == "Unconfined") {
-							// Do nothing
-						} else {
-							jsonPatch += buildAppArmorPatch(appArmorGA, true, profileName, container, index)
-							if container.SecurityContext == nil {
-								container.SecurityContext = &corev1.SecurityContext{}
-							}
-						}
-					}
-				}
-			}
-			// Seccomp
-			if (e & varmortypes.Seccomp) != 0 {
-				key := fmt.Sprintf("container.seccomp.security.beta.varmor.org/%s", container.Name)
-				if value, ok := statefulSet.Spec.Template.Annotations[key]; ok && value == "unconfined" {
-					continue
-				}
-				if (container.SecurityContext != nil && container.SecurityContext.Privileged != nil && *container.SecurityContext.Privileged) ||
-					(container.SecurityContext != nil && container.SecurityContext.SeccompProfile != nil && container.SecurityContext.SeccompProfile.Type == "Unconfined") ||
-					(statefulSet.Spec.Template.Spec.SecurityContext != nil && statefulSet.Spec.Template.Spec.SecurityContext.SeccompProfile != nil && statefulSet.Spec.Template.Spec.SecurityContext.SeccompProfile.Type == "Unconfined") {
-					continue
-				}
-				jsonPatch += buildSeccompPatch(true, profileName, container, index, mode)
-			}
-		}
-	case "DaemonSet":
-		daemonSet := obj.(*appsv1.DaemonSet)
-
-		if daemonSet.Annotations == nil {
-			jsonPatch += `{"op": "add", "path": "/metadata/annotations", "value": {}},`
-		}
-
-		if daemonSet.Spec.Template.Annotations == nil {
-			jsonPatch += `{"op": "add", "path": "/spec/template/metadata/annotations", "value": {}},`
-		}
-
-		// NetworkProxy
-		if (e & varmortypes.NetworkProxy) != 0 {
-			if _, ok := daemonSet.Spec.Template.Annotations["pod.networkproxy.security.beta.varmor.org"]; !ok {
-				if len(daemonSet.Spec.Template.Spec.InitContainers) == 0 {
-					jsonPatch += `{"op": "add", "path": "/spec/template/spec/initContainers", "value": []},`
-				}
-				if len(daemonSet.Spec.Template.Spec.Volumes) == 0 {
-					jsonPatch += `{"op": "add", "path": "/spec/template/spec/volumes", "value": []},`
-				}
-				microVM := varmorconfig.IsMicroVMPod(daemonSet.Spec.Template.Labels, daemonSet.Spec.Template.Annotations, daemonSet.Spec.Template.Spec.RuntimeClassName)
-				jsonPatch += buildNetworkProxyPatch(profileName, id, true, networkProxyConfig, microVM)
-			}
-		}
-
-		for index, container := range daemonSet.Spec.Template.Spec.Containers {
-			if len(target.Containers) != 0 && !varmorutils.InStringArray(container.Name, target.Containers) {
-				continue
-			}
-
-			// NetworkProxy MITM: inject CA bundle volumeMount + env vars
-			// into target containers when MITM is enabled on the policy.
-			if (e&varmortypes.NetworkProxy) != 0 && container.Name != "varmor-network-proxy" &&
-				networkProxyConfig != nil && networkProxyConfig.MITM != nil && len(networkProxyConfig.MITM.Domains) > 0 {
-				jsonPatch += buildNetworkProxyMITMTargetPatch(true, container, index)
-			}
-
-			// BPF
-			if (e & varmortypes.BPF) != 0 {
-				key := fmt.Sprintf("container.bpf.security.beta.varmor.org/%s", container.Name)
-				if value, ok := daemonSet.Spec.Template.Annotations[key]; !ok || value != "unconfined" {
-					jsonPatch += buildBpfPatch(appArmorGA, true, bpfExclusiveMode, profileName, container, index)
-				}
-			}
-			// AppArmor
-			if (e & varmortypes.AppArmor) != 0 {
-				key := fmt.Sprintf("container.apparmor.security.beta.varmor.org/%s", container.Name)
-				if value, ok := daemonSet.Spec.Template.Annotations[key]; !ok || value != "unconfined" {
-					if !appArmorGA {
-						// Below Kubernetes v1.30
-						key := fmt.Sprintf("container.apparmor.security.beta.kubernetes.io/%s", container.Name)
-						if value, ok := daemonSet.Spec.Template.Annotations[key]; !ok || value != "unconfined" {
-							jsonPatch += buildAppArmorPatch(appArmorGA, true, profileName, container, index)
-						}
-					} else {
-						// Kubernetes v1.30 and above
-						if (container.SecurityContext != nil && container.SecurityContext.AppArmorProfile != nil && container.SecurityContext.AppArmorProfile.Type == "Unconfined") ||
-							(daemonSet.Spec.Template.Spec.SecurityContext != nil && daemonSet.Spec.Template.Spec.SecurityContext.AppArmorProfile != nil && daemonSet.Spec.Template.Spec.SecurityContext.AppArmorProfile.Type == "Unconfined") {
-							// Do nothing
-						} else {
-							jsonPatch += buildAppArmorPatch(appArmorGA, true, profileName, container, index)
-							if container.SecurityContext == nil {
-								container.SecurityContext = &corev1.SecurityContext{}
-							}
-						}
-					}
-				}
-			}
-			// Seccomp
-			if (e & varmortypes.Seccomp) != 0 {
-				key := fmt.Sprintf("container.seccomp.security.beta.varmor.org/%s", container.Name)
-				if value, ok := daemonSet.Spec.Template.Annotations[key]; ok && value == "unconfined" {
-					continue
-				}
-				if (container.SecurityContext != nil && container.SecurityContext.Privileged != nil && *container.SecurityContext.Privileged) ||
-					(container.SecurityContext != nil && container.SecurityContext.SeccompProfile != nil && container.SecurityContext.SeccompProfile.Type == "Unconfined") ||
-					(daemonSet.Spec.Template.Spec.SecurityContext != nil && daemonSet.Spec.Template.Spec.SecurityContext.SeccompProfile != nil && daemonSet.Spec.Template.Spec.SecurityContext.SeccompProfile.Type == "Unconfined") {
-					continue
-				}
-				jsonPatch += buildSeccompPatch(true, profileName, container, index, mode)
-			}
-		}
-	case "Pod":
-		pod := obj.(*corev1.Pod)
-
-		if pod.Annotations == nil {
-			jsonPatch += `{"op": "add", "path": "/metadata/annotations", "value": {}},`
-		}
-
-		// NetworkProxy
-		if (e & varmortypes.NetworkProxy) != 0 {
-			if _, ok := pod.Annotations["pod.networkproxy.security.beta.varmor.org"]; !ok {
-				if len(pod.Spec.InitContainers) == 0 {
-					jsonPatch += `{"op": "add", "path": "/spec/initContainers", "value": []},`
-				}
-
-				if len(pod.Spec.Volumes) == 0 {
-					jsonPatch += `{"op": "add", "path": "/spec/volumes", "value": []},`
-				}
-
-				microVM := varmorconfig.IsMicroVMPod(pod.Labels, pod.Annotations, pod.Spec.RuntimeClassName)
-				jsonPatch += buildNetworkProxyPatch(profileName, id, false, networkProxyConfig, microVM)
-			}
-		}
-
-		for index, container := range pod.Spec.Containers {
-			if len(target.Containers) != 0 && !varmorutils.InStringArray(container.Name, target.Containers) {
-				continue
-			}
-
-			// NetworkProxy MITM: inject CA bundle volumeMount + env vars
-			// into target containers when MITM is enabled on the policy.
-			if (e&varmortypes.NetworkProxy) != 0 && container.Name != "varmor-network-proxy" &&
-				networkProxyConfig != nil && networkProxyConfig.MITM != nil && len(networkProxyConfig.MITM.Domains) > 0 {
-				jsonPatch += buildNetworkProxyMITMTargetPatch(false, container, index)
-			}
-
-			// BPF
-			if (e & varmortypes.BPF) != 0 {
-				key := fmt.Sprintf("container.bpf.security.beta.varmor.org/%s", container.Name)
-				if value, ok := pod.Annotations[key]; !ok || value != "unconfined" {
-					jsonPatch += buildBpfPatch(appArmorGA, false, bpfExclusiveMode, profileName, container, index)
-				}
-			}
-			// AppArmor
-			if (e & varmortypes.AppArmor) != 0 {
-				key := fmt.Sprintf("container.apparmor.security.beta.varmor.org/%s", container.Name)
-				if value, ok := pod.Annotations[key]; !ok || value != "unconfined" {
-					if !appArmorGA {
-						// Below Kubernetes v1.30
-						key := fmt.Sprintf("container.apparmor.security.beta.kubernetes.io/%s", container.Name)
-						if value, ok := pod.Annotations[key]; !ok || value != "unconfined" {
-							jsonPatch += buildAppArmorPatch(appArmorGA, false, profileName, container, index)
-						}
-					} else {
-						// Kubernetes v1.30 and above
-						if (container.SecurityContext != nil && container.SecurityContext.AppArmorProfile != nil && container.SecurityContext.AppArmorProfile.Type == "Unconfined") ||
-							(pod.Spec.SecurityContext != nil && pod.Spec.SecurityContext.AppArmorProfile != nil && pod.Spec.SecurityContext.AppArmorProfile.Type == "Unconfined") {
-							// Do nothing
-						} else {
-							jsonPatch += buildAppArmorPatch(appArmorGA, false, profileName, container, index)
-							if container.SecurityContext == nil {
-								container.SecurityContext = &corev1.SecurityContext{}
-							}
-						}
-					}
-				}
-			}
-			// Seccomp
-			if (e & varmortypes.Seccomp) != 0 {
-				key := fmt.Sprintf("container.seccomp.security.beta.varmor.org/%s", container.Name)
-				if value, ok := pod.Annotations[key]; ok && value == "unconfined" {
-					continue
-				}
-				if (container.SecurityContext != nil && container.SecurityContext.Privileged != nil && *container.SecurityContext.Privileged) ||
-					(container.SecurityContext != nil && container.SecurityContext.SeccompProfile != nil && container.SecurityContext.SeccompProfile.Type == "Unconfined") ||
-					(pod.Spec.SecurityContext != nil && pod.Spec.SecurityContext.SeccompProfile != nil && pod.Spec.SecurityContext.SeccompProfile.Type == "Unconfined") {
-					continue
-				}
-				jsonPatch += buildSeccompPatch(false, profileName, container, index, mode)
-			}
-		}
+		jsonPatch += buildPodTemplatePatch(ref, e, mode, target, networkProxyConfig, profileName, id, bpfExclusiveMode, appArmorGA)
 	}
 
 	if len(jsonPatch) > 0 {
@@ -489,9 +237,163 @@ func buildPatch(obj interface{}, enforcer string,
 	return patch, nil
 }
 
+// templateAtPointer verifies the adapter references a real object, including
+// templates in arrays. Patches operate on the original JSON to preserve fields.
+func templateAtPointer(root map[string]interface{}, path string) (map[string]interface{}, error) {
+	var current interface{} = root
+	if path != "" {
+		if !strings.HasPrefix(path, "/") || strings.ContainsAny(path, "\"\\\n\r") {
+			return nil, fmt.Errorf("invalid template pointer %q", path)
+		}
+		for _, token := range strings.Split(path[1:], "/") {
+			token = strings.ReplaceAll(strings.ReplaceAll(token, "~1", "/"), "~0", "~")
+			switch node := current.(type) {
+			case map[string]interface{}:
+				current = node[token]
+			case []interface{}:
+				index, err := strconv.Atoi(token)
+				if err != nil || index < 0 || index >= len(node) {
+					return nil, fmt.Errorf("template pointer %q has invalid array index", path)
+				}
+				current = node[index]
+			default:
+				return nil, fmt.Errorf("template pointer %q does not exist", path)
+			}
+		}
+	}
+	template, ok := current.(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("template pointer %q is not an object", path)
+	}
+	return template, nil
+}
+
+// extractTemplateRefs maps a decoded workload object to the pod template
+// references the core injection logic operates on. Unstructured objects go
+// through their registered adapter's PodTemplates; typed built-in objects
+// (only constructed directly by tests) use the shared BuiltinPodTemplates
+// helper instead.
+func extractTemplateRefs(obj interface{}, registry *workload.Registry) ([]workload.PodTemplateRef, error) {
+	// Typed built-in workloads reach here from tests only: the admission path
+	// decodes every object as unstructured. BuiltinPodTemplates handles the
+	// four built-in kinds directly, while custom unstructured resources take
+	// the adapter-driven path below.
+	if workload.IsBuiltinTyped(obj) {
+		return workload.BuiltinPodTemplates(obj)
+	}
+	o, ok := obj.(*unstructured.Unstructured)
+	if !ok {
+		return nil, fmt.Errorf("expected unstructured workload object, got %T", obj)
+	}
+	adapter, ok := registry.Lookup(o.GroupVersionKind().GroupKind())
+	if !ok {
+		return nil, fmt.Errorf("no workload adapter registered for kind %q", o.GroupVersionKind().Kind)
+	}
+	return adapter.PodTemplates(o)
+}
+
+// buildPodTemplatePatch renders the JSON Patch operations for a single pod
+// template located at ref.Path. All JSON Patch literals are shared with the
+// pre-refactor implementation; the only per-template input is the path prefix
+// (empty for a root Pod, "/spec/template" for the workload kinds, or an
+// arbitrary path for a custom multi-template adapter), which the builder
+// helpers splice in verbatim.
+func buildPodTemplatePatch(ref workload.PodTemplateRef, e varmortypes.Enforcer,
+	mode varmor.VarmorPolicyMode, target varmor.Target, networkProxyConfig *varmor.NetworkProxyConfig,
+	profileName string, id varmorpolicy.AuditPolicyIdentity, bpfExclusiveMode bool, appArmorGA bool) string {
+
+	var jsonPatch string
+
+	// prefix is the RFC 6901 path to this template: "" for a root Pod,
+	// "/spec/template" for the built-in workload kinds, and an arbitrary path
+	// for a custom multi-template adapter. The enforcer builders splice it in
+	// verbatim, so the built-in kinds keep their exact historical patch paths.
+	prefix := ref.Path
+	tpl := ref.Template
+
+	if prefix != "" && tpl.Annotations == nil {
+		jsonPatch += fmt.Sprintf(`{"op": "add", "path": "%s/metadata/annotations", "value": {}},`, prefix)
+	}
+
+	// NetworkProxy
+	if (e & varmortypes.NetworkProxy) != 0 {
+		if _, ok := tpl.Annotations["pod.networkproxy.security.beta.varmor.org"]; !ok {
+			if len(tpl.Spec.InitContainers) == 0 {
+				jsonPatch += fmt.Sprintf(`{"op": "add", "path": "%s/spec/initContainers", "value": []},`, ref.Path)
+			}
+
+			if len(tpl.Spec.Volumes) == 0 {
+				jsonPatch += fmt.Sprintf(`{"op": "add", "path": "%s/spec/volumes", "value": []},`, ref.Path)
+			}
+
+			microVM := varmorconfig.IsMicroVMPod(tpl.Labels, tpl.Annotations, tpl.Spec.RuntimeClassName)
+			jsonPatch += buildNetworkProxyPatch(profileName, id, prefix, networkProxyConfig, microVM)
+		}
+	}
+
+	for index, container := range tpl.Spec.Containers {
+		if len(target.Containers) != 0 && !varmorutils.InStringArray(container.Name, target.Containers) {
+			continue
+		}
+
+		// NetworkProxy MITM: inject CA bundle volumeMount + env vars
+		// into target containers when MITM is enabled on the policy.
+		if (e&varmortypes.NetworkProxy) != 0 && container.Name != "varmor-network-proxy" &&
+			networkProxyConfig != nil && networkProxyConfig.MITM != nil && len(networkProxyConfig.MITM.Domains) > 0 {
+			jsonPatch += buildNetworkProxyMITMTargetPatch(prefix, container, index)
+		}
+
+		// BPF
+		if (e & varmortypes.BPF) != 0 {
+			key := fmt.Sprintf("container.bpf.security.beta.varmor.org/%s", container.Name)
+			if value, ok := tpl.Annotations[key]; !ok || value != "unconfined" {
+				jsonPatch += buildBpfPatch(appArmorGA, prefix, bpfExclusiveMode, profileName, container, index)
+			}
+		}
+		// AppArmor
+		if (e&varmortypes.AppArmor) != 0 && !isAppArmorUnconfined(tpl, container, appArmorGA) {
+			jsonPatch += buildAppArmorPatch(appArmorGA, prefix, profileName, container, index)
+			if appArmorGA && container.SecurityContext == nil {
+				// AppArmor already added the parent; Seccomp must not add it again.
+				container.SecurityContext = &corev1.SecurityContext{}
+			}
+		}
+		// Seccomp
+		if (e&varmortypes.Seccomp) != 0 && !skipSeccompInjection(tpl, container) {
+			jsonPatch += buildSeccompPatch(prefix, profileName, container, index, mode)
+		}
+	}
+
+	return jsonPatch
+}
+
+func isAppArmorUnconfined(tpl *corev1.PodTemplateSpec, container corev1.Container, appArmorGA bool) bool {
+	if tpl.Annotations["container.apparmor.security.beta.varmor.org/"+container.Name] == "unconfined" {
+		return true
+	}
+	if !appArmorGA {
+		return tpl.Annotations["container.apparmor.security.beta.kubernetes.io/"+container.Name] == "unconfined"
+	}
+	containerContext := container.SecurityContext
+	podContext := tpl.Spec.SecurityContext
+	return (containerContext != nil && containerContext.AppArmorProfile != nil && containerContext.AppArmorProfile.Type == corev1.AppArmorProfileTypeUnconfined) ||
+		(podContext != nil && podContext.AppArmorProfile != nil && podContext.AppArmorProfile.Type == corev1.AppArmorProfileTypeUnconfined)
+}
+
+func skipSeccompInjection(tpl *corev1.PodTemplateSpec, container corev1.Container) bool {
+	if tpl.Annotations["container.seccomp.security.beta.varmor.org/"+container.Name] == "unconfined" {
+		return true
+	}
+	containerContext := container.SecurityContext
+	podContext := tpl.Spec.SecurityContext
+	return (containerContext != nil && containerContext.Privileged != nil && *containerContext.Privileged) ||
+		(containerContext != nil && containerContext.SeccompProfile != nil && containerContext.SeccompProfile.Type == corev1.SeccompProfileTypeUnconfined) ||
+		(podContext != nil && podContext.SeccompProfile != nil && podContext.SeccompProfile.Type == corev1.SeccompProfileTypeUnconfined)
+}
+
 func buildBpfPatch(
 	appArmorGA bool,
-	workloads bool,
+	prefix string,
 	bpfExclusiveMode bool,
 	profileName string,
 	container corev1.Container,
@@ -499,31 +401,16 @@ func buildBpfPatch(
 
 	var jsonPatch string
 
-	if workloads {
-		jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/template/metadata/annotations/container.bpf.security.beta.varmor.org~1%s", "value": "localhost/%s"},`, container.Name, profileName)
-	} else {
-		jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/metadata/annotations/container.bpf.security.beta.varmor.org~1%s", "value": "localhost/%s"},`, container.Name, profileName)
-	}
+	jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "%s/metadata/annotations/container.bpf.security.beta.varmor.org~1%s", "value": "localhost/%s"},`, prefix, container.Name, profileName)
 
 	if bpfExclusiveMode {
-		if workloads {
-			if !appArmorGA {
-				jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/template/metadata/annotations/container.apparmor.security.beta.kubernetes.io~1%s", "value": "unconfined"},`, container.Name)
-			} else {
-				if container.SecurityContext == nil {
-					jsonPatch += fmt.Sprintf(`{"op": "add", "path": "/spec/template/spec/containers/%d/securityContext", "value": {}},`, index)
-				}
-				jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/containers/%d/securityContext/appArmorProfile", "value": {"type": "Unconfined"}},`, index)
-			}
+		if !appArmorGA {
+			jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "%s/metadata/annotations/container.apparmor.security.beta.kubernetes.io~1%s", "value": "unconfined"},`, prefix, container.Name)
 		} else {
-			if !appArmorGA {
-				jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/metadata/annotations/container.apparmor.security.beta.kubernetes.io~1%s", "value": "unconfined"},`, container.Name)
-			} else {
-				if container.SecurityContext == nil {
-					jsonPatch += fmt.Sprintf(`{"op": "add", "path": "/spec/containers/%d/securityContext", "value": {}},`, index)
-				}
-				jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/containers/%d/securityContext/appArmorProfile", "value": {"type": "Unconfined"}},`, index)
+			if container.SecurityContext == nil {
+				jsonPatch += fmt.Sprintf(`{"op": "add", "path": "%s/spec/containers/%d/securityContext", "value": {}},`, prefix, index)
 			}
+			jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "%s/spec/containers/%d/securityContext/appArmorProfile", "value": {"type": "Unconfined"}},`, prefix, index)
 		}
 	}
 
@@ -532,66 +419,42 @@ func buildBpfPatch(
 
 func buildAppArmorPatch(
 	appArmorGA bool,
-	workloads bool,
+	prefix string,
 	profileName string,
 	container corev1.Container,
 	index int) string {
 
 	var jsonPatch string
 
-	if workloads {
-		if !appArmorGA {
-			jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/template/metadata/annotations/container.apparmor.security.beta.kubernetes.io~1%s", "value": "localhost/%s"},`, container.Name, profileName)
-		} else {
-			jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/template/metadata/annotations/container.apparmor.security.beta.varmor.org~1%s", "value": "localhost/%s"},`, container.Name, profileName)
-			if container.SecurityContext == nil {
-				jsonPatch += fmt.Sprintf(`{"op": "add", "path": "/spec/template/spec/containers/%d/securityContext", "value": {}},`, index)
-			}
-			jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/containers/%d/securityContext/appArmorProfile", "value": {"type": "Localhost", "localhostProfile": "%s"}},`, index, profileName)
-		}
+	if !appArmorGA {
+		jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "%s/metadata/annotations/container.apparmor.security.beta.kubernetes.io~1%s", "value": "localhost/%s"},`, prefix, container.Name, profileName)
 	} else {
-		if !appArmorGA {
-			jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/metadata/annotations/container.apparmor.security.beta.kubernetes.io~1%s", "value": "localhost/%s"},`, container.Name, profileName)
-		} else {
-			jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/metadata/annotations/container.apparmor.security.beta.varmor.org~1%s", "value": "localhost/%s"},`, container.Name, profileName)
-			if container.SecurityContext == nil {
-				jsonPatch += fmt.Sprintf(`{"op": "add", "path": "/spec/containers/%d/securityContext", "value": {}},`, index)
-			}
-			jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/containers/%d/securityContext/appArmorProfile", "value": {"type": "Localhost", "localhostProfile": "%s"}},`, index, profileName)
+		jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "%s/metadata/annotations/container.apparmor.security.beta.varmor.org~1%s", "value": "localhost/%s"},`, prefix, container.Name, profileName)
+		if container.SecurityContext == nil {
+			jsonPatch += fmt.Sprintf(`{"op": "add", "path": "%s/spec/containers/%d/securityContext", "value": {}},`, prefix, index)
 		}
+		jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "%s/spec/containers/%d/securityContext/appArmorProfile", "value": {"type": "Localhost", "localhostProfile": "%s"}},`, prefix, index, profileName)
 	}
 
 	return jsonPatch
 }
 
 func buildSeccompPatch(
-	workloads bool,
+	prefix string,
 	profileName string,
 	container corev1.Container,
 	index int, mode varmor.VarmorPolicyMode) string {
 
 	var jsonPatch string
 
-	if workloads {
-		jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/template/metadata/annotations/container.seccomp.security.beta.varmor.org~1%s", "value": "localhost/%s"},`, container.Name, profileName)
-		if container.SecurityContext == nil {
-			jsonPatch += fmt.Sprintf(`{"op": "add", "path": "/spec/template/spec/containers/%d/securityContext", "value": {}},`, index)
-		}
-		if mode == varmor.RuntimeDefaultMode {
-			jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/containers/%d/securityContext/seccompProfile", "value": {"type": "RuntimeDefault"}},`, index)
-		} else {
-			jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/template/spec/containers/%d/securityContext/seccompProfile", "value": {"type": "Localhost", "localhostProfile": "%s"}},`, index, profileName)
-		}
+	jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "%s/metadata/annotations/container.seccomp.security.beta.varmor.org~1%s", "value": "localhost/%s"},`, prefix, container.Name, profileName)
+	if container.SecurityContext == nil {
+		jsonPatch += fmt.Sprintf(`{"op": "add", "path": "%s/spec/containers/%d/securityContext", "value": {}},`, prefix, index)
+	}
+	if mode == varmor.RuntimeDefaultMode {
+		jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "%s/spec/containers/%d/securityContext/seccompProfile", "value": {"type": "RuntimeDefault"}},`, prefix, index)
 	} else {
-		jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/metadata/annotations/container.seccomp.security.beta.varmor.org~1%s", "value": "localhost/%s"},`, container.Name, profileName)
-		if container.SecurityContext == nil {
-			jsonPatch += fmt.Sprintf(`{"op": "add", "path": "/spec/containers/%d/securityContext", "value": {}},`, index)
-		}
-		if mode == varmor.RuntimeDefaultMode {
-			jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/containers/%d/securityContext/seccompProfile", "value": {"type": "RuntimeDefault"}},`, index)
-		} else {
-			jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "/spec/containers/%d/securityContext/seccompProfile", "value": {"type": "Localhost", "localhostProfile": "%s"}},`, index, profileName)
-		}
+		jsonPatch += fmt.Sprintf(`{"op": "replace", "path": "%s/spec/containers/%d/securityContext/seccompProfile", "value": {"type": "Localhost", "localhostProfile": "%s"}},`, prefix, index, profileName)
 	}
 
 	return jsonPatch
@@ -608,13 +471,8 @@ func jsonString(v string) string {
 	return string(b)
 }
 
-func buildNetworkProxyPatch(profileName string, id varmorpolicy.AuditPolicyIdentity, workloads bool, networkProxyConfig *varmor.NetworkProxyConfig, microVM bool) string {
+func buildNetworkProxyPatch(profileName string, id varmorpolicy.AuditPolicyIdentity, prefix string, networkProxyConfig *varmor.NetworkProxyConfig, microVM bool) string {
 	var sb strings.Builder
-
-	pathPrefix := ""
-	if workloads {
-		pathPrefix = "/spec/template"
-	}
 
 	proxyUID := varmorconfig.DefaultProxyUID
 	proxyPort := varmorconfig.DefaultProxyPort
@@ -640,7 +498,7 @@ func buildNetworkProxyPatch(profileName string, id varmorpolicy.AuditPolicyIdent
 
 	// --- 1. add annotation ---
 	sb.WriteString(fmt.Sprintf(
-		`{"op": "add", "path": "%s/metadata/annotations/pod.networkproxy.security.beta.varmor.org", "value": "localhost/%s"},`, pathPrefix, profileName,
+		`{"op": "add", "path": "%s/metadata/annotations/pod.networkproxy.security.beta.varmor.org", "value": "localhost/%s"},`, prefix, profileName,
 	))
 
 	// --- 2. initContainer: varmor-network-proxy-init ---
@@ -653,7 +511,7 @@ func buildNetworkProxyPatch(profileName string, id varmorpolicy.AuditPolicyIdent
 			`"securityContext": {"runAsUser": 0, "runAsNonRoot": false, "capabilities": {"add": ["NET_ADMIN"]}}, `+
 			`"resources": {"requests": {"cpu": "10m", "memory": "16Mi"}}, `+
 			`"command": ["sh", "-c", %s]}},`,
-		pathPrefix, varmorconfig.ProxyInitImage, iptablesScript(proxyUID, proxyPort, proxyAdminPort),
+		prefix, varmorconfig.ProxyInitImage, iptablesScript(proxyUID, proxyPort, proxyAdminPort),
 	))
 
 	// --- 3. sidecar container: varmor-network-proxy ---
@@ -759,7 +617,7 @@ func buildNetworkProxyPatch(profileName string, id varmorpolicy.AuditPolicyIdent
 			`"resources": %s, `+
 			`%s`+
 			`"volumeMounts": [%s]}}, `,
-		pathPrefix, varmorconfig.ProxyImage, sidecarRunAsUser, proxyPort, proxyResourcesJSON, sidecarEnv, sidecarVolumeMounts,
+		prefix, varmorconfig.ProxyImage, sidecarRunAsUser, proxyPort, proxyResourcesJSON, sidecarEnv, sidecarVolumeMounts,
 	))
 
 	// --- 4. volumes ---
@@ -767,7 +625,7 @@ func buildNetworkProxyPatch(profileName string, id varmorpolicy.AuditPolicyIdent
 	sb.WriteString(fmt.Sprintf(
 		`{"op": "add", "path": "%s/spec/volumes/-", "value": `+
 			`{"name": "varmor-network-proxy-config", "secret": {"secretName": "%s", "items": [{"key": "bootstrap.yaml", "path": "bootstrap.yaml"}, {"key": "lds.yaml", "path": "lds.yaml"}, {"key": "cds.yaml", "path": "cds.yaml"}]}}},`,
-		pathPrefix, profileName,
+		prefix, profileName,
 	))
 
 	// Audit volume: on runc, the node-local ALS socket directory shared with the
@@ -781,7 +639,7 @@ func buildNetworkProxyPatch(profileName string, id varmorpolicy.AuditPolicyIdent
 		sb.WriteString(fmt.Sprintf(
 			`{"op": "add", "path": "%s/spec/volumes/-", "value": `+
 				`{"name": "%s", "hostPath": {"path": "%s", "type": "DirectoryOrCreate"}}},`,
-			pathPrefix, varmorconfig.AuditNetworkProxyVolumeName, varmorconfig.AuditNetworkProxySocketDir,
+			prefix, varmorconfig.AuditNetworkProxyVolumeName, varmorconfig.AuditNetworkProxySocketDir,
 		))
 	}
 
@@ -799,7 +657,7 @@ func buildNetworkProxyPatch(profileName string, id varmorpolicy.AuditPolicyIdent
 				`{"key": "mitm-leaf.crt", "path": "leaf.crt"}, `+
 				`{"key": "mitm-leaf.key", "path": "leaf.key"}, `+
 				`{"key": "mitm-ca-bundle.crt", "path": "ca-bundle.crt"}]}}},`,
-			pathPrefix, profileName,
+			prefix, profileName,
 		))
 
 		// MITM-only volume #2: the concatenated Mozilla + vArmor-CA
@@ -812,7 +670,7 @@ func buildNetworkProxyPatch(profileName string, id varmorpolicy.AuditPolicyIdent
 			`{"op": "add", "path": "%s/spec/volumes/-", "value": `+
 				`{"name": "varmor-network-proxy-mitm-ca-bundle", "secret": {"secretName": "%s", "items": [`+
 				`{"key": "mitm-ca-bundle.crt", "path": "ca-certificates.crt"}]}}},`,
-			pathPrefix, profileName,
+			prefix, profileName,
 		))
 	}
 
@@ -828,13 +686,10 @@ func buildNetworkProxyPatch(profileName string, id varmorpolicy.AuditPolicyIdent
 //
 // The caller is responsible for gating on `(enforcer & NetworkProxy) != 0`
 // and `networkProxyConfig.MITM != nil`.
-func buildNetworkProxyMITMTargetPatch(workloads bool, container corev1.Container, index int) string {
+func buildNetworkProxyMITMTargetPatch(prefix string, container corev1.Container, index int) string {
 	var sb strings.Builder
 
-	containerPath := "/spec/containers"
-	if workloads {
-		containerPath = "/spec/template/spec/containers"
-	}
+	containerPath := prefix + "/spec/containers"
 
 	// Idempotency: skip if the container already has the MITM CA bundle volumeMount.
 	hasMITMMount := false

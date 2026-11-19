@@ -23,6 +23,7 @@ import (
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
 	varmorconfig "github.com/bytedance/vArmor/internal/config"
 	varmorpolicy "github.com/bytedance/vArmor/internal/policy"
+	"github.com/bytedance/vArmor/pkg/workload"
 )
 
 // Test_buildNetworkProxyPatch_AuditInjected asserts that NetworkProxy
@@ -30,7 +31,7 @@ import (
 // unconditionally injects the Downward API Pod identity env vars and the
 // shared ALS socket hostPath volume/mount.
 func Test_buildNetworkProxyPatch_AuditInjected(t *testing.T) {
-	patch := buildNetworkProxyPatch("varmor-testns-test", varmorpolicy.AuditPolicyIdentity{Kind: "VarmorPolicy", Name: "test", Namespace: "testns"}, true, nil, false)
+	patch := buildNetworkProxyPatch("varmor-testns-test", varmorpolicy.AuditPolicyIdentity{Kind: "VarmorPolicy", Name: "test", Namespace: "testns"}, workload.WorkloadTemplatePath, nil, false)
 
 	// Sidecar carries the Downward API env array.
 	assert.Assert(t, strings.Contains(patch, `"env": [`),
@@ -91,7 +92,7 @@ func Test_buildNetworkProxyPatch_AuditWithMITM(t *testing.T) {
 	proxyConfig := &varmor.NetworkProxyConfig{
 		MITM: &varmor.MITMConfig{Domains: []string{"example.com"}},
 	}
-	patch := buildNetworkProxyPatch("varmor-testns-test", varmorpolicy.AuditPolicyIdentity{Kind: "VarmorPolicy", Name: "test", Namespace: "testns"}, true, proxyConfig, false)
+	patch := buildNetworkProxyPatch("varmor-testns-test", varmorpolicy.AuditPolicyIdentity{Kind: "VarmorPolicy", Name: "test", Namespace: "testns"}, workload.WorkloadTemplatePath, proxyConfig, false)
 
 	// MITM injection intact.
 	assert.Assert(t, strings.Contains(patch, `"name": "varmor-network-proxy-mitm-tls"`),
@@ -112,7 +113,7 @@ func Test_buildNetworkProxyPatch_AuditWithMITM(t *testing.T) {
 // container's own rootfs), while the Downward API / sink env vars and the
 // root-start securityContext are still injected.
 func Test_buildNetworkProxyPatch_MicroVM(t *testing.T) {
-	patch := buildNetworkProxyPatch("varmor-testns-test", varmorpolicy.AuditPolicyIdentity{Kind: "VarmorPolicy", Name: "test", Namespace: "testns"}, true, nil, true)
+	patch := buildNetworkProxyPatch("varmor-testns-test", varmorpolicy.AuditPolicyIdentity{Kind: "VarmorPolicy", Name: "test", Namespace: "testns"}, workload.WorkloadTemplatePath, nil, true)
 
 	// No ALS socket hostPath volume on a micro-VM.
 	assert.Assert(t, !strings.Contains(patch, `"hostPath": {"path": "`+varmorconfig.AuditNetworkProxySocketDir+`"`),
@@ -149,7 +150,7 @@ func Test_buildNetworkProxyPatch_GlobalDefaultResources(t *testing.T) {
 	})
 	defer restore()
 
-	patch := buildNetworkProxyPatch("varmor-testns-test", varmorpolicy.AuditPolicyIdentity{Kind: "VarmorPolicy", Name: "test", Namespace: "testns"}, true, nil, false)
+	patch := buildNetworkProxyPatch("varmor-testns-test", varmorpolicy.AuditPolicyIdentity{Kind: "VarmorPolicy", Name: "test", Namespace: "testns"}, workload.WorkloadTemplatePath, nil, false)
 
 	// Global-configured fields land in the sidecar resources.
 	assert.Assert(t, strings.Contains(patch, `"cpu":"70m"`),
@@ -180,7 +181,7 @@ func Test_buildNetworkProxyPatch_GlobalMITMTier(t *testing.T) {
 	proxyConfig := &varmor.NetworkProxyConfig{
 		MITM: &varmor.MITMConfig{Domains: []string{"example.com"}},
 	}
-	patch := buildNetworkProxyPatch("varmor-testns-test", varmorpolicy.AuditPolicyIdentity{Kind: "VarmorPolicy", Name: "test", Namespace: "testns"}, true, proxyConfig, false)
+	patch := buildNetworkProxyPatch("varmor-testns-test", varmorpolicy.AuditPolicyIdentity{Kind: "VarmorPolicy", Name: "test", Namespace: "testns"}, workload.WorkloadTemplatePath, proxyConfig, false)
 
 	// The MITM-tier global override lands; other fields keep MITM built-in defaults.
 	assert.Assert(t, strings.Contains(patch, `"cpu":"1500m"`),
