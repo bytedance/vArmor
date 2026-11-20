@@ -29,7 +29,7 @@ func (ws *WebhookServer) validatePolicy(request *admissionv1.AdmissionRequest, n
 		case admissionv1.Create:
 			logger.V(2).Info("policy validating", "new", new)
 
-			valid, message := varmorpolicy.ValidateAddPolicy(new, ws.enableBehaviorModeling)
+			valid, message := varmorpolicy.ValidateAddPolicy(new, ws.enableBehaviorModeling, ws.registry)
 			if !valid {
 				return failureResponse(request.UID, message)
 			}
@@ -57,7 +57,7 @@ func (ws *WebhookServer) validatePolicy(request *admissionv1.AdmissionRequest, n
 		case admissionv1.Create:
 			logger.V(2).Info("policy validating", "new", new)
 
-			valid, message := varmorpolicy.ValidateAddPolicy(new, ws.enableBehaviorModeling)
+			valid, message := varmorpolicy.ValidateAddPolicy(new, ws.enableBehaviorModeling, ws.registry)
 			if !valid {
 				return failureResponse(request.UID, message)
 			}

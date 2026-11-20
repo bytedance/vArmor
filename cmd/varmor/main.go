@@ -55,6 +55,8 @@ import (
 	varmorinformer "github.com/bytedance/vArmor/pkg/client/informers/externalversions"
 	"github.com/bytedance/vArmor/pkg/metrics"
 	"github.com/bytedance/vArmor/pkg/signal"
+	"github.com/bytedance/vArmor/pkg/workload"
+	_ "github.com/bytedance/vArmor/pkg/workload/builtin"
 )
 
 const (
@@ -375,6 +377,18 @@ func main() {
 			os.Exit(1)
 		}
 
+		// Build the registry from every adapter compiled into this binary,
+		// populated by adapter-package init functions via workload.Register.
+		// The registry is immutable after construction. The four built-in
+		// workload kinds are always active; custom adapters compiled into
+		// downstream binaries stay inert until webhook registration for
+		// their kinds is introduced.
+		workloadRegistry, err := workload.NewRegistry(workload.RegisteredAdapters()...)
+		if err != nil {
+			logger.WithName("SETUP").Error(err, "workload.NewRegistry()")
+			os.Exit(1)
+		}
+
 		wcFactory := kubeinformers.NewSharedInformerFactoryWithOptions(kubeClient, secretResyncPeriod)
 		webhookRegister := webhookconfig.NewRegister(
 			clientConfig,
@@ -438,6 +452,7 @@ func main() {
 			enableBehaviorModeling,
 			bpfExclusiveMode,
 			metricsModule,
+			workloadRegistry,
 			logger.WithName("WEBHOOK-SERVER"))
 		if err != nil {
 			logger.WithName("SETUP").Error(err, "Failed to create webhook webhookServer")
@@ -520,6 +535,7 @@ func main() {
 			enableServiceEgressControl,
 			enablePodEgressControl,
 			bpfExclusiveMode,
+			workloadRegistry,
 			logger.WithName("CLUSTER-POLICY"),
 		)
 		if err != nil {
@@ -541,6 +557,7 @@ func main() {
 			enableServiceEgressControl,
 			enablePodEgressControl,
 			bpfExclusiveMode,
+			workloadRegistry,
 			logger.WithName("POLICY"),
 		)
 		if err != nil {

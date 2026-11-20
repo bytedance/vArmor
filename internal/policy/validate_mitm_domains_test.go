@@ -22,6 +22,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
+	"github.com/bytedance/vArmor/pkg/workload/workloadtest"
 )
 
 func TestValidatePolicy_EquivalentMITMDomains(t *testing.T) {
@@ -67,7 +68,7 @@ func TestValidatePolicy_EquivalentMITMDomains(t *testing.T) {
 						assert.Contains(t, msg, "duplicates the identity")
 					}
 				}
-				check(ValidateAddPolicy(obj, true))
+				check(ValidateAddPolicy(obj, true, workloadtest.NewRegistry(t)))
 				check(ValidateUpdatePolicy(obj, "NetworkProxy", spec.Target, nil))
 				check(ValidateUpdatePolicy(obj, "NetworkProxy", spec.Target, &varmor.NetworkProxyConfig{MITM: &varmor.MITMConfig{Domains: tc.domains[:1]}}))
 				after, err := json.Marshal(obj)
@@ -139,7 +140,7 @@ func TestValidatePolicy_MITMDomainReferences(t *testing.T) {
 						assert.Empty(t, msg)
 					}
 				}
-				check(ValidateAddPolicy(obj, true))
+				check(ValidateAddPolicy(obj, true, workloadtest.NewRegistry(t)))
 				check(ValidateUpdatePolicy(obj, "NetworkProxy", spec.Target, nil))
 				check(ValidateUpdatePolicy(obj, "NetworkProxy", spec.Target,
 					&varmor.NetworkProxyConfig{MITM: &varmor.MITMConfig{Domains: []string{"api.example.com"}}}))

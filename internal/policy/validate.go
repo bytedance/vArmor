@@ -24,6 +24,7 @@ import (
 	networkprofile "github.com/bytedance/vArmor/internal/networkproxy/profile"
 	varmorprofile "github.com/bytedance/vArmor/internal/profile"
 	varmortypes "github.com/bytedance/vArmor/internal/types"
+	"github.com/bytedance/vArmor/pkg/workload"
 )
 
 // ValidateAddPolicy validates policy objects for creation operations.
@@ -34,11 +35,13 @@ import (
 // Parameters:
 //   - policy: The policy object to validate (can be *varmor.VarmorPolicy or *varmor.VarmorClusterPolicy)
 //   - behaviorModelingEnabled: Flag indicating if the behavior modeling feature of vArmor is enabled
+//   - registry: The process's explicitly constructed workload adapter registry; the function
+//     keeps no global adapter state of its own
 //
 // Returns:
 //   - bool: true if validation passes, false otherwise
 //   - string: Detailed error message if validation fails, empty string if validation passes
-func ValidateAddPolicy(policy interface{}, behaviorModelingEnabled bool) (bool, string) {
+func ValidateAddPolicy(policy interface{}, behaviorModelingEnabled bool, registry *workload.Registry) (bool, string) {
 	var spec varmor.VarmorPolicySpec
 	var namespace, name string
 	var clusterScope bool
@@ -64,9 +67,13 @@ func ValidateAddPolicy(policy interface{}, behaviorModelingEnabled bool) (bool, 
 		return false, "The enforcer field contains an unsupported or malformed value."
 	}
 
-	// Validate target workload kind - only supported Kubernetes resource types are allowed
-	if spec.Target.Kind != "Deployment" && spec.Target.Kind != "StatefulSet" && spec.Target.Kind != "DaemonSet" && spec.Target.Kind != "Pod" {
-		return false, "The target kind is not supported. You should specify the target kind as a Deployment, StatefulSet, DaemonSet, or Pod."
+	// The registry constructed for this process holds every compiled-in
+	// adapter, so a missing entry means the kind is unknown to this binary.
+	// Target.Kind carries no API version: when a Kind is served by several
+	// versioned adapters, one policy applies to every served version and
+	// admission routes each object by its full GVK.
+	if _, ok := registry.LookupByKind(spec.Target.Kind); !ok {
+		return false, "The target kind is not supported. You should specify the target kind as a registered workload kind (Deployment, StatefulSet, DaemonSet, Pod, or a custom workload adapter's Kind)."
 	}
 
 	// Ensure either target name or selector is specified, but not both

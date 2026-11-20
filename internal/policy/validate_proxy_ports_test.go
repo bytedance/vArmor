@@ -22,6 +22,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
+	"github.com/bytedance/vArmor/pkg/workload/workloadtest"
 )
 
 func TestValidatePolicy_EffectiveProxyPorts(t *testing.T) {
@@ -71,7 +72,7 @@ func TestValidatePolicy_EffectiveProxyPorts(t *testing.T) {
 					assert.Equal(t, string(before), string(after), "validation must not default the input in place")
 				}
 				t.Run("create", func(t *testing.T) {
-					valid, msg := ValidateAddPolicy(p, true)
+					valid, msg := ValidateAddPolicy(p, true, workloadtest.NewRegistry(t))
 					check(t, valid, msg)
 				})
 				t.Run("controller update", func(t *testing.T) {
