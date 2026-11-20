@@ -45,6 +45,7 @@ import (
 	varmorinterface "github.com/bytedance/vArmor/pkg/client/clientset/versioned/typed/varmor/v1beta1"
 	varmorinformer "github.com/bytedance/vArmor/pkg/client/informers/externalversions/varmor/v1beta1"
 	varmorlister "github.com/bytedance/vArmor/pkg/client/listers/varmor/v1beta1"
+	"github.com/bytedance/vArmor/pkg/workload"
 )
 
 const (
@@ -67,6 +68,7 @@ type PolicyController struct {
 	enableServiceEgressControl bool
 	enablePodEgressControl     bool
 	bpfExclusiveMode           bool
+	workloadRegistry           *workload.Registry
 	log                        logr.Logger
 }
 
@@ -83,6 +85,7 @@ func NewPolicyController(
 	enableServiceEgressControl bool,
 	enablePodEgressControl bool,
 	bpfExclusiveMode bool,
+	workloadRegistry *workload.Registry,
 	log logr.Logger) (*PolicyController, error) {
 
 	c := PolicyController{
@@ -100,6 +103,7 @@ func NewPolicyController(
 		enableServiceEgressControl: enableServiceEgressControl,
 		enablePodEgressControl:     enablePodEgressControl,
 		bpfExclusiveMode:           bpfExclusiveMode,
+		workloadRegistry:           workloadRegistry,
 		log:                        log,
 	}
 	return &c, nil
@@ -208,7 +212,7 @@ func (c *PolicyController) handleAddVarmorPolicy(vp *varmor.VarmorPolicy, profil
 
 	logger.Info("VarmorPolicy created", "namespace", vp.Namespace, "name", vp.Name, "labels", vp.Labels, "target", vp.Spec.Target)
 
-	if valid, message := ValidateAddPolicy(vp, c.enableBehaviorModeling); !valid {
+	if valid, message := ValidateAddPolicy(vp, c.enableBehaviorModeling, c.workloadRegistry); !valid {
 		logger.Info("update the policy status with forbidden info", "message", message)
 		err := statuscommon.UpdateVarmorPolicyStatus(c.varmorInterface, vp, "", false, varmor.VarmorPolicyError, varmor.VarmorPolicyCreated, apicorev1.ConditionFalse, "Forbidden", message)
 		if err != nil {

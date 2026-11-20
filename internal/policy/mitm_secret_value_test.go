@@ -40,6 +40,7 @@ import (
 	"github.com/bytedance/vArmor/internal/networkproxy"
 	varmorprofile "github.com/bytedance/vArmor/internal/profile"
 	varmorfake "github.com/bytedance/vArmor/pkg/client/clientset/versioned/fake"
+	"github.com/bytedance/vArmor/pkg/workload/workloadtest"
 )
 
 // The production resolver takes a concrete Clientset. This loopback API
@@ -158,7 +159,7 @@ func TestPolicyReconcile_EmptyMITMSecretValue(t *testing.T) {
 				oldAP := &varmor.ArmorProfile{Spec: varmor.ArmorProfileSpec{Target: spec.Target, Profile: varmor.Profile{Enforcer: "NetworkProxy"}}}
 				var status varmor.VarmorPolicyStatus
 				if clusterScope {
-					controller := ClusterPolicyController{kubeClient: client, varmorInterface: policies.CrdV1beta1(), log: logr.Discard()}
+					controller := ClusterPolicyController{kubeClient: client, varmorInterface: policies.CrdV1beta1(), workloadRegistry: workloadtest.NewRegistry(t), log: logr.Discard()}
 					if update {
 						err = controller.handleUpdateVarmorClusterPolicy(vcp, oldAP)
 					} else {
@@ -169,7 +170,7 @@ func TestPolicyReconcile_EmptyMITMSecretValue(t *testing.T) {
 					require.NoError(t, getErr)
 					status = saved.Status
 				} else {
-					controller := PolicyController{kubeClient: client, varmorInterface: policies.CrdV1beta1(), log: logr.Discard()}
+					controller := PolicyController{kubeClient: client, varmorInterface: policies.CrdV1beta1(), workloadRegistry: workloadtest.NewRegistry(t), log: logr.Discard()}
 					if update {
 						err = controller.handleUpdateVarmorPolicy(vp, oldAP)
 					} else {
