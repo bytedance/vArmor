@@ -16,7 +16,6 @@ package webhooks
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/go-openapi/jsonpointer"
 )
@@ -24,12 +23,18 @@ import (
 // templateAtPointer verifies the adapter references a real object, including
 // templates in arrays. Patches operate on the original JSON to preserve fields.
 func templateAtPointer(root map[string]interface{}, path string) (map[string]interface{}, error) {
-	// RFC 6901 permits quotes, backslashes and line breaks inside reference
-	// tokens, but this pointer is later spliced verbatim into a
-	// string-rendered JSON Patch path, so the dangerous characters must be
-	// rejected here before they can reach the shared renderer.
-	if path != "" && strings.ContainsAny(path, "\"\\\n\r") {
-		return nil, fmt.Errorf("invalid template pointer %q", path)
+	// RFC 6901 permits quotes, backslashes and control characters inside
+	// reference tokens, but this pointer is later spliced verbatim into a
+	// string-rendered JSON Patch path, so every character encoding/json
+	// cannot represent inside a string literal must be rejected here before
+	// it can reach the shared renderer. This mirrors the
+	// containsYAMLUnsafeChars character policy in internal/policy.
+	if path != "" {
+		for _, c := range path {
+			if c < 0x20 || c == 0x7F || c == '"' || c == '\\' {
+				return nil, fmt.Errorf("invalid template pointer %q", path)
+			}
+		}
 	}
 	// jsonpointer.New enforces the leading "/" (the empty pointer addresses
 	// the root document for a Pod), and Get performs the RFC 6901 token

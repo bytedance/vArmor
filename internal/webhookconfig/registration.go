@@ -38,6 +38,7 @@ import (
 	"github.com/bytedance/vArmor/internal/config"
 	varmortls "github.com/bytedance/vArmor/internal/tls"
 	varmorinterface "github.com/bytedance/vArmor/pkg/client/clientset/versioned/typed/varmor/v1beta1"
+	"github.com/bytedance/vArmor/pkg/workload"
 )
 
 // Register manages webhook registration.
@@ -57,6 +58,7 @@ type Register struct {
 	inContainer          bool
 	stopCh               <-chan struct{}
 	createDefaultWebhook chan string
+	registry             *workload.Registry
 	log                  logr.Logger
 }
 
@@ -75,6 +77,7 @@ func NewRegister(
 	webhookTimeout int32,
 	inContainer bool,
 	stopCh <-chan struct{},
+	workloadRegistry *workload.Registry,
 	log logr.Logger) *Register {
 
 	register := &Register{
@@ -93,6 +96,7 @@ func NewRegister(
 		vwcLister:            vwcInformer.Lister(),
 		vwcListerSynced:      vwcInformer.Informer().HasSynced,
 		stopCh:               stopCh,
+		registry:             workloadRegistry,
 		log:                  log.WithName("Register"),
 	}
 
@@ -176,24 +180,27 @@ func (wrc *Register) generateMutatingWebhookConfig(
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 		},
-		Webhooks: []admissionregistrationapi.MutatingWebhook{
-			generateMutatingWebhook(
-				config.MutatingWorkloadWebhookName,
-				clientConfig,
-				[]admissionregistrationapi.OperationType{admissionregistrationapi.Create, admissionregistrationapi.Update},
-				workloadResourceWebhookRule(),
-				wrc.timeoutSeconds,
-				reinvocationPolicy,
-			),
-			generateMutatingWebhook(
-				config.MutatingPodWebhookName,
-				clientConfig,
-				[]admissionregistrationapi.OperationType{admissionregistrationapi.Create},
-				podResourceWebhookRule(),
-				wrc.timeoutSeconds,
-				reinvocationPolicy,
-			),
-		},
+		Webhooks: append(
+			[]admissionregistrationapi.MutatingWebhook{
+				generateMutatingWebhook(
+					config.MutatingWorkloadWebhookName,
+					clientConfig,
+					[]admissionregistrationapi.OperationType{admissionregistrationapi.Create, admissionregistrationapi.Update},
+					workloadResourceWebhookRule(),
+					wrc.timeoutSeconds,
+					reinvocationPolicy,
+				),
+				generateMutatingWebhook(
+					config.MutatingPodWebhookName,
+					clientConfig,
+					[]admissionregistrationapi.OperationType{admissionregistrationapi.Create},
+					podResourceWebhookRule(),
+					wrc.timeoutSeconds,
+					reinvocationPolicy,
+				),
+			},
+			wrc.customAdapterWebhooks(clientConfig, reinvocationPolicy)...,
+		),
 	}
 }
 

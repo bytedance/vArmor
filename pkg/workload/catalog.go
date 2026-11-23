@@ -29,9 +29,7 @@ import "sync"
 //
 // The catalog cannot itself enforce an `enabled` policy because init
 // functions run before any configuration (flags, ConfigMaps, API clients)
-// exists. Today the composition root registers the whole catalog; a
-// startup-time workloadAdapters `enabled` decision may filter the set in a
-// later change.
+// exists.
 var (
 	catalogMu sync.RWMutex
 	catalog   []Adapter

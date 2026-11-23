@@ -26,8 +26,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/utils/ptr"
 
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
@@ -144,11 +142,7 @@ func TestNetworkProxyPodSecurityContext(t *testing.T) {
 						// Apply admission JSON Patch to the actual object, then decode it back.
 						// Repeat to ensure an annotated workload is not injected twice.
 						for pass := 0; pass < 2; pass++ {
-							// buildPatch only accepts decoded unstructured workloads; the
-							// typed object is retained below for patch application and asserts.
-							u := toUnstructuredObject(t, obj.(runtime.Object))
-							u.SetGroupVersionKind(workloadKindGVK(kind))
-							patch, err := buildPatch(u, "NetworkProxy", varmor.EnhanceProtectMode, target, config, "varmor-default-test", id, false, false, testRegistry(t))
+							patch, err := buildNativePatch(obj, "NetworkProxy", varmor.EnhanceProtectMode, target, config, "varmor-default-test", id, false, false)
 							require.NoError(t, err)
 							if patch == "" {
 								assertProxySecurity(t, original, securityPodSpec(obj), uid, mitm)
@@ -169,15 +163,6 @@ func TestNetworkProxyPodSecurityContext(t *testing.T) {
 			}
 		}
 	}
-}
-
-// workloadKindGVK maps the test's kind label to the GVK the registry lookup
-// inside buildPatch expects; the typed fixtures are built without TypeMeta.
-func workloadKindGVK(kind string) schema.GroupVersionKind {
-	if kind == "Pod" {
-		return schema.GroupVersionKind{Group: "", Version: "v1", Kind: "Pod"}
-	}
-	return schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: kind}
 }
 
 func securityPodSpec(obj interface{}) *corev1.PodSpec {

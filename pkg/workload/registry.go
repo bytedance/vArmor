@@ -52,11 +52,13 @@ type Registry struct {
 	order []Adapter
 }
 
-// NewRegistry validates and indexes the given adapters. It returns an error
-// on any nil adapter, empty identity, GVR/GVK mismatch, duplicate Name or
-// full GVK, a bare Kind claimed by two API groups, or versioned adapters of
-// one Kind disagreeing on their GVR resource, so ambiguous Target.Kind
-// values, misrouted admissions or malformed webhook rules fail at startup.
+// NewRegistry validates and indexes the given custom adapters. It returns an
+// error on any nil adapter, empty identity, GVR/GVK mismatch, duplicate Name
+// or full GVK, a bare Kind claimed by two API groups, versioned adapters of
+// one Kind disagreeing on their GVR resource, or an adapter claiming the
+// built-in core ("") or "apps" API groups (those are served by a hard-coded
+// kind switch, not the registry), so ambiguous Target.Kind values, misrouted
+// admissions or malformed webhook rules fail at startup.
 //
 // Multiple adapters sharing the same API group and bare Kind but serving
 // different versions (the multi-version CRD case) are allowed.
@@ -80,6 +82,14 @@ func NewRegistry(adapters ...Adapter) (*Registry, error) {
 		}
 		if kind == "" {
 			return nil, fmt.Errorf("workload: adapter %q returned an empty GVK Kind", name)
+		}
+		// The registry holds custom (CRD) adapters only. The four built-in
+		// kinds — core/v1 Pod and the apps/v1 workloads — keep their own
+		// hard-coded, fail-open dispatch and typed decode path, so an
+		// adapter claiming either API group would shadow that path and is a
+		// configuration error.
+		if gvk.Group == "" || gvk.Group == "apps" {
+			return nil, fmt.Errorf("workload: adapter %q claims built-in API group %q; the core and apps groups are served by the built-in kind switch and cannot be registered as custom adapters", name, gvk.Group)
 		}
 		// GVR feeds the generated webhook rules directly, so an inconsistent
 		// identity would route admissions to the wrong REST resource. The

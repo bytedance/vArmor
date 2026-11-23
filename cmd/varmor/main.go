@@ -56,7 +56,6 @@ import (
 	"github.com/bytedance/vArmor/pkg/metrics"
 	"github.com/bytedance/vArmor/pkg/signal"
 	"github.com/bytedance/vArmor/pkg/workload"
-	_ "github.com/bytedance/vArmor/pkg/workload/builtin"
 )
 
 const (
@@ -377,12 +376,10 @@ func main() {
 			os.Exit(1)
 		}
 
-		// Build the registry from every adapter compiled into this binary,
-		// populated by adapter-package init functions via workload.Register.
-		// The registry is immutable after construction. The four built-in
-		// workload kinds are always active; custom adapters compiled into
-		// downstream binaries stay inert until webhook registration for
-		// their kinds is introduced.
+		// Build the registry from every custom adapter compiled into this
+		// binary, populated by adapter-package init functions via
+		// workload.Register. It is immutable after construction and holds
+		// CRD adapters only.
 		workloadRegistry, err := workload.NewRegistry(workload.RegisteredAdapters()...)
 		if err != nil {
 			logger.WithName("SETUP").Error(err, "workload.NewRegistry()")
@@ -404,6 +401,7 @@ func main() {
 			int32(webhookTimeout),
 			inContainer,
 			stopCh,
+			workloadRegistry,
 			logger.WithName("WEBHOOK-CONFIG"),
 		)
 		wcFactory.Start(stopCh)

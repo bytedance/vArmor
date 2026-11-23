@@ -22,7 +22,6 @@ import (
 	"gotest.tools/assert"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/kubernetes/scheme"
 
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
@@ -1188,9 +1187,7 @@ func Test_buildPatch(t *testing.T) {
 				assert.NilError(t, err)
 
 				deploy := obj.(*appsv1.Deployment)
-				u := toUnstructuredObject(t, deploy)
-				u.SetGroupVersionKind(schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "Deployment"})
-				patch, err := buildPatch(u, tc.enforcer, tc.mode, target, nil, profileName, varmorpolicy.AuditPolicyIdentity{}, tc.bpfExclusiveMode, tc.apparmorGA, testRegistry(t))
+				patch, err := buildNativePatch(deploy, tc.enforcer, tc.mode, target, nil, profileName, varmorpolicy.AuditPolicyIdentity{}, tc.bpfExclusiveMode, tc.apparmorGA)
 				if err != nil {
 					assert.Assert(t, err != nil)
 				}
@@ -1206,9 +1203,7 @@ func Test_buildPatch(t *testing.T) {
 				assert.NilError(t, err)
 
 				pod := obj.(*corev1.Pod)
-				u := toUnstructuredObject(t, pod)
-				u.SetGroupVersionKind(schema.GroupVersionKind{Group: "", Version: "v1", Kind: "Pod"})
-				patch, err := buildPatch(u, tc.enforcer, tc.mode, target, nil, profileName, varmorpolicy.AuditPolicyIdentity{}, tc.bpfExclusiveMode, tc.apparmorGA, testRegistry(t))
+				patch, err := buildNativePatch(pod, tc.enforcer, tc.mode, target, nil, profileName, varmorpolicy.AuditPolicyIdentity{}, tc.bpfExclusiveMode, tc.apparmorGA)
 				if err != nil {
 					assert.Assert(t, err != nil)
 				}

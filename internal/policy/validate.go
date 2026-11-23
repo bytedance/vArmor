@@ -67,13 +67,21 @@ func ValidateAddPolicy(policy interface{}, behaviorModelingEnabled bool, registr
 		return false, "The enforcer field contains an unsupported or malformed value."
 	}
 
-	// The registry constructed for this process holds every compiled-in
-	// adapter, so a missing entry means the kind is unknown to this binary.
-	// Target.Kind carries no API version: when a Kind is served by several
-	// versioned adapters, one policy applies to every served version and
-	// admission routes each object by its full GVK.
-	if _, ok := registry.LookupByKind(spec.Target.Kind); !ok {
-		return false, "The target kind is not supported. You should specify the target kind as a registered workload kind (Deployment, StatefulSet, DaemonSet, Pod, or a custom workload adapter's Kind)."
+	// The four built-in kinds keep their historical hard-coded check and are
+	// accepted without consulting the registry, which holds custom adapters
+	// only and rejects the core/apps groups the built-in dispatch owns.
+	// Every other Kind must be served by a custom adapter registered for
+	// this process, so a registry miss means the kind is unknown to this
+	// binary. Target.Kind carries no API version: when a Kind is served by
+	// several versioned adapters, one policy applies to every served version
+	// and admission routes each object by its full GVK.
+	switch spec.Target.Kind {
+	case "Deployment", "StatefulSet", "DaemonSet", "Pod":
+		// Built-in kinds are always supported.
+	default:
+		if _, ok := registry.LookupByKind(spec.Target.Kind); !ok {
+			return false, "The target kind is not supported. You should specify the target kind as a registered workload kind (Deployment, StatefulSet, DaemonSet, Pod, or a custom workload adapter's Kind)."
+		}
 	}
 
 	// Ensure either target name or selector is specified, but not both

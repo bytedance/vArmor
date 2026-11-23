@@ -24,45 +24,8 @@ import (
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
 	varmorconfig "github.com/bytedance/vArmor/internal/config"
 	"github.com/bytedance/vArmor/pkg/workload"
-	workloadbuiltin "github.com/bytedance/vArmor/pkg/workload/builtin"
 	"github.com/bytedance/vArmor/pkg/workload/workloadtest"
 )
-
-// podOnlyRegistry returns a registry holding only the built-in Pod adapter,
-// modelling a binary in which the apps/v1 workload adapters are not compiled in.
-func podOnlyRegistry(t *testing.T) *workload.Registry {
-	t.Helper()
-	var pod workload.Adapter
-	for _, a := range workloadbuiltin.Adapters() {
-		if a.GVK().Kind == "Pod" {
-			pod = a
-			break
-		}
-	}
-	if pod == nil {
-		t.Fatal("Pod adapter not found among built-in adapters")
-	}
-	r, err := workload.NewRegistry(pod)
-	if err != nil {
-		t.Fatalf("workload.NewRegistry: %v", err)
-	}
-	return r
-}
-
-func TestValidateAddPolicy_UnregisteredAdapter(t *testing.T) {
-	// Only the Pod adapter is registered here, so a Deployment policy must
-	// be rejected even though the built-in default would otherwise allow it.
-	policy := &varmor.VarmorPolicy{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
-		Spec: varmor.VarmorPolicySpec{
-			Target: varmor.Target{Kind: "Deployment", Name: "test"},
-			Policy: varmor.Policy{Enforcer: "AppArmor", Mode: varmor.RuntimeDefaultMode},
-		},
-	}
-	valid, message := ValidateAddPolicy(policy, true, podOnlyRegistry(t))
-	assert.False(t, valid)
-	assert.Contains(t, message, "target kind is not supported")
-}
 
 // TestValidateAddPolicy_MultiVersionAdapterTargetKind verifies that the
 // version-less Target.Kind resolves when the Kind is served by several
@@ -150,33 +113,11 @@ func TestValidateAddPolicy_UnsupportedPolicyType(t *testing.T) {
 	assert.Equal(t, "The policy type is not supported.", message)
 }
 
-// TestValidateAddPolicy_UnsupportedTargetKind tests unsupported target kind
-func TestValidateAddPolicy_UnsupportedTargetKind(t *testing.T) {
-	policy := &varmor.VarmorPolicy{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-policy",
-			Namespace: "default",
-		},
-		Spec: varmor.VarmorPolicySpec{
-			Target: varmor.Target{
-				Kind: "Service", // unsupported type
-				Name: "test-service",
-			},
-			Policy: varmor.Policy{
-				Enforcer: "AppArmor",
-				Mode:     varmor.RuntimeDefaultMode,
-			},
-		},
-	}
-
-	valid, message := ValidateAddPolicy(policy, true, workloadtest.NewRegistry(t))
-	assert.False(t, valid, "Unsupported target kind should fail validation")
-	assert.Contains(t, message, "The target kind is not supported")
-}
-
-// TestValidateAddPolicy_RegisteredTargetKinds verifies the target.kind
-// whitelist is driven by the workload adapter registry: every built-in
-// adapter Kind is accepted and any unregistered Kind is rejected.
+// TestValidateAddPolicy_RegisteredTargetKinds verifies the two-tier
+// target.kind check: the four built-in kinds are always accepted via the
+// hard-coded set, even against an empty custom-only registry, while every
+// other Kind with no registered custom adapter (a core resource or an
+// unknown/custom Kind) is rejected.
 func TestValidateAddPolicy_RegisteredTargetKinds(t *testing.T) {
 	testCases := []struct {
 		name   string
@@ -188,6 +129,7 @@ func TestValidateAddPolicy_RegisteredTargetKinds(t *testing.T) {
 		{"daemonset accepted", "DaemonSet", true},
 		{"pod accepted", "Pod", true},
 		{"unregistered kind rejected", "NotARegisteredKind", false},
+		{"custom kind without adapter rejected", "Widget", false},
 		{"core service is not a workload", "Service", false},
 	}
 	for _, tc := range testCases {
@@ -423,36 +365,6 @@ func TestValidateAddPolicy_ValidTargetSelector(t *testing.T) {
 	valid, message := ValidateAddPolicy(policy, true, workloadtest.NewRegistry(t))
 	assert.True(t, valid, "Valid target selector should pass validation")
 	assert.Equal(t, "", message)
-}
-
-// TestValidateAddPolicy_SupportedTargetKinds tests all supported target kinds
-func TestValidateAddPolicy_SupportedTargetKinds(t *testing.T) {
-	supportedKinds := []string{"Deployment", "StatefulSet", "DaemonSet", "Pod"}
-
-	for _, kind := range supportedKinds {
-		t.Run(kind, func(t *testing.T) {
-			policy := &varmor.VarmorPolicy{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-policy",
-					Namespace: "default",
-				},
-				Spec: varmor.VarmorPolicySpec{
-					Target: varmor.Target{
-						Kind: kind,
-						Name: "test-workload",
-					},
-					Policy: varmor.Policy{
-						Enforcer: "AppArmor",
-						Mode:     varmor.RuntimeDefaultMode,
-					},
-				},
-			}
-
-			valid, message := ValidateAddPolicy(policy, true, workloadtest.NewRegistry(t))
-			assert.True(t, valid, "Supported target kind %s should pass validation", kind)
-			assert.Equal(t, "", message)
-		})
-	}
 }
 
 // TestValidateAddPolicy_LongPolicyName tests policy name that is too long

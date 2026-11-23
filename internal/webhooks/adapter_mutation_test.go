@@ -42,8 +42,8 @@ import (
 	"github.com/bytedance/vArmor/pkg/workload/workloadtest"
 )
 
-// testRegistry builds an isolated registry containing the built-in adapters
-// plus the package's multiTemplateFake. Registry construction is shared via
+// testRegistry builds an isolated custom-only registry holding just the
+// package's multiTemplateFake. Registry construction is shared via
 // workloadtest; tests never rely on process-global adapter registration.
 func testRegistry(t *testing.T) *workload.Registry {
 	t.Helper()
@@ -55,46 +55,6 @@ func toUnstructuredObject(t *testing.T, obj runtime.Object) *unstructured.Unstru
 	m, err := runtime.DefaultUnstructuredConverter.ToUnstructured(obj)
 	assert.NilError(t, err)
 	return &unstructured.Unstructured{Object: m}
-}
-
-func TestBuildPatch_UnstructuredDeploymentProducesValidPatch(t *testing.T) {
-	deploy := &appsv1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{Name: "demo"},
-		Spec: appsv1.DeploymentSpec{
-			Template: corev1.PodTemplateSpec{
-				Spec: corev1.PodSpec{Containers: []corev1.Container{{Name: "main"}}},
-			},
-		},
-	}
-	u := toUnstructuredObject(t, deploy)
-	u.SetGroupVersionKind(schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "Deployment"})
-	// A field vArmor does not model must survive untouched because the renderer
-	// only reads the object and never writes back to it.
-	u.Object["spec"].(map[string]interface{})["xCustomField"] = "preserve-me"
-
-	target := varmor.Target{Kind: "Deployment", Name: "demo"}
-	patch, err := buildPatch(u, "AppArmor", varmor.RuntimeDefaultMode, target, nil,
-		"varmor-test-demo", varmorpolicy.AuditPolicyIdentity{}, false, false, testRegistry(t))
-	assert.NilError(t, err)
-	assert.Assert(t, patch != "", "expected a non-empty patch")
-
-	// It must be a syntactically valid JSON Patch array.
-	var ops []map[string]interface{}
-	assert.NilError(t, json.Unmarshal([]byte(patch), &ops))
-	assert.Assert(t, len(ops) >= 2)
-
-	// The unstructured path routes through the built-in adapter and emits the
-	// same /spec/template-prefixed AppArmor op as the typed path.
-	assert.Assert(t, strings.Contains(patch, "/metadata/annotations"), "root annotations must be ensured: %s", patch)
-	assert.Assert(t, strings.Contains(patch,
-		"/spec/template/metadata/annotations/container.apparmor.security.beta.kubernetes.io~1main"),
-		"expected template-prefixed AppArmor op: %s", patch)
-
-	assert.Equal(t, u.Object["spec"].(map[string]interface{})["xCustomField"], "preserve-me")
-	after := applyAdapterPatch(t, u, patch)
-	value, _, err := unstructured.NestedString(after.Object, "spec", "xCustomField")
-	assert.NilError(t, err)
-	assert.Equal(t, value, "preserve-me")
 }
 
 // multiTemplateGVK/multiTemplateGVR are the fixed identity of the
@@ -126,7 +86,7 @@ func newMultiTemplateFake() multiTemplateFake {
 
 // PodTemplates walks the CRD-specific spec.groups map. The field is
 // intentionally named "groups": the tests prove that arbitrary
-// adapter-supplied prefixes are spliced into patch paths verbatim.
+// adapter-supplied template paths are spliced into patch paths verbatim.
 func (multiTemplateFake) PodTemplates(obj *unstructured.Unstructured) ([]workload.PodTemplateRef, error) {
 	var refs []workload.PodTemplateRef
 	for _, name := range []string{"a", "b"} {
@@ -141,32 +101,6 @@ func (multiTemplateFake) PodTemplates(obj *unstructured.Unstructured) ([]workloa
 		refs = append(refs, workload.PodTemplateRef{Path: "/spec/groups/" + name, Template: template})
 	}
 	return refs, nil
-}
-
-func TestBuildPatch_MultiTemplateEmitsOnePatchSetPerRef(t *testing.T) {
-	u := multiTemplateObject(t, false)
-
-	target := varmor.Target{Kind: "MultiTemplateCR", Name: "cr"}
-	patch, err := buildPatch(u, "AppArmor", varmor.RuntimeDefaultMode, target, nil,
-		"varmor-test-cr", varmorpolicy.AuditPolicyIdentity{}, false, false, testRegistry(t))
-	assert.NilError(t, err)
-
-	// One annotation-ensure op per distinct template path.
-	assert.Assert(t, strings.Contains(patch, `"/spec/groups/a/metadata/annotations"`), "missing ref-a ops: %s", patch)
-	assert.Assert(t, strings.Contains(patch, `"/spec/groups/b/metadata/annotations"`), "missing ref-b ops: %s", patch)
-	// And the AppArmor op is prefixed with each ref path.
-	assert.Assert(t, strings.Contains(patch, "/spec/groups/a/metadata/annotations/container.apparmor"))
-	assert.Assert(t, strings.Contains(patch, "/spec/groups/b/metadata/annotations/container.apparmor"))
-	after := applyAdapterPatch(t, u, patch)
-	for _, name := range []string{"a", "b"} {
-		value, found, err := unstructured.NestedString(after.Object, "spec", "groups", name, "metadata", "annotations", "container.apparmor.security.beta.kubernetes.io/c")
-		assert.NilError(t, err)
-		assert.Assert(t, found)
-		assert.Equal(t, value, "localhost/varmor-test-cr")
-		unknown, _, err := unstructured.NestedString(after.Object, "spec", "groups", name, "spec", "unknownField")
-		assert.NilError(t, err)
-		assert.Equal(t, unknown, "preserve-me")
-	}
 }
 
 func multiTemplateObject(t *testing.T, metadata bool) *unstructured.Unstructured {
@@ -211,8 +145,9 @@ func TestBuildPatch_CustomTemplatesApplyAllEnforcers(t *testing.T) {
 		for _, enforcer := range []string{"AppArmor", "BPF", "Seccomp", "AppArmorSeccomp", "NetworkProxy"} {
 			t.Run(fmt.Sprintf("%s/metadata=%t", enforcer, metadata), func(t *testing.T) {
 				u := multiTemplateObject(t, metadata)
-				patch, err := buildPatch(u, enforcer, varmor.RuntimeDefaultMode, varmor.Target{Kind: "MultiTemplateCR", Name: "cr"}, nil,
-					"varmor-test-cr", varmorpolicy.AuditPolicyIdentity{}, false, false, testRegistry(t))
+				patch, err := buildCustomPatch(u, newMultiTemplateFake(), enforcer, varmor.RuntimeDefaultMode,
+					varmor.Target{Kind: "MultiTemplateCR", Name: "cr"}, nil,
+					"varmor-test-cr", varmorpolicy.AuditPolicyIdentity{}, false, false)
 				assert.NilError(t, err)
 				after := applyAdapterPatch(t, u, patch)
 				for _, name := range []string{"a", "b"} {
@@ -227,13 +162,30 @@ func TestBuildPatch_CustomTemplatesApplyAllEnforcers(t *testing.T) {
 						assert.NilError(t, err)
 						assert.Equal(t, label, "keep")
 					}
+					// AppArmor uniquely proves per-ref path splicing: one
+					// annotation-ensure op and one profile op per template.
+					if enforcer == "AppArmor" {
+						assert.Assert(t, strings.Contains(patch, fmt.Sprintf(`"/spec/groups/%s/metadata/annotations"`, name)), "missing ref-%s ops: %s", name, patch)
+						assert.Assert(t, strings.Contains(patch, fmt.Sprintf("/spec/groups/%s/metadata/annotations/container.apparmor", name)))
+						value, found, err := unstructured.NestedString(after.Object, "spec", "groups", name, "metadata", "annotations", "container.apparmor.security.beta.kubernetes.io/c")
+						assert.NilError(t, err)
+						assert.Assert(t, found)
+						assert.Equal(t, value, "localhost/varmor-test-cr")
+					}
 				}
 			})
 		}
 	}
 }
 
-func TestResourceMutation_SelectedCustomErrorsStopPolicyFallback(t *testing.T) {
+// TestResourceMutation_SelectedCustomErrorsFailOpen verifies that a custom
+// adapter decode or template-extraction failure never denies admission. The
+// error is logged and counted, matchAndPatchCustom returns nil, and
+// resourceMutation keeps walking the remaining matching policies before
+// admitting the object unmutated — the same fail-open/fallback convention the
+// built-in kinds have always used. Only a fully selected, valid object is
+// mutated.
+func TestResourceMutation_SelectedCustomErrorsFailOpen(t *testing.T) {
 	target := varmor.Target{Kind: "MultiTemplateCR", Name: "cr"}
 	ws := &WebhookServer{log: logr.Discard(), registry: testRegistry(t), policyCacher: &policycacher.PolicyCacher{
 		ClusterPolicyTargets:  map[string]varmor.Target{"cluster": target},
@@ -244,22 +196,21 @@ func TestResourceMutation_SelectedCustomErrorsStopPolicyFallback(t *testing.T) {
 	for _, tc := range []struct {
 		name      string
 		mutate    func(*unstructured.Unstructured, *admissionv1.AdmissionRequest)
-		wantError bool
 		wantPatch bool
 	}{
-		{"valid", func(*unstructured.Unstructured, *admissionv1.AdmissionRequest) {}, false, true},
+		{"valid", func(*unstructured.Unstructured, *admissionv1.AdmissionRequest) {}, true},
 		{"missing template", func(u *unstructured.Unstructured, _ *admissionv1.AdmissionRequest) {
 			unstructured.RemoveNestedField(u.Object, "spec", "groups", "a")
-		}, true, false},
+		}, false},
 		{"malformed template", func(u *unstructured.Unstructured, _ *admissionv1.AdmissionRequest) {
 			assert.NilError(t, unstructured.SetNestedField(u.Object, "invalid", "spec", "groups", "a", "spec", "containers"))
-		}, true, false},
-		{"object group mismatch", func(u *unstructured.Unstructured, _ *admissionv1.AdmissionRequest) { u.SetAPIVersion("other.test/v1") }, true, false},
-		{"unregistered request group", func(_ *unstructured.Unstructured, r *admissionv1.AdmissionRequest) { r.Kind.Group = "other.test" }, false, false},
+		}, false},
+		{"object group mismatch", func(u *unstructured.Unstructured, _ *admissionv1.AdmissionRequest) { u.SetAPIVersion("other.test/v1") }, false},
+		{"unregistered request group", func(_ *unstructured.Unstructured, r *admissionv1.AdmissionRequest) { r.Kind.Group = "other.test" }, false},
 		{"name nonmatch", func(u *unstructured.Unstructured, r *admissionv1.AdmissionRequest) {
 			u.SetName("other")
 			r.Name = "other"
-		}, false, false},
+		}, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			u := multiTemplateObject(t, false)
@@ -269,36 +220,72 @@ func TestResourceMutation_SelectedCustomErrorsStopPolicyFallback(t *testing.T) {
 			assert.NilError(t, err)
 			r.Object = runtime.RawExtension{Raw: raw}
 			response := ws.resourceMutation(r)
-			assert.Equal(t, !response.Allowed, tc.wantError)
+			// Every terminal outcome is an in-protocol Allowed response: a
+			// processing failure fails open rather than returning a denial.
+			assert.Assert(t, response.Allowed, "custom processing errors must fail open")
+			assert.Equal(t, response.UID, r.UID)
 			assert.Equal(t, len(response.Patch) > 0, tc.wantPatch)
-			if tc.wantError {
-				assert.Equal(t, response.Result.Code, int32(http.StatusInternalServerError))
-				assert.Equal(t, response.UID, r.UID)
-			}
 			if tc.wantPatch {
 				assert.Assert(t, strings.Contains(string(response.Patch), "apparmor"))
 				assert.Assert(t, !strings.Contains(string(response.Patch), "seccomp"))
 			}
+
+			// The same request through the HTTP wrapper must answer 200 with
+			// an Allowed review even when processing fails open.
+			body, err := json.Marshal(admissionv1.AdmissionReview{Request: r})
+			assert.NilError(t, err)
+			req := httptest.NewRequest(http.MethodPost, "/mutate", bytes.NewReader(body))
+			req.Header.Set("Content-Type", "application/json")
+			recorder := httptest.NewRecorder()
+			ws.handlerFunc(ws.resourceMutation)(recorder, req)
+			assert.Equal(t, recorder.Code, http.StatusOK)
+			var review admissionv1.AdmissionReview
+			assert.NilError(t, json.Unmarshal(recorder.Body.Bytes(), &review))
+			assert.Assert(t, review.Response.Allowed)
+			assert.Equal(t, len(review.Response.Patch) > 0, tc.wantPatch)
 		})
 	}
-	// The object carries the adapter's GVK but omits spec.groups, so
-	// PodTemplates extraction must fail and surface as a 500.
-	badObject := &unstructured.Unstructured{}
-	badObject.SetGroupVersionKind(multiTemplateGVK)
-	badObject.SetName("cr")
-	badRaw, err := json.Marshal(badObject)
-	assert.NilError(t, err)
-	bad := &admissionv1.AdmissionRequest{UID: "bad", Name: "cr", Namespace: "default", Kind: metav1.GroupVersionKind{Group: multiTemplateGVK.Group, Version: multiTemplateGVK.Version, Kind: multiTemplateGVK.Kind}, Object: runtime.RawExtension{Raw: badRaw}}
-	body, err := json.Marshal(admissionv1.AdmissionReview{Request: bad})
-	assert.NilError(t, err)
-	req := httptest.NewRequest(http.MethodPost, "/mutate", bytes.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-	recorder := httptest.NewRecorder()
-	ws.handlerFunc(ws.resourceMutation)(recorder, req)
-	assert.Equal(t, recorder.Code, http.StatusInternalServerError)
 }
 
-func TestDeserializeWorkload_ValidatesDecodedIdentity(t *testing.T) {
+// TestMatchAndPatchCustom_MalformedSelectorFailsOpen covers the selector
+// parse branch: policies are admitted without parsing their label selector,
+// so an invalid selector operator can reach dispatch. The custom path must
+// keep its fail-open contract (nil response, object admitted unmutated) while
+// recording the selector_error dispatch result; with metrics disabled the
+// recorder is a nil-safe no-op.
+func TestMatchAndPatchCustom_MalformedSelectorFailsOpen(t *testing.T) {
+	ws := &WebhookServer{log: logr.Discard(), registry: testRegistry(t), policyCacher: &policycacher.PolicyCacher{
+		PolicyEnforcer: map[string]string{"default/lower": "AppArmor"},
+	}}
+	target := varmor.Target{
+		Kind: "MultiTemplateCR",
+		Selector: &metav1.LabelSelector{
+			MatchExpressions: []metav1.LabelSelectorRequirement{
+				{Key: "app", Operator: "Bogus"},
+			},
+		},
+	}
+
+	raw, err := json.Marshal(multiTemplateObject(t, false))
+	assert.NilError(t, err)
+	request := &admissionv1.AdmissionRequest{
+		UID:       "test",
+		Name:      "cr",
+		Namespace: "default",
+		Kind:      metav1.GroupVersionKind{Group: multiTemplateGVK.Group, Version: multiTemplateGVK.Version, Kind: multiTemplateGVK.Kind},
+		Object:    runtime.RawExtension{Raw: raw},
+	}
+
+	response := ws.matchAndPatchCustom(request, "default/lower", target, logr.Discard(),
+		"default", "lower", false, varmorpolicy.AuditPolicyIdentity{})
+	assert.Assert(t, response == nil, "a malformed selector must fail open with no patch")
+}
+
+// TestDeserializeWorkload_NativeKindsDecodeTyped covers the historical
+// built-in decode path: the four native kinds decode into their typed Go
+// objects through the shared scheme deserializer, with no adapter lookup and
+// no GVK identity cross-check (fail-open behavior lives in the caller).
+func TestDeserializeWorkload_NativeKindsDecodeTyped(t *testing.T) {
 	ws := &WebhookServer{deserializer: scheme.Codecs.UniversalDeserializer()}
 	for _, tc := range []struct {
 		kind       string
@@ -309,26 +296,50 @@ func TestDeserializeWorkload_ValidatesDecodedIdentity(t *testing.T) {
 		{"StatefulSet", "apps", "apps/v1"},
 		{"DaemonSet", "apps", "apps/v1"},
 		{"Pod", "", "v1"},
-		{multiTemplateGVK.Kind, multiTemplateGVK.Group, multiTemplateGVK.Group + "/" + multiTemplateGVK.Version},
 	} {
 		t.Run(tc.kind, func(t *testing.T) {
-			a, ok := testRegistry(t).LookupByKind(tc.kind)
-			assert.Assert(t, ok)
 			request := &admissionv1.AdmissionRequest{
 				Kind:   metav1.GroupVersionKind{Group: tc.group, Version: "v1", Kind: tc.kind},
 				Object: runtime.RawExtension{Raw: []byte(fmt.Sprintf(`{"apiVersion":%q,"kind":%q,"metadata":{"name":"demo"}}`, tc.apiVersion, tc.kind))},
 			}
-			obj, err := ws.deserializeWorkload(request, a)
+			obj, err := ws.deserializeWorkload(request)
 			assert.NilError(t, err)
-			assert.Equal(t, obj.GetObjectKind().GroupVersionKind(), a.GVK())
-			request.Kind.Group = "other.test"
-			_, err = ws.deserializeWorkload(request, a)
-			assert.Assert(t, err != nil, "request/object mismatch must be rejected")
+			decoded, ok := obj.(runtime.Object)
+			assert.Assert(t, ok)
+			expected := schema.GroupVersionKind{Group: tc.group, Version: "v1", Kind: tc.kind}
+			assert.Equal(t, decoded.GetObjectKind().GroupVersionKind(), expected)
 		})
 	}
 }
 
-func TestBuildPatch_BuiltinTypedAndUnstructuredCompatibility(t *testing.T) {
+// TestDeserializeCustomWorkload_ValidatesDecodedIdentity covers the custom
+// path's unstructured decode: the in-payload GVK must match both the
+// admission request and the adapter selected for that GVK, and a request
+// drift is returned as an error which the caller logs, counts as
+// decode_error and fails open (the object is admitted unmutated).
+func TestDeserializeCustomWorkload_ValidatesDecodedIdentity(t *testing.T) {
+	adapter, ok := testRegistry(t).LookupGVK(multiTemplateGVK)
+	assert.Assert(t, ok)
+	request := &admissionv1.AdmissionRequest{
+		Kind:   metav1.GroupVersionKind{Group: multiTemplateGVK.Group, Version: multiTemplateGVK.Version, Kind: multiTemplateGVK.Kind},
+		Object: runtime.RawExtension{Raw: []byte(fmt.Sprintf(`{"apiVersion":%q,"kind":%q,"metadata":{"name":"demo"}}`, multiTemplateGVK.GroupVersion().String(), multiTemplateGVK.Kind))},
+	}
+	obj, err := deserializeCustomWorkload(request, adapter)
+	assert.NilError(t, err)
+	assert.Equal(t, obj.GetObjectKind().GroupVersionKind(), adapter.GVK())
+
+	request.Kind.Group = "other.test"
+	_, err = deserializeCustomWorkload(request, adapter)
+	assert.Assert(t, err != nil, "request/object mismatch must be rejected")
+}
+
+// TestBuildNativePatch_TypedKindsProduceIdenticalTemplatePatch proves the
+// shared buildPodTemplatePatch injection gives the four typed native kinds
+// their historical output: the three apps/v1 kinds share one /spec/template
+// shape and emit byte-identical normalized patches, while a root Pod splices
+// the empty template path. Every generated patch must also apply cleanly to
+// the object's unstructured form.
+func TestBuildNativePatch_TypedKindsProduceIdenticalTemplatePatch(t *testing.T) {
 	template := corev1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{"app": "demo"}},
 		Spec:       corev1.PodSpec{Containers: []corev1.Container{{Name: "main", Image: "demo"}}},
@@ -341,114 +352,99 @@ func TestBuildPatch_BuiltinTypedAndUnstructuredCompatibility(t *testing.T) {
 				stateful := &appsv1.StatefulSet{TypeMeta: metav1.TypeMeta{APIVersion: "apps/v1", Kind: "StatefulSet"}, ObjectMeta: meta, Spec: appsv1.StatefulSetSpec{Template: template}}
 				daemon := &appsv1.DaemonSet{TypeMeta: metav1.TypeMeta{APIVersion: "apps/v1", Kind: "DaemonSet"}, ObjectMeta: meta, Spec: appsv1.DaemonSetSpec{Template: template}}
 				pod := &corev1.Pod{TypeMeta: metav1.TypeMeta{APIVersion: "v1", Kind: "Pod"}, ObjectMeta: meta, Spec: template.Spec}
-				normalize := func(patch string) string {
-					var ops []map[string]interface{}
-					assert.NilError(t, json.Unmarshal([]byte(patch), &ops))
-					for _, op := range ops {
-						if op["path"] == "/metadata/annotations/webhook.varmor.org~1mutatedAt" {
-							op["value"] = "TIME"
-						}
-					}
-					normalized, err := json.Marshal(ops)
-					assert.NilError(t, err)
-					return string(normalized)
-				}
 				var appsBaseline, podBaseline string
-				// Admission decodes every workload as unstructured, so each
-				// built-in kind reaches buildPatch through its adapter only.
+				// Native kinds stay typed end-to-end: buildNativePatch takes
+				// the decoded object and dispatches on target.Kind.
 				for _, obj := range []runtime.Object{deploy, stateful, daemon, pod} {
 					target := varmor.Target{Kind: obj.GetObjectKind().GroupVersionKind().Kind, Name: "demo"}
-					u := toUnstructuredObject(t, obj)
-					patch, err := buildPatch(u, enforcer, varmor.RuntimeDefaultMode, target, nil, "varmor-test-demo", varmorpolicy.AuditPolicyIdentity{}, false, ga, testRegistry(t))
+					patch, err := buildNativePatch(obj, enforcer, varmor.RuntimeDefaultMode, target, nil, "varmor-test-demo", varmorpolicy.AuditPolicyIdentity{}, false, ga)
 					assert.NilError(t, err)
 					assert.Assert(t, patch != "", "expected a non-empty patch for %s/%s", enforcer, target.Kind)
-					normalized := normalize(patch)
+					if strings.Contains(patch, "1mutatedAt") {
+						index := strings.Index(patch, `1mutatedAt", "value": `)
+						patch = patch[:index+len(`1mutatedAt", "value": `)] + `"TIME_STRING"}]`
+					}
 					if target.Kind == "Pod" {
-						// A root Pod splices the empty prefix: every
+						// A root Pod splices the empty template path: every
 						// operation addresses the object root, so the
-						// workload template prefix must never appear.
-						assert.Assert(t, !strings.Contains(normalized, "/spec/template"),
-							"root Pod patch must not use the /spec/template prefix: %s", normalized)
+						// workload template path must never appear.
+						assert.Assert(t, !strings.Contains(patch, "/spec/template"),
+							"root Pod patch must not contain the /spec/template path: %s", patch)
 						if podBaseline == "" {
-							podBaseline = normalized
+							podBaseline = patch
 						}
-						assert.Equal(t, normalized, podBaseline)
+						assert.Equal(t, patch, podBaseline)
 					} else {
 						// The three apps/v1 kinds share the identical
 						// /spec/template shape, so their normalized patches
-						// must be byte-identical and carry the prefix.
-						assert.Assert(t, strings.Contains(normalized, "/spec/template"),
-							"%s patch must use the /spec/template prefix: %s", target.Kind, normalized)
+						// must be byte-identical and address the same template path.
+						assert.Assert(t, strings.Contains(patch, "/spec/template"),
+							"%s patch must use the /spec/template template path: %s", target.Kind, patch)
 						if appsBaseline == "" {
-							appsBaseline = normalized
+							appsBaseline = patch
 						}
-						assert.Equal(t, normalized, appsBaseline)
+						assert.Equal(t, patch, appsBaseline)
 					}
-					applyAdapterPatch(t, u, patch)
+					after := applyAdapterPatch(t, toUnstructuredObject(t, obj), patch)
+					// AppArmor on the pre-GA (beta annotation) path addition-
+					// ally proves the applied annotation carries the resolved
+					// profile name under the right template path; GA delivers
+					// it through securityContext instead, which the
+					// byte-identical patch comparison above already covers.
+					if enforcer == "AppArmor" && !ga {
+						fields := []string{"metadata", "annotations", "container.apparmor.security.beta.kubernetes.io/main"}
+						if target.Kind != "Pod" {
+							fields = append([]string{"spec", "template"}, fields...)
+						}
+						value, found, err := unstructured.NestedString(after.Object, fields...)
+						assert.NilError(t, err)
+						assert.Assert(t, found)
+						assert.Equal(t, value, "localhost/varmor-test-demo")
+					}
 				}
-				// Both prefix families must have produced a patch set; this
-				// guards against a silent empty-patch regression for either.
+				// Both template path families must have produced a patch set;
+				// this guards against a silent empty-patch regression for either.
 				assert.Assert(t, appsBaseline != "" && podBaseline != "")
 			})
 		}
 	}
 }
 
+// TestBuildPatch_NoTemplates covers the len(refs)==0 early return: an
+// adapter supplying no templates means no injection, so the object (including
+// a pre-populated annotations map) must be left untouched. The return happens
+// before metadata is inspected, so separate metadata variants would be
+// behaviorally identical.
 func TestBuildPatch_NoTemplates(t *testing.T) {
 	adapter := workload.FakeAdapter{
 		AdapterName: "no-templates",
 		AdapterGVK:  multiTemplateGVK,
 		AdapterGVR:  multiTemplateGVR,
 	}
-	registry := workloadtest.NewRegistry(t, adapter)
+	obj := &unstructured.Unstructured{Object: map[string]interface{}{
+		"metadata": map[string]interface{}{"name": "cr", "annotations": map[string]interface{}{"existing": "keep"}},
+	}}
+	obj.SetGroupVersionKind(adapter.GVK())
+	before := obj.DeepCopy()
 
-	for _, tc := range []struct {
-		name     string
-		metadata map[string]interface{}
-	}{
-		{name: "missing metadata"},
-		{name: "missing annotations", metadata: map[string]interface{}{"name": "cr"}},
-		{name: "empty annotations", metadata: map[string]interface{}{
-			"name": "cr", "annotations": map[string]interface{}{},
-		}},
-		{name: "existing annotations", metadata: map[string]interface{}{
-			"name": "cr", "annotations": map[string]interface{}{"existing": "keep"},
-		}},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			obj := &unstructured.Unstructured{Object: map[string]interface{}{}}
-			obj.SetGroupVersionKind(adapter.GVK())
-			if tc.metadata != nil {
-				obj.Object["metadata"] = tc.metadata
-			}
-			before := obj.DeepCopy()
+	patch, err := buildCustomPatch(obj, adapter, "AppArmor", varmor.RuntimeDefaultMode,
+		varmor.Target{Kind: adapter.GVK().Kind, Name: "cr"}, nil,
+		"varmor-test-cr", varmorpolicy.AuditPolicyIdentity{}, false, false)
 
-			patch, err := buildPatch(obj, "AppArmor", varmor.RuntimeDefaultMode,
-				varmor.Target{Kind: adapter.GVK().Kind, Name: "cr"}, nil,
-				"varmor-test-cr", varmorpolicy.AuditPolicyIdentity{}, false, false, registry)
-
-			assert.NilError(t, err)
-			assert.Equal(t, patch, "", "objects without templates must not receive metadata patches")
-			assert.Equal(t, classifyPatchResult(patch), dispatchResultPatchSkippedUnconfined)
-			assert.DeepEqual(t, obj, before)
-		})
-	}
-}
-
-func TestClassifyPatchResult(t *testing.T) {
-	assert.Equal(t, classifyPatchResult(""), dispatchResultPatchSkippedUnconfined)
-	assert.Equal(t, classifyPatchResult(`[{"op":"add"}]`), dispatchResultPatched)
+	assert.NilError(t, err)
+	assert.Equal(t, patch, "", "objects without templates must not receive metadata patches")
+	assert.DeepEqual(t, obj, before)
 }
 
 // overlappingGVK/overlappingGVR identify the adapter that deliberately returns
-// overlapping template paths to exercise the custom-adapter guard in buildPatch.
+// overlapping template paths to exercise the custom-adapter guard in buildCustomPatch.
 var (
 	overlappingGVK = schema.GroupVersionKind{Group: "webhooks.test.varmor.org", Version: "v1", Kind: "OverlapCR"}
 	overlappingGVR = schema.GroupVersionResource{Group: "webhooks.test.varmor.org", Version: "v1", Resource: "overlapcrs"}
 )
 
 // adapterWithOverlap returns two refs at the same path. The custom-adapter
-// loop in buildPatch must reject this before reaching the templateAtPointer
+// loop in buildCustomPatch must reject this before reaching the templateAtPointer
 // call on the second ref.
 type adapterWithOverlap struct {
 	workload.FakeAdapter
@@ -470,7 +466,7 @@ func (adapterWithOverlap) PodTemplates(obj *unstructured.Unstructured) ([]worklo
 }
 
 // adapterWithNestedOverlap returns parent/child paths. The HasPrefix guards
-// in buildPatch must reject this.
+// in buildCustomPatch must reject this.
 type adapterWithNestedOverlap struct {
 	workload.FakeAdapter
 }
@@ -546,85 +542,6 @@ func newVersionedWidgetRegistry(t *testing.T) *workload.Registry {
 	return registry
 }
 
-func TestExtractTemplateRefs_UnstructuredBuiltins(t *testing.T) {
-	deploy := &appsv1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{Name: "demo"},
-		Spec: appsv1.DeploymentSpec{
-			Template: corev1.PodTemplateSpec{
-				Spec: corev1.PodSpec{Containers: []corev1.Container{{Name: "main"}}},
-			},
-		},
-	}
-	u := toUnstructuredObject(t, deploy)
-	u.SetGroupVersionKind(schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "Deployment"})
-
-	_, refs, err := extractTemplateRefs(u, testRegistry(t))
-	assert.NilError(t, err)
-	assert.Equal(t, len(refs), 1)
-	assert.Equal(t, refs[0].Path, workload.WorkloadTemplatePath)
-	assert.Equal(t, refs[0].Template.Spec.Containers[0].Name, "main")
-
-	pod := &corev1.Pod{
-		ObjectMeta: metav1.ObjectMeta{Name: "p"},
-		Spec:       corev1.PodSpec{Containers: []corev1.Container{{Name: "c"}}},
-	}
-	pu := toUnstructuredObject(t, pod)
-	pu.SetGroupVersionKind(schema.GroupVersionKind{Group: "", Version: "v1", Kind: "Pod"})
-
-	_, prefs, err := extractTemplateRefs(pu, testRegistry(t))
-	assert.NilError(t, err)
-	assert.Equal(t, len(prefs), 1)
-	assert.Equal(t, prefs[0].Path, workload.RootPath)
-}
-
-func TestExtractTemplateRefs_UnregisteredUnstructuredKindErrors(t *testing.T) {
-	u := &unstructured.Unstructured{Object: map[string]interface{}{}}
-	u.SetGroupVersionKind(schema.GroupVersionKind{Group: "example.com", Version: "v1", Kind: "NoSuchKind"})
-
-	_, _, err := extractTemplateRefs(u, testRegistry(t))
-	assert.Assert(t, err != nil, "expected an error for an unregistered Kind")
-	assert.Assert(t, strings.Contains(err.Error(), "no workload adapter registered"))
-}
-
-func TestExtractTemplateRefs_RoutesByFullGVK(t *testing.T) {
-	registry := newVersionedWidgetRegistry(t)
-	for _, tc := range []struct {
-		name     string
-		gvk      schema.GroupVersionKind
-		field    string
-		wantPath string
-	}{
-		{"v1 object", widgetV1GVK, "templateV1", "/spec/templateV1"},
-		{"v2 object", widgetV2GVK, "templateV2", "/spec/templateV2"},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			raw := fmt.Sprintf(`{
-				"apiVersion": %q,
-				"kind": "Widget",
-				"metadata": {"name": "w"},
-				"spec": {%q: {"spec": {"containers": [{"name": "c", "image": "demo"}]}}}
-			}`, tc.gvk.GroupVersion().String(), tc.field)
-			u := &unstructured.Unstructured{}
-			assert.NilError(t, json.Unmarshal([]byte(raw), u))
-			u.SetGroupVersionKind(tc.gvk)
-
-			_, refs, err := extractTemplateRefs(u, registry)
-			assert.NilError(t, err)
-			assert.Equal(t, len(refs), 1)
-			assert.Equal(t, refs[0].Path, tc.wantPath)
-			assert.Equal(t, refs[0].Template.Spec.Containers[0].Name, "c")
-		})
-	}
-
-	// An unserved version of a registered Kind must miss instead of falling
-	// back to the v1 adapter sharing the same bare Kind.
-	miss := &unstructured.Unstructured{}
-	miss.SetGroupVersionKind(schema.GroupVersionKind{Group: widgetV1GVK.Group, Version: "v3", Kind: "Widget"})
-	_, _, err := extractTemplateRefs(miss, registry)
-	assert.Assert(t, err != nil, "unserved version must not resolve to any adapter")
-	assert.Assert(t, strings.Contains(err.Error(), "no workload adapter registered"))
-}
-
 func TestResourceMutation_MultiVersionRoutesVersionExact(t *testing.T) {
 	registry := newVersionedWidgetRegistry(t)
 	target := varmor.Target{Kind: "Widget", Name: "w"}
@@ -662,14 +579,19 @@ func TestResourceMutation_MultiVersionRoutesVersionExact(t *testing.T) {
 			}
 
 			// A wrong-version route would hit the other adapter's missing-field
-			// error and surface as a 500 denial, so Allowed plus the
-			// version-specific patch path proves version-exact dispatch.
+			// error and fail open without a patch, so an Allowed response
+			// carrying the version-specific patch path proves version-exact
+			// dispatch.
 			response := ws.resourceMutation(request)
 			assert.Assert(t, response.Allowed, "the matching versioned adapter must handle the request")
 			assert.Assert(t, len(response.Patch) > 0, "expected a patch for the selected object")
 			patch := string(response.Patch)
 			assert.Assert(t, strings.Contains(patch, "/spec/"+tc.ownField), "patch must address the version's own template: %s", patch)
 			assert.Assert(t, !strings.Contains(patch, "/spec/"+tc.otherField), "patch must never touch the other version's template: %s", patch)
+			// The AppArmor op keyed on container "c" proves the adapter
+			// decoded its version-specific template into a PodTemplateSpec
+			// rather than splicing an empty shell.
+			assert.Assert(t, strings.Contains(patch, "container.apparmor.security.beta.kubernetes.io~1c"), patch)
 		})
 	}
 
@@ -713,12 +635,10 @@ func TestBuildPatch_CustomAdaptersRejectOverlappingPaths(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			registry, err := workload.NewRegistry(tc.adapter)
-			assert.NilError(t, err)
 			u := &unstructured.Unstructured{}
 			assert.NilError(t, json.Unmarshal([]byte(tc.json), u))
-			patch, err := buildPatch(u, "AppArmor", varmor.RuntimeDefaultMode, varmor.Target{Kind: overlappingGVK.Kind, Name: "o"}, nil,
-				"varmor-test-o", varmorpolicy.AuditPolicyIdentity{}, false, false, registry)
+			patch, err := buildCustomPatch(u, tc.adapter, "AppArmor", varmor.RuntimeDefaultMode, varmor.Target{Kind: overlappingGVK.Kind, Name: "o"}, nil,
+				"varmor-test-o", varmorpolicy.AuditPolicyIdentity{}, false, false)
 			assert.Assert(t, err != nil, "expected overlap rejection for %s, got patch=%q", tc.paths, patch)
 			assert.Assert(t, strings.Contains(err.Error(), "overlapping"), "error must mention overlap: %v", err)
 		})

@@ -31,6 +31,17 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
+// Template path vocabulary shared by the core mutation logic and adapters.
+// The registry only holds custom (CRD) adapters; the four built-in kinds are
+// dispatched by a hard-coded switch, but they reuse the same path constants so
+// the shared JSON-Patch renderer has a single notion of template location.
+const (
+	// RootPath is the template path for a root-level Pod.
+	RootPath = ""
+	// WorkloadTemplatePath is the template path for the apps/v1 workload kinds.
+	WorkloadTemplatePath = "/spec/template"
+)
+
 // Adapter describes one workload type that vArmor can mutate. Implementations
 // compiled into the manager binary typically self-register through Register
 // from an init function; the composition root then builds the immutable
@@ -71,11 +82,13 @@ type Adapter interface {
 	// PodTemplateSpec values are decoded copies: the core may mutate them while
 	// building patches, but it never writes back through obj, so the input
 	// unstructured object is left untouched. Returned templates must be
-	// non-nil; custom adapters must additionally return distinct,
-	// non-overlapping paths, which the core validates while building patches.
-	// The built-in adapters are exempt from that check because each built-in
-	// kind has exactly one template at a fixed path. An empty result means the
-	// object has no templates to inject; malformed templates return an error.
+	// non-nil and return distinct, non-overlapping paths, which the core
+	// validates while building patches. The registry holds custom adapters
+	// only: the four built-in kinds never implement this interface and are
+	// rendered through a hard-coded single-template path, so no Adapter
+	// implementation is exempt from the overlap check. An empty result
+	// means the object has no templates to inject; malformed templates
+	// return an error.
 	PodTemplates(obj *unstructured.Unstructured) ([]PodTemplateRef, error)
 
 	// DefaultWebhookOptions returns the webhook defaults for this adapter;

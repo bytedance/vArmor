@@ -62,14 +62,18 @@ type WebhookServer struct {
 // one matchAndPatch dispatch attempt (a policy whose target.Kind matches the
 // request's Kind) and are mutually exclusive per attempt.
 const (
-	// dispatchResultMatched: the request Kind is handled by a registered
-	// adapter, but this policy's target did not select the object (neither
-	// name nor label selector matched), so no patch was made. Decoding need
-	// not have happened: the name-mismatch branch records this result before
-	// the workload is deserialized.
-	dispatchResultMatched = "matched"
+	// dispatchResultNotSelected: the request Kind is handled by a registered
+	// adapter, but this policy's target selected neither by name nor by
+	// label selector, so no patch was made. Decoding need not have
+	// happened: the name-mismatch branch records this result before the
+	// workload is deserialized.
+	dispatchResultNotSelected = "not_selected"
 	// dispatchResultDecodeError: the workload object could not be deserialized.
 	dispatchResultDecodeError = "decode_error"
+	// dispatchResultSelectorError: the policy's label selector could not be
+	// parsed, so name/label selection could not be evaluated. Admission still
+	// fails open and admits the object unmutated.
+	dispatchResultSelectorError = "selector_error"
 	// dispatchResultTemplateExtractError: patch building failed after a
 	// successful decode, including an adapter template-extraction error, an
 	// invalid template pointer, overlapping template paths, or a nil template.
@@ -200,11 +204,7 @@ func (ws *WebhookServer) handlerFunc(handler func(request *admissionv1.Admission
 			"operation", request.Operation)
 
 		admissionReview.Response = handler(request)
-		if admissionReview.Response.Result != nil && admissionReview.Response.Result.Code == http.StatusInternalServerError {
-			http.Error(rw, admissionReview.Response.Result.Message, http.StatusInternalServerError)
-		} else {
-			writeResponse(rw, admissionReview)
-		}
+		writeResponse(rw, admissionReview)
 
 		// Record metrics for non-vArmor resources
 		if admissionReview.Request.Kind.Group != varmor.GroupVersion.Group {

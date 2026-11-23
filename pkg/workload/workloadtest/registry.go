@@ -15,29 +15,31 @@
 // Package workloadtest provides shared test doubles and builders for the
 // pluggable workload Adapter extension point. It is meant to be imported only
 // from _test.go files: because no production package imports it, the Go
-// toolchain never links it into a shipped binary.
+// toolchain never links it into a shipped binary. The lower-level FakeAdapter
+// double intentionally lives in the parent workload package instead, since
+// that package's own in-package tests construct it; FakeAdapter is therefore
+// compiled into the shipped package even though only tests use it.
 package workloadtest
 
 import (
 	"testing"
 
 	"github.com/bytedance/vArmor/pkg/workload"
-	"github.com/bytedance/vArmor/pkg/workload/builtin"
 )
 
-// NewRegistry builds an isolated registry containing the four built-in
-// adapters plus any caller-supplied extras. A construction failure (a nil
-// adapter or a duplicate Name/GVK/bare-Kind) fails the calling test rather
-// than returning a half-populated registry. Every call returns a fresh
-// registry, so tests neither share nor mutate any process-global state.
+// NewRegistry builds an isolated registry holding only the caller-supplied
+// custom adapters. The registry is custom-only by construction: the four
+// built-in kinds use a hard-coded dispatch switch and never enter it. A
+// construction failure (a nil adapter, a duplicate Name/GVK/bare-Kind, or a
+// reserved core/apps group) fails the calling test rather than returning a
+// half-populated registry. Every call returns a fresh registry, so tests
+// neither share nor mutate any process-global state.
 //
-// Pass a package's own fakes as extras to model a manager binary that has
-// additional adapters compiled in.
+// With no extras the result is an empty registry, modelling an upstream
+// binary that compiles in no custom adapters.
 func NewRegistry(t testing.TB, extras ...workload.Adapter) *workload.Registry {
 	t.Helper()
-	adapters := append([]workload.Adapter{}, builtin.Adapters()...)
-	adapters = append(adapters, extras...)
-	r, err := workload.NewRegistry(adapters...)
+	r, err := workload.NewRegistry(extras...)
 	if err != nil {
 		t.Fatalf("workloadtest.NewRegistry: %v", err)
 	}

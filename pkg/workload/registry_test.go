@@ -93,17 +93,6 @@ func TestNewRegistry_MultiVersionSameKind(t *testing.T) {
 	if got := r.List(); len(got) != 2 {
 		t.Fatalf("List() returned %d adapters, want 2", len(got))
 	}
-
-	// The representative flips with registration order; callers may only
-	// rely on the boolean, never on the returned version.
-	reversed, err := NewRegistry(v2, v1)
-	if err != nil {
-		t.Fatalf("reversed NewRegistry returned error: %v", err)
-	}
-	first, ok = reversed.LookupByKind("Widget")
-	if !ok || first.Name() != "widget-v2" {
-		t.Fatalf("LookupByKind on reversed registry = %v, %t, want widget-v2", first, ok)
-	}
 }
 
 func TestNewRegistry_EmptyIsValid(t *testing.T) {
@@ -170,6 +159,14 @@ func TestNewRegistry_InvalidAdaptersReturnErrors(t *testing.T) {
 			// version of a CRD shares one REST collection: the plural resource
 			// must match or webhook rules would become incoherent.
 			adapters: base(FakeAdapter{AdapterName: "b", AdapterGVK: gvk("g.io", "v2", "A"), AdapterGVR: gvr("g.io", "v2", "av2s")}),
+		},
+		{
+			name:     "core group is reserved for the built-in Pod",
+			adapters: []Adapter{FakeAdapter{AdapterName: "core-widget", AdapterGVK: gvk("", "v1", "Widget"), AdapterGVR: gvr("", "v1", "widgets")}},
+		},
+		{
+			name:     "apps group is reserved for the built-in workload kinds",
+			adapters: []Adapter{FakeAdapter{AdapterName: "apps-widget", AdapterGVK: gvk("apps", "v1", "Widget"), AdapterGVR: gvr("apps", "v1", "widgets")}},
 		},
 	}
 	for _, tc := range testCases {
