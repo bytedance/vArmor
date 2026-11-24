@@ -272,8 +272,11 @@ func buildPodTemplatePatch(ref workload.PodTemplateRef, e varmortypes.Enforcer,
 	templatePath := ref.Path
 	tpl := ref.Template
 
-	// NetworkProxy
-	if (e & varmortypes.NetworkProxy) != 0 {
+	// NetworkProxy. Skip without app containers: spec/containers serializes
+	// to null for a zero-slice PodSpec (no omitempty), so the sidecar append
+	// fails to apply and the request is rejected even under Ignore; there is
+	// no traffic to proxy anyway.
+	if (e&varmortypes.NetworkProxy) != 0 && len(tpl.Spec.Containers) > 0 {
 		if _, ok := tpl.Annotations["pod.networkproxy.security.beta.varmor.org"]; !ok {
 			if len(tpl.Spec.InitContainers) == 0 {
 				jsonPatch += fmt.Sprintf(`{"op": "add", "path": "%s/spec/initContainers", "value": []},`, ref.Path)

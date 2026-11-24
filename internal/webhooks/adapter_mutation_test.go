@@ -178,6 +178,68 @@ func TestBuildPatch_CustomTemplatesApplyAllEnforcers(t *testing.T) {
 	}
 }
 
+// TestBuildPatch_SkipsTemplatesWithoutContainers covers templates whose raw
+// JSON has no usable spec.containers array: without the guard the NetworkProxy
+// add-ops target non-existent nodes, so the API server rejects the request
+// even under failurePolicy: Ignore. Skipped templates receive no ops,
+// siblings are still injected, and an all-skipped object returns an empty
+// patch so it is counted as patch_skipped_unconfined.
+func TestBuildPatch_SkipsTemplatesWithoutContainers(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		allSkipped bool
+		mutate     func(*unstructured.Unstructured)
+	}{
+		{
+			name: "template node without spec",
+			mutate: func(u *unstructured.Unstructured) {
+				unstructured.RemoveNestedField(u.Object, "spec", "groups", "a", "spec")
+			},
+		},
+		{
+			name: "spec without containers",
+			mutate: func(u *unstructured.Unstructured) {
+				assert.NilError(t, unstructured.SetNestedField(u.Object, map[string]interface{}{}, "spec", "groups", "a", "spec"))
+			},
+		},
+		{
+			name: "empty containers array",
+			mutate: func(u *unstructured.Unstructured) {
+				assert.NilError(t, unstructured.SetNestedField(u.Object, []interface{}{}, "spec", "groups", "a", "spec", "containers"))
+			},
+		},
+		{
+			name:       "all templates without spec",
+			allSkipped: true,
+			mutate: func(u *unstructured.Unstructured) {
+				unstructured.RemoveNestedField(u.Object, "spec", "groups", "a", "spec")
+				unstructured.RemoveNestedField(u.Object, "spec", "groups", "b", "spec")
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			u := multiTemplateObject(t, false)
+			tc.mutate(u)
+			patch, err := buildCustomPatch(u, newMultiTemplateFake(), "NetworkProxy", varmor.RuntimeDefaultMode,
+				varmor.Target{Kind: "MultiTemplateCR", Name: "cr"}, nil,
+				"varmor-test-cr", varmorpolicy.AuditPolicyIdentity{}, false, false)
+			assert.NilError(t, err)
+			if tc.allSkipped {
+				assert.Equal(t, patch, "", "objects whose templates all lack containers must stay unmutated")
+				return
+			}
+			// Fails if the patch cannot apply — the missing-node 500 this
+			// guard exists to prevent.
+			after := applyAdapterPatch(t, u, patch)
+			assert.Assert(t, !strings.Contains(patch, "/spec/groups/a/"), "empty template must receive no ops: %s", patch)
+			assert.Assert(t, strings.Contains(patch, "/spec/groups/b/spec/initContainers"), "sibling template must still be injected: %s", patch)
+			containers, _, err := unstructured.NestedSlice(after.Object, "spec", "groups", "b", "spec", "containers")
+			assert.NilError(t, err)
+			assert.Equal(t, len(containers), 2, "original container plus the injected Envoy sidecar")
+		})
+	}
+}
+
 // TestResourceMutation_SelectedCustomErrorsFailOpen verifies that a custom
 // adapter decode or template-extraction failure never denies admission. The
 // error is logged and counted, matchAndPatchCustom returns nil, and
@@ -643,4 +705,29 @@ func TestBuildPatch_CustomAdaptersRejectOverlappingPaths(t *testing.T) {
 			assert.Assert(t, strings.Contains(err.Error(), "overlapping"), "error must mention overlap: %v", err)
 		})
 	}
+}
+
+// TestBuildPatch_NullTemplateAnnotationsStillPrimed covers an explicit
+// "annotations": null node: a key-presence check treats null as present and
+// skips priming, so annotation child ops fail to traverse it and the request
+// is rejected even under failurePolicy: Ignore. The guard must type-assert
+// the node and prime an empty map, producing a patch that applies end to end.
+func TestBuildPatch_NullTemplateAnnotationsStillPrimed(t *testing.T) {
+	u := multiTemplateObject(t, true)
+	// Set an explicit JSON null while keeping the surrounding metadata node.
+	assert.NilError(t, unstructured.SetNestedField(u.Object, nil, "spec", "groups", "a", "metadata", "annotations"))
+
+	patch, err := buildCustomPatch(u, newMultiTemplateFake(), "AppArmor", varmor.RuntimeDefaultMode,
+		varmor.Target{Kind: "MultiTemplateCR", Name: "cr"}, nil,
+		"varmor-test-cr", varmorpolicy.AuditPolicyIdentity{}, false, true)
+	assert.NilError(t, err)
+	assert.Assert(t, strings.Contains(patch, `"/spec/groups/a/metadata/annotations"`),
+		"the null annotations node must be primed: %s", patch)
+
+	// Fails if any op cannot apply — the exact rejection this guard prevents.
+	after := applyAdapterPatch(t, u, patch)
+	value, found, err := unstructured.NestedString(after.Object, "spec", "groups", "a", "metadata", "annotations", "container.apparmor.security.beta.varmor.org/c")
+	assert.NilError(t, err)
+	assert.Assert(t, found, "apparmor annotation must land under the primed map")
+	assert.Equal(t, value, "localhost/varmor-test-cr")
 }

@@ -176,6 +176,9 @@ func buildCustomPatch(obj *unstructured.Unstructured, adapter workload.Adapter, 
 
 	// One patch set is emitted per pod template; a custom resource may carry
 	// several, so their pointers must be distinct and non-overlapping.
+	// hasEligibleTemplate stays false when every ref is skipped, so the
+	// pre-loop metadata priming ops can't produce a protection-free mutation.
+	var hasEligibleTemplate bool
 	for index, ref := range refs {
 		if ref.Template == nil {
 			return "", fmt.Errorf("template at %q is nil", ref.Path)
@@ -189,6 +192,16 @@ func buildCustomPatch(obj *unstructured.Unstructured, adapter workload.Adapter, 
 		if err != nil {
 			return "", err
 		}
+		// Skip templates with no usable spec.containers: the NetworkProxy
+		// add-ops would target non-existent nodes, and an unapplyable patch
+		// is rejected even under failurePolicy: Ignore. The raw node is
+		// checked because the decoded struct cannot distinguish an absent
+		// spec from empty containers.
+		containers, found, nestedErr := unstructured.NestedSlice(template, "spec", "containers")
+		if nestedErr != nil || !found || len(containers) == 0 {
+			continue
+		}
+		hasEligibleTemplate = true
 		if ref.Path != "" {
 			// Both parent nodes are ensured through unstructured map checks
 			// here so the shared buildPodTemplatePatch stays injection-only.
@@ -203,7 +216,11 @@ func buildCustomPatch(obj *unstructured.Unstructured, adapter workload.Adapter, 
 				}
 				jsonPatch += fmt.Sprintf(`{"op": "add", "path": %s, "value": {}},`, path)
 			}
-			if _, ok := metadata["annotations"]; !ok {
+			// Type-assert rather than test key presence: "annotations": null
+			// keeps the key but isn't traversable, so child ops would fail
+			// to apply and the request is rejected even under Ignore. The
+			// priming add overwrites null with an empty map.
+			if _, ok := metadata["annotations"].(map[string]interface{}); !ok {
 				path, err := json.Marshal(ref.Path + "/metadata/annotations")
 				if err != nil {
 					return "", err
@@ -212,6 +229,12 @@ func buildCustomPatch(obj *unstructured.Unstructured, adapter workload.Adapter, 
 			}
 		}
 		jsonPatch += buildPodTemplatePatch(ref, e, mode, target, networkProxyConfig, profileName, id, bpfExclusiveMode, appArmorGA)
+	}
+
+	// All refs skipped: drop the pre-loop metadata priming ops so the object
+	// stays unmutated and the caller records patch_skipped_unconfined.
+	if !hasEligibleTemplate {
+		return "", nil
 	}
 
 	return finalizePatch(jsonPatch), nil

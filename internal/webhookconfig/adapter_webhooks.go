@@ -63,22 +63,12 @@ func adapterOperations(a workload.Adapter) []admissionregistrationapi.OperationT
 	return append([]admissionregistrationapi.OperationType(nil), ops...)
 }
 
-// customAdapterWebhooks renders one MutatingWebhook entry per custom adapter
-// visible to the register's registry. The registry holds custom (CRD)
-// adapters only — the core/apps built-in kinds are dispatched by a separate
-// hard-coded switch and never reach this loop. The entries extend the
-// historical two-entry MutatingWebhookConfiguration: they reuse the same
-// webhook service, /mutate route, object selector and fail-open Ignore policy,
-// so a custom adapter can never turn a webhook outage into an admission
-// block. The per-adapter timeout stays on the manager-wide default
-// (wrc.timeoutSeconds), matching the built-in entries; MatchConditions are
-// the only adapter-specific option honored here.
-//
-// Multiple served versions of one Kind share one entry name and are merged
-// into a single entry whose rules enumerate every version. Entries are
-// emitted in registry List() order (sorted by adapter Name) for deterministic
-// output. A nil or empty registry returns nil, leaving the generated
-// configuration identical to the historical two-entry form.
+// customAdapterWebhooks renders one MutatingWebhook entry per registered
+// custom adapter, extending the historical two-entry configuration with the
+// same service, /mutate route, selector and fail-open Ignore policy.
+// Adapters of one Kind sharing an entry name (multi-version) are merged into
+// one entry; a nil or empty registry returns nil to preserve the historical
+// two-entry form.
 func (wrc *Register) customAdapterWebhooks(
 	clientConfig admissionregistrationapi.WebhookClientConfig,
 	reinvocationPolicy admissionregistrationapi.ReinvocationPolicyType,

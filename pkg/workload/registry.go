@@ -52,16 +52,11 @@ type Registry struct {
 	order []Adapter
 }
 
-// NewRegistry validates and indexes the given custom adapters. It returns an
-// error on any nil adapter, empty identity, GVR/GVK mismatch, duplicate Name
-// or full GVK, a bare Kind claimed by two API groups, versioned adapters of
-// one Kind disagreeing on their GVR resource, or an adapter claiming the
-// built-in core ("") or "apps" API groups (those are served by a hard-coded
-// kind switch, not the registry), so ambiguous Target.Kind values, misrouted
-// admissions or malformed webhook rules fail at startup.
-//
-// Multiple adapters sharing the same API group and bare Kind but serving
-// different versions (the multi-version CRD case) are allowed.
+// NewRegistry validates and indexes the custom adapters, failing at startup
+// on nil or empty identities, GVR/GVK mismatches, duplicate Name or GVK,
+// bare Kinds claimed across groups or with inconsistent GVR resources, or
+// reserved core/apps groups. Adapters of one group/Kind serving different
+// versions are allowed.
 func NewRegistry(adapters ...Adapter) (*Registry, error) {
 	r := &Registry{
 		byGVK:          map[schema.GroupVersionKind]Adapter{},
