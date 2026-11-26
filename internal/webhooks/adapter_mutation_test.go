@@ -343,35 +343,48 @@ func TestMatchAndPatchCustom_MalformedSelectorFailsOpen(t *testing.T) {
 	assert.Assert(t, response == nil, "a malformed selector must fail open with no patch")
 }
 
-// TestDeserializeWorkload_NativeKindsDecodeTyped covers the historical
-// built-in decode path: the four native kinds decode into their typed Go
-// objects through the shared scheme deserializer, with no adapter lookup and
-// no GVK identity cross-check (fail-open behavior lives in the caller).
+// TestDeserializeWorkload_NativeKindsDecodeTyped iterates the shared
+// workload.BuiltInKinds set — making this a drift detector for a fifth
+// native Kind — and asserts each one decodes typed with no adapter lookup.
 func TestDeserializeWorkload_NativeKindsDecodeTyped(t *testing.T) {
 	ws := &WebhookServer{deserializer: scheme.Codecs.UniversalDeserializer()}
-	for _, tc := range []struct {
-		kind       string
+	nativeGroups := map[string]struct {
 		group      string
 		apiVersion string
 	}{
-		{"Deployment", "apps", "apps/v1"},
-		{"StatefulSet", "apps", "apps/v1"},
-		{"DaemonSet", "apps", "apps/v1"},
-		{"Pod", "", "v1"},
-	} {
-		t.Run(tc.kind, func(t *testing.T) {
+		"Pod":         {"", "v1"},
+		"Deployment":  {"apps", "apps/v1"},
+		"StatefulSet": {"apps", "apps/v1"},
+		"DaemonSet":   {"apps", "apps/v1"},
+	}
+	for _, kind := range workload.BuiltInKinds() {
+		meta, ok := nativeGroups[kind]
+		assert.Assert(t, ok, "Kind %q in workload.BuiltInKinds needs native decode/patch metadata in this test", kind)
+		t.Run(kind, func(t *testing.T) {
 			request := &admissionv1.AdmissionRequest{
-				Kind:   metav1.GroupVersionKind{Group: tc.group, Version: "v1", Kind: tc.kind},
-				Object: runtime.RawExtension{Raw: []byte(fmt.Sprintf(`{"apiVersion":%q,"kind":%q,"metadata":{"name":"demo"}}`, tc.apiVersion, tc.kind))},
+				Kind:   metav1.GroupVersionKind{Group: meta.group, Version: "v1", Kind: kind},
+				Object: runtime.RawExtension{Raw: []byte(fmt.Sprintf(`{"apiVersion":%q,"kind":%q,"metadata":{"name":"demo"}}`, meta.apiVersion, kind))},
 			}
 			obj, err := ws.deserializeWorkload(request)
 			assert.NilError(t, err)
 			decoded, ok := obj.(runtime.Object)
 			assert.Assert(t, ok)
-			expected := schema.GroupVersionKind{Group: tc.group, Version: "v1", Kind: tc.kind}
+			expected := schema.GroupVersionKind{Group: meta.group, Version: "v1", Kind: kind}
 			assert.Equal(t, decoded.GetObjectKind().GroupVersionKind(), expected)
 		})
 	}
+
+	// A non-built-in Kind must fail both native switches.
+	unknown := &admissionv1.AdmissionRequest{
+		Kind:   metav1.GroupVersionKind{Group: "batch", Version: "v1", Kind: "Job"},
+		Object: runtime.RawExtension{Raw: []byte(`{"apiVersion":"batch/v1","kind":"Job"}`)},
+	}
+	obj, err := ws.deserializeWorkload(unknown)
+	assert.Assert(t, obj == nil)
+	assert.ErrorContains(t, err, "unsupported kind")
+	_, err = buildNativePatch(nil, "AppArmor", varmor.EnhanceProtectMode, varmor.Target{Kind: "Job"},
+		nil, "demo", varmorpolicy.AuditPolicyIdentity{}, false, false)
+	assert.ErrorContains(t, err, `unsupported workload kind "Job"`)
 }
 
 // TestDeserializeCustomWorkload_ValidatesDecodedIdentity covers the custom
@@ -730,4 +743,75 @@ func TestBuildPatch_NullTemplateAnnotationsStillPrimed(t *testing.T) {
 	assert.NilError(t, err)
 	assert.Assert(t, found, "apparmor annotation must land under the primed map")
 	assert.Equal(t, value, "localhost/varmor-test-cr")
+}
+
+// capturingLogSink records Info-level messages so tests can assert on
+// operator-facing warnings without pulling in a full logging stack.
+type capturingLogSink struct {
+	infoMessages []string
+}
+
+func (s *capturingLogSink) Init(logr.RuntimeInfo) {}
+
+// Enabled captures operator-visible Info-level (V0) messages only; V(2)
+// debug logging such as "policy matching" must not pollute the assertions.
+func (s *capturingLogSink) Enabled(level int) bool { return level == 0 }
+func (s *capturingLogSink) Info(_ int, msg string, _ ...interface{}) {
+	s.infoMessages = append(s.infoMessages, msg)
+}
+func (s *capturingLogSink) Error(error, string, ...interface{})    {}
+func (s *capturingLogSink) WithValues(...interface{}) logr.LogSink { return s }
+func (s *capturingLogSink) WithName(string) logr.LogSink           { return s }
+
+// TestMatchAndPatch_ClusterScopedResourceGate covers the impossible cell:
+// a namespaced VarmorPolicy against a cluster-scoped object (Namespace="")
+// fails open with an actionable warning, while Kind mismatches, ordinary
+// cross-namespace skips and cluster policies stay silent.
+func TestMatchAndPatch_ClusterScopedResourceGate(t *testing.T) {
+	const kind = "ClusterWidget"
+	target := varmor.Target{Kind: kind, Name: "global"}
+	buildRequest := func(namespace string) *admissionv1.AdmissionRequest {
+		return &admissionv1.AdmissionRequest{
+			UID:       "test",
+			Name:      "global",
+			Namespace: namespace,
+			Kind:      metav1.GroupVersionKind{Group: "example.com", Version: "v1", Kind: kind},
+		}
+	}
+
+	t.Run("namespaced policy vs cluster-scoped object warns and skips", func(t *testing.T) {
+		sink := &capturingLogSink{}
+		ws := &WebhookServer{log: logr.Discard()}
+		response := ws.matchAndPatch(buildRequest(""), "default/p", target, logr.New(sink))
+		assert.Assert(t, response == nil, "the impossible cell must fail open with no patch")
+		assert.Equal(t, len(sink.infoMessages), 1)
+		assert.Assert(t, strings.Contains(sink.infoMessages[0], "VarmorClusterPolicy"))
+	})
+
+	t.Run("Kind mismatch stays silent", func(t *testing.T) {
+		sink := &capturingLogSink{}
+		ws := &WebhookServer{log: logr.Discard()}
+		other := varmor.Target{Kind: "SomethingElse", Name: "global"}
+		response := ws.matchAndPatch(buildRequest(""), "default/p", other, logr.New(sink))
+		assert.Assert(t, response == nil)
+		assert.Equal(t, len(sink.infoMessages), 0)
+	})
+
+	t.Run("ordinary cross-namespace skip stays silent", func(t *testing.T) {
+		sink := &capturingLogSink{}
+		ws := &WebhookServer{log: logr.Discard()}
+		response := ws.matchAndPatch(buildRequest("other-ns"), "default/p", target, logr.New(sink))
+		assert.Assert(t, response == nil)
+		assert.Equal(t, len(sink.infoMessages), 0)
+	})
+
+	t.Run("cluster policy passes the gate without warning", func(t *testing.T) {
+		sink := &capturingLogSink{}
+		// An empty registry makes the later custom dispatch miss cleanly;
+		// the assertion is that the gate neither warns nor blocks the call.
+		ws := &WebhookServer{log: logr.Discard(), registry: workloadtest.NewRegistry(t)}
+		response := ws.matchAndPatch(buildRequest(""), "cluster-p", target, logr.New(sink))
+		assert.Assert(t, response == nil)
+		assert.Equal(t, len(sink.infoMessages), 0)
+	})
 }

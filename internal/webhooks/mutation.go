@@ -49,6 +49,15 @@ func (ws *WebhookServer) matchAndPatch(request *admissionv1.AdmissionRequest, ke
 
 	clusterScope := policyNamespace == ""
 	if !clusterScope && policyNamespace != request.Namespace {
+		// Namespace="" means a cluster-scoped resource, which a
+		// namespaced policy cannot protect: its ArmorProfile and
+		// NetworkProxy Secret are created inside the policy's namespace.
+		// The Kind match keeps ordinary cross-namespace skips silent.
+		if request.Namespace == "" && request.Kind.Kind == target.Kind {
+			logger.Info("namespaced VarmorPolicy cannot protect a cluster-scoped resource; use a VarmorClusterPolicy instead",
+				"policy namespace", policyNamespace, "policy name", policyName,
+				"resource kind", request.Kind.Kind, "resource name", request.Name)
+		}
 		return nil
 	}
 
@@ -67,16 +76,14 @@ func (ws *WebhookServer) matchAndPatch(request *admissionv1.AdmissionRequest, ke
 		return nil
 	}
 
-	// The four built-in kinds keep their historical dispatch (typed decode,
-	// name/label selection, fail-open). Every other Kind is a custom resource
-	// routed through the adapter registry, which holds custom adapters only
-	// and rejects the core/apps groups the built-in switch owns.
-	switch request.Kind.Kind {
-	case "Deployment", "StatefulSet", "DaemonSet", "Pod":
+	// Built-in kinds keep their historical dispatch (typed decode,
+	// name/label selection, fail-open); every other Kind is a custom
+	// resource routed through the adapter registry, whose construction
+	// guarantees the two dispatch sets never overlap.
+	if workload.IsBuiltInKind(request.Kind.Kind) {
 		return ws.matchAndPatchNative(request, key, target, logger, policyNamespace, policyName, clusterScope, policyIdentity)
-	default:
-		return ws.matchAndPatchCustom(request, key, target, logger, policyNamespace, policyName, clusterScope, policyIdentity)
 	}
+	return ws.matchAndPatchCustom(request, key, target, logger, policyNamespace, policyName, clusterScope, policyIdentity)
 }
 
 // matchAndPatchNative preserves the historical built-in-kind behavior

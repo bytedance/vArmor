@@ -15,6 +15,7 @@
 package webhookconfig
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -22,6 +23,7 @@ import (
 	admissionregistrationapi "k8s.io/api/admissionregistration/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/validation"
 
 	"github.com/bytedance/vArmor/internal/config"
 	"github.com/bytedance/vArmor/pkg/workload"
@@ -59,21 +61,6 @@ func TestCustomAdapterWebhooks_NilOrEmptyReturnsNil(t *testing.T) {
 	clientConfig := testClientConfig()
 	wrc := &Register{timeoutSeconds: 10}
 	assert.Nil(t, wrc.customAdapterWebhooks(clientConfig, admissionregistrationapi.IfNeededReinvocationPolicy))
-}
-
-// TestAdapterWebhookName_CoreGroupRendersAsCore pins the defensive name
-// rendering for an empty API group. Such an adapter can never pass registry
-// validation (the core group is reserved for the built-in Pod switch, and the
-// rejection itself is covered in pkg/workload registry tests), so the branch
-// is exercised directly on the name helper rather than through a
-// registry-backed rendering.
-func TestAdapterWebhookName_CoreGroupRendersAsCore(t *testing.T) {
-	coreGroup := workload.FakeAdapter{
-		AdapterName: "widget-v1",
-		AdapterGVK:  schema.GroupVersionKind{Group: "", Version: "v1", Kind: "Widget"},
-		AdapterGVR:  schema.GroupVersionResource{Group: "", Version: "v1", Resource: "widgets"},
-	}
-	assert.Equal(t, "mutate-widgets.core.varmor.org", adapterWebhookName(coreGroup))
 }
 
 func TestCustomAdapterWebhooks_RendersCustomEntry(t *testing.T) {
@@ -165,6 +152,31 @@ func TestCustomAdapterWebhooks_MultiVersionMergesOneEntry(t *testing.T) {
 		assert.Equal(t, []string{"widgets.example.com"}, rule.APIGroups)
 		assert.Equal(t, []string{"widgets"}, rule.Resources)
 	}
+}
+
+func TestCustomAdapterWebhooks_OverLongIdentityTruncated(t *testing.T) {
+	// Max-length resource plus a 253-char group overflows the raw entry
+	// name; the rendered entry is truncated, not rejected. The zero-value
+	// logger exercises the warning path.
+	resource := strings.Repeat("a", 63)
+	group := strings.Repeat("b.", 126) + "b"
+	fake := workload.FakeAdapter{
+		AdapterName: "long-v1",
+		AdapterGVK:  schema.GroupVersionKind{Group: group, Version: "v1", Kind: "Long"},
+		AdapterGVR:  schema.GroupVersionResource{Group: group, Version: "v1", Resource: resource},
+	}
+	registry := workloadtest.NewRegistry(t, fake)
+	wrc := &Register{registry: registry, timeoutSeconds: 10}
+
+	entries := wrc.customAdapterWebhooks(testClientConfig(), admissionregistrationapi.IfNeededReinvocationPolicy)
+	require.Len(t, entries, 1)
+
+	name := entries[0].Name
+	assert.LessOrEqual(t, len(name), validation.DNS1123SubdomainMaxLength)
+	assert.Empty(t, validation.IsDNS1123Subdomain(name), "truncated entry name must pass the API server's own validator")
+	assert.NotContains(t, name, ".varmor.org", "truncated names carry a hash suffix instead of the fixed suffix")
+	wantName, _ := workload.WebhookEntryName(fake)
+	assert.Equal(t, wantName, name, "the shared helper and the renderer must agree")
 }
 
 func TestGenerateMutatingWebhookConfig_AppendsCustomEntries(t *testing.T) {

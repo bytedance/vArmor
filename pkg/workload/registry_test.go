@@ -15,9 +15,12 @@
 package workload
 
 import (
+	"strings"
 	"testing"
 
+	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/validation"
 )
 
 func gvk(group, version, kind string) schema.GroupVersionKind {
@@ -95,6 +98,95 @@ func TestNewRegistry_MultiVersionSameKind(t *testing.T) {
 	}
 }
 
+// TestIsBuiltInKind locks the membership gate shared by registry admission,
+// policy validation and mutation dispatch, including its exact-case match.
+func TestIsBuiltInKind(t *testing.T) {
+	testCases := []struct {
+		kind string
+		want bool
+	}{
+		{"Pod", true},
+		{"Deployment", true},
+		{"StatefulSet", true},
+		{"DaemonSet", true},
+		{"pod", false},
+		{"deployment", false},
+		{"", false},
+		{"Job", false},
+		{"CronJob", false},
+		{"Widget", false},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.kind, func(t *testing.T) {
+			if got := IsBuiltInKind(tc.kind); got != tc.want {
+				t.Fatalf("IsBuiltInKind(%q) = %t, want %t", tc.kind, got, tc.want)
+			}
+		})
+	}
+}
+
+// TestNewRegistry_MultiVersionMatchConditions covers the acceptance side of
+// the MatchConditions guard; divergent cases are in the error table below.
+func TestNewRegistry_MultiVersionMatchConditions(t *testing.T) {
+	conditions := []admissionregistrationv1.MatchCondition{
+		{Name: "exclude-lease-objects", Expression: "!has(object.metadata.labels['lease'])"},
+	}
+	testCases := []struct {
+		name      string
+		v1Options WebhookOptions
+		v2Options WebhookOptions
+	}{
+		{
+			name:      "identical non-empty conditions are accepted",
+			v1Options: WebhookOptions{MatchConditions: conditions},
+			// A separate slice with identical content proves value, not
+			// pointer, comparison.
+			v2Options: WebhookOptions{MatchConditions: []admissionregistrationv1.MatchCondition{
+				{Name: "exclude-lease-objects", Expression: "!has(object.metadata.labels['lease'])"},
+			}},
+		},
+		{
+			name:      "nil and empty-slice conditions are equivalent",
+			v1Options: WebhookOptions{},
+			v2Options: WebhookOptions{MatchConditions: []admissionregistrationv1.MatchCondition{}},
+		},
+		{
+			name: "same condition set in a different order is accepted",
+			v1Options: WebhookOptions{MatchConditions: []admissionregistrationv1.MatchCondition{
+				{Name: "exclude-lease-objects", Expression: "!has(object.metadata.labels['lease'])"},
+				{Name: "exclude-dry-run", Expression: "!dryRun()"},
+			}},
+			v2Options: WebhookOptions{MatchConditions: []admissionregistrationv1.MatchCondition{
+				{Name: "exclude-dry-run", Expression: "!dryRun()"},
+				{Name: "exclude-lease-objects", Expression: "!has(object.metadata.labels['lease'])"},
+			}},
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			v1 := FakeAdapter{
+				AdapterName: "widget-v1",
+				AdapterGVK:  gvk("g.io", "v1", "Widget"),
+				AdapterGVR:  gvr("g.io", "v1", "widgets"),
+				Options:     tc.v1Options,
+			}
+			v2 := FakeAdapter{
+				AdapterName: "widget-v2",
+				AdapterGVK:  gvk("g.io", "v2", "Widget"),
+				AdapterGVR:  gvr("g.io", "v2", "widgets"),
+				Options:     tc.v2Options,
+			}
+			r, err := NewRegistry(v1, v2)
+			if err != nil {
+				t.Fatalf("versioned adapters with compatible MatchConditions must coexist: %v", err)
+			}
+			if got := r.List(); len(got) != 2 {
+				t.Fatalf("List() returned %d adapters, want 2", len(got))
+			}
+		})
+	}
+}
+
 func TestNewRegistry_EmptyIsValid(t *testing.T) {
 	r, err := NewRegistry()
 	if err != nil {
@@ -168,6 +260,103 @@ func TestNewRegistry_InvalidAdaptersReturnErrors(t *testing.T) {
 			name:     "apps group is reserved for the built-in workload kinds",
 			adapters: []Adapter{FakeAdapter{AdapterName: "apps-widget", AdapterGVK: gvk("apps", "v1", "Widget"), AdapterGVR: gvr("apps", "v1", "widgets")}},
 		},
+		{
+			name:     "built-in Kind Pod is reserved in any group",
+			adapters: []Adapter{FakeAdapter{AdapterName: "shadow-pod", AdapterGVK: gvk("custom.io", "v1", "Pod"), AdapterGVR: gvr("custom.io", "v1", "pods")}},
+		},
+		{
+			name:     "built-in Kind Deployment is reserved in any group",
+			adapters: []Adapter{FakeAdapter{AdapterName: "shadow-deploy", AdapterGVK: gvk("custom.io", "v1", "Deployment"), AdapterGVR: gvr("custom.io", "v1", "deployments")}},
+		},
+		{
+			name:     "built-in Kind StatefulSet is reserved in any group",
+			adapters: []Adapter{FakeAdapter{AdapterName: "shadow-sts", AdapterGVK: gvk("custom.io", "v1", "StatefulSet"), AdapterGVR: gvr("custom.io", "v1", "statefulsets")}},
+		},
+		{
+			name:     "built-in Kind DaemonSet is reserved in any group",
+			adapters: []Adapter{FakeAdapter{AdapterName: "shadow-ds", AdapterGVK: gvk("custom.io", "v1", "DaemonSet"), AdapterGVR: gvr("custom.io", "v1", "daemonsets")}},
+		},
+		{
+			name:     "invalid API group characters",
+			adapters: []Adapter{FakeAdapter{AdapterName: "x", AdapterGVK: gvk("my_team.io", "v1", "A"), AdapterGVR: gvr("my_team.io", "v1", "as")}},
+		},
+		{
+			name:     "invalid GVR resource characters",
+			adapters: []Adapter{FakeAdapter{AdapterName: "x", AdapterGVK: gvk("g.io", "v1", "A"), AdapterGVR: gvr("g.io", "v1", "BadName")}},
+		},
+		{
+			name:     "invalid GVK Kind characters",
+			adapters: []Adapter{FakeAdapter{AdapterName: "x", AdapterGVK: gvk("g.io", "v1", "Bad Kind"), AdapterGVR: gvr("g.io", "v1", "bs")}},
+		},
+		{
+			name: "duplicate group/resource tuple claimed by distinct Kinds",
+			// Same (group, plural) as the base adapter but a different Kind:
+			// both would render one entry name and fuse through the merge.
+			adapters: base(FakeAdapter{AdapterName: "b", AdapterGVK: gvk("g.io", "v1", "B"), AdapterGVR: gvr("g.io", "v1", "as")}),
+		},
+		{
+			name: "divergent MatchConditions across served versions",
+			adapters: base(FakeAdapter{
+				AdapterName: "b",
+				AdapterGVK:  gvk("g.io", "v2", "A"),
+				AdapterGVR:  gvr("g.io", "v2", "as"),
+				Options: WebhookOptions{MatchConditions: []admissionregistrationv1.MatchCondition{
+					{Name: "skip-leases", Expression: "!has(object.metadata.labels['lease'])"},
+				}},
+			}),
+		},
+		{
+			name: "same condition Names with different Expressions across served versions",
+			adapters: []Adapter{
+				FakeAdapter{
+					AdapterName: "a-v1", AdapterGVK: gvk("g.io", "v1", "A"), AdapterGVR: gvr("g.io", "v1", "as"),
+					Options: WebhookOptions{MatchConditions: []admissionregistrationv1.MatchCondition{
+						{Name: "skip-leases", Expression: "!has(object.metadata.labels['lease'])"},
+					}},
+				},
+				FakeAdapter{
+					AdapterName: "a-v2", AdapterGVK: gvk("g.io", "v2", "A"), AdapterGVR: gvr("g.io", "v2", "as"),
+					Options: WebhookOptions{MatchConditions: []admissionregistrationv1.MatchCondition{
+						{Name: "skip-leases", Expression: "!has(object.metadata.annotations['lease'])"},
+					}},
+				},
+			},
+		},
+		{
+			name: "condition renamed across served versions",
+			adapters: []Adapter{
+				FakeAdapter{
+					AdapterName: "a-v1", AdapterGVK: gvk("g.io", "v1", "A"), AdapterGVR: gvr("g.io", "v1", "as"),
+					Options: WebhookOptions{MatchConditions: []admissionregistrationv1.MatchCondition{
+						{Name: "skip-leases", Expression: "!has(object.metadata.labels['lease'])"},
+					}},
+				},
+				FakeAdapter{
+					AdapterName: "a-v2", AdapterGVK: gvk("g.io", "v2", "A"), AdapterGVR: gvr("g.io", "v2", "as"),
+					Options: WebhookOptions{MatchConditions: []admissionregistrationv1.MatchCondition{
+						{Name: "exclude-leases", Expression: "!has(object.metadata.labels['lease'])"},
+					}},
+				},
+			},
+		},
+		{
+			name: "extra condition on a later served version",
+			adapters: []Adapter{
+				FakeAdapter{
+					AdapterName: "a-v1", AdapterGVK: gvk("g.io", "v1", "A"), AdapterGVR: gvr("g.io", "v1", "as"),
+					Options: WebhookOptions{MatchConditions: []admissionregistrationv1.MatchCondition{
+						{Name: "skip-leases", Expression: "!has(object.metadata.labels['lease'])"},
+					}},
+				},
+				FakeAdapter{
+					AdapterName: "a-v2", AdapterGVK: gvk("g.io", "v2", "A"), AdapterGVR: gvr("g.io", "v2", "as"),
+					Options: WebhookOptions{MatchConditions: []admissionregistrationv1.MatchCondition{
+						{Name: "skip-leases", Expression: "!has(object.metadata.labels['lease'])"},
+						{Name: "exclude-dry-run", Expression: "!dryRun()"},
+					}},
+				},
+			},
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -191,5 +380,66 @@ func TestRegistry_ListSorted(t *testing.T) {
 	got := r.List()
 	if len(got) != 3 || got[0].Name() != "a" || got[1].Name() != "b" || got[2].Name() != "c" {
 		t.Fatalf("List not sorted: %v", got)
+	}
+}
+
+// TestWebhookNameIndex drives the uniqueness guard with synthetic names,
+// since a real SHA-256 collision cannot be constructed on demand.
+func TestWebhookNameIndex(t *testing.T) {
+	t.Run("first claim succeeds", func(t *testing.T) {
+		idx := webhookNameIndex{}
+		if err := idx.add("mutate-a.g.io.varmor.org", "mutate-a.g.io.varmor.org", "a-v1"); err != nil {
+			t.Fatalf("first claim rejected: %v", err)
+		}
+	})
+
+	t.Run("same raw identity may reclaim the rendered name", func(t *testing.T) {
+		// Served versions share one raw identity and must merge, not error.
+		idx := webhookNameIndex{}
+		if err := idx.add("rendered", "raw-identity", "a-v1"); err != nil {
+			t.Fatalf("first claim rejected: %v", err)
+		}
+		if err := idx.add("rendered", "raw-identity", "a-v2"); err != nil {
+			t.Fatalf("re-claim by the same identity rejected: %v", err)
+		}
+	})
+
+	t.Run("distinct identities sharing a rendered name are rejected", func(t *testing.T) {
+		idx := webhookNameIndex{}
+		if err := idx.add("rendered", "raw-one", "a-v1"); err != nil {
+			t.Fatalf("first claim rejected: %v", err)
+		}
+		if err := idx.add("rendered", "raw-two", "b-v1"); err == nil {
+			t.Fatal("expected a name collision to be rejected, got nil error")
+		}
+	})
+}
+
+// TestNewRegistry_OverLongIdentityAccepted: over-long identities still
+// register through truncation, and served versions share one entry name.
+func TestNewRegistry_OverLongIdentityAccepted(t *testing.T) {
+	resource := strings.Repeat("a", 63) // maximum DNS label length
+	group := strings.Repeat("b.", 126) + "b"
+	if len(group) != validation.DNS1123SubdomainMaxLength {
+		t.Fatalf("test setup: group length %d, want 253", len(group))
+	}
+
+	v1 := FakeAdapter{AdapterName: "long-v1", AdapterGVK: gvk(group, "v1", "Long"), AdapterGVR: gvr(group, "v1", resource)}
+	v2 := FakeAdapter{AdapterName: "long-v2", AdapterGVK: gvk(group, "v2", "Long"), AdapterGVR: gvr(group, "v2", resource)}
+
+	r, err := NewRegistry(v1, v2)
+	if err != nil {
+		t.Fatalf("over-long identity must register through truncation, got error: %v", err)
+	}
+	if len(r.List()) != 2 {
+		t.Fatalf("expected both served versions registered, got %d", len(r.List()))
+	}
+
+	rendered, truncated := WebhookEntryName(v1)
+	if !truncated {
+		t.Fatal("test setup: identity must overflow the raw name limit")
+	}
+	if errs := validation.IsDNS1123Subdomain(rendered); len(errs) != 0 {
+		t.Fatalf("rendered entry name invalid: %v", errs)
 	}
 }

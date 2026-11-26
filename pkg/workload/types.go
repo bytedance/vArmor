@@ -92,7 +92,10 @@ type Adapter interface {
 	PodTemplates(obj *unstructured.Unstructured) ([]PodTemplateRef, error)
 
 	// DefaultWebhookOptions returns the webhook defaults for this adapter;
-	// runtime configuration may override individual fields.
+	// runtime configuration may override individual fields. Versioned
+	// adapters of one Kind merge into one entry that keeps the first
+	// adapter's MatchConditions, so they must declare the same
+	// Name/Expression set (order irrelevant); the registry enforces this.
 	DefaultWebhookOptions() WebhookOptions
 }
 

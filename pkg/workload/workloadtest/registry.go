@@ -27,16 +27,13 @@ import (
 	"github.com/bytedance/vArmor/pkg/workload"
 )
 
-// NewRegistry builds an isolated registry holding only the caller-supplied
-// custom adapters. The registry is custom-only by construction: the four
-// built-in kinds use a hard-coded dispatch switch and never enter it. A
-// construction failure (a nil adapter, a duplicate Name/GVK/bare-Kind, or a
-// reserved core/apps group) fails the calling test rather than returning a
-// half-populated registry. Every call returns a fresh registry, so tests
-// neither share nor mutate any process-global state.
+// NewRegistry builds an isolated registry of caller-supplied custom
+// adapters; built-in kinds use hard-coded dispatch and never enter it. Any
+// registry construction error fails the calling test. Every call returns a
+// fresh registry, so tests share no process-global state.
 //
-// With no extras the result is an empty registry, modelling an upstream
-// binary that compiles in no custom adapters.
+// With no extras the result is an empty registry, modelling a binary
+// compiled without custom adapters.
 func NewRegistry(t testing.TB, extras ...workload.Adapter) *workload.Registry {
 	t.Helper()
 	r, err := workload.NewRegistry(extras...)

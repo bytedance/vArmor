@@ -15,28 +15,12 @@
 package webhookconfig
 
 import (
-	"fmt"
-
 	admissionregistrationapi "k8s.io/api/admissionregistration/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/bytedance/vArmor/internal/config"
 	"github.com/bytedance/vArmor/pkg/workload"
 )
-
-// adapterWebhookName returns the deterministic MutatingWebhook entry name for
-// a custom adapter: mutate-<resource>.<group>.varmor.org. The core API group
-// renders as "core" because an empty group segment would produce an invalid
-// DNS-style name. Adapters serving different versions of one Kind share the
-// same group and REST resource, therefore the same entry name; their rules
-// are merged by customAdapterWebhooks.
-func adapterWebhookName(a workload.Adapter) string {
-	group := a.GVK().Group
-	if group == "" {
-		group = "core"
-	}
-	return fmt.Sprintf("mutate-%s.%s.varmor.org", a.GVR().Resource, group)
-}
 
 // adapterWebhookRule renders the admission Rule for one served adapter
 // version from its GVK/GVR identity. It targets the main resource only,
@@ -88,7 +72,13 @@ func (wrc *Register) customAdapterWebhooks(
 	entries := make(map[string]*admissionregistrationapi.MutatingWebhook)
 
 	for _, a := range wrc.registry.List() {
-		name := adapterWebhookName(a)
+		name, truncated := workload.WebhookEntryName(a)
+		if truncated {
+			// The CRD's group and plural are immutable, so the derived entry
+			// name is truncated instead; the adapter remains fully functional.
+			wrc.log.Info("webhook entry name exceeds the DNS-1123 subdomain limit; applying deterministic truncation with a hash suffix",
+				"adapter", a.Name(), "entryName", name)
+		}
 		rule := admissionregistrationapi.RuleWithOperations{
 			Operations: adapterOperations(a),
 			Rule:       adapterWebhookRule(a),
