@@ -19,10 +19,43 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
 	varmorconfig "github.com/bytedance/vArmor/internal/config"
+	"github.com/bytedance/vArmor/pkg/workload"
+	"github.com/bytedance/vArmor/pkg/workload/workloadtest"
 )
+
+// TestValidateAddPolicy_MultiVersionAdapterTargetKind verifies that the
+// version-less Target.Kind resolves when the Kind is served by several
+// per-version adapters: one policy applies to every served version, and
+// admission routes each object by its full GVK.
+func TestValidateAddPolicy_MultiVersionAdapterTargetKind(t *testing.T) {
+	group := "policy.test.varmor.org"
+	v1 := workload.FakeAdapter{
+		AdapterName: "widget-v1",
+		AdapterGVK:  schema.GroupVersionKind{Group: group, Version: "v1", Kind: "Widget"},
+		AdapterGVR:  schema.GroupVersionResource{Group: group, Version: "v1", Resource: "widgets"},
+	}
+	v2 := workload.FakeAdapter{
+		AdapterName: "widget-v2",
+		AdapterGVK:  schema.GroupVersionKind{Group: group, Version: "v2", Kind: "Widget"},
+		AdapterGVR:  schema.GroupVersionResource{Group: group, Version: "v2", Resource: "widgets"},
+	}
+	registry := workloadtest.NewRegistry(t, v1, v2)
+
+	policy := &varmor.VarmorPolicy{
+		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
+		Spec: varmor.VarmorPolicySpec{
+			Target: varmor.Target{Kind: "Widget", Name: "test"},
+			Policy: varmor.Policy{Enforcer: "AppArmor", Mode: varmor.RuntimeDefaultMode},
+		},
+	}
+	valid, message := ValidateAddPolicy(policy, true, registry)
+	assert.True(t, valid, "version-less Target.Kind must resolve with versioned adapters: %s", message)
+	assert.Empty(t, message)
+}
 
 // TestValidateAddPolicy_ValidVarmorPolicy tests valid VarmorPolicy validation
 func TestValidateAddPolicy_ValidVarmorPolicy(t *testing.T) {
@@ -43,7 +76,7 @@ func TestValidateAddPolicy_ValidVarmorPolicy(t *testing.T) {
 		},
 	}
 
-	valid, message := ValidateAddPolicy(policy, true)
+	valid, message := ValidateAddPolicy(policy, true, workloadtest.NewRegistry(t))
 	assert.True(t, valid, "Valid policy should pass validation")
 	assert.Equal(t, "", message, "Should return empty message when validation passes")
 }
@@ -66,7 +99,7 @@ func TestValidateAddPolicy_ValidVarmorClusterPolicy(t *testing.T) {
 		},
 	}
 
-	valid, message := ValidateAddPolicy(policy, true)
+	valid, message := ValidateAddPolicy(policy, true, workloadtest.NewRegistry(t))
 	assert.True(t, valid, "Valid cluster policy should pass validation")
 	assert.Equal(t, "", message, "Should return empty message when validation passes")
 }
@@ -75,33 +108,56 @@ func TestValidateAddPolicy_ValidVarmorClusterPolicy(t *testing.T) {
 func TestValidateAddPolicy_UnsupportedPolicyType(t *testing.T) {
 	invalidPolicy := "invalid policy type"
 
-	valid, message := ValidateAddPolicy(invalidPolicy, true)
+	valid, message := ValidateAddPolicy(invalidPolicy, true, workloadtest.NewRegistry(t))
 	assert.False(t, valid, "Unsupported policy type should fail validation")
 	assert.Equal(t, "The policy type is not supported.", message)
 }
 
-// TestValidateAddPolicy_UnsupportedTargetKind tests unsupported target kind
-func TestValidateAddPolicy_UnsupportedTargetKind(t *testing.T) {
-	policy := &varmor.VarmorPolicy{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-policy",
-			Namespace: "default",
-		},
-		Spec: varmor.VarmorPolicySpec{
-			Target: varmor.Target{
-				Kind: "Service", // unsupported type
-				Name: "test-service",
-			},
-			Policy: varmor.Policy{
-				Enforcer: "AppArmor",
-				Mode:     varmor.RuntimeDefaultMode,
-			},
-		},
+// TestValidateAddPolicy_RegisteredTargetKinds verifies the two-tier
+// target.kind check: the four built-in kinds are always accepted via the
+// hard-coded set, even against an empty custom-only registry, while every
+// other Kind with no registered custom adapter (a core resource or an
+// unknown/custom Kind) is rejected.
+func TestValidateAddPolicy_RegisteredTargetKinds(t *testing.T) {
+	testCases := []struct {
+		name   string
+		kind   string
+		wantOK bool
+	}{
+		{"deployment accepted", "Deployment", true},
+		{"statefulset accepted", "StatefulSet", true},
+		{"daemonset accepted", "DaemonSet", true},
+		{"pod accepted", "Pod", true},
+		{"unregistered kind rejected", "NotARegisteredKind", false},
+		{"custom kind without adapter rejected", "Widget", false},
+		{"core service is not a workload", "Service", false},
 	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			policy := &varmor.VarmorPolicy{
+				ObjectMeta: metav1.ObjectMeta{Name: "test-policy", Namespace: "default"},
+				Spec: varmor.VarmorPolicySpec{
+					Target: varmor.Target{
+						Kind: tc.kind,
+						Name: "test-workload",
+					},
+					Policy: varmor.Policy{
+						Enforcer: "AppArmor",
+						Mode:     varmor.RuntimeDefaultMode,
+					},
+				},
+			}
 
-	valid, message := ValidateAddPolicy(policy, true)
-	assert.False(t, valid, "Unsupported target kind should fail validation")
-	assert.Contains(t, message, "The target kind is not supported")
+			valid, message := ValidateAddPolicy(policy, true, workloadtest.NewRegistry(t))
+			if tc.wantOK {
+				assert.True(t, valid, "kind %q should be accepted, got message: %s", tc.kind, message)
+				assert.Empty(t, message)
+			} else {
+				assert.False(t, valid, "kind %q should be rejected", tc.kind)
+				assert.Contains(t, message, "The target kind is not supported")
+			}
+		})
+	}
 }
 
 // TestValidateAddPolicy_EmptyTargetNameAndSelector tests when both target name and selector are empty
@@ -123,7 +179,7 @@ func TestValidateAddPolicy_EmptyTargetNameAndSelector(t *testing.T) {
 		},
 	}
 
-	valid, message := ValidateAddPolicy(policy, true)
+	valid, message := ValidateAddPolicy(policy, true, workloadtest.NewRegistry(t))
 	assert.False(t, valid, "Empty target name and selector should fail validation")
 	assert.Contains(t, message, "The target name and selector are empty")
 }
@@ -150,7 +206,7 @@ func TestValidateAddPolicy_BothTargetNameAndSelector(t *testing.T) {
 		},
 	}
 
-	valid, message := ValidateAddPolicy(policy, true)
+	valid, message := ValidateAddPolicy(policy, true, workloadtest.NewRegistry(t))
 	assert.False(t, valid, "Both target name and selector specified should fail validation")
 	assert.Contains(t, message, "The target name and selector are exclusive")
 }
@@ -175,7 +231,7 @@ func TestValidateAddPolicy_EnhanceProtectModeWithoutConfig(t *testing.T) {
 		},
 	}
 
-	valid, message := ValidateAddPolicy(policy, true)
+	valid, message := ValidateAddPolicy(policy, true, workloadtest.NewRegistry(t))
 	assert.False(t, valid, "EnhanceProtect mode without configuration should fail validation")
 	assert.Contains(t, message, "The enhanceProtect field should be set when the policy runs in the EnhanceProtect mode")
 }
@@ -200,7 +256,7 @@ func TestValidateAddPolicy_BehaviorModelingModeWithoutFeature(t *testing.T) {
 	}
 
 	// behaviorModelingEnabled = false
-	valid, message := ValidateAddPolicy(policy, false)
+	valid, message := ValidateAddPolicy(policy, false, workloadtest.NewRegistry(t))
 	assert.False(t, valid, "BehaviorModeling mode without feature enabled should fail validation")
 	assert.Contains(t, message, "The BehaviorModeling feature of vArmor is not enabled")
 }
@@ -226,7 +282,7 @@ func TestValidateAddPolicy_BehaviorModelingModeWithoutOptions(t *testing.T) {
 	}
 
 	// behaviorModelingEnabled = true
-	valid, message := ValidateAddPolicy(policy, true)
+	valid, message := ValidateAddPolicy(policy, true, workloadtest.NewRegistry(t))
 	assert.False(t, valid, "BehaviorModeling mode without configuration options should fail validation")
 	assert.Contains(t, message, "The modelingOptions field should be set when the policy runs in the BehaviorModeling mode")
 }
@@ -253,7 +309,7 @@ func TestValidateAddPolicy_ValidBehaviorModelingMode(t *testing.T) {
 		},
 	}
 
-	valid, message := ValidateAddPolicy(policy, true)
+	valid, message := ValidateAddPolicy(policy, true, workloadtest.NewRegistry(t))
 	assert.True(t, valid, "Valid BehaviorModeling mode should pass validation")
 	assert.Equal(t, "", message)
 }
@@ -280,7 +336,7 @@ func TestValidateAddPolicy_ValidEnhanceProtectMode(t *testing.T) {
 		},
 	}
 
-	valid, message := ValidateAddPolicy(policy, true)
+	valid, message := ValidateAddPolicy(policy, true, workloadtest.NewRegistry(t))
 	assert.True(t, valid, "Valid EnhanceProtect mode should pass validation")
 	assert.Equal(t, "", message)
 }
@@ -306,39 +362,9 @@ func TestValidateAddPolicy_ValidTargetSelector(t *testing.T) {
 		},
 	}
 
-	valid, message := ValidateAddPolicy(policy, true)
+	valid, message := ValidateAddPolicy(policy, true, workloadtest.NewRegistry(t))
 	assert.True(t, valid, "Valid target selector should pass validation")
 	assert.Equal(t, "", message)
-}
-
-// TestValidateAddPolicy_SupportedTargetKinds tests all supported target kinds
-func TestValidateAddPolicy_SupportedTargetKinds(t *testing.T) {
-	supportedKinds := []string{"Deployment", "StatefulSet", "DaemonSet", "Pod"}
-
-	for _, kind := range supportedKinds {
-		t.Run(kind, func(t *testing.T) {
-			policy := &varmor.VarmorPolicy{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-policy",
-					Namespace: "default",
-				},
-				Spec: varmor.VarmorPolicySpec{
-					Target: varmor.Target{
-						Kind: kind,
-						Name: "test-workload",
-					},
-					Policy: varmor.Policy{
-						Enforcer: "AppArmor",
-						Mode:     varmor.RuntimeDefaultMode,
-					},
-				},
-			}
-
-			valid, message := ValidateAddPolicy(policy, true)
-			assert.True(t, valid, "Supported target kind %s should pass validation", kind)
-			assert.Equal(t, "", message)
-		})
-	}
 }
 
 // TestValidateAddPolicy_LongPolicyName tests policy name that is too long
@@ -362,7 +388,7 @@ func TestValidateAddPolicy_LongPolicyName(t *testing.T) {
 		},
 	}
 
-	valid, message := ValidateAddPolicy(policy, true)
+	valid, message := ValidateAddPolicy(policy, true, workloadtest.NewRegistry(t))
 	assert.False(t, valid, "Policy name that is too long should fail validation")
 	assert.Contains(t, message, "The length of policy object name is too long")
 }
@@ -389,7 +415,7 @@ func TestValidateAddPolicy_ValidDefenseInDepthMode(t *testing.T) {
 		},
 	}
 
-	valid, message := ValidateAddPolicy(policy, true)
+	valid, message := ValidateAddPolicy(policy, true, workloadtest.NewRegistry(t))
 	assert.True(t, valid, "Valid DefenseInDepth mode should pass validation")
 	assert.Equal(t, "", message)
 }
@@ -413,7 +439,7 @@ func TestValidateAddPolicy_ValidAlwaysAllowMode(t *testing.T) {
 		},
 	}
 
-	valid, message := ValidateAddPolicy(policy, true)
+	valid, message := ValidateAddPolicy(policy, true, workloadtest.NewRegistry(t))
 	assert.True(t, valid, "Valid AlwaysAllow mode should pass validation")
 	assert.Equal(t, "", message)
 }
@@ -1345,7 +1371,7 @@ func TestValidatePolicy_RejectsMalformedEnforcer(t *testing.T) {
 		for _, enforcer := range invalidEnforcers {
 			t.Run(resource.name+"/create/"+enforcer, func(t *testing.T) {
 				policy := policyForEnforcerValidation(enforcer, resource.clusterScope)
-				valid, message := ValidateAddPolicy(policy, true)
+				valid, message := ValidateAddPolicy(policy, true, workloadtest.NewRegistry(t))
 				assert.False(t, valid, "malformed enforcer %q should be rejected", enforcer)
 				assert.Contains(t, message, "enforcer")
 			})
@@ -1380,7 +1406,7 @@ func TestValidatePolicy_AcceptsSupportedEnforcerCombinations(t *testing.T) {
 		for _, enforcer := range validEnforcers {
 			t.Run(resource.name+"/"+enforcer, func(t *testing.T) {
 				policy := policyForEnforcerValidation(enforcer, resource.clusterScope)
-				valid, message := ValidateAddPolicy(policy, true)
+				valid, message := ValidateAddPolicy(policy, true, workloadtest.NewRegistry(t))
 				assert.True(t, valid, "supported enforcer %q should be accepted on create: %s", enforcer, message)
 
 				valid, message = ValidateUpdatePolicy(policy, enforcer, target, nil)

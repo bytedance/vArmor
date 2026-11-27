@@ -37,6 +37,7 @@ import (
 	varmortls "github.com/bytedance/vArmor/internal/tls"
 	"github.com/bytedance/vArmor/internal/webhookconfig"
 	"github.com/bytedance/vArmor/pkg/metrics"
+	"github.com/bytedance/vArmor/pkg/workload"
 )
 
 // WebhookServer contains configured TLS server with MutationWebhook.
@@ -44,6 +45,7 @@ type WebhookServer struct {
 	server                 *http.Server
 	webhookRegister        *webhookconfig.Register
 	policyCacher           *policycacher.PolicyCacher
+	registry               *workload.Registry
 	deserializer           runtime.Decoder
 	enableBehaviorModeling bool
 	bpfExclusiveMode       bool
@@ -52,8 +54,40 @@ type WebhookServer struct {
 	mutatedRequests        metric.Float64Counter
 	nonMutatedRequests     metric.Float64Counter
 	webhookLatency         metric.Float64Histogram
+	adapterDispatch        metric.Float64Counter
 	log                    logr.Logger
 }
+
+// Adapter dispatch metric result labels. They describe the terminal outcome of
+// one matchAndPatch dispatch attempt (a policy whose target.Kind matches the
+// request's Kind) and are mutually exclusive per attempt.
+const (
+	// dispatchResultNotSelected: the request Kind is handled by a registered
+	// adapter, but this policy's target selected neither by name nor by
+	// label selector, so no patch was made. Decoding need not have
+	// happened: the name-mismatch branch records this result before the
+	// workload is deserialized.
+	dispatchResultNotSelected = "not_selected"
+	// dispatchResultDecodeError: the workload object could not be deserialized.
+	dispatchResultDecodeError = "decode_error"
+	// dispatchResultSelectorError: the policy's label selector could not be
+	// parsed, so name/label selection could not be evaluated. Admission still
+	// fails open and admits the object unmutated.
+	dispatchResultSelectorError = "selector_error"
+	// dispatchResultTemplateExtractError: patch building failed after a
+	// successful decode, including an adapter template-extraction error, an
+	// invalid template pointer, overlapping template paths, or a nil template.
+	dispatchResultTemplateExtractError = "template_extract_error"
+	// dispatchResultPatchSkippedUnconfined: the object was selected but no
+	// patch operation was produced. Typical causes are every targeted
+	// container opting out through an unconfined/privileged setting, the
+	// target container list matching nothing, the injection annotation
+	// already being present, or the adapter exposing no pod templates.
+	dispatchResultPatchSkippedUnconfined = "patch_skipped_unconfined"
+	// dispatchResultPatched: the object was selected and a non-empty patch was
+	// produced.
+	dispatchResultPatched = "patched"
+)
 
 func NewWebhookServer(
 	webhookRegister *webhookconfig.Register,
@@ -64,12 +98,14 @@ func NewWebhookServer(
 	enableBehaviorModeling bool,
 	bpfExclusiveMode bool,
 	metricsModule *metrics.MetricsModule,
+	workloadRegistry *workload.Registry,
 	log logr.Logger,
 ) (*WebhookServer, error) {
 
 	ws := &WebhookServer{
 		webhookRegister:        webhookRegister,
 		policyCacher:           policyCacher,
+		registry:               workloadRegistry,
 		enableBehaviorModeling: enableBehaviorModeling,
 		bpfExclusiveMode:       bpfExclusiveMode,
 		metricsModule:          metricsModule,
@@ -81,6 +117,7 @@ func NewWebhookServer(
 		ws.mutatedRequests = metricsModule.RegisterFloat64Counter("varmor_mutated_requests", "Number of requests that were mutated")
 		ws.nonMutatedRequests = metricsModule.RegisterFloat64Counter("varmor_non_mutated_requests", "Number of requests that were not mutated")
 		ws.webhookLatency = metricsModule.RegisterHistogram("varmor_webhook_latency", "Latency of webhook processing", 0.1, 0.5, 1, 2, 4, 8, 10)
+		ws.adapterDispatch = metricsModule.RegisterFloat64Counter("varmor_workload_adapter_dispatch_total", "Total number of workload adapter dispatch attempts by adapter and result")
 	}
 
 	scheme := runtime.NewScheme()
@@ -128,6 +165,19 @@ func NewWebhookServer(
 	}
 
 	return ws, nil
+}
+
+// recordAdapterDispatch increments the adapter dispatch counter with the
+// adapter name and terminal result. It is nil-safe: metrics are optional, and
+// when the metrics module is disabled the counter is never created and stays nil.
+func (ws *WebhookServer) recordAdapterDispatch(adapter, result string) {
+	if ws.adapterDispatch == nil {
+		return
+	}
+	ws.adapterDispatch.Add(context.Background(), 1, metric.WithAttributes(
+		attribute.String("adapter", adapter),
+		attribute.String("result", result),
+	))
 }
 
 func (ws *WebhookServer) handlerFunc(handler func(request *admissionv1.AdmissionRequest) *admissionv1.AdmissionResponse) http.HandlerFunc {

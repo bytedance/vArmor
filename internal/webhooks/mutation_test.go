@@ -1187,7 +1187,7 @@ func Test_buildPatch(t *testing.T) {
 				assert.NilError(t, err)
 
 				deploy := obj.(*appsv1.Deployment)
-				patch, err := buildPatch(deploy, tc.enforcer, tc.mode, target, nil, profileName, varmorpolicy.AuditPolicyIdentity{}, tc.bpfExclusiveMode, tc.apparmorGA)
+				patch, err := buildNativePatch(deploy, tc.enforcer, tc.mode, target, nil, profileName, varmorpolicy.AuditPolicyIdentity{}, tc.bpfExclusiveMode, tc.apparmorGA)
 				if err != nil {
 					assert.Assert(t, err != nil)
 				}
@@ -1203,7 +1203,7 @@ func Test_buildPatch(t *testing.T) {
 				assert.NilError(t, err)
 
 				pod := obj.(*corev1.Pod)
-				patch, err := buildPatch(pod, tc.enforcer, tc.mode, target, nil, profileName, varmorpolicy.AuditPolicyIdentity{}, tc.bpfExclusiveMode, tc.apparmorGA)
+				patch, err := buildNativePatch(pod, tc.enforcer, tc.mode, target, nil, profileName, varmorpolicy.AuditPolicyIdentity{}, tc.bpfExclusiveMode, tc.apparmorGA)
 				if err != nil {
 					assert.Assert(t, err != nil)
 				}

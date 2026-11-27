@@ -24,6 +24,7 @@ import (
 	varmor "github.com/bytedance/vArmor/apis/varmor/v1beta1"
 	varmorconfig "github.com/bytedance/vArmor/internal/config"
 	varmorpolicy "github.com/bytedance/vArmor/internal/policy"
+	"github.com/bytedance/vArmor/pkg/workload"
 )
 
 func Test_buildNetworkProxyPatch_MITMEnabled(t *testing.T) {
@@ -34,7 +35,7 @@ func Test_buildNetworkProxyPatch_MITMEnabled(t *testing.T) {
 		},
 	}
 
-	patch := buildNetworkProxyPatch(profileName, varmorpolicy.AuditPolicyIdentity{Kind: "VarmorPolicy", Name: "test", Namespace: "testns"}, true, proxyConfig, false)
+	patch := buildNetworkProxyPatch(profileName, varmorpolicy.AuditPolicyIdentity{Kind: "VarmorPolicy", Name: "test", Namespace: "testns"}, workload.WorkloadTemplatePath, proxyConfig, false)
 
 	// Should contain the sidecar MITM TLS volumeMount
 	assert.Assert(t, strings.Contains(patch, `"name": "varmor-network-proxy-mitm-tls"`),
@@ -93,7 +94,7 @@ func Test_buildNetworkProxyPatch_MITMDisabled(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			patch := buildNetworkProxyPatch(profileName, varmorpolicy.AuditPolicyIdentity{Kind: "VarmorPolicy", Name: "test", Namespace: "testns"}, true, tc.proxyConfig, false)
+			patch := buildNetworkProxyPatch(profileName, varmorpolicy.AuditPolicyIdentity{Kind: "VarmorPolicy", Name: "test", Namespace: "testns"}, workload.WorkloadTemplatePath, tc.proxyConfig, false)
 
 			// Should NOT contain MITM volumes
 			assert.Assert(t, !strings.Contains(patch, "varmor-network-proxy-mitm-tls"),
@@ -114,7 +115,7 @@ func Test_buildNetworkProxyMITMTargetPatch_Workloads(t *testing.T) {
 		Image: "nginx:latest",
 	}
 
-	patch := buildNetworkProxyMITMTargetPatch(true, container, 0)
+	patch := buildNetworkProxyMITMTargetPatch(workload.WorkloadTemplatePath, container, 0)
 
 	// Should create empty volumeMounts array first (container has none)
 	assert.Assert(t, strings.Contains(patch, `"op": "add", "path": "/spec/template/spec/containers/0/volumeMounts", "value": []`),
@@ -151,7 +152,7 @@ func Test_buildNetworkProxyMITMTargetPatch_ExistingMountsAndEnv(t *testing.T) {
 		},
 	}
 
-	patch := buildNetworkProxyMITMTargetPatch(true, container, 1)
+	patch := buildNetworkProxyMITMTargetPatch(workload.WorkloadTemplatePath, container, 1)
 
 	// Should NOT create empty arrays (already exist)
 	assert.Assert(t, !strings.Contains(patch, `"path": "/spec/template/spec/containers/1/volumeMounts", "value": []`),
@@ -172,7 +173,7 @@ func Test_buildNetworkProxyMITMTargetPatch_Pod(t *testing.T) {
 		Image: "nginx:latest",
 	}
 
-	patch := buildNetworkProxyMITMTargetPatch(false, container, 0)
+	patch := buildNetworkProxyMITMTargetPatch(workload.RootPath, container, 0)
 
 	// Pod path should NOT have /spec/template prefix
 	assert.Assert(t, strings.Contains(patch, `"/spec/containers/0/volumeMounts"`),

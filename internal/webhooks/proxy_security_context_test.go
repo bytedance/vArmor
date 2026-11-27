@@ -142,7 +142,7 @@ func TestNetworkProxyPodSecurityContext(t *testing.T) {
 						// Apply admission JSON Patch to the actual object, then decode it back.
 						// Repeat to ensure an annotated workload is not injected twice.
 						for pass := 0; pass < 2; pass++ {
-							patch, err := buildPatch(obj, "NetworkProxy", varmor.EnhanceProtectMode, target, config, "varmor-default-test", id, false, false)
+							patch, err := buildNativePatch(obj, "NetworkProxy", varmor.EnhanceProtectMode, target, config, "varmor-default-test", id, false, false)
 							require.NoError(t, err)
 							if patch == "" {
 								assertProxySecurity(t, original, securityPodSpec(obj), uid, mitm)
