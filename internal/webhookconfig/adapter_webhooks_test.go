@@ -24,6 +24,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/validation"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 
 	"github.com/bytedance/vArmor/internal/config"
 	"github.com/bytedance/vArmor/pkg/workload"
@@ -174,7 +175,10 @@ func TestCustomAdapterWebhooks_OverLongIdentityTruncated(t *testing.T) {
 	name := entries[0].Name
 	assert.LessOrEqual(t, len(name), validation.DNS1123SubdomainMaxLength)
 	assert.Empty(t, validation.IsDNS1123Subdomain(name), "truncated entry name must pass the API server's own validator")
-	assert.NotContains(t, name, ".varmor.org", "truncated names carry a hash suffix instead of the fixed suffix")
+	assert.Empty(t, validation.IsFullyQualifiedName(field.NewPath("webhooks").Index(0).Child("name"), name),
+		"truncated entry name must keep at least three dot-separated segments so the API server accepts the MutatingWebhookConfiguration")
+	assert.True(t, strings.HasPrefix(name, "mutate-"), "truncated names retain the fixed mutate- prefix: %q", name)
+	assert.True(t, strings.HasSuffix(name, ".varmor.org"), "truncated names retain the fixed .varmor.org suffix around the hash: %q", name)
 	wantName, _ := workload.WebhookEntryName(fake)
 	assert.Equal(t, wantName, name, "the shared helper and the renderer must agree")
 }
